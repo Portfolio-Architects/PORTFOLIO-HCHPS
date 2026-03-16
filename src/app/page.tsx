@@ -78,14 +78,7 @@ export default function Home() {
         );
 
       case 'mindmap':
-        return (
-          <MindMap3D
-            tasks={tasks}
-            meetings={meetings}
-            budgetEntries={budgetEntries}
-            projects={projects}
-          />
-        );
+        return <MindMap3D />;
 
       default:
         return null;
