@@ -1,0 +1,117 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #4A6CF7;
+  --color-primary-light: #7B93FA;
+  --color-primary-dark: #3451D1;
+  --color-success: #10B981;
+  --color-warning: #F59E0B;
+  --color-danger: #EF4444;
+  --color-bg: #f8f9fb;
+  --color-card: #ffffff;
+  --color-text-primary: #2d3436;
+  --color-text-secondary: #636e72;
+  --color-text-tertiary: #b2bec3;
+  --color-border: #e8ecf1;
+  --color-border-light: #f0f3f6;
+}
+
+:root {
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+  --shadow-lg: 0 8px 25px rgba(0,0,0,0.08);
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #ddd;
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #ccc;
+}
+
+/* No scrollbar */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Card hover effect */
+.card-hover {
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.card-hover:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+/* Progress bar animation */
+.progress-fill {
+  transition: width 0.4s ease;
+}
+
+/* Sidebar link active state */
+.nav-item {
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.nav-item:hover {
+  background-color: rgba(74, 108, 247, 0.06);
+}
+.nav-item.active {
+  background-color: rgba(74, 108, 247, 0.1);
+  color: var(--color-primary);
+}
+
+/* Modal backdrop */
+.modal-backdrop {
+  background-color: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(4px);
+}
+
+/* Badge styles */
+.badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.01em;
+}
+
+/* Calendar grid */
+.calendar-cell {
+  transition: background-color 0.15s ease;
+}
+.calendar-cell:hover {
+  background-color: rgba(74, 108, 247, 0.04);
+}
+
+/* Kanban column */
+.kanban-column {
+  min-height: 200px;
+}
+
+/* Priority colors */
+.priority-high { color: #EF4444; background-color: rgba(239,68,68,0.08); }
+.priority-medium { color: #F59E0B; background-color: rgba(245,158,11,0.08); }
+.priority-low { color: #10B981; background-color: rgba(16,185,129,0.08); }
+
+/* Status colors */
+.status-todo { color: #636e72; background-color: rgba(99,110,114,0.08); }
+.status-in-progress { color: #4A6CF7; background-color: rgba(74,108,247,0.08); }
+.status-done { color: #10B981; background-color: rgba(16,185,129,0.08); }

@@ -1,0 +1,223 @@
+'use client';
+
+import React, { useState } from 'react';
+import { Task, TaskStatus, BudgetCategory, BudgetEntry, InventoryItem, StockChange, Meeting, Project } from '@/types';
+import { TaskListView } from '@/components/TaskList';
+import { KanbanBoard } from '@/components/KanbanBoard';
+import { TaskModal } from '@/components/TaskModal';
+import { BudgetDashboard } from '@/components/budget/BudgetDashboard';
+import { InventoryList } from '@/components/inventory/InventoryList';
+import { MeetingScheduler } from '@/components/meeting/MeetingScheduler';
+import { ProjectBoard } from '@/components/project/ProjectBoard';
+import { CalendarView } from '@/components/CalendarView';
+import {
+  ListTodo, Wallet, Package, CalendarDays, FolderKanban, Calendar
+} from 'lucide-react';
+
+type SubTab = 'tasks' | 'budget' | 'inventory' | 'meetings' | 'projects' | 'calendar';
+
+const subTabs: { id: SubTab; label: string; icon: React.ElementType }[] = [
+  { id: 'tasks', label: '업무', icon: ListTodo },
+  { id: 'budget', label: '예산', icon: Wallet },
+  { id: 'inventory', label: '재고', icon: Package },
+  { id: 'meetings', label: '미팅', icon: CalendarDays },
+  { id: 'projects', label: '프로젝트', icon: FolderKanban },
+  { id: 'calendar', label: '캘린더', icon: Calendar },
+];
+
+interface WorkspaceViewProps {
+  // Tasks
+  tasks: Task[];
+  addTask: (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateTask: (id: string, updates: Partial<Task>) => void;
+  deleteTask: (id: string) => void;
+  moveTask: (id: string, status: TaskStatus) => void;
+  // Budget
+  budgetCategories: BudgetCategory[];
+  budgetEntries: BudgetEntry[];
+  addCategory: (cat: Omit<BudgetCategory, 'id'>) => void;
+  updateCategory: (id: string, updates: Partial<BudgetCategory>) => void;
+  deleteCategory: (id: string) => void;
+  addEntry: (entry: Omit<BudgetEntry, 'id'>) => void;
+  deleteEntry: (id: string) => void;
+  getCategoryStats: (id: string) => { totalBudget: number; spent: number; planned: number; remaining: number; usageRate: number } | null;
+  overallStats: { totalBudget: number; totalSpent: number; totalPlanned: number; remaining: number };
+  // Inventory
+  inventoryItems: InventoryItem[];
+  addItem: (item: Omit<InventoryItem, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateItem: (id: string, updates: Partial<InventoryItem>) => void;
+  deleteItem: (id: string) => void;
+  adjustStock: (itemId: string, change: number, reason: string) => void;
+  getItemHistory: (itemId: string) => StockChange[];
+  // Meetings
+  meetings: Meeting[];
+  addMeeting: (meeting: Omit<Meeting, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateMeeting: (id: string, updates: Partial<Meeting>) => void;
+  deleteMeeting: (id: string) => void;
+  // Projects
+  projects: Project[];
+  addProject: (p: Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'checklistItems'>) => void;
+  updateProject: (id: string, updates: Partial<Project>) => void;
+  deleteProject: (id: string) => void;
+  addChecklistItem: (projectId: string, text: string) => void;
+  toggleChecklistItem: (projectId: string, itemId: string) => void;
+  deleteChecklistItem: (projectId: string, itemId: string) => void;
+  getProjectProgress: (projectId: string) => number;
+}
+
+export function WorkspaceView(props: WorkspaceViewProps) {
+  const [activeTab, setActiveTab] = useState<SubTab>('tasks');
+  const [taskView, setTaskView] = useState<'list' | 'kanban'>('list');
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const [editTask, setEditTask] = useState<Task | null>(null);
+  const [defaultStatus, setDefaultStatus] = useState<TaskStatus>('todo');
+
+  const openTaskModal = (task?: Task, status?: TaskStatus) => {
+    setEditTask(task || null);
+    setDefaultStatus(status || 'todo');
+    setShowTaskModal(true);
+  };
+
+  const taskCategories = [...new Set(props.tasks.map(t => t.category).filter(Boolean))];
+
+  const renderSubContent = () => {
+    switch (activeTab) {
+      case 'tasks':
+        return (
+          <div className="space-y-4">
+            <div className="flex gap-2">
+              <button
+                onClick={() => setTaskView('list')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${taskView === 'list' ? 'bg-[var(--color-primary)] text-white' : 'bg-gray-100 text-[var(--color-text-secondary)] hover:bg-gray-200'}`}
+              >
+                📋 리스트
+              </button>
+              <button
+                onClick={() => setTaskView('kanban')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${taskView === 'kanban' ? 'bg-[var(--color-primary)] text-white' : 'bg-gray-100 text-[var(--color-text-secondary)] hover:bg-gray-200'}`}
+              >
+                📊 칸반
+              </button>
+            </div>
+            {taskView === 'list' ? (
+              <TaskListView
+                tasks={props.tasks}
+                onEdit={(task) => openTaskModal(task)}
+                onDelete={props.deleteTask}
+                onStatusChange={(id, status) => props.moveTask(id, status)}
+                onAdd={() => openTaskModal()}
+              />
+            ) : (
+              <KanbanBoard
+                tasks={props.tasks}
+                onStatusChange={(id, status) => props.moveTask(id, status)}
+                onEdit={(task) => openTaskModal(task)}
+                onAdd={(status) => openTaskModal(undefined, status)}
+              />
+            )}
+          </div>
+        );
+
+      case 'budget':
+        return (
+          <BudgetDashboard
+            categories={props.budgetCategories}
+            entries={props.budgetEntries}
+            addCategory={props.addCategory}
+            updateCategory={props.updateCategory}
+            deleteCategory={props.deleteCategory}
+            addEntry={props.addEntry}
+            deleteEntry={props.deleteEntry}
+            getCategoryStats={props.getCategoryStats}
+            overallStats={props.overallStats}
+          />
+        );
+
+      case 'inventory':
+        return (
+          <InventoryList
+            items={props.inventoryItems}
+            addItem={props.addItem}
+            updateItem={props.updateItem}
+            deleteItem={props.deleteItem}
+            adjustStock={props.adjustStock}
+            getItemHistory={props.getItemHistory}
+          />
+        );
+
+      case 'meetings':
+        return (
+          <MeetingScheduler
+            meetings={props.meetings}
+            addMeeting={props.addMeeting}
+            updateMeeting={props.updateMeeting}
+            deleteMeeting={props.deleteMeeting}
+          />
+        );
+
+      case 'projects':
+        return (
+          <ProjectBoard
+            projects={props.projects}
+            addProject={props.addProject}
+            updateProject={props.updateProject}
+            deleteProject={props.deleteProject}
+            addChecklistItem={props.addChecklistItem}
+            toggleChecklistItem={props.toggleChecklistItem}
+            deleteChecklistItem={props.deleteChecklistItem}
+            getProjectProgress={props.getProjectProgress}
+          />
+        );
+
+      case 'calendar':
+        return (
+          <CalendarView
+            tasks={props.tasks}
+            meetings={props.meetings}
+            budgetEntries={props.budgetEntries}
+          />
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <>
+      {/* Sub-tab navigation */}
+      <div className="flex items-center gap-1 mb-6 border-b border-[var(--color-border-light)] pb-3">
+        {subTabs.map(tab => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-1.5 px-3 py-2 text-[13px] font-medium cursor-pointer transition-all border-b-2 -mb-[13px] ${
+                isActive
+                  ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
+                  : 'border-transparent text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:border-gray-200'
+              }`}
+            >
+              <Icon size={14} />
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {renderSubContent()}
+
+      <TaskModal
+        isOpen={showTaskModal}
+        onClose={() => { setShowTaskModal(false); setEditTask(null); }}
+        onSave={(task) => props.addTask({ ...task, status: defaultStatus })}
+        editTask={editTask}
+        onUpdate={props.updateTask}
+        categories={taskCategories}
+        projects={props.projects.map(p => ({ id: p.id, name: p.name }))}
+      />
+    </>
+  );
+}
