@@ -11,15 +11,24 @@ import {
 // ============ Constants ============
 
 const NUM_ORBITS = 8;
-const ELLIPSE_RATIO = 1.3;
-const MIN_NODE_R = 4;
-const MAX_NODE_R = 36;
-const ORBIT_SPEED_BASE = 0.0012;
-const LERP_SPEED = 0.08;
+const ELLIPSE_RATIO = 1.3;  // tilted 2D ellipse
+const MIN_NODE_R = 3;
+const MAX_NODE_R = 24;
+const ORBIT_SPEED_BASE = 0.0004;  // slow gentle orbit
+const LERP_SPEED = 0.12;  // faster camera response
 const MIN_ZOOM = 0.3;
 const MAX_ZOOM = 3.0;
-const MIN_TILT = 0.26;
-const MAX_TILT = 1.31;
+const MIN_TILT = 0.3;
+const MAX_TILT = 1.0;
+const CULL_MARGIN = 80;  // px margin for frustum culling
+
+// Force relaxation constants
+const CHARGE_STRENGTH = -80;    // repulsion (milder to stay on orbit)
+const LINK_STRENGTH = 0.01;     // edge spring (gentle)
+const DAMPING = 0.80;           // velocity damping per tick
+const FORCE_ALPHA = 0.2;        // force intensity
+const MAX_VELOCITY = 2.0;       // max velocity cap
+const FORCE_WARMUP_TICKS = 150; // freeze after this many ticks
 
 // ============ Callbacks ============
 
@@ -39,7 +48,7 @@ export class OntologyCanvasEngine {
 
   // Camera
   zoom = 1;
-  cameraTilt = 0.6;
+  cameraTilt = 0.6;  // tilted 2D
   cameraOffsetX = 0;
   cameraOffsetY = 0;
   private targetOffsetX = 0;
@@ -60,6 +69,20 @@ export class OntologyCanvasEngine {
   // Precomputed
   private orbitRadii: number[] = [];
   private nodeMap = new Map<string, OrbitalNode>();
+  private connectionSet = new Set<string>();  // 'id1|||id2' for O(1) lookup
+
+  // Reusable sort buffers (avoid per-frame allocation)
+  private sortedNodes: OrbitalNode[] = [];
+  private canvasW = 0;
+  private canvasH = 0;
+
+  // Force relaxation state
+  private velocityX = new Map<string, number>();
+  private velocityY = new Map<string, number>();
+  private forceOffsetX = new Map<string, number>();
+  private forceOffsetY = new Map<string, number>();
+  private forceSettled = false;
+  private forceTickCount = 0;
 
   // ============ Init ============
 
@@ -68,6 +91,13 @@ export class OntologyCanvasEngine {
     this.edges = graph.edges;
     this.nodeCount = graph.nodes.length;
     this.edgeCount = graph.edges.length;
+
+    // Pre-build connection set for O(1) lookup
+    this.connectionSet.clear();
+    for (const edge of this.edges) {
+      this.connectionSet.add(edge.source + '|||' + edge.target);
+      this.connectionSet.add(edge.target + '|||' + edge.source);
+    }
 
     // Sort by centrality descending → center node = highest
     const sorted = [...graph.nodes].sort(
@@ -120,6 +150,20 @@ export class OntologyCanvasEngine {
     // Set active to center
     this.activeNode = this.centerNode;
     this.callbacks.onActiveNodeChange?.(this.activeNode);
+
+    // Initialize force state
+    this.velocityX.clear();
+    this.velocityY.clear();
+    this.forceOffsetX.clear();
+    this.forceOffsetY.clear();
+    this.forceSettled = false;
+    this.forceTickCount = 0;
+    for (const node of this.nodes) {
+      this.velocityX.set(node.id, 0);
+      this.velocityY.set(node.id, 0);
+      this.forceOffsetX.set(node.id, 0);
+      this.forceOffsetY.set(node.id, 0);
+    }
   }
 
   private makeOrbitalNode(
@@ -165,6 +209,112 @@ export class OntologyCanvasEngine {
       if (node.orbitIndex === 0) continue;
       node.orbitAngle += node.orbitSpeed;
     }
+
+    // ── Force Relaxation (warmup only) ──
+    // Runs for first N ticks, then freezes offsets.
+    if (this.forceTickCount < FORCE_WARMUP_TICKS) {
+      this.forceTickCount++;
+      const progress = this.forceTickCount / FORCE_WARMUP_TICKS;
+      const alpha = FORCE_ALPHA * (1 - progress); // linear cool-down to 0
+      this.applyForces(alpha);
+    }
+  }
+
+  private applyForces(alpha: number): void {
+    const n = this.nodes.length;
+    // Temporary force accumulators
+    const fx = new Float64Array(n);
+    const fy = new Float64Array(n);
+
+    // Build index map for O(1) lookup (avoids O(n) indexOf in loop)
+    const idxMap = new Map<string, number>();
+    for (let i = 0; i < n; i++) idxMap.set(this.nodes[i].id, i);
+
+    // 1. Charge repulsion (all pairs)
+    for (let i = 0; i < n; i++) {
+      const a = this.nodes[i];
+      if (a.orbitIndex === 0) continue; // skip center
+      const ax = a.renderX;
+      const ay = a.renderY;
+
+      for (let j = i + 1; j < n; j++) {
+        const b = this.nodes[j];
+        if (b.orbitIndex === 0) continue;
+
+        const dx = ax - b.renderX;
+        const dy = ay - b.renderY;
+        const distSq = dx * dx + dy * dy + 1; // +1 to avoid zero
+        const dist = Math.sqrt(distSq);
+
+        // Coulomb force: F = charge / dist²
+        const force = CHARGE_STRENGTH * alpha / distSq;
+        const forceX = (dx / dist) * force;
+        const forceY = (dy / dist) * force;
+
+        fx[i] -= forceX;
+        fy[i] -= forceY;
+        fx[j] += forceX;
+        fy[j] += forceY;
+      }
+    }
+
+    // 2. Link attraction (edges only)
+    for (const edge of this.edges) {
+      const src = this.nodeMap.get(edge.source);
+      const tgt = this.nodeMap.get(edge.target);
+      if (!src || !tgt) continue;
+      if (src.orbitIndex === 0 || tgt.orbitIndex === 0) continue;
+
+      const srcIdx = idxMap.get(edge.source) ?? -1;
+      const tgtIdx = idxMap.get(edge.target) ?? -1;
+      if (srcIdx < 0 || tgtIdx < 0) continue;
+
+      const dx = tgt.renderX - src.renderX;
+      const dy = tgt.renderY - src.renderY;
+      const dist = Math.sqrt(dx * dx + dy * dy + 1);
+      const strength = LINK_STRENGTH * Math.abs(edge.weight) * alpha;
+
+      fx[srcIdx] += dx * strength;
+      fy[srcIdx] += dy * strength;
+      fx[tgtIdx] -= dx * strength;
+      fy[tgtIdx] -= dy * strength;
+    }
+
+    // 3. Apply forces → velocity → offset
+    for (let i = 0; i < n; i++) {
+      const node = this.nodes[i];
+      if (node.orbitIndex === 0) continue; // center is pinned
+
+      let vx = (this.velocityX.get(node.id) || 0) + fx[i];
+      let vy = (this.velocityY.get(node.id) || 0) + fy[i];
+
+      // Damping
+      vx *= DAMPING;
+      vy *= DAMPING;
+
+      // Clamp velocity
+      const speed = Math.sqrt(vx * vx + vy * vy);
+      if (speed > MAX_VELOCITY) {
+        vx = (vx / speed) * MAX_VELOCITY;
+        vy = (vy / speed) * MAX_VELOCITY;
+      }
+
+      this.velocityX.set(node.id, vx);
+      this.velocityY.set(node.id, vy);
+
+      // Update offset from orbital base position
+      const ox = (this.forceOffsetX.get(node.id) || 0) + vx;
+      const oy = (this.forceOffsetY.get(node.id) || 0) + vy;
+
+      // Restoring spring: keep offsets small (nodes stay on orbits)
+      const maxOffset = 40;
+      this.forceOffsetX.set(node.id, ox * 0.99);
+      this.forceOffsetY.set(node.id, oy * 0.99);
+
+      // Clamp max offset
+      if (Math.abs(ox) > maxOffset) this.forceOffsetX.set(node.id, Math.sign(ox) * maxOffset);
+      if (Math.abs(oy) > maxOffset) this.forceOffsetY.set(node.id, Math.sign(oy) * maxOffset);
+    }
   }
 
   // ============ Compute Positions ============
@@ -175,10 +325,10 @@ export class OntologyCanvasEngine {
     const cosTilt = Math.cos(this.cameraTilt);
     const sinTilt = Math.sin(this.cameraTilt);
 
-    // Orbit radii — wider spread for readability
-    const baseRadius = Math.min(canvasW, canvasH) * 0.48;
+    // Orbit radii — wide spread for 100-node readability
+    const baseRadius = Math.min(canvasW, canvasH) * 0.58;
     this.orbitRadii = Array.from({ length: NUM_ORBITS + 1 }, (_, i) =>
-      i === 0 ? 0 : baseRadius * (0.12 + (i / NUM_ORBITS) * 0.88)
+      i === 0 ? 0 : baseRadius * (0.18 + (i / NUM_ORBITS) * 0.82)
     );
 
     for (const node of this.nodes) {
@@ -192,8 +342,11 @@ export class OntologyCanvasEngine {
       const x3d = Math.cos(node.orbitAngle) * orbR * ELLIPSE_RATIO;
       const y3d = Math.sin(node.orbitAngle) * orbR;
 
-      node.renderX = centerX + x3d * this.zoom;
-      node.renderY = centerY + y3d * cosTilt * this.zoom;
+      // Base orbital position + force offset
+      const ox = this.forceOffsetX.get(node.id) || 0;
+      const oy = this.forceOffsetY.get(node.id) || 0;
+      node.renderX = centerX + (x3d + ox) * this.zoom;
+      node.renderY = centerY + (y3d * cosTilt + oy) * this.zoom;
       node.renderZ = Math.sin(node.orbitAngle) * sinTilt; // -1 to 1
     }
   }
@@ -201,6 +354,8 @@ export class OntologyCanvasEngine {
   // ============ Render ============
 
   render(ctx: CanvasRenderingContext2D, width: number, height: number): void {
+    this.canvasW = width;
+    this.canvasH = height;
     this.computePositions(width, height);
 
     // 1. Background
@@ -209,10 +364,10 @@ export class OntologyCanvasEngine {
     // 2. Orbit tracks
     this.renderOrbitTracks(ctx, width, height);
 
-    // 3. Edges (sorted by avg depth, back-to-front)
+    // 3. Edges
     this.renderEdges(ctx);
 
-    // 4. Nodes (sorted by depth, back-to-front)
+    // 4. Nodes (depth-sorted, back-to-front)
     this.renderNodes(ctx);
   }
 
@@ -251,49 +406,48 @@ export class OntologyCanvasEngine {
 
   private renderEdges(ctx: CanvasRenderingContext2D): void {
     const activeId = this.activeNode?.id ?? null;
+    const w = this.canvasW;
+    const h = this.canvasH;
 
-    // Sort by average Z of endpoints (back to front)
-    const edgesWithDepth = this.edges.map(edge => {
+    // When a node is selected, only draw connected edges + faint others
+    // This dramatically reduces draw calls from 200 to ~20
+    for (const edge of this.edges) {
       const src = this.nodeMap.get(edge.source);
       const tgt = this.nodeMap.get(edge.target);
-      const avgZ = ((src?.renderZ ?? 0) + (tgt?.renderZ ?? 0)) / 2;
-      return { edge, src, tgt, avgZ };
-    }).sort((a, b) => a.avgZ - b.avgZ);
-
-    for (const { edge, src, tgt, avgZ } of edgesWithDepth) {
       if (!src || !tgt) continue;
 
       const isConnected = activeId && (edge.source === activeId || edge.target === activeId);
+
+      // PERF: Skip non-connected edges when a node is selected (draw only faint batch below)
+      if (activeId && !isConnected) continue;
+
+      // Frustum cull
+      if (src.renderX < -CULL_MARGIN && tgt.renderX < -CULL_MARGIN) continue;
+      if (src.renderX > w + CULL_MARGIN && tgt.renderX > w + CULL_MARGIN) continue;
+      if (src.renderY < -CULL_MARGIN && tgt.renderY < -CULL_MARGIN) continue;
+      if (src.renderY > h + CULL_MARGIN && tgt.renderY > h + CULL_MARGIN) continue;
+
       const isNegative = edge.weight < 0;
       const absWeight = Math.abs(edge.weight);
-
-      // Depth-based brightness
+      const avgZ = (src.renderZ + tgt.renderZ) / 2;
       const depthBrightness = 0.3 + (avgZ + 1) * 0.35;
 
-      // Base width
       let lineWidth = 0.5 + absWeight * 2;
       if (isNegative) lineWidth *= 1.5;
       if (isConnected) lineWidth *= 1.3;
 
-      // Opacity
-      let alpha = isConnected
+      const alpha = isConnected
         ? Math.max(0.4, depthBrightness * 0.8)
-        : activeId
-          ? 0.04
-          : depthBrightness * 0.25;
+        : depthBrightness * 0.25;
 
-      // Color
-      let color: string;
       if (isNegative) {
-        color = `rgba(229,56,59,${alpha})`;
+        ctx.strokeStyle = `rgba(229,56,59,${alpha})`;
       } else if (isConnected) {
-        color = `rgba(59,130,246,${Math.min(1, alpha * 1.5)})`;
+        ctx.strokeStyle = `rgba(59,130,246,${Math.min(1, alpha * 1.5)})`;
       } else {
-        color = `rgba(204,204,204,${alpha})`;
+        ctx.strokeStyle = `rgba(204,204,204,${alpha})`;
       }
 
-      ctx.save();
-      ctx.strokeStyle = color;
       ctx.lineWidth = lineWidth;
       ctx.setLineDash(isNegative ? [4, 3] : EDGE_TYPE_DASH[edge.type] || []);
       ctx.beginPath();
@@ -301,13 +455,28 @@ export class OntologyCanvasEngine {
       ctx.lineTo(tgt.renderX, tgt.renderY);
       ctx.stroke();
 
-      // Arrow for CAUSAL_DRIVE (at 70% from source)
-      if (edge.type === 'CAUSAL_DRIVE' && (isConnected || !activeId)) {
-        this.drawArrow(ctx, src, tgt, lineWidth, color);
+      if (edge.type === 'CAUSAL_DRIVE' && isConnected) {
+        this.drawArrow(ctx, src, tgt, lineWidth, ctx.strokeStyle);
       }
-
-      ctx.restore();
     }
+
+    // If active node selected, draw remaining edges as ultra-faint batch
+    if (activeId) {
+      ctx.strokeStyle = 'rgba(200,200,210,0.04)';
+      ctx.lineWidth = 0.5;
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      for (const edge of this.edges) {
+        if (edge.source === activeId || edge.target === activeId) continue;
+        const src = this.nodeMap.get(edge.source);
+        const tgt = this.nodeMap.get(edge.target);
+        if (!src || !tgt) continue;
+        ctx.moveTo(src.renderX, src.renderY);
+        ctx.lineTo(tgt.renderX, tgt.renderY);
+      }
+      ctx.stroke(); // single draw call for all faint edges
+    }
+    ctx.setLineDash([]);
   }
 
   private drawArrow(
@@ -338,17 +507,30 @@ export class OntologyCanvasEngine {
   }
 
   private renderNodes(ctx: CanvasRenderingContext2D): void {
-    // Sort back to front
-    const sorted = [...this.nodes].sort((a, b) => a.renderZ - b.renderZ);
+    // Reuse sorted buffer (avoid allocation)
+    this.sortedNodes.length = 0;
+    for (const n of this.nodes) this.sortedNodes.push(n);
+    this.sortedNodes.sort((a, b) => a.renderZ - b.renderZ);
+    const sorted = this.sortedNodes;
     const activeId = this.activeNode?.id;
     const hoveredId = this.hoveredNode?.id;
+    const w = this.canvasW;
+    const h = this.canvasH;
+
+    // Label occlusion tracking: array of placed label bounding boxes
+    const placedLabels: Array<{x: number; y: number; w: number; h: number}> = [];
 
     for (const node of sorted) {
+      // Frustum cull
       const r = node.nodeRadius * this.zoom;
+      if (node.renderX + r * 3 < -CULL_MARGIN || node.renderX - r * 3 > w + CULL_MARGIN) continue;
+      if (node.renderY + r * 3 < -CULL_MARGIN || node.renderY - r * 3 > h + CULL_MARGIN) continue;
+
       const isCenter = node.orbitIndex === 0;
       const isActive = node.id === activeId;
       const isHovered = node.id === hoveredId;
-      const isConnectedToActive = activeId ? this.isConnected(node.id, activeId) : false;
+      // O(1) connection check via pre-built Set
+      const isConnectedToActive = activeId ? this.connectionSet.has(node.id + '|||' + activeId) : false;
       const hasActiveSelection = !!activeId && activeId !== this.centerNode?.id;
 
       const depthAlpha = 0.4 + (node.renderZ + 1) * 0.3;
@@ -493,16 +675,12 @@ export class OntologyCanvasEngine {
         ctx.setLineDash([]);
       }
 
-      // ── Label — Progressive visibility to prevent overlap ──
-      // Tier 1: Always show (center, active, hovered)
-      // Tier 2: Connected to active node
-      // Tier 3: High-importance nodes (baseValue > 80) — only at zoom > 0.8
-      // Tier 4: All other nodes — only at zoom > 1.8
+      // ── Label — Progressive visibility + Occlusion ──
       const tier1 = isCenter || isActive || isHovered;
       const tier2 = isConnectedToActive;
       const tier3 = node.baseValue > 80 && this.zoom > 0.8;
       const tier4 = this.zoom > 1.8;
-      const showLabel = tier1 || tier2 || tier3 || tier4;
+      let showLabel = tier1 || tier2 || tier3 || tier4;
 
       if (showLabel) {
         const fontSize = Math.max(8, Math.min(12, 9 * this.zoom));
@@ -511,18 +689,46 @@ export class OntologyCanvasEngine {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
 
-        // Fade labels based on tier
-        const labelAlpha = tier1 ? 1 : tier2 ? 0.85 : tier3 ? 0.6 : 0.4;
-        ctx.fillStyle = isCenter || isActive
-          ? '#1e293b'
-          : `rgba(30,41,59,${Math.min(labelAlpha, opacity)})`;
-
         // Truncate long labels
         const maxChars = isCenter || isActive ? 20 : this.zoom > 1.5 ? 12 : 8;
         const label = node.label.length > maxChars
           ? node.label.slice(0, maxChars) + '..'
           : node.label;
-        ctx.fillText(label, node.renderX, node.renderY + r + 3);
+
+        // Label bounding box for occlusion test
+        const textWidth = ctx.measureText(label).width;
+        const labelX = node.renderX - textWidth / 2;
+        const labelY = node.renderY + r + 3;
+        const labelW = textWidth;
+        const labelH = fontSize + 2;
+
+        // Occlusion check: skip label if it overlaps a higher-priority label
+        let occluded = false;
+        if (!tier1) { // tier1 labels are never occluded
+          for (const placed of placedLabels) {
+            if (
+              labelX < placed.x + placed.w &&
+              labelX + labelW > placed.x &&
+              labelY < placed.y + placed.h &&
+              labelY + labelH > placed.y
+            ) {
+              occluded = true;
+              break;
+            }
+          }
+        }
+
+        if (!occluded) {
+          // Fade labels based on tier
+          const labelAlpha = tier1 ? 1 : tier2 ? 0.85 : tier3 ? 0.6 : 0.4;
+          ctx.fillStyle = isCenter || isActive
+            ? '#1e293b'
+            : `rgba(30,41,59,${Math.min(labelAlpha, opacity)})`;
+          ctx.fillText(label, node.renderX, labelY);
+
+          // Register placed label
+          placedLabels.push({ x: labelX, y: labelY, w: labelW, h: labelH });
+        }
       }
 
       ctx.restore();
@@ -558,10 +764,11 @@ export class OntologyCanvasEngine {
         this.targetOffsetY = 0;
       } else {
         this.activeNode = hit;
-        // Camera soft follow (40% toward node)
-        const cx = 0; // canvas center offset from 0
-        this.targetOffsetX = (0 - (hit.renderX - (0 + this.cameraOffsetX))) * 0.4;
-        this.targetOffsetY = (0 - (hit.renderY - (0 + this.cameraOffsetY))) * 0.4;
+        // Center clicked node on screen
+        const screenCenterX = this.canvasW / 2;
+        const screenCenterY = this.canvasH / 2;
+        this.targetOffsetX = screenCenterX - (hit.renderX - this.cameraOffsetX);
+        this.targetOffsetY = screenCenterY - (hit.renderY - this.cameraOffsetY);
       }
     } else {
       // Click empty space → reset
@@ -606,10 +813,7 @@ export class OntologyCanvasEngine {
   // ============ Queries ============
 
   isConnected(nodeId: string, targetId: string): boolean {
-    return this.edges.some(e =>
-      (e.source === nodeId && e.target === targetId) ||
-      (e.target === nodeId && e.source === targetId)
-    );
+    return this.connectionSet.has(nodeId + '|||' + targetId);
   }
 
   getConnectedEdges(nodeId: string): Array<{ edge: OntologyEdge; otherNode: OrbitalNode }> {
