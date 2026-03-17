@@ -39,6 +39,8 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal }: MindMa
   const [connectedEdges, setConnectedEdges] = useState<Array<{ edge: OntologyEdge; otherNode: OrbitalNode }>>([]);
   const [stats, setStats] = useState({ nodes: 0, edges: 0 });
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [signalText, setSignalText] = useState('');
+  const [signalCreated, setSignalCreated] = useState(false);
 
   // ── Init Engine ──
   const initEngine = useCallback(async () => {
@@ -297,10 +299,6 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal }: MindMa
       </div>
     );
   }
-
-  // ── Signal Input State ──
-  const [signalText, setSignalText] = useState('');
-  const [signalCreated, setSignalCreated] = useState(false);
 
   const handleSignalSubmit = () => {
     if (signalText.trim().length < 2) return;
