@@ -2,20 +2,28 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { OntologyCanvasEngine } from '@/lib/OntologyCanvasEngine';
-import { fetchOntologyFromSheets, getSampleGraph } from '@/lib/ontology.fetch';
+import { buildSignalGraph } from '@/lib/signal-graph';
+import { SignalEntry } from '@/hooks/useSignal';
 import {
   OrbitalNode, OntologyEdge,
   GROUP_COLORS, GROUP_LABELS, OntologyGroup,
   EDGE_TYPE_LABELS, EdgeType,
 } from '@/lib/ontology.types';
 import {
-  Brain, Loader2, RefreshCw, AlertTriangle,
+  Radio, Loader2, RefreshCw, AlertTriangle,
   Circle, Link2, X, ChevronRight, Zap, Maximize2, Minimize2,
 } from 'lucide-react';
 
+// ============ Props ============
+
+interface MindMap3DProps {
+  signalKeywords: Record<string, number>;
+  signalEntries: SignalEntry[];
+}
+
 // ============ Component ============
 
-export function MindMap3D() {
+export function MindMap3D({ signalKeywords, signalEntries }: MindMap3DProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<OntologyCanvasEngine | null>(null);
@@ -32,24 +40,13 @@ export function MindMap3D() {
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   // ── Init Engine ──
-  const initEngine = useCallback(async (useSample = false) => {
+  const initEngine = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      let graph;
-      if (useSample) {
-        graph = getSampleGraph();
-        setUsingSample(true);
-      } else {
-        try {
-          graph = await fetchOntologyFromSheets();
-          setUsingSample(false);
-        } catch {
-          graph = getSampleGraph();
-          setUsingSample(true);
-        }
-      }
+      const graph = buildSignalGraph(signalKeywords, signalEntries);
+      setUsingSample(Object.keys(signalKeywords).length === 0);
 
       const engine = new OntologyCanvasEngine();
       engine.init(graph, {
@@ -77,7 +74,7 @@ export function MindMap3D() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [signalKeywords, signalEntries]);
 
   // ── Animation Loop ──
   useEffect(() => {
@@ -291,10 +288,10 @@ export function MindMap3D() {
         <AlertTriangle size={32} className="text-[var(--color-danger)]" />
         <p className="text-sm text-[var(--color-danger)]">{error}</p>
         <button
-          onClick={() => initEngine(true)}
+          onClick={() => initEngine()}
           className="px-4 py-2 bg-[var(--color-primary)] text-white rounded-lg text-sm hover:opacity-90 cursor-pointer"
         >
-          샘플 데이터로 시작
+          다시 시도
         </button>
       </div>
     );
@@ -305,17 +302,17 @@ export function MindMap3D() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold flex items-center gap-2">
-          <Brain size={22} className="text-[var(--color-primary)]" />
-          온톨로지 그래프
+          <Radio size={22} className="text-emerald-500" />
+          시그널 맵
         </h2>
         <div className="flex items-center gap-2">
           {usingSample && (
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 font-medium">
-              샘플 데이터
+              시그널을 입력해주세요
             </span>
           )}
           <button
-            onClick={() => initEngine(false)}
+            onClick={() => initEngine()}
             className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-[var(--color-text-secondary)] hover:bg-gray-100 cursor-pointer transition-colors"
           >
             <RefreshCw size={12} /> 새로고침
@@ -434,7 +431,7 @@ export function MindMap3D() {
                   </div>
                 ) : (
                   <div className="text-center py-8">
-                    <Brain size={28} className="mx-auto mb-3 text-[var(--color-text-tertiary)] opacity-30" />
+                    <Radio size={28} className="mx-auto mb-3 text-[var(--color-text-tertiary)] opacity-30" />
                     <div className="text-xs text-[var(--color-text-tertiary)] leading-relaxed">
                       노드를 선택해보세요<br />
                       그래프의 점을 클릭하면<br />
