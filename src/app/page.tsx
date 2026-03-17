@@ -106,6 +106,20 @@ export default function Home() {
 
       <main className="flex-1 p-6 lg:p-8 overflow-y-auto custom-scrollbar">
         <div className="max-w-[1400px] mx-auto">
+          {/* Page Title */}
+          <div className="mb-6">
+            <h1 className="text-2xl font-bold text-[var(--color-text-primary)] tracking-tight">
+              📋 {activeModule === 'dashboard' ? '대시보드' : activeModule === 'workspace' ? '업무관리' : '마인드맵'}
+            </h1>
+            <p className="text-sm text-[var(--color-text-tertiary)] mt-1">
+              {activeModule === 'dashboard'
+                ? new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
+                : activeModule === 'workspace'
+                ? 'HCHPS Work Manager'
+                : '과제 네트워크 시각화'}
+            </p>
+          </div>
+
           {renderContent()}
         </div>
       </main>
