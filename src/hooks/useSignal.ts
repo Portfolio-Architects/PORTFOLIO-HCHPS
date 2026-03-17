@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { readSheet, addRow, deleteRow } from '@/lib/sheets-api';
 
 export interface SignalEntry {
   id: string;
@@ -10,11 +11,12 @@ export interface SignalEntry {
 }
 
 const STORAGE_KEY = 'hchps-signal-log';
+const SHEET_NAME = 'SIGNAL_LOG';
 
 function extractKeywords(text: string): string[] {
   // Remove common particles/josa and extract meaningful words
   const cleaned = text
-    .replace(/[.,!?~…·\-()[\]{}'"``""'']/g, ' ')
+    .replace(/[.,!?~…·\-()[\]{}'\"``""'']/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
@@ -52,8 +54,33 @@ export function useSignal() {
       return [];
     }
   });
+  const initialLoadDone = useRef(false);
 
-  // Persist
+  // Initial load from Google Sheets (with localStorage fallback)
+  useEffect(() => {
+    if (initialLoadDone.current) return;
+    initialLoadDone.current = true;
+
+    readSheet<SignalEntry>(SHEET_NAME)
+      .then(rows => {
+        if (rows.length > 0) {
+          // Parse keywords back from JSON string if needed
+          const parsed = rows.map(row => ({
+            ...row,
+            keywords: typeof row.keywords === 'string'
+              ? JSON.parse(row.keywords as string)
+              : Array.isArray(row.keywords) ? row.keywords : [],
+          }));
+          setEntries(parsed);
+          try { localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed)); } catch { /* */ }
+        }
+      })
+      .catch(() => {
+        // Silently fall back to localStorage data
+      });
+  }, []);
+
+  // Persist to localStorage on change
   useEffect(() => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(entries)); } catch { /* */ }
   }, [entries]);
@@ -66,12 +93,21 @@ export function useSignal() {
       keywords,
       createdAt: new Date().toISOString(),
     };
+    // Optimistic update
     setEntries(prev => [entry, ...prev]);
+    // Background sync to Google Sheets
+    addRow(SHEET_NAME, { ...entry, keywords: JSON.stringify(keywords) }).catch(() => {
+      console.warn('시그널 Sheets 동기화 실패 (로컬 저장 완료)');
+    });
     return entry;
   }, []);
 
   const deleteSignal = useCallback((id: string) => {
     setEntries(prev => prev.filter(e => e.id !== id));
+    // Background sync
+    deleteRow(SHEET_NAME, id).catch(() => {
+      console.warn('시그널 삭제 Sheets 동기화 실패');
+    });
   }, []);
 
   // Aggregate keywords with frequency

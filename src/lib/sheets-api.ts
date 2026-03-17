@@ -6,7 +6,7 @@
 const SPREADSHEET_ID = '1Ktm5PDYOHm4r5te1vnPC5gcAoIuRFxM5w5X5mSF6DGE';
 
 // ⚠️ Apps Script Web App 배포 후 이 URL을 업데이트하세요
-const APPS_SCRIPT_URL = '';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby6EJl_O0px8OXXeuEzmpfqLOqFzfO9u5LEzzoD2CQy86pocgFWx46gDZ0HQdOkf8TH/exec';
 
 // ============ Read: CSV export ============
 
