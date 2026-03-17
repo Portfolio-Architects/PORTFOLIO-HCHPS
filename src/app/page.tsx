@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ModuleType } from '@/types';
 import { useTasks } from '@/hooks/useTasks';
 import { useBudget } from '@/hooks/useBudget';
@@ -81,6 +81,9 @@ function PasscodeGate({ onUnlock }: { onUnlock: () => void }) {
 export default function Home() {
   const [activeModule, setActiveModule] = useState<ModuleType>('dashboard');
   const [mindmapUnlocked, setMindmapUnlocked] = useState(false);
+  const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const LOCK_TIMEOUT_MS = 5 * 60 * 1000; // 5분
 
   // Hooks
   const { tasks, addTask, updateTask, deleteTask, moveTask, stats: taskStats } = useTasks();
@@ -89,6 +92,34 @@ export default function Home() {
   const { meetings, addMeeting, updateMeeting, deleteMeeting, getUpcomingMeetings, getTodayMeetings } = useMeetings();
   const { projects, addProject, updateProject, deleteProject, addChecklistItem, toggleChecklistItem, deleteChecklistItem, getProjectProgress } = useProjects();
   const { entries: signalEntries, addSignal, keywordMap } = useSignal();
+
+  // Auto-lock mindmap after inactivity
+  const resetInactivityTimer = useCallback(() => {
+    if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+    inactivityTimer.current = setTimeout(() => {
+      setMindmapUnlocked(false);
+    }, LOCK_TIMEOUT_MS);
+  }, [LOCK_TIMEOUT_MS]);
+
+  useEffect(() => {
+    if (activeModule !== 'mindmap' || !mindmapUnlocked) {
+      if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+      return;
+    }
+
+    // Start timer when mindmap is unlocked
+    resetInactivityTimer();
+
+    // Reset on user activity
+    const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'] as const;
+    const handler = () => resetInactivityTimer();
+    events.forEach(evt => window.addEventListener(evt, handler, { passive: true }));
+
+    return () => {
+      if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+      events.forEach(evt => window.removeEventListener(evt, handler));
+    };
+  }, [activeModule, mindmapUnlocked, resetInactivityTimer]);
 
   // Reset mindmap lock when navigating away
   const handleModuleChange = (mod: ModuleType) => {
