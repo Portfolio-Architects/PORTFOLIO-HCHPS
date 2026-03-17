@@ -1,26 +1,31 @@
 'use client';
 
 import { useCallback } from 'react';
-import { useLocalStorage } from './useLocalStorage';
+import { useGoogleSheet, useSheetCrud } from './useGoogleSheet';
 import { Meeting, generateId } from '@/types';
 
 export function useMeetings() {
-  const [meetings, setMeetings] = useLocalStorage<Meeting[]>('hchps-meetings', []);
+  const [meetings, setMeetings] = useGoogleSheet<Meeting>('MEETINGS', 'hchps-meetings', []);
+  const { syncAdd, syncUpdate, syncDelete } = useSheetCrud<Meeting>('MEETINGS');
 
   const addMeeting = useCallback((meeting: Omit<Meeting, 'id' | 'createdAt' | 'updatedAt'>) => {
     const now = new Date().toISOString();
     const newMeeting: Meeting = { ...meeting, id: generateId(), createdAt: now, updatedAt: now };
     setMeetings(prev => [newMeeting, ...prev]);
+    syncAdd(newMeeting);
     return newMeeting;
-  }, [setMeetings]);
+  }, [setMeetings, syncAdd]);
 
   const updateMeeting = useCallback((id: string, updates: Partial<Meeting>) => {
-    setMeetings(prev => prev.map(m => m.id === id ? { ...m, ...updates, updatedAt: new Date().toISOString() } : m));
-  }, [setMeetings]);
+    const updatedFields = { ...updates, updatedAt: new Date().toISOString() };
+    setMeetings(prev => prev.map(m => m.id === id ? { ...m, ...updatedFields } : m));
+    syncUpdate(id, updatedFields);
+  }, [setMeetings, syncUpdate]);
 
   const deleteMeeting = useCallback((id: string) => {
     setMeetings(prev => prev.filter(m => m.id !== id));
-  }, [setMeetings]);
+    syncDelete(id);
+  }, [setMeetings, syncDelete]);
 
   const getUpcomingMeetings = useCallback((limit: number = 5) => {
     const now = new Date();

@@ -1,26 +1,31 @@
 'use client';
 
 import { useCallback, useMemo } from 'react';
-import { useLocalStorage } from './useLocalStorage';
+import { useGoogleSheet, useSheetCrud } from './useGoogleSheet';
 import { Task, TaskStatus, TaskPriority, generateId } from '@/types';
 
 export function useTasks() {
-  const [tasks, setTasks] = useLocalStorage<Task[]>('hchps-tasks', []);
+  const [tasks, setTasks] = useGoogleSheet<Task>('TASKS', 'hchps-tasks', []);
+  const { syncAdd, syncUpdate, syncDelete } = useSheetCrud<Task>('TASKS');
 
   const addTask = useCallback((task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => {
     const now = new Date().toISOString();
     const newTask: Task = { ...task, id: generateId(), createdAt: now, updatedAt: now };
     setTasks(prev => [newTask, ...prev]);
+    syncAdd(newTask);
     return newTask;
-  }, [setTasks]);
+  }, [setTasks, syncAdd]);
 
   const updateTask = useCallback((id: string, updates: Partial<Task>) => {
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t));
-  }, [setTasks]);
+    const updatedFields = { ...updates, updatedAt: new Date().toISOString() };
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updatedFields } : t));
+    syncUpdate(id, updatedFields);
+  }, [setTasks, syncUpdate]);
 
   const deleteTask = useCallback((id: string) => {
     setTasks(prev => prev.filter(t => t.id !== id));
-  }, [setTasks]);
+    syncDelete(id);
+  }, [setTasks, syncDelete]);
 
   const moveTask = useCallback((id: string, status: TaskStatus) => {
     updateTask(id, { status });

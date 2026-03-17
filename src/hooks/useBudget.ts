@@ -1,43 +1,51 @@
 'use client';
 
 import { useCallback, useMemo } from 'react';
-import { useLocalStorage } from './useLocalStorage';
+import { useGoogleSheet, useSheetCrud } from './useGoogleSheet';
 import { BudgetCategory, BudgetEntry, generateId } from '@/types';
 
 export function useBudget() {
-  const [categories, setCategories] = useLocalStorage<BudgetCategory[]>('hchps-budget-categories', []);
-  const [entries, setEntries] = useLocalStorage<BudgetEntry[]>('hchps-budget-entries', []);
+  const [categories, setCategories] = useGoogleSheet<BudgetCategory>('BUDGET_CATEGORIES', 'hchps-budget-categories', []);
+  const [entries, setEntries] = useGoogleSheet<BudgetEntry>('BUDGET_ENTRIES', 'hchps-budget-entries', []);
+  const catCrud = useSheetCrud<BudgetCategory>('BUDGET_CATEGORIES');
+  const entryCrud = useSheetCrud<BudgetEntry>('BUDGET_ENTRIES');
 
   // Category CRUD
   const addCategory = useCallback((cat: Omit<BudgetCategory, 'id'>) => {
     const newCat: BudgetCategory = { ...cat, id: generateId() };
     setCategories(prev => [...prev, newCat]);
+    catCrud.syncAdd(newCat);
     return newCat;
-  }, [setCategories]);
+  }, [setCategories, catCrud]);
 
   const updateCategory = useCallback((id: string, updates: Partial<BudgetCategory>) => {
     setCategories(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
-  }, [setCategories]);
+    catCrud.syncUpdate(id, updates);
+  }, [setCategories, catCrud]);
 
   const deleteCategory = useCallback((id: string) => {
     setCategories(prev => prev.filter(c => c.id !== id));
     setEntries(prev => prev.filter(e => e.categoryId !== id));
-  }, [setCategories, setEntries]);
+    catCrud.syncDelete(id);
+  }, [setCategories, setEntries, catCrud]);
 
   // Entry CRUD
   const addEntry = useCallback((entry: Omit<BudgetEntry, 'id'>) => {
     const newEntry: BudgetEntry = { ...entry, id: generateId() };
     setEntries(prev => [newEntry, ...prev]);
+    entryCrud.syncAdd(newEntry);
     return newEntry;
-  }, [setEntries]);
+  }, [setEntries, entryCrud]);
 
   const updateEntry = useCallback((id: string, updates: Partial<BudgetEntry>) => {
     setEntries(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e));
-  }, [setEntries]);
+    entryCrud.syncUpdate(id, updates);
+  }, [setEntries, entryCrud]);
 
   const deleteEntry = useCallback((id: string) => {
     setEntries(prev => prev.filter(e => e.id !== id));
-  }, [setEntries]);
+    entryCrud.syncDelete(id);
+  }, [setEntries, entryCrud]);
 
   // Stats per category
   const getCategoryStats = useCallback((categoryId: string) => {
