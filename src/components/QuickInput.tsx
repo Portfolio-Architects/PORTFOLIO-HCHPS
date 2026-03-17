@@ -57,7 +57,7 @@ export function QuickInput({ onCreateTask, onNavigate }: QuickInputProps) {
   };
 
   return (
-    <div className="max-w-[1400px] mx-auto px-4 sm:px-6">
+    <div className="max-w-[1800px] mx-auto px-4 sm:px-6">
       <div className="relative">
         {/* Input Row */}
         <div className="flex items-center gap-2 bg-[var(--color-card)] rounded-2xl border border-[var(--color-border-light)] shadow-[var(--shadow-sm)] px-4 py-2 transition-shadow focus-within:shadow-md focus-within:border-[var(--color-primary)]">

@@ -105,7 +105,7 @@ export default function Home() {
       </div>
 
       <main className="flex-1 p-6 lg:p-8 overflow-y-auto custom-scrollbar">
-        <div className="max-w-[1400px] mx-auto">
+        <div className="max-w-[1800px] mx-auto">
           {/* Page Title */}
           <div className="mb-6">
             <h1 className="text-2xl font-bold text-[var(--color-text-primary)] tracking-tight">
