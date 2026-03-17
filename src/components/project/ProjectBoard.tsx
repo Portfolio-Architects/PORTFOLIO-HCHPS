@@ -62,18 +62,18 @@ export function ProjectBoard({ projects, addProject, updateProject, deleteProjec
             return (
               <Card key={project.id}>
                 <div className="px-5 py-4">
-                  <div className="flex items-center gap-3 cursor-pointer" onClick={() => setExpandedId(isExpanded ? null : project.id)}>
+                  <div className="flex items-center gap-3 cursor-pointer flex-wrap" onClick={() => setExpandedId(isExpanded ? null : project.id)}>
                     {isExpanded ? <ChevronDown size={16} className="text-[var(--color-text-tertiary)]" /> : <ChevronRight size={16} className="text-[var(--color-text-tertiary)]" />}
                     <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: project.color }} />
                     <div className="flex-1 min-w-0">
                       <div className="font-semibold text-sm">{project.name}</div>
                       {project.description && <div className="text-xs text-[var(--color-text-tertiary)] mt-0.5">{project.description}</div>}
                     </div>
-                    <div className="flex items-center gap-3 shrink-0">
+                    <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                       <span className="text-xs text-[var(--color-text-tertiary)]">{completedCount}/{project.checklistItems.length}</span>
-                      <div className="w-24"><ProgressBar value={progress} color={project.color} /></div>
+                      <div className="w-16 sm:w-24"><ProgressBar value={progress} color={project.color} /></div>
                       <span className="text-xs font-semibold" style={{ color: project.color }}>{progress}%</span>
-                      <button onClick={e => { e.stopPropagation(); deleteProject(project.id); }} className="p-1 rounded hover:bg-gray-100 text-[var(--color-text-tertiary)] hover:text-[var(--color-danger)] cursor-pointer"><Trash2 size={14} /></button>
+                      <button onClick={e => { e.stopPropagation(); deleteProject(project.id); }} className="p-1.5 rounded hover:bg-gray-100 text-[var(--color-text-tertiary)] hover:text-[var(--color-danger)] cursor-pointer"><Trash2 size={14} /></button>
                     </div>
                   </div>
 
@@ -85,7 +85,7 @@ export function ProjectBoard({ projects, addProject, updateProject, deleteProjec
                             {item.completed ? <CheckCircle2 size={16} className="text-[var(--color-success)]" /> : <Circle size={16} className="text-[var(--color-text-tertiary)] hover:text-[var(--color-primary)] transition-colors" />}
                           </button>
                           <span className={`text-sm flex-1 ${item.completed ? 'line-through text-[var(--color-text-tertiary)]' : ''}`}>{item.text}</span>
-                          <button onClick={() => deleteChecklistItem(project.id, item.id)} className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-gray-100 text-[var(--color-text-tertiary)] hover:text-[var(--color-danger)] cursor-pointer transition-opacity"><Trash2 size={12} /></button>
+                          <button onClick={() => deleteChecklistItem(project.id, item.id)} className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 p-1.5 rounded hover:bg-gray-100 text-[var(--color-text-tertiary)] hover:text-[var(--color-danger)] cursor-pointer transition-opacity"><Trash2 size={12} /></button>
                         </div>
                       ))}
                       <div className="flex gap-2 mt-2">

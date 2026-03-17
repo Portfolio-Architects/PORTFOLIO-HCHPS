@@ -131,7 +131,7 @@ export function BudgetDashboard({ categories, entries, addCategory, updateCatego
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="font-medium">{formatN(entry.amount)}원</span>
-                            <button onClick={() => deleteEntry(entry.id)} className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-gray-100 text-[var(--color-text-tertiary)] hover:text-[var(--color-danger)] cursor-pointer transition-opacity"><Trash2 size={12} /></button>
+                            <button onClick={() => deleteEntry(entry.id)} className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 p-1 rounded hover:bg-gray-100 text-[var(--color-text-tertiary)] hover:text-[var(--color-danger)] cursor-pointer transition-opacity"><Trash2 size={12} /></button>
                           </div>
                         </div>
                       ))}

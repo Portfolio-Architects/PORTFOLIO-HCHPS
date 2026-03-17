@@ -105,10 +105,10 @@ export function TaskListView({ tasks, onEdit, onDelete, onStatusChange, onAdd }:
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
-                    <button onClick={() => onEdit(task)} className="p-1.5 rounded hover:bg-gray-100 text-[var(--color-text-tertiary)] hover:text-[var(--color-primary)] transition-colors cursor-pointer">
+                    <button onClick={() => onEdit(task)} className="p-2 rounded hover:bg-gray-100 text-[var(--color-text-tertiary)] hover:text-[var(--color-primary)] transition-colors cursor-pointer">
                       <Pencil size={14} />
                     </button>
-                    <button onClick={() => onDelete(task.id)} className="p-1.5 rounded hover:bg-gray-100 text-[var(--color-text-tertiary)] hover:text-[var(--color-danger)] transition-colors cursor-pointer">
+                    <button onClick={() => onDelete(task.id)} className="p-2 rounded hover:bg-gray-100 text-[var(--color-text-tertiary)] hover:text-[var(--color-danger)] transition-colors cursor-pointer">
                       <Trash2 size={14} />
                     </button>
                   </div>

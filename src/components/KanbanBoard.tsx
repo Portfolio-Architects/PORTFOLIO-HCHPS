@@ -41,7 +41,7 @@ function KanbanCard({ task, onEdit }: { task: Task; onEdit: (task: Task) => void
       onClick={() => onEdit(task)}
     >
       <div className="flex items-start gap-2">
-        <div {...listeners} className="mt-0.5 text-[var(--color-text-tertiary)] opacity-0 group-hover:opacity-100 transition-opacity cursor-grab">
+        <div {...listeners} className="mt-0.5 text-[var(--color-text-tertiary)] opacity-40 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity cursor-grab">
           <GripVertical size={14} />
         </div>
         <div className="flex-1 min-w-0">

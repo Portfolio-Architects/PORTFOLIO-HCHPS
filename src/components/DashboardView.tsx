@@ -213,12 +213,12 @@ export function DashboardView({
       {/* Completion Rate */}
       <Card>
         <CardContent>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div>
               <div className="text-sm text-[var(--color-text-secondary)]">업무 완료율</div>
               <div className="text-3xl font-bold mt-1">{taskStats.completionRate}%</div>
             </div>
-            <div className="w-48">
+            <div className="w-full sm:w-48">
               <ProgressBar value={taskStats.completionRate} height={10} color="var(--color-success)" />
             </div>
           </div>

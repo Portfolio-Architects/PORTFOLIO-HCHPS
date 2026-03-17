@@ -186,7 +186,7 @@ export function WorkspaceView(props: WorkspaceViewProps) {
   return (
     <>
       {/* Sub-tab navigation */}
-      <div className="flex items-center gap-1 mb-6 border-b border-[var(--color-border-light)] pb-3">
+      <div className="flex items-center gap-1 mb-6 border-b border-[var(--color-border-light)] pb-3 overflow-x-auto no-scrollbar">
         {subTabs.map(tab => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;

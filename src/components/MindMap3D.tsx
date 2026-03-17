@@ -179,7 +179,7 @@ export function MindMap3D() {
     engine.handleDragStart(y);
   }, [getCanvasPos]);
 
-  const handleMouseUp = useCallback((e: React.MouseEvent) => {
+  const handleMouseUp = useCallback(() => {
     const engine = engineRef.current;
     if (!engine) return;
     engine.handleDragEnd();
@@ -191,6 +191,76 @@ export function MindMap3D() {
     const { x, y } = getCanvasPos(e.nativeEvent);
     engine.handleClick(x, y);
   }, [getCanvasPos]);
+
+  // ── Touch Events for Mobile ──
+  const touchStartRef = useRef<{ x: number; y: number; time: number; pinchDist?: number }>({ x: 0, y: 0, time: 0 });
+  const isTouchDragging = useRef(false);
+
+  const getTouchDist = (e: React.TouchEvent) => {
+    if (e.touches.length < 2) return 0;
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    e.preventDefault();
+
+    if (e.touches.length === 2) {
+      // Pinch start
+      touchStartRef.current.pinchDist = getTouchDist(e);
+      return;
+    }
+
+    const { x, y } = getCanvasPos(e.nativeEvent as unknown as TouchEvent);
+    touchStartRef.current = { x, y, time: Date.now() };
+    isTouchDragging.current = false;
+    engine.handleDragStart(y);
+  }, [getCanvasPos]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    e.preventDefault();
+
+    // Pinch zoom
+    if (e.touches.length === 2 && touchStartRef.current.pinchDist) {
+      const newDist = getTouchDist(e);
+      const delta = touchStartRef.current.pinchDist - newDist;
+      engine.handleWheel(delta * 2);
+      touchStartRef.current.pinchDist = newDist;
+      return;
+    }
+
+    const { x, y } = getCanvasPos(e.nativeEvent as unknown as TouchEvent);
+    const dx = Math.abs(x - touchStartRef.current.x);
+    const dy = Math.abs(y - touchStartRef.current.y);
+    if (dx > 5 || dy > 5) isTouchDragging.current = true;
+
+    engine.handleHover(x, y);
+    engine.handleDragMove(y);
+  }, [getCanvasPos]);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    e.preventDefault();
+
+    if (touchStartRef.current.pinchDist) {
+      touchStartRef.current.pinchDist = undefined;
+      return;
+    }
+
+    engine.handleDragEnd();
+
+    // Tap detection (short duration + small movement)
+    const elapsed = Date.now() - touchStartRef.current.time;
+    if (!isTouchDragging.current && elapsed < 300) {
+      engine.handleClick(touchStartRef.current.x, touchStartRef.current.y);
+    }
+  }, []);
 
   // handleWheel is now native (see useEffect above)
 
@@ -391,17 +461,20 @@ export function MindMap3D() {
         <div
           ref={containerRef}
           className="relative rounded-xl overflow-hidden border border-[var(--color-border-light)] order-1 lg:order-none"
-          style={{ height: isFullscreen ? '85vh' : '600px', backgroundColor: '#f8f9fc' }}
+          style={{ height: isFullscreen ? '85vh' : 'min(600px, 70vh)', backgroundColor: '#f8f9fc' }}
         >
           <canvas
             ref={canvasRef}
             className="absolute inset-0 w-full h-full"
-            style={{ cursor: hoveredNode ? 'pointer' : 'grab' }}
+            style={{ cursor: hoveredNode ? 'pointer' : 'grab', touchAction: 'none' }}
             onClick={handleClick}
             onMouseMove={handleMouseMove}
             onMouseDown={handleMouseDown}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
           />
 
           {/* Stats overlay (top-right) */}
@@ -466,7 +539,8 @@ export function MindMap3D() {
 
           {/* Instructions */}
           <div className="absolute bottom-3 left-3 z-10 bg-white/80 backdrop-blur rounded-lg px-3 py-1.5 text-[10px] text-[var(--color-text-tertiary)]">
-            🖱️ 클릭: 노드 선택 · 드래그: 틸트 · 스크롤: 줌
+            <span className="hidden sm:inline">🖱️ 클릭: 노드 선택 · 드래그: 틸트 · 스크롤: 줌</span>
+            <span className="sm:hidden">👆 탭: 선택 · 드래그: 틸트 · 핀치: 줌</span>
           </div>
         </div>
       </div>

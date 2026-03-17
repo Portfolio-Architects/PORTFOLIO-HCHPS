@@ -66,44 +66,46 @@ export function CalendarView({ tasks, meetings, budgetEntries }: CalendarViewPro
       </div>
 
       <Card>
-        <div className="p-4">
-          {/* Weekday headers */}
-          <div className="grid grid-cols-7 mb-2">
-            {weekDays.map((d, i) => (
-              <div key={d} className={`text-center text-xs font-semibold py-2 ${i === 0 ? 'text-[var(--color-danger)]' : i === 6 ? 'text-[var(--color-primary)]' : 'text-[var(--color-text-tertiary)]'}`}>{d}</div>
-            ))}
-          </div>
+        <div className="p-2 sm:p-4 overflow-x-auto no-scrollbar">
+          <div className="min-w-[500px]">
+            {/* Weekday headers */}
+            <div className="grid grid-cols-7 mb-2">
+              {weekDays.map((d, i) => (
+                <div key={d} className={`text-center text-xs font-semibold py-2 ${i === 0 ? 'text-[var(--color-danger)]' : i === 6 ? 'text-[var(--color-primary)]' : 'text-[var(--color-text-tertiary)]'}`}>{d}</div>
+              ))}
+            </div>
 
-          {/* Calendar grid */}
-          <div className="grid grid-cols-7 gap-px">
-            {cells.map((day, i) => {
-              if (day === null) return <div key={`e-${i}`} className="p-2 min-h-[80px]" />;
-              const events = dayEvents[day];
-              const dayOfWeek = (firstDay + day - 1) % 7;
-              return (
-                <div key={day} className={`p-2 min-h-[80px] rounded-lg calendar-cell ${isToday(day) ? 'bg-[rgba(74,108,247,0.06)] ring-1 ring-[var(--color-primary)]' : ''}`}>
-                  <div className={`text-xs font-medium mb-1 ${isToday(day) ? 'text-[var(--color-primary)] font-bold' : dayOfWeek === 0 ? 'text-[var(--color-danger)]' : dayOfWeek === 6 ? 'text-[var(--color-primary)]' : 'text-[var(--color-text-secondary)]'}`}>
-                    {day}
-                  </div>
-                  {events && (
-                    <div className="space-y-0.5">
-                      {events.tasks.slice(0, 2).map(t => (
-                        <div key={t.id} className="text-[9px] px-1 py-0.5 rounded bg-[rgba(74,108,247,0.1)] text-[var(--color-primary)] truncate">{t.title}</div>
-                      ))}
-                      {events.meetings.slice(0, 2).map(m => (
-                        <div key={m.id} className="text-[9px] px-1 py-0.5 rounded bg-[rgba(16,185,129,0.1)] text-[var(--color-success)] truncate">📅 {m.title}</div>
-                      ))}
-                      {events.budget.slice(0, 1).map(b => (
-                        <div key={b.id} className="text-[9px] px-1 py-0.5 rounded bg-[rgba(245,158,11,0.1)] text-[var(--color-warning)] truncate">💰 {b.purpose}</div>
-                      ))}
-                      {(events.tasks.length + events.meetings.length + events.budget.length > 3) && (
-                        <div className="text-[9px] text-[var(--color-text-tertiary)] text-center">+{events.tasks.length + events.meetings.length + events.budget.length - 3}</div>
-                      )}
+            {/* Calendar grid */}
+            <div className="grid grid-cols-7 gap-px">
+              {cells.map((day, i) => {
+                if (day === null) return <div key={`e-${i}`} className="p-1.5 sm:p-2 min-h-[60px] sm:min-h-[80px]" />;
+                const events = dayEvents[day];
+                const dayOfWeek = (firstDay + day - 1) % 7;
+                return (
+                  <div key={day} className={`p-1.5 sm:p-2 min-h-[60px] sm:min-h-[80px] rounded-lg calendar-cell ${isToday(day) ? 'bg-[rgba(74,108,247,0.06)] ring-1 ring-[var(--color-primary)]' : ''}`}>
+                    <div className={`text-xs font-medium mb-1 ${isToday(day) ? 'text-[var(--color-primary)] font-bold' : dayOfWeek === 0 ? 'text-[var(--color-danger)]' : dayOfWeek === 6 ? 'text-[var(--color-primary)]' : 'text-[var(--color-text-secondary)]'}`}>
+                      {day}
                     </div>
-                  )}
-                </div>
-              );
-            })}
+                    {events && (
+                      <div className="space-y-0.5">
+                        {events.tasks.slice(0, 2).map(t => (
+                          <div key={t.id} className="text-[9px] px-1 py-0.5 rounded bg-[rgba(74,108,247,0.1)] text-[var(--color-primary)] truncate">{t.title}</div>
+                        ))}
+                        {events.meetings.slice(0, 2).map(m => (
+                          <div key={m.id} className="text-[9px] px-1 py-0.5 rounded bg-[rgba(16,185,129,0.1)] text-[var(--color-success)] truncate">📅 {m.title}</div>
+                        ))}
+                        {events.budget.slice(0, 1).map(b => (
+                          <div key={b.id} className="text-[9px] px-1 py-0.5 rounded bg-[rgba(245,158,11,0.1)] text-[var(--color-warning)] truncate">💰 {b.purpose}</div>
+                        ))}
+                        {(events.tasks.length + events.meetings.length + events.budget.length > 3) && (
+                          <div className="text-[9px] text-[var(--color-text-tertiary)] text-center">+{events.tasks.length + events.meetings.length + events.budget.length - 3}</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       </Card>
