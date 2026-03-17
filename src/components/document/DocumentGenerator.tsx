@@ -57,7 +57,9 @@ export function DocumentGenerator() {
 
   // Load template HWPX into memory
   useEffect(() => {
-    fetch('/templates/template.hwpx')
+    // Detect basePath from current URL (works with GitHub Pages /PORTFOLIO-HCHPS/ prefix)
+    const basePath = window.location.pathname.startsWith('/PORTFOLIO-HCHPS') ? '/PORTFOLIO-HCHPS' : '';
+    fetch(`${basePath}/templates/template.hwpx`)
       .then(r => r.arrayBuffer())
       .then(buf => { templateRef.current = buf; })
       .catch(() => console.warn('HWPX 템플릿 파일을 로드할 수 없습니다.'));
