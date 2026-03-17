@@ -87,6 +87,21 @@ export interface Project {
   updatedAt: string;
 }
 
+// ============ Document Generator Module ============
+export interface DocumentEntry {
+  id: string;
+  title: string;           // 건명
+  expenseType: string;     // 경비구분 (일상경비, 여비 등)
+  amount: number;          // 금액
+  vendorName: string;      // 업체명
+  vendorRegNo: string;     // 사업자등록번호
+  relatedDoc: string;      // 관련문서 번호
+  recipient: string;       // 수신 (내부결재 등)
+  budgetAccount: string;   // 예산과목
+  paymentMethod: string;   // 지급방법
+  status: 'draft' | 'ready' | 'done'; // 상태
+}
+
 // ============ Navigation ============
 export type ModuleType = 'dashboard' | 'workspace' | 'mindmap';
 

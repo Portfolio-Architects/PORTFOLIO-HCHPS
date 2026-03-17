@@ -20,18 +20,8 @@ export function Sidebar({ activeModule, onModuleChange, taskStats }: TopNavProps
   return (
     <header className="sticky top-0 z-40 bg-[var(--color-card)] border-b border-[var(--color-border-light)] shadow-[var(--shadow-sm)]">
       <div className="max-w-[1400px] mx-auto px-4 sm:px-6">
-        <div className="flex items-center h-14 gap-6">
-          {/* Brand / Title */}
-          <div className="flex items-center gap-2 shrink-0 pr-4 border-r border-[var(--color-border-light)]">
-            <span className="text-base font-bold text-[var(--color-text-primary)] tracking-tight">
-              📋 HCHPS
-            </span>
-            <span className="text-[11px] text-[var(--color-text-tertiary)] hidden sm:inline">
-              Work Manager
-            </span>
-          </div>
-
-          {/* Navigation Items */}
+        <div className="flex items-center h-14 gap-4">
+          {/* Navigation Items — flush left */}
           <nav className="flex items-center gap-1 flex-1">
             {navItems.map(item => {
               const Icon = item.icon;

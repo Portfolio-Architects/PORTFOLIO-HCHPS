@@ -35,13 +35,6 @@ export function DashboardView({
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-[var(--color-text-primary)]">대시보드</h2>
-        <p className="text-sm text-[var(--color-text-tertiary)] mt-1">
-          {new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}
-        </p>
-      </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -210,20 +203,7 @@ export function DashboardView({
         </Card>
       </div>
 
-      {/* Completion Rate */}
-      <Card>
-        <CardContent>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div>
-              <div className="text-sm text-[var(--color-text-secondary)]">업무 완료율</div>
-              <div className="text-3xl font-bold mt-1">{taskStats.completionRate}%</div>
-            </div>
-            <div className="w-full sm:w-48">
-              <ProgressBar value={taskStats.completionRate} height={10} color="var(--color-success)" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+
     </div>
   );
 }

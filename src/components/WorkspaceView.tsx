@@ -10,11 +10,12 @@ import { InventoryList } from '@/components/inventory/InventoryList';
 import { MeetingScheduler } from '@/components/meeting/MeetingScheduler';
 import { ProjectBoard } from '@/components/project/ProjectBoard';
 import { CalendarView } from '@/components/CalendarView';
+import { DocumentGenerator } from '@/components/document/DocumentGenerator';
 import {
-  ListTodo, Wallet, Package, CalendarDays, FolderKanban, Calendar
+  ListTodo, Wallet, Package, CalendarDays, FolderKanban, Calendar, FileText
 } from 'lucide-react';
 
-type SubTab = 'tasks' | 'budget' | 'inventory' | 'meetings' | 'projects' | 'calendar';
+type SubTab = 'tasks' | 'budget' | 'inventory' | 'meetings' | 'projects' | 'calendar' | 'documents';
 
 const subTabs: { id: SubTab; label: string; icon: React.ElementType }[] = [
   { id: 'tasks', label: '업무', icon: ListTodo },
@@ -23,6 +24,7 @@ const subTabs: { id: SubTab; label: string; icon: React.ElementType }[] = [
   { id: 'meetings', label: '미팅', icon: CalendarDays },
   { id: 'projects', label: '프로젝트', icon: FolderKanban },
   { id: 'calendar', label: '캘린더', icon: Calendar },
+  { id: 'documents', label: '문서', icon: FileText },
 ];
 
 interface WorkspaceViewProps {
@@ -176,6 +178,11 @@ export function WorkspaceView(props: WorkspaceViewProps) {
             meetings={props.meetings}
             budgetEntries={props.budgetEntries}
           />
+        );
+
+      case 'documents':
+        return (
+          <DocumentGenerator />
         );
 
       default:
