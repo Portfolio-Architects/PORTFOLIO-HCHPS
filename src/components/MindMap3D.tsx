@@ -11,7 +11,7 @@ import {
 } from '@/lib/ontology.types';
 import {
   Radio, Loader2, RefreshCw, AlertTriangle,
-  Circle, Link2, X, ChevronRight, Zap, Maximize2, Minimize2,
+  Circle, Link2, X, ChevronRight, Zap, Maximize2, Minimize2, Send,
 } from 'lucide-react';
 
 // ============ Props ============
@@ -19,11 +19,12 @@ import {
 interface MindMap3DProps {
   signalKeywords: Record<string, number>;
   signalEntries: SignalEntry[];
+  onAddSignal: (text: string) => void;
 }
 
 // ============ Component ============
 
-export function MindMap3D({ signalKeywords, signalEntries }: MindMap3DProps) {
+export function MindMap3D({ signalKeywords, signalEntries, onAddSignal }: MindMap3DProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<OntologyCanvasEngine | null>(null);
@@ -297,8 +298,52 @@ export function MindMap3D({ signalKeywords, signalEntries }: MindMap3DProps) {
     );
   }
 
+  // ── Signal Input State ──
+  const [signalText, setSignalText] = useState('');
+  const [signalCreated, setSignalCreated] = useState(false);
+
+  const handleSignalSubmit = () => {
+    if (signalText.trim().length < 2) return;
+    onAddSignal(signalText.trim());
+    setSignalText('');
+    setSignalCreated(true);
+    setTimeout(() => setSignalCreated(false), 2500);
+  };
+
   return (
     <div className="space-y-4">
+      {/* Signal Input Bar */}
+      <div className="relative">
+        <div className="flex items-center gap-2 bg-[var(--color-card)] rounded-2xl border border-emerald-200 shadow-[var(--shadow-sm)] px-4 py-2 transition-shadow focus-within:shadow-md focus-within:border-emerald-400">
+          <Radio size={16} className="text-emerald-500 shrink-0" />
+          <input
+            type="text"
+            value={signalText}
+            onChange={e => setSignalText(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSignalSubmit(); } }}
+            className="flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--color-text-tertiary)]"
+            placeholder="지금 느끼는 것을 자유롭게 기록하세요..."
+          />
+          {signalText.trim().length >= 2 && (
+            <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-600">
+              📡 시그널
+            </span>
+          )}
+          <button
+            onClick={handleSignalSubmit}
+            disabled={signalText.trim().length < 2}
+            className={`p-2 rounded-xl transition-all cursor-pointer ${signalText.trim().length >= 2 ? 'bg-emerald-500 text-white hover:opacity-90' : 'bg-gray-100 text-[var(--color-text-tertiary)]'}`}
+          >
+            <Send size={14} />
+          </button>
+        </div>
+        {signalCreated && (
+          <div className="absolute -bottom-7 left-1/2 -translate-x-1/2 text-xs font-medium text-emerald-500 animate-pulse">
+            📡 시그널 기록 완료!
+          </div>
+        )}
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold flex items-center gap-2">

@@ -148,7 +148,7 @@ export default function Home() {
         if (!mindmapUnlocked) {
           return <PasscodeGate onUnlock={() => setMindmapUnlocked(true)} />;
         }
-        return <MindMap3D signalKeywords={keywordMap} signalEntries={signalEntries} />;
+        return <MindMap3D signalKeywords={keywordMap} signalEntries={signalEntries} onAddSignal={addSignal} />;
 
       default:
         return null;
@@ -189,9 +189,6 @@ export default function Home() {
           onCreateTask={(data) => {
             addTask({ title: data.title, status: 'todo', priority: data.priority, category: data.category, dueDate: data.dueDate, tags: data.tags, description: '' });
             setActiveModule('workspace');
-          }}
-          onCreateSignal={(text) => {
-            addSignal(text);
           }}
           onNavigate={(m) => setActiveModule(m as ModuleType)}
         />
