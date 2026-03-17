@@ -90,6 +90,14 @@ export default function Home() {
   const { projects, addProject, updateProject, deleteProject, addChecklistItem, toggleChecklistItem, deleteChecklistItem, getProjectProgress } = useProjects();
   const { entries: signalEntries, addSignal, keywordMap } = useSignal();
 
+  // Reset mindmap lock when navigating away
+  const handleModuleChange = (mod: ModuleType) => {
+    if (activeModule === 'mindmap' && mod !== 'mindmap') {
+      setMindmapUnlocked(false);
+    }
+    setActiveModule(mod);
+  };
+
   const renderContent = () => {
     switch (activeModule) {
       case 'dashboard':
@@ -102,7 +110,7 @@ export default function Home() {
             projects={projects}
             getProjectProgress={getProjectProgress}
             getUpcomingMeetings={getUpcomingMeetings}
-            onNavigate={m => setActiveModule(m as ModuleType)}
+            onNavigate={m => handleModuleChange(m as ModuleType)}
           />
         );
 
@@ -179,7 +187,7 @@ export default function Home() {
     <div className="flex flex-col min-h-screen">
       <Sidebar
         activeModule={activeModule}
-        onModuleChange={setActiveModule}
+        onModuleChange={handleModuleChange}
         taskStats={taskStats}
       />
 
@@ -190,7 +198,7 @@ export default function Home() {
             addTask({ title: data.title, status: 'todo', priority: data.priority, category: data.category, dueDate: data.dueDate, tags: data.tags, description: '' });
             setActiveModule('workspace');
           }}
-          onNavigate={(m) => setActiveModule(m as ModuleType)}
+          onNavigate={(m) => handleModuleChange(m as ModuleType)}
         />
       </div>
 

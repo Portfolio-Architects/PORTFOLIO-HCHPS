@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import { Task, TaskStatus, BudgetCategory, BudgetEntry, InventoryItem, StockChange, Meeting, Project } from '@/types';
 import { TaskListView } from '@/components/TaskList';
-import { KanbanBoard } from '@/components/KanbanBoard';
 import { TaskModal } from '@/components/TaskModal';
 import { BudgetDashboard } from '@/components/budget/BudgetDashboard';
 import { InventoryList } from '@/components/inventory/InventoryList';
@@ -69,7 +68,7 @@ interface WorkspaceViewProps {
 
 export function WorkspaceView(props: WorkspaceViewProps) {
   const [activeTab, setActiveTab] = useState<SubTab>('tasks');
-  const [taskView, setTaskView] = useState<'list' | 'kanban'>('list');
+
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [editTask, setEditTask] = useState<Task | null>(null);
   const [defaultStatus, setDefaultStatus] = useState<TaskStatus>('todo');
@@ -87,36 +86,13 @@ export function WorkspaceView(props: WorkspaceViewProps) {
       case 'tasks':
         return (
           <div className="space-y-4">
-            <div className="flex gap-2">
-              <button
-                onClick={() => setTaskView('list')}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${taskView === 'list' ? 'bg-[var(--color-primary)] text-white' : 'bg-gray-100 text-[var(--color-text-secondary)] hover:bg-gray-200'}`}
-              >
-                📋 리스트
-              </button>
-              <button
-                onClick={() => setTaskView('kanban')}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${taskView === 'kanban' ? 'bg-[var(--color-primary)] text-white' : 'bg-gray-100 text-[var(--color-text-secondary)] hover:bg-gray-200'}`}
-              >
-                📊 칸반
-              </button>
-            </div>
-            {taskView === 'list' ? (
-              <TaskListView
-                tasks={props.tasks}
-                onEdit={(task) => openTaskModal(task)}
-                onDelete={props.deleteTask}
-                onStatusChange={(id, status) => props.moveTask(id, status)}
-                onAdd={() => openTaskModal()}
-              />
-            ) : (
-              <KanbanBoard
-                tasks={props.tasks}
-                onStatusChange={(id, status) => props.moveTask(id, status)}
-                onEdit={(task) => openTaskModal(task)}
-                onAdd={(status) => openTaskModal(undefined, status)}
-              />
-            )}
+            <TaskListView
+              tasks={props.tasks}
+              onEdit={(task) => openTaskModal(task)}
+              onDelete={props.deleteTask}
+              onStatusChange={(id, status) => props.moveTask(id, status)}
+              onAdd={() => openTaskModal()}
+            />
           </div>
         );
 
