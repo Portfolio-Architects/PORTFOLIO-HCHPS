@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Task, TaskStatus, TaskPriority, KnowledgeEntry } from '@/types';
+import { Task, TaskStatus, KnowledgeEntry } from '@/types';
 import { Modal } from './ui/modal';
 import { Lightbulb, CalendarDays } from 'lucide-react';
 
@@ -31,15 +31,15 @@ interface TaskModalProps {
   editTask?: Task | null;
   onUpdate?: (id: string, updates: Partial<Task>) => void;
   categories: string[];
+  allTags: string[];
   projects: { id: string; name: string }[];
   knowledgeEntries: KnowledgeEntry[];
 }
 
-export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, categories, projects, knowledgeEntries }: TaskModalProps) {
+export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, categories, allTags, projects, knowledgeEntries }: TaskModalProps) {
   const [title, setTitle] = useState(editTask?.title || '');
   const [description, setDescription] = useState(editTask?.description || '');
   const [status, setStatus] = useState<TaskStatus>(editTask?.status || 'todo');
-  const [priority, setPriority] = useState<TaskPriority>(editTask?.priority || 'medium');
   const [category, setCategory] = useState(editTask?.category || '');
   const [dueDate, setDueDate] = useState(editTask?.dueDate || '');
   const [projectId, setProjectId] = useState(editTask?.projectId || '');
@@ -60,7 +60,6 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, categor
       setTitle(editTask.title);
       setDescription(editTask.description || '');
       setStatus(editTask.status);
-      setPriority(editTask.priority);
       setCategory(editTask.category);
       setDueDate(editTask.dueDate || '');
       setProjectId(editTask.projectId || '');
@@ -75,7 +74,7 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, categor
       setRecurrenceCount(editTask.recurrenceCount || '');
       setTags(editTask.tags);
     } else {
-      setTitle(''); setDescription(''); setStatus('todo'); setPriority('medium');
+      setTitle(''); setDescription(''); setStatus('todo');
       setCategory(''); setDueDate(''); setProjectId('');
       setRecurrenceType('none'); setRecurrenceDays([]); setCustomRecurrence('');
       setRecurrenceStartDate(''); setRecurrenceEndDate(''); setRecurrenceCount(''); setTags([]);
@@ -124,9 +123,9 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, categor
     const countVal = typeof recurrenceCount === 'number' ? recurrenceCount : (parseInt(String(recurrenceCount)) || undefined);
 
     if (editTask && onUpdate) {
-      onUpdate(editTask.id, { title, description, status, priority, category, dueDate: dueDate || undefined, projectId: projectId || undefined, recurrence: finalRecurrence || undefined, recurrenceStartDate: recurrenceStartDate || undefined, recurrenceEndDate: recurrenceEndDate || undefined, recurrenceCount: countVal, tags });
+      onUpdate(editTask.id, { title, description, status, priority: 'medium', category, dueDate: dueDate || undefined, projectId: projectId || undefined, recurrence: finalRecurrence || undefined, recurrenceStartDate: recurrenceStartDate || undefined, recurrenceEndDate: recurrenceEndDate || undefined, recurrenceCount: countVal, tags });
     } else {
-      onSave({ title, description, status, priority, category, dueDate: dueDate || undefined, projectId: projectId || undefined, recurrence: finalRecurrence || undefined, recurrenceStartDate: recurrenceStartDate || undefined, recurrenceEndDate: recurrenceEndDate || undefined, recurrenceCount: countVal, tags });
+      onSave({ title, description, status, priority: 'medium', category, dueDate: dueDate || undefined, projectId: projectId || undefined, recurrence: finalRecurrence || undefined, recurrenceStartDate: recurrenceStartDate || undefined, recurrenceEndDate: recurrenceEndDate || undefined, recurrenceCount: countVal, tags });
     }
     onClose();
   };
@@ -200,24 +199,6 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, categor
               <option value="in-progress">진행중</option>
               <option value="done">완료</option>
             </select>
-          </div>
-          <div>
-            <label className={labelClass}>우선순위</label>
-            <select value={priority} onChange={e => setPriority(e.target.value as TaskPriority)} className={inputClass}>
-              <option value="low">낮음</option>
-              <option value="medium">보통</option>
-              <option value="high">높음</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className={labelClass}>카테고리</label>
-            <input type="text" value={category} onChange={e => setCategory(e.target.value)} className={inputClass} placeholder="카테고리" list="category-list" />
-            <datalist id="category-list">
-              {categories.map(c => <option key={c} value={c} />)}
-            </datalist>
           </div>
           <div>
             <label className={labelClass}>마감일</label>
@@ -308,16 +289,50 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, categor
         )}
 
         <div>
+          <label className={labelClass}>카테고리</label>
+          <input type="text" value={category} onChange={e => setCategory(e.target.value)} className={inputClass} placeholder="카테고리" list="category-list" />
+          <datalist id="category-list">
+            {categories.map(c => <option key={c} value={c} />)}
+          </datalist>
+        </div>
+
+        <div>
           <label className={labelClass}>태그</label>
+          {/* Existing tags as clickable chips */}
+          {allTags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {allTags.map(tag => {
+                const isSelected = tags.includes(tag);
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => {
+                      if (isSelected) setTags(tags.filter(t => t !== tag));
+                      else setTags([...tags, tag]);
+                    }}
+                    className={`px-2 py-0.5 rounded-full text-xs font-medium transition-colors cursor-pointer ${
+                      isSelected
+                        ? 'bg-[var(--color-primary)] text-white shadow-sm'
+                        : 'bg-gray-100 text-[var(--color-text-secondary)] hover:bg-gray-200'
+                    }`}
+                  >
+                    {isSelected ? '✓ ' : '#'}{tag}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {/* New tag input */}
           <div className="flex gap-2">
-            <input type="text" value={tagInput} onChange={e => setTagInput(e.target.value)} className={`${inputClass} flex-1`} placeholder="태그 입력 후 추가" onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addTag())} />
+            <input type="text" value={tagInput} onChange={e => setTagInput(e.target.value)} className={`${inputClass} flex-1`} placeholder="새 태그 입력 후 추가" onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addTag())} />
             <button type="button" onClick={addTag} className="px-3 py-2 rounded-lg bg-gray-100 text-sm hover:bg-gray-200 transition-colors cursor-pointer">추가</button>
           </div>
           {tags.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-2">
-              {tags.map(tag => (
-                <span key={tag} className="badge bg-gray-100 text-[var(--color-text-secondary)] cursor-pointer hover:bg-gray-200 transition-colors" onClick={() => setTags(tags.filter(t => t !== tag))}>
-                  {tag} ×
+              {tags.filter(t => !allTags.includes(t)).map(tag => (
+                <span key={tag} className="badge bg-[var(--color-primary)] text-white cursor-pointer hover:opacity-80 transition-colors" onClick={() => setTags(tags.filter(t => t !== tag))}>
+                  ✓ {tag} ×
                 </span>
               ))}
             </div>

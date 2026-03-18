@@ -77,6 +77,7 @@ export function WorkspaceView(props: WorkspaceViewProps) {
   };
 
   const taskCategories = [...new Set(props.tasks.map(t => t.category).filter(Boolean))];
+  const allTags = [...new Set(props.tasks.flatMap(t => t.tags).filter(Boolean))];
 
   const renderSubContent = () => {
     switch (activeTab) {
@@ -171,6 +172,7 @@ export function WorkspaceView(props: WorkspaceViewProps) {
         editTask={editTask}
         onUpdate={props.updateTask}
         categories={taskCategories}
+        allTags={allTags}
         projects={props.projects.map(p => ({ id: p.id, name: p.name }))}
         knowledgeEntries={props.knowledgeEntries}
       />

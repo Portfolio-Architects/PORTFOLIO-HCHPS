@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Task, TaskStatus, TaskPriority, Meeting, Project, generateId } from '@/types';
+import { Task, TaskStatus, Meeting, Project, generateId } from '@/types';
 import { Badge } from './ui/badge';
 import { Card } from './ui/card';
 import { ProgressBar } from './ui/progress-bar';
@@ -9,7 +9,7 @@ import { Modal } from './ui/modal';
 import {
   Plus, Pencil, Trash2, CheckCircle2, Circle, Search,
   CalendarDays, MapPin, Users, FileText, FolderKanban,
-  ListTodo, ChevronDown, ChevronRight, Repeat
+  ListTodo, ChevronDown, ChevronRight, Repeat, Tag
 } from 'lucide-react';
 
 type ItemFilter = 'all' | 'tasks' | 'meetings';
@@ -31,8 +31,6 @@ interface TaskListProps {
   deleteProject: (id: string) => void;
 }
 
-const priorityLabel: Record<TaskPriority, string> = { low: '낮음', medium: '보통', high: '높음' };
-const priorityVariant: Record<TaskPriority, 'success' | 'warning' | 'danger'> = { low: 'success', medium: 'warning', high: 'danger' };
 
 function getDDay(dueDate?: string) {
   if (!dueDate) return null;
@@ -60,10 +58,10 @@ export function TaskListView({
 }: TaskListProps) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<TaskStatus | ''>('');
-  const [priorityFilter, setPriorityFilter] = useState<TaskPriority | ''>('');
   const [itemFilter, setItemFilter] = useState<ItemFilter>('all');
   const [projectFilter, setProjectFilter] = useState<string>('');
   const [categoryFilter, setCategoryFilter] = useState<string>('');
+  const [tagFilter, setTagFilter] = useState<string>('');
   const [showRecurringOnly, setShowRecurringOnly] = useState(false);
 
   // Meeting modal state
@@ -91,13 +89,13 @@ export function TaskListView({
     return tasks.filter(t => {
       if (search && !t.title.toLowerCase().includes(search.toLowerCase()) && !(t.description || '').toLowerCase().includes(search.toLowerCase())) return false;
       if (statusFilter && t.status !== statusFilter) return false;
-      if (priorityFilter && t.priority !== priorityFilter) return false;
       if (projectFilter && t.projectId !== projectFilter) return false;
       if (categoryFilter && t.category !== categoryFilter) return false;
+      if (tagFilter && !t.tags.includes(tagFilter)) return false;
       if (showRecurringOnly && !t.recurrence) return false;
       return true;
     });
-  }, [tasks, search, statusFilter, priorityFilter, projectFilter, categoryFilter, showRecurringOnly]);
+  }, [tasks, search, statusFilter, projectFilter, categoryFilter, tagFilter, showRecurringOnly]);
 
   const filteredMeetings = useMemo(() => {
     if (!search) return meetings;
@@ -170,7 +168,6 @@ export function TaskListView({
               {task.title}
             </div>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
-              <Badge variant={priorityVariant[task.priority]}>{priorityLabel[task.priority]}</Badge>
               {task.dueDate && (() => {
                 const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
                 const [datePart, timePart] = task.dueDate.split('T');
@@ -307,6 +304,34 @@ export function TaskListView({
         );
       })()}
 
+      {/* Tag Sub-tabs */}
+      {(() => {
+        const allTags = [...new Set(tasks.flatMap(t => t.tags).filter(Boolean))];
+        if (allTags.length === 0) return null;
+        return (
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+            <Tag size={12} className="text-[var(--color-text-tertiary)] shrink-0" />
+            {allTags.map(tag => {
+              const active = tagFilter === tag;
+              const count = tasks.filter(t => t.tags.includes(tag)).length;
+              return (
+                <button
+                  key={tag}
+                  onClick={() => setTagFilter(active ? '' : tag)}
+                  className={`shrink-0 px-2.5 py-1 rounded-full text-[11px] font-medium transition-all cursor-pointer ${
+                    active
+                      ? 'bg-violet-100 text-violet-700 shadow-sm ring-1 ring-violet-300'
+                      : 'bg-gray-50 text-[var(--color-text-secondary)] hover:bg-gray-100 border border-gray-200'
+                  }`}
+                >
+                  #{tag} <span className="font-bold">{count}</span>
+                </button>
+              );
+            })}
+          </div>
+        );
+      })()}
+
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-xl font-bold">업무 목록</h2>
@@ -407,12 +432,6 @@ export function TaskListView({
               <option value="todo">대기</option>
               <option value="in-progress">진행중</option>
               <option value="done">완료</option>
-            </select>
-            <select value={priorityFilter} onChange={e => setPriorityFilter(e.target.value as TaskPriority | '')} className="px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]">
-              <option value="">전체 우선순위</option>
-              <option value="high">높음</option>
-              <option value="medium">보통</option>
-              <option value="low">낮음</option>
             </select>
           </>
         )}
