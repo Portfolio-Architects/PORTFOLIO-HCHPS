@@ -309,22 +309,6 @@ export function TaskListView({
 
       {/* Filters */}
       <div className="flex gap-2 flex-wrap items-center">
-        {/* Item type filter toggle */}
-        <div className="flex rounded-lg border border-[var(--color-border)] overflow-hidden">
-          {([['all', '전체'], ['tasks', '업무'], ['meetings', '미팅']] as [ItemFilter, string][]).map(([val, label]) => (
-            <button
-              key={val}
-              onClick={() => setItemFilter(val)}
-              className={`px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
-                itemFilter === val
-                  ? 'bg-[var(--color-primary)] text-white'
-                  : 'bg-white text-[var(--color-text-secondary)] hover:bg-gray-50'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
 
         {/* Search */}
         <div className="relative flex-1 min-w-[160px]">

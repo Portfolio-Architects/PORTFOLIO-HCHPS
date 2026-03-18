@@ -183,6 +183,14 @@ export default function Home() {
             toggleChecklistItem={toggleChecklistItem}
             deleteChecklistItem={deleteChecklistItem}
             getProjectProgress={getProjectProgress}
+            quickInput={
+              <QuickInput
+                onCreateTask={(data) => {
+                  addTask({ title: data.title, status: 'todo', priority: data.priority, category: data.category, dueDate: data.dueDate, tags: data.tags, description: '', recurrence: data.recurrence });
+                }}
+                onNavigate={(m) => handleModuleChange(m as ModuleType)}
+              />
+            }
           />
         );
 
@@ -225,16 +233,18 @@ export default function Home() {
         taskStats={taskStats}
       />
 
-      {/* Quick Input Bar */}
-      <div className="bg-[var(--color-bg)] py-3 border-b border-[var(--color-border-light)]">
-        <QuickInput
-          onCreateTask={(data) => {
-            addTask({ title: data.title, status: 'todo', priority: data.priority, category: data.category, dueDate: data.dueDate, tags: data.tags, description: '', recurrence: data.recurrence });
-            setActiveModule('workspace');
-          }}
-          onNavigate={(m) => handleModuleChange(m as ModuleType)}
-        />
-      </div>
+      {/* Quick Input Bar — only show standalone when NOT on workspace */}
+      {activeModule !== 'workspace' && (
+        <div className="bg-[var(--color-bg)] py-3 border-b border-[var(--color-border-light)]">
+          <QuickInput
+            onCreateTask={(data) => {
+              addTask({ title: data.title, status: 'todo', priority: data.priority, category: data.category, dueDate: data.dueDate, tags: data.tags, description: '', recurrence: data.recurrence });
+              setActiveModule('workspace');
+            }}
+            onNavigate={(m) => handleModuleChange(m as ModuleType)}
+          />
+        </div>
+      )}
 
       <main className="flex-1 p-6 lg:p-8 overflow-y-auto custom-scrollbar">
         <div className="max-w-[1800px] mx-auto">
