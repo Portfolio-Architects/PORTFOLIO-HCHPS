@@ -78,13 +78,21 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, allTags
     }
   }, [editTask, isOpen]);
 
+  // Auto-fill dueDate from recurrence start date
+  React.useEffect(() => {
+    if (recurrenceStartDate && recurrenceType !== 'none') {
+      setDueDate(recurrenceStartDate);
+    }
+  }, [recurrenceStartDate, recurrenceType]);
+
   // Auto-calculate end date from start date + count + pattern
   React.useEffect(() => {
     if (!recurrenceStartDate || !recurrenceCount || recurrenceType === 'none') return;
     const count = typeof recurrenceCount === 'number' ? recurrenceCount : parseInt(String(recurrenceCount));
     if (!count || count <= 0) return;
     
-    const start = new Date(recurrenceStartDate);
+    const [sy, sm, sd] = recurrenceStartDate.split('-').map(Number);
+    const start = new Date(sy, sm - 1, sd);
     if (recurrenceType === 'daily') {
       start.setDate(start.getDate() + (count - 1));
     } else if (recurrenceType === 'biweekly') {
@@ -95,10 +103,12 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, allTags
       start.setDate(start.getDate() + (weeks - 1) * 7);
     } else {
       // custom/monthly fallback
-      start.setDate(start.getDate() + (count - 1) * 7);
+      start.setDate(start.getDate() + (count - 1) * 30);
     }
-    const endStr = new Date(start.getTime() - (start.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
-    setRecurrenceEndDate(endStr);
+    const yyyy = start.getFullYear();
+    const mm = String(start.getMonth() + 1).padStart(2, '0');
+    const dd = String(start.getDate()).padStart(2, '0');
+    setRecurrenceEndDate(`${yyyy}-${mm}-${dd}`);
   }, [recurrenceStartDate, recurrenceCount, recurrenceType, recurrenceDays]);
 
   const handleSubmit = (e: React.FormEvent) => {
