@@ -5,7 +5,7 @@ import { classifyAndParse, ParsedResult } from '@/lib/korean-nlp';
 import { Zap, Calendar, Clock, MapPin, Users, DollarSign, AlertTriangle, Send, Repeat } from 'lucide-react';
 
 interface QuickInputProps {
-  onCreateTask: (data: { title: string; dueDate?: string; priority: 'low' | 'medium' | 'high'; tags: string[]; category: string; recurrence?: string }) => void;
+  onCreateTask: (data: { title: string; dueDate?: string; priority: 'low' | 'medium' | 'high'; tags: string[]; category: string; recurrence?: string; recurrenceEndDate?: string }) => void;
   onCreateKnowledge?: (data: { title: string; content: string; tags: string[]; category: string }) => void;
   onNavigate: (module: string) => void;
 }
@@ -56,6 +56,7 @@ export function QuickInput({ onCreateTask, onCreateKnowledge, onNavigate }: Quic
         tags,
         category: parsed.category || '',
         recurrence: parsed.recurrence,
+        recurrenceEndDate: parsed.recurrenceEndDate
       });
       setCreatedLabel('업무 생성 완료!');
       onNavigate('workspace');

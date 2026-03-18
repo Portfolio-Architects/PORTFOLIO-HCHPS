@@ -20,6 +20,7 @@ export interface ParsedResult {
   priority: 'low' | 'medium' | 'high';
   category?: string;    // 추출된 카테고리
   recurrence?: string;  // 반복 패턴 (매주 목요일, 매월 15일 등)
+  recurrenceEndDate?: string; // 반복 종료일 (계산됨)
   tags: string[];
   rawText: string;
 }
@@ -370,6 +371,17 @@ export function extractRecurrence(text: string): { recurrence: string; matched: 
   return null;
 }
 
+// ============ Extract Total Occurrences (총 N회) ============
+
+export function extractTotalOccurrences(text: string): { count: number; matched: string } | null {
+  const match = text.match(/(?:총\s*)?(\d+)\s*(?:회|번)\s*(?:반복|진행)?/);
+  if (match) {
+    const count = parseInt(match[1]);
+    if (count > 0) return { count, matched: match[0] };
+  }
+  return null;
+}
+
 // ============ Extract ALL dates ============
 
 function extractAllDates(text: string): { date: string; matched: string }[] {
@@ -537,6 +549,32 @@ export function classifyAndParse(text: string): ParsedResult {
   const location = extractLocation(rawText);
   const priority = extractPriority(rawText);
   const recurrenceResult = extractRecurrence(rawText);
+  const occurrencesResult = extractTotalOccurrences(rawText);
+
+  // Compute recurrenceEndDate if we have a start date, recurrence pattern, and total occurrences
+  let recurrenceEndDate: string | undefined;
+  if (bestDueDate && recurrenceResult && occurrencesResult) {
+    const startDate = new Date(bestDueDate);
+    const count = occurrencesResult.count;
+    
+    if (recurrenceResult.recurrence.includes('매일') || recurrenceResult.recurrence === '매일') {
+      startDate.setDate(startDate.getDate() + (count - 1));
+    } else if (recurrenceResult.recurrence.includes('격주')) {
+      startDate.setDate(startDate.getDate() + (count - 1) * 14);
+    } else if (recurrenceResult.recurrence.includes('월') || recurrenceResult.recurrence.includes('달')) {
+      startDate.setMonth(startDate.getMonth() + (count - 1));
+    } else if (recurrenceResult.recurrence.match(/주\s*(\d)\s*회/)) {
+      const timesPerWeek = parseInt(recurrenceResult.recurrence.match(/주\s*(\d)\s*회/)![1]);
+      const weeks = Math.ceil(count / timesPerWeek);
+      startDate.setDate(startDate.getDate() + (weeks - 1) * 7);
+    } else {
+      // Default fallback for "매주", "매주 목요일"
+      startDate.setDate(startDate.getDate() + (count - 1) * 7);
+    }
+    
+    // Convert to local YYYY-MM-DD
+    recurrenceEndDate = new Date(startDate.getTime() - (startDate.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+  }
 
   // Classify
   let type: ParsedType = 'task';
@@ -581,6 +619,7 @@ export function classifyAndParse(text: string): ParsedResult {
   if (timeResult) removals.push(timeResult.matched);
   if (amountResult) removals.push(amountResult.matched);
   if (recurrenceResult) removals.push(recurrenceResult.matched);
+  if (occurrencesResult) removals.push(occurrencesResult.matched);
 
   let title = cleanTitle(rawText, removals);
   if (!title || title.length < 2) title = rawText;
@@ -600,6 +639,7 @@ export function classifyAndParse(text: string): ParsedResult {
     location: location || undefined,
     priority,
     recurrence: recurrenceResult?.recurrence,
+    recurrenceEndDate,
     tags,
     rawText,
   };
