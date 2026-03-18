@@ -5,37 +5,9 @@
  */
 
 import { DocumentEntry, generateId } from '@/types';
+import { csvToRows } from './csv-parser';
 
 const SPREADSHEET_ID = '1Ktm5PDYOHm4r5te1vnPC5gcAoIuRFxM5w5X5mSF6DGE';
-
-// ============ CSV Parser ============
-
-function csvToRows(csv: string): string[][] {
-  const lines = csv.split('\n').filter(l => l.trim().length > 0);
-  return lines.map(line => {
-    const result: string[] = [];
-    let current = '';
-    let inQuotes = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (ch === '"') {
-        if (inQuotes && i + 1 < line.length && line[i + 1] === '"') {
-          current += '"';
-          i++;
-        } else {
-          inQuotes = !inQuotes;
-        }
-      } else if (ch === ',' && !inQuotes) {
-        result.push(current.trim());
-        current = '';
-      } else {
-        current += ch;
-      }
-    }
-    result.push(current.trim());
-    return result;
-  });
-}
 
 // ============ Fetch from Google Sheets ============
 

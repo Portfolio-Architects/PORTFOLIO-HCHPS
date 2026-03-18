@@ -32,11 +32,15 @@ export function useTasks() {
   }, [updateTask]);
 
   const stats = useMemo(() => {
+    const now = new Date();
+    let todo = 0, inProgress = 0, done = 0, overdue = 0;
+    for (const t of tasks) {
+      if (t.status === 'todo') todo++;
+      else if (t.status === 'in-progress') inProgress++;
+      else if (t.status === 'done') done++;
+      if (t.dueDate && new Date(t.dueDate) < now && t.status !== 'done') overdue++;
+    }
     const total = tasks.length;
-    const todo = tasks.filter(t => t.status === 'todo').length;
-    const inProgress = tasks.filter(t => t.status === 'in-progress').length;
-    const done = tasks.filter(t => t.status === 'done').length;
-    const overdue = tasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'done').length;
     return { total, todo, inProgress, done, overdue, completionRate: total > 0 ? Math.round((done / total) * 100) : 0 };
   }, [tasks]);
 

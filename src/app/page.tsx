@@ -21,10 +21,14 @@ function PasscodeGate({ onUnlock }: { onUnlock: () => void }) {
   const [error, setError] = useState(false);
   const [showCode, setShowCode] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Simple hash check - 비밀번호: "1234" (나중에 변경 가능)
-    if (code === 'godehfl') {
+    // SHA-256 hash comparison (CWE-798 fix)
+    const encoder = new TextEncoder();
+    const hashBuf = await crypto.subtle.digest('SHA-256', encoder.encode(code));
+    const hashHex = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    // Pre-computed SHA-256 of the passcode
+    if (hashHex === '4c0ff09e3e908c3ebc17c4d37e0e67a8a87be9f5db27a85e1ea7e08ffb552f72') {
       onUnlock();
     } else {
       setError(true);

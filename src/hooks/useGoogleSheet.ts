@@ -4,11 +4,11 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { readSheet, addRow, updateRow, deleteRow } from '@/lib/sheets-api';
 
 /**
- * useGoogleSheet — Google Sheets 기반 상태 관리 훅
- * useLocalStorage를 대체하며, 동일한 인터페이스 제공
+ * useCloudStorage — Cloudflare KV 기반 상태 관리 훅
+ * (Legacy 이름: useGoogleSheet — 하위 호환을 위해 유지)
  * 
- * - 초기 로드: Google Sheets에서 데이터 읽기 (실패 시 localStorage 폴백)
- * - 쓰기: 로컬 state 즉시 반영 (낙관적 업데이트) + 백그라운드 시트 저장
+ * - 초기 로드: Cloudflare KV에서 데이터 읽기 (실패 시 localStorage 폴백)
+ * - 쓰기: 로컬 state 즉시 반영 (낙관적 업데이트) + 백그라운드 KV 저장
  * - localStorage는 캐시/폴백으로 유지
  */
 export function useGoogleSheet<T extends { id: string }>(

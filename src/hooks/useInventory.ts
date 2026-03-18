@@ -33,15 +33,18 @@ export function useInventory() {
   const adjustStock = useCallback((itemId: string, change: number, reason: string) => {
     const sc: StockChange = { id: generateId(), itemId, change, reason, date: new Date().toISOString() };
     setStockChanges(prev => [sc, ...prev]);
-    setItems(prev => prev.map(i => i.id === itemId ? { ...i, currentStock: i.currentStock + change, updatedAt: new Date().toISOString() } : i));
+    setItems(prev => {
+      const updated = prev.map(i => i.id === itemId ? { ...i, currentStock: i.currentStock + change, updatedAt: new Date().toISOString() } : i);
+      // Sync with KV using fresh state (avoids stale closure)
+      const item = updated.find(i => i.id === itemId);
+      if (item) {
+        itemCrud.syncUpdate(itemId, { currentStock: item.currentStock, updatedAt: item.updatedAt });
+      }
+      return updated;
+    });
     scCrud.syncAdd(sc);
-    // Also update the item's currentStock in the sheet
-    const item = items.find(i => i.id === itemId);
-    if (item) {
-      itemCrud.syncUpdate(itemId, { currentStock: item.currentStock + change, updatedAt: new Date().toISOString() });
-    }
     return sc;
-  }, [setItems, setStockChanges, items, itemCrud, scCrud]);
+  }, [setItems, setStockChanges, itemCrud, scCrud]);
 
   const getItemHistory = useCallback((itemId: string) => {
     return stockChanges.filter(sc => sc.itemId === itemId).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
