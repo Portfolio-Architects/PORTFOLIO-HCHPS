@@ -345,6 +345,49 @@ function extractAllDates(text: string): { date: string; matched: string }[] {
     }
   }
 
+  // 이번 주 + 요일
+  const thisWeekRe = /(이번\s*주|금주|이번주)\s*(월요일|화요일|수요일|목요일|금요일|토요일|일요일|월|화|수|목|금|토|일)/g;
+  let twM;
+  while ((twM = thisWeekRe.exec(text)) !== null) {
+    const targetDay = WEEKDAY_MAP[twM[2]];
+    if (targetDay !== undefined) {
+      const d = getToday();
+      const currentDay = d.getDay();
+      let diff = targetDay - currentDay;
+      if (diff < 0) diff += 7;
+      d.setDate(d.getDate() + diff);
+      results.push({ date: formatDate(d), matched: twM[0], pos: twM.index! });
+    }
+  }
+
+  // 다음 주 + 요일
+  const nextWeekRe = /(다음\s*주|다음주|차주)\s*(월요일|화요일|수요일|목요일|금요일|토요일|일요일|월|화|수|목|금|토|일)/g;
+  let nwM;
+  while ((nwM = nextWeekRe.exec(text)) !== null) {
+    const targetDay = WEEKDAY_MAP[nwM[2]];
+    if (targetDay !== undefined) {
+      results.push({ date: formatDate(getNextWeekday(targetDay, 1)), matched: nwM[0], pos: nwM.index! });
+    }
+  }
+
+  // 단독 요일 — "목요일", "수요일에" 등
+  const soloWdRe = /(월요일|화요일|수요일|목요일|금요일|토요일|일요일)\s*(?:까지|에)?/g;
+  let swM;
+  while ((swM = soloWdRe.exec(text)) !== null) {
+    // Skip if already matched by 이번주/다음주 patterns
+    const alreadyMatched = results.some(r => r.pos <= swM!.index! && r.pos + r.matched.length > swM!.index!);
+    if (alreadyMatched) continue;
+    const targetDay = WEEKDAY_MAP[swM[1]];
+    if (targetDay !== undefined) {
+      const d = getToday();
+      const currentDay = d.getDay();
+      let diff = targetDay - currentDay;
+      if (diff <= 0) diff += 7;
+      d.setDate(d.getDate() + diff);
+      results.push({ date: formatDate(d), matched: swM[0], pos: swM.index! });
+    }
+  }
+
   // M/D or M월 D일
   const mdRe = /(\d{1,2})[\/\-월]\s*(\d{1,2})일?/g;
   let mdM;
