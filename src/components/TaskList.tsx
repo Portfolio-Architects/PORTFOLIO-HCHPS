@@ -63,6 +63,7 @@ export function TaskListView({
   const [priorityFilter, setPriorityFilter] = useState<TaskPriority | ''>('');
   const [itemFilter, setItemFilter] = useState<ItemFilter>('all');
   const [projectFilter, setProjectFilter] = useState<string>('');
+  const [categoryFilter, setCategoryFilter] = useState<string>('');
 
   // Meeting modal state
   const [showMeetingModal, setShowMeetingModal] = useState(false);
@@ -91,9 +92,10 @@ export function TaskListView({
       if (statusFilter && t.status !== statusFilter) return false;
       if (priorityFilter && t.priority !== priorityFilter) return false;
       if (projectFilter && t.projectId !== projectFilter) return false;
+      if (categoryFilter && t.category !== categoryFilter) return false;
       return true;
     });
-  }, [tasks, search, statusFilter, priorityFilter, projectFilter]);
+  }, [tasks, search, statusFilter, priorityFilter, projectFilter, categoryFilter]);
 
   const filteredMeetings = useMemo(() => {
     if (!search) return meetings;
@@ -250,22 +252,53 @@ export function TaskListView({
 
   return (
     <div className="space-y-4">
-      {/* Task Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          { label: '대기', count: tasks.filter(t => t.status === 'todo').length, color: 'border-blue-400', bg: 'bg-blue-50', text: 'text-blue-600', icon: '📋' },
-          { label: '진행중', count: tasks.filter(t => t.status === 'in-progress').length, color: 'border-amber-400', bg: 'bg-amber-50', text: 'text-amber-600', icon: '⚡' },
-          { label: '완료', count: tasks.filter(t => t.status === 'done').length, color: 'border-emerald-400', bg: 'bg-emerald-50', text: 'text-emerald-600', icon: '✅' },
-          { label: '긴급', count: tasks.filter(t => t.priority === 'high' && t.status !== 'done').length, color: 'border-red-400', bg: 'bg-red-50', text: 'text-red-600', icon: '🔥' },
-        ].map(s => (
-          <div key={s.label} className={`${s.bg} border-l-4 ${s.color} rounded-lg px-3 py-2.5`}>
-            <div className="flex items-center justify-between">
-              <span className={`text-[11px] font-medium ${s.text}`}>{s.icon} {s.label}</span>
-              <span className={`text-lg font-bold ${s.text}`}>{s.count}</span>
-            </div>
+      {/* Category Cards */}
+      {(() => {
+        const CARD_COLORS = [
+          { bg: 'bg-blue-50', border: 'border-blue-400', text: 'text-blue-700', activeBg: 'bg-blue-100' },
+          { bg: 'bg-emerald-50', border: 'border-emerald-400', text: 'text-emerald-700', activeBg: 'bg-emerald-100' },
+          { bg: 'bg-amber-50', border: 'border-amber-400', text: 'text-amber-700', activeBg: 'bg-amber-100' },
+          { bg: 'bg-purple-50', border: 'border-purple-400', text: 'text-purple-700', activeBg: 'bg-purple-100' },
+          { bg: 'bg-rose-50', border: 'border-rose-400', text: 'text-rose-700', activeBg: 'bg-rose-100' },
+          { bg: 'bg-cyan-50', border: 'border-cyan-400', text: 'text-cyan-700', activeBg: 'bg-cyan-100' },
+          { bg: 'bg-orange-50', border: 'border-orange-400', text: 'text-orange-700', activeBg: 'bg-orange-100' },
+          { bg: 'bg-indigo-50', border: 'border-indigo-400', text: 'text-indigo-700', activeBg: 'bg-indigo-100' },
+        ];
+        const categories = [...new Set(tasks.map(t => t.category).filter(Boolean))];
+        if (categories.length === 0) return null;
+        return (
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+            <button
+              onClick={() => setCategoryFilter('')}
+              className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer ${
+                !categoryFilter
+                  ? 'bg-[var(--color-primary)] text-white shadow-sm'
+                  : 'bg-gray-100 text-[var(--color-text-secondary)] hover:bg-gray-200'
+              }`}
+            >
+              전체 ({tasks.length})
+            </button>
+            {categories.map((cat, i) => {
+              const c = CARD_COLORS[i % CARD_COLORS.length];
+              const count = tasks.filter(t => t.category === cat).length;
+              const active = categoryFilter === cat;
+              return (
+                <button
+                  key={cat}
+                  onClick={() => setCategoryFilter(active ? '' : cat)}
+                  className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border-l-[3px] transition-all cursor-pointer ${
+                    active
+                      ? `${c.activeBg} ${c.border} ${c.text} shadow-sm ring-1 ring-current/20`
+                      : `${c.bg} ${c.border} ${c.text} hover:shadow-sm`
+                  }`}
+                >
+                  {cat} <span className="font-bold">{count}</span>
+                </button>
+              );
+            })}
           </div>
-        ))}
-      </div>
+        );
+      })()}
 
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-2">
