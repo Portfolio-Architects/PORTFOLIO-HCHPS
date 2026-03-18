@@ -10,7 +10,6 @@ import { useProjects } from '@/hooks/useProjects';
 import { useSignal } from '@/hooks/useSignal';
 import { Sidebar } from '@/components/Sidebar';
 import { QuickInput } from '@/components/QuickInput';
-import { DashboardView } from '@/components/DashboardView';
 import { WorkspaceView } from '@/components/WorkspaceView';
 import { MindMap3D } from '@/components/MindMap3D';
 import { Lock, Eye, EyeOff } from 'lucide-react';
@@ -83,7 +82,7 @@ function PasscodeGate({ onUnlock }: { onUnlock: () => void }) {
 }
 
 export default function Home() {
-  const [activeModule, setActiveModule] = useState<ModuleType>('dashboard');
+  const [activeModule, setActiveModule] = useState<ModuleType>('workspace');
   const [mindmapUnlocked, setMindmapUnlocked] = useState(false);
   const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -135,19 +134,6 @@ export default function Home() {
 
   const renderContent = () => {
     switch (activeModule) {
-      case 'dashboard':
-        return (
-          <DashboardView
-            tasks={tasks}
-            taskStats={taskStats}
-            budgetStats={overallStats}
-            meetings={meetings}
-            projects={projects}
-            getUpcomingMeetings={getUpcomingMeetings}
-            onNavigate={m => handleModuleChange(m as ModuleType)}
-          />
-        );
-
       case 'workspace':
         return (
           <WorkspaceView
@@ -198,11 +184,6 @@ export default function Home() {
   };
 
   const pageTitles: Record<ModuleType, { icon: string; title: string; sub: string }> = {
-    dashboard: {
-      icon: '📋',
-      title: '대시보드',
-      sub: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }),
-    },
     workspace: {
       icon: '📋',
       title: '업무관리',

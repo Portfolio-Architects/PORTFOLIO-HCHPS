@@ -104,7 +104,7 @@ export interface DocumentEntry {
 }
 
 // ============ Navigation ============
-export type ModuleType = 'dashboard' | 'workspace' | 'mindmap';
+export type ModuleType = 'workspace' | 'mindmap';
 
 // ============ Utility ============
 export function generateId(): string {

@@ -167,6 +167,21 @@ export function TaskListView({
             </div>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               <Badge variant={priorityVariant[task.priority]}>{priorityLabel[task.priority]}</Badge>
+              {task.dueDate && (() => {
+                const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+                const [datePart, timePart] = task.dueDate.split('T');
+                const [y, mo, day] = datePart.split('-').map(Number);
+                const d = new Date(y, mo - 1, day);
+                const dateStr = `${mo}/${day}(${weekdays[d.getDay()]})`;
+                const timeStr = timePart ? timePart.slice(0, 5) : null;
+                return (
+                  <span className="inline-flex items-center gap-1 text-xs text-[var(--color-text-secondary)]">
+                    <CalendarDays size={11} className="shrink-0" />
+                    {dateStr}{timeStr && <span className="font-medium">{timeStr}</span>}
+                  </span>
+                );
+              })()}
+              {dday && <span className={`text-xs font-semibold ${dday.color}`}>{dday.label}</span>}
               {project && (
                 <span className="flex items-center gap-1 text-xs text-[var(--color-text-secondary)]">
                   <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: project.color }} />
@@ -174,7 +189,6 @@ export function TaskListView({
                 </span>
               )}
               {task.category && <span className="text-xs text-[var(--color-text-tertiary)]">{task.category}</span>}
-              {dday && <span className={`text-xs font-semibold ${dday.color}`}>{dday.label}</span>}
               {task.tags.map(tag => (
                 <span key={tag} className="text-xs bg-gray-100 text-[var(--color-text-secondary)] px-1.5 py-0.5 rounded">{tag}</span>
               ))}

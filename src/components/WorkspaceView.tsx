@@ -6,19 +6,18 @@ import { TaskListView } from '@/components/TaskList';
 import { TaskModal } from '@/components/TaskModal';
 import { BudgetDashboard } from '@/components/budget/BudgetDashboard';
 import { InventoryList } from '@/components/inventory/InventoryList';
-import { CalendarView } from '@/components/CalendarView';
+
 import { DocumentGenerator } from '@/components/document/DocumentGenerator';
 import {
   ListTodo, Wallet, Package, Calendar, FileText
 } from 'lucide-react';
 
-type SubTab = 'tasks' | 'budget' | 'inventory' | 'calendar' | 'documents';
+type SubTab = 'tasks' | 'budget' | 'inventory' | 'documents';
 
 const subTabs: { id: SubTab; label: string; icon: React.ElementType }[] = [
   { id: 'tasks', label: '업무', icon: ListTodo },
   { id: 'budget', label: '예산', icon: Wallet },
   { id: 'inventory', label: '재고', icon: Package },
-  { id: 'calendar', label: '캘린더', icon: Calendar },
   { id: 'documents', label: '문서', icon: FileText },
 ];
 
@@ -123,15 +122,6 @@ export function WorkspaceView(props: WorkspaceViewProps) {
             deleteItem={props.deleteItem}
             adjustStock={props.adjustStock}
             getItemHistory={props.getItemHistory}
-          />
-        );
-
-      case 'calendar':
-        return (
-          <CalendarView
-            tasks={props.tasks}
-            meetings={props.meetings}
-            budgetEntries={props.budgetEntries}
           />
         );
 
