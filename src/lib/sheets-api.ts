@@ -7,7 +7,7 @@
  */
 
 // basePath에 맞게 API URL 구성
-const API_BASE = '/api/data';
+const API_BASE = 'https://portfolio-hchps.pages.dev/api/data';
 const API_KEY = '3b2926d8ad82a9a1b7524713ace3711ad40b52b46128fb1c';
 
 // ============ Read ============
