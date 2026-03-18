@@ -134,7 +134,6 @@ export function useSignal() {
   useEffect(() => {
     if (initialLoadDone.current) return;
     initialLoadDone.current = true;
-
     readSheet<SignalEntry>(SHEET_NAME)
       .then(rows => {
         if (rows.length > 0) {
@@ -147,6 +146,26 @@ export function useSignal() {
           }));
           setEntries(parsed);
           try { localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed)); } catch { /* */ }
+        } else {
+          // KV is empty — push localStorage data to KV if available (one-time migration)
+          const stored = localStorage.getItem(STORAGE_KEY);
+          if (stored) {
+            try {
+              const localData = JSON.parse(stored) as SignalEntry[];
+              if (localData.length > 0) {
+                // Ensure keywords are stringified when pushing to KV
+                const toUpload = localData.map(entry => ({
+                  ...entry,
+                  keywords: JSON.stringify(entry.keywords)
+                }));
+                import('@/lib/sheets-api').then(({ replaceAll }) => {
+                  replaceAll(SHEET_NAME, toUpload).then(ok => {
+                    if (ok) console.log(`[KV Sync] 로컬 데이터 마이그레이션 완료: ${SHEET_NAME} (${localData.length}건)`);
+                  });
+                });
+              }
+            } catch { /* ignore parse errors */ }
+          }
         }
       })
       .catch(() => {
