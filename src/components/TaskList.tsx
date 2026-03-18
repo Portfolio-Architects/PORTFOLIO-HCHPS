@@ -36,7 +36,10 @@ const priorityVariant: Record<TaskPriority, 'success' | 'warning' | 'danger'> = 
 
 function getDDay(dueDate?: string) {
   if (!dueDate) return null;
-  const diff = Math.ceil((new Date(dueDate).getTime() - new Date().setHours(0,0,0,0)) / (1000*60*60*24));
+  // Parse as local time — new Date('YYYY-MM-DD') parses as UTC, causing timezone issues
+  const [y, m, d] = dueDate.split('-').map(Number);
+  const due = new Date(y, m - 1, d).getTime();
+  const diff = Math.ceil((due - new Date().setHours(0,0,0,0)) / (1000*60*60*24));
   if (diff < 0) return { label: `D+${Math.abs(diff)}`, color: 'text-[var(--color-danger)]' };
   if (diff === 0) return { label: 'D-Day', color: 'text-[var(--color-danger)]' };
   if (diff <= 3) return { label: `D-${diff}`, color: 'text-[var(--color-warning)]' };
