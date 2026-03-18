@@ -316,7 +316,33 @@ export function extractPriority(text: string): 'low' | 'medium' | 'high' {
 // ============ Recurrence Extraction ============
 
 export function extractRecurrence(text: string): { recurrence: string; matched: string } | null {
-  // 매주 + 요일: "매주 목요일", "매주 월요일"
+  // 매주 + 다중 요일: "매주 월수금", "매주 월, 수, 금", "매주 화목"
+  const multiDayFull = text.match(/매주\s*((?:(?:월요일|화요일|수요일|목요일|금요일|토요일|일요일|월|화|수|목|금|토|일)[,\s]*){2,})/);
+  if (multiDayFull) {
+    const days = multiDayFull[1].match(/월요일|화요일|수요일|목요일|금요일|토요일|일요일|월|화|수|목|금|토|일/g);
+    if (days && days.length >= 2) {
+      const dayNames = days.map(d => d.length === 1 ? d + '요일' : d);
+      return { recurrence: `매주 ${dayNames.join(', ')}`, matched: multiDayFull[0] };
+    }
+  }
+
+  // 주 N회 + 요일들: "주 2회 화목", "주 3회 월수금"
+  const nTimesWeek = text.match(/주\s*(\d)\s*회\s*((?:(?:월요일|화요일|수요일|목요일|금요일|토요일|일요일|월|화|수|목|금|토|일)[,\s]*){1,})/);
+  if (nTimesWeek) {
+    const days = nTimesWeek[2].match(/월요일|화요일|수요일|목요일|금요일|토요일|일요일|월|화|수|목|금|토|일/g);
+    if (days) {
+      const dayNames = days.map(d => d.length === 1 ? d + '요일' : d);
+      return { recurrence: `주 ${nTimesWeek[1]}회 (${dayNames.join(', ')})`, matched: nTimesWeek[0] };
+    }
+  }
+
+  // 주 N회 (요일 없이): "주 2회", "주 3회"
+  const nTimesOnly = text.match(/주\s*(\d)\s*회/);
+  if (nTimesOnly) {
+    return { recurrence: `주 ${nTimesOnly[1]}회`, matched: nTimesOnly[0] };
+  }
+
+  // 매주 + 단일 요일: "매주 목요일", "매주 월요일"
   const weeklyDay = text.match(/매주\s*(월요일|화요일|수요일|목요일|금요일|토요일|일요일|월|화|수|목|금|토|일)/);
   if (weeklyDay) {
     const dayName = weeklyDay[1].length === 1 ? weeklyDay[1] + '요일' : weeklyDay[1];

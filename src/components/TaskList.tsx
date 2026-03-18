@@ -250,6 +250,23 @@ export function TaskListView({
 
   return (
     <div className="space-y-4">
+      {/* Task Summary Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: '대기', count: tasks.filter(t => t.status === 'todo').length, color: 'border-blue-400', bg: 'bg-blue-50', text: 'text-blue-600', icon: '📋' },
+          { label: '진행중', count: tasks.filter(t => t.status === 'in-progress').length, color: 'border-amber-400', bg: 'bg-amber-50', text: 'text-amber-600', icon: '⚡' },
+          { label: '완료', count: tasks.filter(t => t.status === 'done').length, color: 'border-emerald-400', bg: 'bg-emerald-50', text: 'text-emerald-600', icon: '✅' },
+          { label: '긴급', count: tasks.filter(t => t.priority === 'high' && t.status !== 'done').length, color: 'border-red-400', bg: 'bg-red-50', text: 'text-red-600', icon: '🔥' },
+        ].map(s => (
+          <div key={s.label} className={`${s.bg} border-l-4 ${s.color} rounded-lg px-3 py-2.5`}>
+            <div className="flex items-center justify-between">
+              <span className={`text-[11px] font-medium ${s.text}`}>{s.icon} {s.label}</span>
+              <span className={`text-lg font-bold ${s.text}`}>{s.count}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-xl font-bold">업무 목록</h2>
