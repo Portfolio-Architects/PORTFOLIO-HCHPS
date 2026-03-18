@@ -3,7 +3,26 @@
 import React, { useState, useMemo } from 'react';
 import { Task, TaskStatus, TaskPriority, KnowledgeEntry } from '@/types';
 import { Modal } from './ui/modal';
-import { Lightbulb } from 'lucide-react';
+import { Lightbulb, CalendarDays } from 'lucide-react';
+
+type RecurrenceType = 'none' | 'daily' | 'weekly' | 'biweekly' | 'custom';
+const WEEKDAYS = ['월', '화', '수', '목', '금', '토', '일'];
+
+function parseRecurrence(text: string): { type: RecurrenceType; days: string[]; custom: string } {
+  if (!text) return { type: 'none', days: [], custom: '' };
+  if (text === '매일') return { type: 'daily', days: [], custom: '' };
+  if (text.startsWith('매주 ')) {
+    const daysStr = text.replace('매주 ', '');
+    const days = daysStr.split(', ').map(d => d.replace('요일', ''));
+    if (days.every(d => WEEKDAYS.includes(d))) return { type: 'weekly', days, custom: '' };
+  }
+  if (text.startsWith('격주 ')) {
+    const daysStr = text.replace('격주 ', '');
+    const days = daysStr.split(', ').map(d => d.replace('요일', ''));
+    if (days.every(d => WEEKDAYS.includes(d))) return { type: 'biweekly', days, custom: '' };
+  }
+  return { type: 'custom', days: [], custom: text };
+}
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -24,7 +43,12 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, categor
   const [category, setCategory] = useState(editTask?.category || '');
   const [dueDate, setDueDate] = useState(editTask?.dueDate || '');
   const [projectId, setProjectId] = useState(editTask?.projectId || '');
-  const [recurrence, setRecurrence] = useState(editTask?.recurrence || '');
+  
+  const initRecurrence = useMemo(() => parseRecurrence(editTask?.recurrence || ''), [editTask?.recurrence]);
+  const [recurrenceType, setRecurrenceType] = useState<RecurrenceType>(initRecurrence.type);
+  const [recurrenceDays, setRecurrenceDays] = useState<string[]>(initRecurrence.days);
+  const [customRecurrence, setCustomRecurrence] = useState(initRecurrence.custom);
+  
   const [recurrenceEndDate, setRecurrenceEndDate] = useState(editTask?.recurrenceEndDate || '');
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>(editTask?.tags || []);
@@ -38,12 +62,19 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, categor
       setCategory(editTask.category);
       setDueDate(editTask.dueDate || '');
       setProjectId(editTask.projectId || '');
-      setRecurrence(editTask.recurrence || '');
+      
+      const parsed = parseRecurrence(editTask.recurrence || '');
+      setRecurrenceType(parsed.type);
+      setRecurrenceDays(parsed.days);
+      setCustomRecurrence(parsed.custom);
+      
       setRecurrenceEndDate(editTask.recurrenceEndDate || '');
       setTags(editTask.tags);
     } else {
       setTitle(''); setDescription(''); setStatus('todo'); setPriority('medium');
-      setCategory(''); setDueDate(''); setProjectId(''); setRecurrence(''); setRecurrenceEndDate(''); setTags([]);
+      setCategory(''); setDueDate(''); setProjectId('');
+      setRecurrenceType('none'); setRecurrenceDays([]); setCustomRecurrence('');
+      setRecurrenceEndDate(''); setTags([]);
     }
   }, [editTask, isOpen]);
 
@@ -51,10 +82,22 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, categor
     e.preventDefault();
     if (!title.trim()) return;
 
+    let finalRecurrence = '';
+    if (recurrenceType === 'daily') finalRecurrence = '매일';
+    else if (recurrenceType === 'weekly' && recurrenceDays.length > 0) {
+      finalRecurrence = `매주 ${recurrenceDays.map(d => d + '요일').join(', ')}`;
+    }
+    else if (recurrenceType === 'biweekly' && recurrenceDays.length > 0) {
+      finalRecurrence = `격주 ${recurrenceDays.map(d => d + '요일').join(', ')}`;
+    }
+    else if (recurrenceType === 'custom') {
+      finalRecurrence = customRecurrence.trim();
+    }
+
     if (editTask && onUpdate) {
-      onUpdate(editTask.id, { title, description, status, priority, category, dueDate: dueDate || undefined, projectId: projectId || undefined, recurrence: recurrence || undefined, recurrenceEndDate: recurrenceEndDate || undefined, tags });
+      onUpdate(editTask.id, { title, description, status, priority, category, dueDate: dueDate || undefined, projectId: projectId || undefined, recurrence: finalRecurrence || undefined, recurrenceEndDate: recurrenceEndDate || undefined, tags });
     } else {
-      onSave({ title, description, status, priority, category, dueDate: dueDate || undefined, projectId: projectId || undefined, recurrence: recurrence || undefined, recurrenceEndDate: recurrenceEndDate || undefined, tags });
+      onSave({ title, description, status, priority, category, dueDate: dueDate || undefined, projectId: projectId || undefined, recurrence: finalRecurrence || undefined, recurrenceEndDate: recurrenceEndDate || undefined, tags });
     }
     onClose();
   };
@@ -154,13 +197,51 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, categor
         </div>
         
         <div className="grid grid-cols-2 gap-3">
-          <div>
+          <div className="space-y-2 col-span-2 sm:col-span-1">
             <label className={labelClass}>반복 일정</label>
-            <input type="text" value={recurrence} onChange={e => setRecurrence(e.target.value)} className={inputClass} placeholder="예: 매일, 매주 화요일" />
+            <select value={recurrenceType} onChange={e => {
+              const val = e.target.value as RecurrenceType;
+              setRecurrenceType(val);
+              if (val !== 'weekly' && val !== 'biweekly') setRecurrenceDays([]);
+            }} className={inputClass}>
+              <option value="none">반복 안함</option>
+              <option value="daily">매일</option>
+              <option value="weekly">매주</option>
+              <option value="biweekly">격주</option>
+              <option value="custom">직접 입력 (매월 등)</option>
+            </select>
+            
+            {(recurrenceType === 'weekly' || recurrenceType === 'biweekly') && (
+              <div className="flex flex-wrap gap-1 mt-2">
+                {WEEKDAYS.map(day => {
+                  const isSelected = recurrenceDays.includes(day);
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => {
+                        if (isSelected) setRecurrenceDays(prev => prev.filter(d => d !== day));
+                        else setRecurrenceDays(prev => [...prev, day].sort((a, b) => WEEKDAYS.indexOf(a) - WEEKDAYS.indexOf(b)));
+                      }}
+                      className={`w-8 h-8 rounded-full text-xs font-medium flex items-center justify-center transition-colors cursor-pointer ${
+                        isSelected ? 'bg-[var(--color-primary)] text-white shadow-sm' : 'bg-gray-100 text-[var(--color-text-secondary)] hover:bg-gray-200'
+                      }`}
+                    >
+                      {day}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            
+            {recurrenceType === 'custom' && (
+              <input type="text" value={customRecurrence} onChange={e => setCustomRecurrence(e.target.value)} className={`${inputClass} mt-2`} placeholder="예: 매월 15일, 주 2회 화목" autoFocus />
+            )}
           </div>
-          <div>
+          
+          <div className="col-span-2 sm:col-span-1">
             <label className={labelClass}>반복 종료일 (선택)</label>
-            <input type="date" value={recurrenceEndDate} onChange={e => setRecurrenceEndDate(e.target.value)} className={inputClass} disabled={!recurrence} />
+            <input type="date" value={recurrenceEndDate} onChange={e => setRecurrenceEndDate(e.target.value)} className={inputClass} disabled={recurrenceType === 'none'} />
           </div>
         </div>
 

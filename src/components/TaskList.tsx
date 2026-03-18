@@ -64,6 +64,7 @@ export function TaskListView({
   const [itemFilter, setItemFilter] = useState<ItemFilter>('all');
   const [projectFilter, setProjectFilter] = useState<string>('');
   const [categoryFilter, setCategoryFilter] = useState<string>('');
+  const [showRecurringOnly, setShowRecurringOnly] = useState(false);
 
   // Meeting modal state
   const [showMeetingModal, setShowMeetingModal] = useState(false);
@@ -93,9 +94,10 @@ export function TaskListView({
       if (priorityFilter && t.priority !== priorityFilter) return false;
       if (projectFilter && t.projectId !== projectFilter) return false;
       if (categoryFilter && t.category !== categoryFilter) return false;
+      if (showRecurringOnly && !t.recurrence) return false;
       return true;
     });
-  }, [tasks, search, statusFilter, priorityFilter, projectFilter, categoryFilter]);
+  }, [tasks, search, statusFilter, priorityFilter, projectFilter, categoryFilter, showRecurringOnly]);
 
   const filteredMeetings = useMemo(() => {
     if (!search) return meetings;
@@ -390,6 +392,16 @@ export function TaskListView({
 
         {showTasks && (
           <>
+            <button
+              onClick={() => setShowRecurringOnly(!showRecurringOnly)}
+              className={`shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border cursor-pointer flex items-center gap-1.5 ${
+                showRecurringOnly
+                  ? 'bg-teal-50 border-teal-200 text-teal-700 shadow-sm'
+                  : 'bg-white border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-gray-50'
+              }`}
+            >
+              <Repeat size={14} className={showRecurringOnly ? 'text-teal-600' : 'text-gray-400'} /> 반복 루틴
+            </button>
             <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as TaskStatus | '')} className="px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]">
               <option value="">전체 상태</option>
               <option value="todo">대기</option>
