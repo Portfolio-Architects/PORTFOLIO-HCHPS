@@ -46,19 +46,31 @@ export function useTasks() {
     if (task && updates.status === 'done' && task.status !== 'done' && task.recurrence) {
       // Auto-duplicate recurring task for the next cycle
       const nextDate = calculateNextDueDate(task.dueDate, task.recurrence);
-      const nextTask = {
-        title: task.title,
-        description: task.description,
-        status: 'todo' as TaskStatus,
-        priority: task.priority,
-        category: task.category,
-        dueDate: nextDate,
-        projectId: task.projectId,
-        tags: [...task.tags],
-        recurrence: task.recurrence
-      };
-      // Delay scheduling the next task to prevent state conflict during current render
-      setTimeout(() => addTask(nextTask), 50);
+      
+      // Check if nextDate is beyond recurrenceEndDate
+      let shouldDuplicate = true;
+      if (nextDate && task.recurrenceEndDate) {
+        if (new Date(nextDate) > new Date(task.recurrenceEndDate)) {
+          shouldDuplicate = false;
+        }
+      }
+
+      if (shouldDuplicate) {
+        const nextTask = {
+          title: task.title,
+          description: task.description,
+          status: 'todo' as TaskStatus,
+          priority: task.priority,
+          category: task.category,
+          dueDate: nextDate,
+          projectId: task.projectId,
+          tags: [...task.tags],
+          recurrence: task.recurrence,
+          recurrenceEndDate: task.recurrenceEndDate
+        };
+        // Delay scheduling the next task to prevent state conflict during current render
+        setTimeout(() => addTask(nextTask), 50);
+      }
     }
 
     const updatedFields = { ...updates, updatedAt: new Date().toISOString() };

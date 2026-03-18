@@ -25,6 +25,7 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, categor
   const [dueDate, setDueDate] = useState(editTask?.dueDate || '');
   const [projectId, setProjectId] = useState(editTask?.projectId || '');
   const [recurrence, setRecurrence] = useState(editTask?.recurrence || '');
+  const [recurrenceEndDate, setRecurrenceEndDate] = useState(editTask?.recurrenceEndDate || '');
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>(editTask?.tags || []);
 
@@ -38,10 +39,11 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, categor
       setDueDate(editTask.dueDate || '');
       setProjectId(editTask.projectId || '');
       setRecurrence(editTask.recurrence || '');
+      setRecurrenceEndDate(editTask.recurrenceEndDate || '');
       setTags(editTask.tags);
     } else {
       setTitle(''); setDescription(''); setStatus('todo'); setPriority('medium');
-      setCategory(''); setDueDate(''); setProjectId(''); setRecurrence(''); setTags([]);
+      setCategory(''); setDueDate(''); setProjectId(''); setRecurrence(''); setRecurrenceEndDate(''); setTags([]);
     }
   }, [editTask, isOpen]);
 
@@ -50,9 +52,9 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, categor
     if (!title.trim()) return;
 
     if (editTask && onUpdate) {
-      onUpdate(editTask.id, { title, description, status, priority, category, dueDate: dueDate || undefined, projectId: projectId || undefined, recurrence: recurrence || undefined, tags });
+      onUpdate(editTask.id, { title, description, status, priority, category, dueDate: dueDate || undefined, projectId: projectId || undefined, recurrence: recurrence || undefined, recurrenceEndDate: recurrenceEndDate || undefined, tags });
     } else {
-      onSave({ title, description, status, priority, category, dueDate: dueDate || undefined, projectId: projectId || undefined, recurrence: recurrence || undefined, tags });
+      onSave({ title, description, status, priority, category, dueDate: dueDate || undefined, projectId: projectId || undefined, recurrence: recurrence || undefined, recurrenceEndDate: recurrenceEndDate || undefined, tags });
     }
     onClose();
   };
@@ -151,9 +153,15 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, categor
           </div>
         </div>
         
-        <div>
-          <label className={labelClass}>반복 일정</label>
-          <input type="text" value={recurrence} onChange={e => setRecurrence(e.target.value)} className={inputClass} placeholder="예: 매일, 매주 화요일" />
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={labelClass}>반복 일정</label>
+            <input type="text" value={recurrence} onChange={e => setRecurrence(e.target.value)} className={inputClass} placeholder="예: 매일, 매주 화요일" />
+          </div>
+          <div>
+            <label className={labelClass}>반복 종료일 (선택)</label>
+            <input type="date" value={recurrenceEndDate} onChange={e => setRecurrenceEndDate(e.target.value)} className={inputClass} disabled={!recurrence} />
+          </div>
         </div>
 
         {projects.length > 0 && (
