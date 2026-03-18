@@ -8,6 +8,7 @@ interface TopNavProps {
   activeModule: ModuleType;
   onModuleChange: (module: ModuleType) => void;
   taskStats: { total: number; done: number; overdue: number };
+  quickInput?: React.ReactNode;
 }
 
 const navItems: { id: ModuleType; label: string; icon: React.ElementType }[] = [
@@ -16,13 +17,13 @@ const navItems: { id: ModuleType; label: string; icon: React.ElementType }[] = [
   { id: 'mindmap', label: '시그널 맵', icon: Radio },
 ];
 
-export function Sidebar({ activeModule, onModuleChange, taskStats }: TopNavProps) {
+export function Sidebar({ activeModule, onModuleChange, taskStats, quickInput }: TopNavProps) {
   return (
     <header className="sticky top-0 z-40 bg-[var(--color-card)] border-b border-[var(--color-border-light)] shadow-[var(--shadow-sm)]">
       <div className="max-w-[1800px] mx-auto px-4 sm:px-6">
-        <div className="flex items-center h-14 gap-4">
-          {/* Navigation Items — flush left */}
-          <nav className="flex items-center gap-1 flex-1">
+        <div className="flex items-center h-14 gap-3">
+          {/* Navigation Items */}
+          <nav className="flex items-center gap-1 shrink-0">
             {navItems.map(item => {
               const Icon = item.icon;
               const isActive = activeModule === item.id;
@@ -30,14 +31,15 @@ export function Sidebar({ activeModule, onModuleChange, taskStats }: TopNavProps
                 <button
                   key={item.id}
                   onClick={() => onModuleChange(item.id)}
-                  className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-medium whitespace-nowrap cursor-pointer transition-all duration-200 ${
+                  className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-full text-[13px] font-medium whitespace-nowrap cursor-pointer transition-all duration-200 ${
                     isActive
                       ? 'bg-[var(--color-primary)] text-white shadow-sm'
                       : 'text-[var(--color-text-secondary)] hover:bg-gray-100 hover:text-[var(--color-text-primary)]'
                   }`}
+                  title={item.label}
                 >
                   <Icon size={16} strokeWidth={isActive ? 2.2 : 1.8} />
-                  <span>{item.label}</span>
+                  <span className="hidden sm:inline">{item.label}</span>
                   {item.id === 'workspace' && taskStats.overdue > 0 && (
                     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none ${
                       isActive ? 'bg-white/25 text-white' : 'bg-[var(--color-danger)] text-white'
@@ -50,17 +52,13 @@ export function Sidebar({ activeModule, onModuleChange, taskStats }: TopNavProps
             })}
           </nav>
 
-          {/* Mini stats (right side) */}
-          <div className="hidden md:flex items-center gap-3 shrink-0 pl-4 border-l border-[var(--color-border-light)]">
-            <div className="flex items-center gap-1.5 text-xs">
-              <span className="text-[var(--color-text-tertiary)]">전체</span>
-              <span className="font-semibold text-[var(--color-text-primary)]">{taskStats.total}</span>
+          {/* QuickInput — fills remaining space */}
+          {quickInput && (
+            <div className="flex-1 min-w-0">
+              {quickInput}
             </div>
-            <div className="flex items-center gap-1.5 text-xs">
-              <span className="text-[var(--color-text-tertiary)]">완료</span>
-              <span className="font-semibold text-[var(--color-success)]">{taskStats.done}</span>
-            </div>
-          </div>
+          )}
+          {!quickInput && <div className="flex-1" />}
         </div>
       </div>
     </header>
