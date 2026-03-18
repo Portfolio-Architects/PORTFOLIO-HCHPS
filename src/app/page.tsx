@@ -28,7 +28,7 @@ function PasscodeGate({ onUnlock }: { onUnlock: () => void }) {
     const hashBuf = await crypto.subtle.digest('SHA-256', encoder.encode(code));
     const hashHex = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
     // Pre-computed SHA-256 of the passcode
-    if (hashHex === '4c0ff09e3e908c3ebc17c4d37e0e67a8a87be9f5db27a85e1ea7e08ffb552f72') {
+    if (hashHex === '8a6782cb246333c161ba10949109af17c656c2d0bf53128a745bc6a822df94e2') {
       onUnlock();
     } else {
       setError(true);
