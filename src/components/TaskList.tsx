@@ -60,7 +60,6 @@ export function TaskListView({
   const [statusFilter, setStatusFilter] = useState<TaskStatus | ''>('');
   const [itemFilter, setItemFilter] = useState<ItemFilter>('all');
   const [projectFilter, setProjectFilter] = useState<string>('');
-  const [categoryFilter, setCategoryFilter] = useState<string>('');
   const [tagFilter, setTagFilter] = useState<string>('');
   const [showRecurringOnly, setShowRecurringOnly] = useState(false);
 
@@ -90,12 +89,11 @@ export function TaskListView({
       if (search && !t.title.toLowerCase().includes(search.toLowerCase()) && !(t.description || '').toLowerCase().includes(search.toLowerCase())) return false;
       if (statusFilter && t.status !== statusFilter) return false;
       if (projectFilter && t.projectId !== projectFilter) return false;
-      if (categoryFilter && t.category !== categoryFilter) return false;
       if (tagFilter && !t.tags.includes(tagFilter)) return false;
       if (showRecurringOnly && !t.recurrence) return false;
       return true;
     });
-  }, [tasks, search, statusFilter, projectFilter, categoryFilter, tagFilter, showRecurringOnly]);
+  }, [tasks, search, statusFilter, projectFilter, tagFilter, showRecurringOnly]);
 
   const filteredMeetings = useMemo(() => {
     if (!search) return meetings;
@@ -189,7 +187,6 @@ export function TaskListView({
                   {project.name}
                 </span>
               )}
-              {task.category && <span className="text-xs text-[var(--color-text-tertiary)]">{task.category}</span>}
               {task.recurrence && (
                 <span className="flex items-center gap-1 text-[11px] font-semibold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-100">
                   <Repeat size={10} /> {task.recurrence}{task.recurrenceCount ? ` · ${task.recurrenceCount}회` : ''}
@@ -256,54 +253,6 @@ export function TaskListView({
 
   return (
     <div className="space-y-4">
-      {/* Category Cards */}
-      {(() => {
-        const CARD_COLORS = [
-          { bg: 'bg-blue-50', border: 'border-blue-400', text: 'text-blue-700', activeBg: 'bg-blue-100' },
-          { bg: 'bg-emerald-50', border: 'border-emerald-400', text: 'text-emerald-700', activeBg: 'bg-emerald-100' },
-          { bg: 'bg-amber-50', border: 'border-amber-400', text: 'text-amber-700', activeBg: 'bg-amber-100' },
-          { bg: 'bg-purple-50', border: 'border-purple-400', text: 'text-purple-700', activeBg: 'bg-purple-100' },
-          { bg: 'bg-rose-50', border: 'border-rose-400', text: 'text-rose-700', activeBg: 'bg-rose-100' },
-          { bg: 'bg-cyan-50', border: 'border-cyan-400', text: 'text-cyan-700', activeBg: 'bg-cyan-100' },
-          { bg: 'bg-orange-50', border: 'border-orange-400', text: 'text-orange-700', activeBg: 'bg-orange-100' },
-          { bg: 'bg-indigo-50', border: 'border-indigo-400', text: 'text-indigo-700', activeBg: 'bg-indigo-100' },
-        ];
-        const categories = [...new Set(tasks.map(t => t.category).filter(Boolean))];
-        if (categories.length === 0) return null;
-        return (
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
-            <button
-              onClick={() => setCategoryFilter('')}
-              className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer ${
-                !categoryFilter
-                  ? 'bg-[var(--color-primary)] text-white shadow-sm'
-                  : 'bg-gray-100 text-[var(--color-text-secondary)] hover:bg-gray-200'
-              }`}
-            >
-              전체 ({tasks.length})
-            </button>
-            {categories.map((cat, i) => {
-              const c = CARD_COLORS[i % CARD_COLORS.length];
-              const count = tasks.filter(t => t.category === cat).length;
-              const active = categoryFilter === cat;
-              return (
-                <button
-                  key={cat}
-                  onClick={() => setCategoryFilter(active ? '' : cat)}
-                  className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border-l-[3px] transition-all cursor-pointer ${
-                    active
-                      ? `${c.activeBg} ${c.border} ${c.text} shadow-sm ring-1 ring-current/20`
-                      : `${c.bg} ${c.border} ${c.text} hover:shadow-sm`
-                  }`}
-                >
-                  {cat} <span className="font-bold">{count}</span>
-                </button>
-              );
-            })}
-          </div>
-        );
-      })()}
-
       {/* Tag Sub-tabs */}
       {(() => {
         const allTags = [...new Set(tasks.flatMap(t => t.tags).filter(Boolean))];

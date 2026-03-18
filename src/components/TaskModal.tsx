@@ -30,17 +30,15 @@ interface TaskModalProps {
   onSave: (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => void;
   editTask?: Task | null;
   onUpdate?: (id: string, updates: Partial<Task>) => void;
-  categories: string[];
   allTags: string[];
   projects: { id: string; name: string }[];
   knowledgeEntries: KnowledgeEntry[];
 }
 
-export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, categories, allTags, projects, knowledgeEntries }: TaskModalProps) {
+export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, allTags, projects, knowledgeEntries }: TaskModalProps) {
   const [title, setTitle] = useState(editTask?.title || '');
   const [description, setDescription] = useState(editTask?.description || '');
   const [status, setStatus] = useState<TaskStatus>(editTask?.status || 'todo');
-  const [category, setCategory] = useState(editTask?.category || '');
   const [dueDate, setDueDate] = useState(editTask?.dueDate || '');
   const [projectId, setProjectId] = useState(editTask?.projectId || '');
   
@@ -60,7 +58,6 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, categor
       setTitle(editTask.title);
       setDescription(editTask.description || '');
       setStatus(editTask.status);
-      setCategory(editTask.category);
       setDueDate(editTask.dueDate || '');
       setProjectId(editTask.projectId || '');
       
@@ -75,7 +72,7 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, categor
       setTags(editTask.tags);
     } else {
       setTitle(''); setDescription(''); setStatus('todo');
-      setCategory(''); setDueDate(''); setProjectId('');
+      setDueDate(''); setProjectId('');
       setRecurrenceType('none'); setRecurrenceDays([]); setCustomRecurrence('');
       setRecurrenceStartDate(''); setRecurrenceEndDate(''); setRecurrenceCount(''); setTags([]);
     }
@@ -123,9 +120,9 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, categor
     const countVal = typeof recurrenceCount === 'number' ? recurrenceCount : (parseInt(String(recurrenceCount)) || undefined);
 
     if (editTask && onUpdate) {
-      onUpdate(editTask.id, { title, description, status, priority: 'medium', category, dueDate: dueDate || undefined, projectId: projectId || undefined, recurrence: finalRecurrence || undefined, recurrenceStartDate: recurrenceStartDate || undefined, recurrenceEndDate: recurrenceEndDate || undefined, recurrenceCount: countVal, tags });
+      onUpdate(editTask.id, { title, description, status, priority: 'medium', category: '', dueDate: dueDate || undefined, projectId: projectId || undefined, recurrence: finalRecurrence || undefined, recurrenceStartDate: recurrenceStartDate || undefined, recurrenceEndDate: recurrenceEndDate || undefined, recurrenceCount: countVal, tags });
     } else {
-      onSave({ title, description, status, priority: 'medium', category, dueDate: dueDate || undefined, projectId: projectId || undefined, recurrence: finalRecurrence || undefined, recurrenceStartDate: recurrenceStartDate || undefined, recurrenceEndDate: recurrenceEndDate || undefined, recurrenceCount: countVal, tags });
+      onSave({ title, description, status, priority: 'medium', category: '', dueDate: dueDate || undefined, projectId: projectId || undefined, recurrence: finalRecurrence || undefined, recurrenceStartDate: recurrenceStartDate || undefined, recurrenceEndDate: recurrenceEndDate || undefined, recurrenceCount: countVal, tags });
     }
     onClose();
   };
@@ -143,9 +140,7 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, categor
     return knowledgeEntries.filter(entry => {
       // 1. Direct tag match (task has a tag that matches entry's tag)
       if (entry.tags && entry.tags.some(t => tags.includes(t))) return true;
-      // 2. Category match
-      if (entry.category && entry.category === category) return true;
-      // 3. Keyword match from title
+      // 2. Keyword match from title
       if (title) {
         // Very basic keyword check: if entry tags or title exist in task title
         if (entry.tags && entry.tags.some(t => title.includes(t))) return true;
@@ -156,7 +151,7 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, categor
       }
       return false;
     });
-  }, [knowledgeEntries, tags, category, title]);
+  }, [knowledgeEntries, tags, title]);
 
   const inputClass = "w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent transition-shadow";
   const labelClass = "block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5";
@@ -287,14 +282,6 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, categor
             </select>
           </div>
         )}
-
-        <div>
-          <label className={labelClass}>카테고리</label>
-          <input type="text" value={category} onChange={e => setCategory(e.target.value)} className={inputClass} placeholder="카테고리" list="category-list" />
-          <datalist id="category-list">
-            {categories.map(c => <option key={c} value={c} />)}
-          </datalist>
-        </div>
 
         <div>
           <label className={labelClass}>태그</label>

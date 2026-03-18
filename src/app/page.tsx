@@ -228,7 +228,7 @@ export default function Home() {
         quickInput={
           <QuickInput
             onCreateTask={(data) => {
-              addTask({ title: data.title, status: 'todo', priority: data.priority, category: data.category, dueDate: data.dueDate, tags: data.tags, description: '', recurrence: data.recurrence, recurrenceEndDate: data.recurrenceEndDate });
+              addTask({ title: data.title, status: 'todo', priority: data.priority, category: '', dueDate: data.dueDate, tags: data.tags, description: '', recurrence: data.recurrence, recurrenceEndDate: data.recurrenceEndDate });
               if (activeModule !== 'workspace') setActiveModule('workspace');
             }}
             onCreateKnowledge={(data) => {
