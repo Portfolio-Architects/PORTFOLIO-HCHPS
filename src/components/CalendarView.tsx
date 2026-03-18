@@ -88,12 +88,22 @@ export function CalendarView({ tasks, meetings, budgetEntries }: CalendarViewPro
                     </div>
                     {events && (
                       <div className="space-y-0.5">
-                        {events.tasks.slice(0, 2).map(t => (
-                          <div key={t.id} className="text-[9px] px-1 py-0.5 rounded bg-[rgba(74,108,247,0.1)] text-[var(--color-primary)] truncate">{t.title}</div>
-                        ))}
-                        {events.meetings.slice(0, 2).map(m => (
-                          <div key={m.id} className="text-[9px] px-1 py-0.5 rounded bg-[rgba(16,185,129,0.1)] text-[var(--color-success)] truncate">📅 {m.title}</div>
-                        ))}
+                        {events.tasks.slice(0, 2).map(t => {
+                          const time = t.dueDate?.includes('T') ? t.dueDate.split('T')[1]?.slice(0, 5) : null;
+                          return (
+                            <div key={t.id} className="text-[9px] px-1 py-0.5 rounded bg-[rgba(74,108,247,0.1)] text-[var(--color-primary)] truncate">
+                              {time && <span className="font-semibold">{time} </span>}{t.title}
+                            </div>
+                          );
+                        })}
+                        {events.meetings.slice(0, 2).map(m => {
+                          const time = m.datetime.includes('T') ? m.datetime.split('T')[1]?.slice(0, 5) : null;
+                          return (
+                            <div key={m.id} className="text-[9px] px-1 py-0.5 rounded bg-[rgba(16,185,129,0.1)] text-[var(--color-success)] truncate">
+                              📅 {time && <span className="font-semibold">{time} </span>}{m.title}
+                            </div>
+                          );
+                        })}
                         {events.budget.slice(0, 1).map(b => (
                           <div key={b.id} className="text-[9px] px-1 py-0.5 rounded bg-[rgba(245,158,11,0.1)] text-[var(--color-warning)] truncate">💰 {b.purpose}</div>
                         ))}
