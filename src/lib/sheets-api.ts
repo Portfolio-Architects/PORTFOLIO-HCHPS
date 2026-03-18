@@ -8,12 +8,15 @@
 
 // basePath에 맞게 API URL 구성
 const API_BASE = '/PORTFOLIO-HCHPS/api/data';
+const API_KEY = '3b2926d8ad82a9a1b7524713ace3711ad40b52b46128fb1c';
 
 // ============ Read ============
 
 export async function readSheet<T>(sheetName: string): Promise<T[]> {
   try {
-    const res = await fetch(`${API_BASE}?sheet=${encodeURIComponent(sheetName)}`);
+    const res = await fetch(`${API_BASE}?sheet=${encodeURIComponent(sheetName)}`, {
+      headers: { 'X-API-Key': API_KEY },
+    });
     if (res.ok) {
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
@@ -33,7 +36,7 @@ async function writeData(sheetName: string, action: string, data?: unknown, id?:
   try {
     const res = await fetch(API_BASE, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
       body: JSON.stringify({ sheet: sheetName, action, data, id }),
     });
     const json = await res.json();
