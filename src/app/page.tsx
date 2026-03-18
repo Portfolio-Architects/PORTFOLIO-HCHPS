@@ -229,7 +229,7 @@ export default function Home() {
       <div className="bg-[var(--color-bg)] py-3 border-b border-[var(--color-border-light)]">
         <QuickInput
           onCreateTask={(data) => {
-            addTask({ title: data.title, status: 'todo', priority: data.priority, category: data.category, dueDate: data.dueDate, tags: data.tags, description: '' });
+            addTask({ title: data.title, status: 'todo', priority: data.priority, category: data.category, dueDate: data.dueDate, tags: data.tags, description: '', recurrence: data.recurrence });
             setActiveModule('workspace');
           }}
           onNavigate={(m) => handleModuleChange(m as ModuleType)}

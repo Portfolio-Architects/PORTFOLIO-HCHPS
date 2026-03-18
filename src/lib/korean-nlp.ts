@@ -19,6 +19,7 @@ export interface ParsedResult {
   location?: string;    // 장소
   priority: 'low' | 'medium' | 'high';
   category?: string;    // 추출된 카테고리
+  recurrence?: string;  // 반복 패턴 (매주 목요일, 매월 15일 등)
   tags: string[];
   rawText: string;
 }
@@ -98,10 +99,10 @@ export function extractDate(text: string): { date: string; matched: string } | n
     }
   }
 
-  // 단독 요일 (이번 주 기준)
-  const soloWeekday = text.match(/(월요일|화요일|수요일|목요일|금요일|토요일|일요일)까지|까지.*(월요일|화요일|수요일|목요일|금요일|토요일|일요일)/);
+  // 단독 요일 — "목요일", "목요일까지", "수요일에" 등 (이번/다음 주 명시 없이)
+  const soloWeekday = text.match(/(월요일|화요일|수요일|목요일|금요일|토요일|일요일)\s*(?:까지|에)?/);
   if (soloWeekday) {
-    const dayName = soloWeekday[1] || soloWeekday[2];
+    const dayName = soloWeekday[1];
     const targetDay = WEEKDAY_MAP[dayName];
     if (targetDay !== undefined) {
       const d = getToday();
@@ -297,6 +298,37 @@ export function extractPriority(text: string): 'low' | 'medium' | 'high' {
   return 'medium';
 }
 
+// ============ Recurrence Extraction ============
+
+export function extractRecurrence(text: string): { recurrence: string; matched: string } | null {
+  // 매주 + 요일: "매주 목요일", "매주 월요일"
+  const weeklyDay = text.match(/매주\s*(월요일|화요일|수요일|목요일|금요일|토요일|일요일|월|화|수|목|금|토|일)/);
+  if (weeklyDay) {
+    const dayName = weeklyDay[1].length === 1 ? weeklyDay[1] + '요일' : weeklyDay[1];
+    return { recurrence: `매주 ${dayName}`, matched: weeklyDay[0] };
+  }
+
+  // 매월 + 일: "매월 15일", "매달 1일"
+  const monthlyDay = text.match(/(?:매월|매달)\s*(\d{1,2})\s*일/);
+  if (monthlyDay) {
+    return { recurrence: `매월 ${monthlyDay[1]}일`, matched: monthlyDay[0] };
+  }
+
+  // 격주: "격주 수요일"
+  const biweekly = text.match(/격주\s*(월요일|화요일|수요일|목요일|금요일|토요일|일요일|월|화|수|목|금|토|일)/);
+  if (biweekly) {
+    const dayName = biweekly[1].length === 1 ? biweekly[1] + '요일' : biweekly[1];
+    return { recurrence: `격주 ${dayName}`, matched: biweekly[0] };
+  }
+
+  // 매일
+  if (/매일/.test(text)) {
+    return { recurrence: '매일', matched: '매일' };
+  }
+
+  return null;
+}
+
 // ============ Extract ALL dates ============
 
 function extractAllDates(text: string): { date: string; matched: string }[] {
@@ -419,6 +451,7 @@ export function classifyAndParse(text: string): ParsedResult {
   const people = extractPeople(rawText);
   const location = extractLocation(rawText);
   const priority = extractPriority(rawText);
+  const recurrenceResult = extractRecurrence(rawText);
 
   // Classify
   let type: ParsedType = 'task';
@@ -453,6 +486,7 @@ export function classifyAndParse(text: string): ParsedResult {
   allDates.forEach(d => removals.push(d.matched));
   if (timeResult) removals.push(timeResult.matched);
   if (amountResult) removals.push(amountResult.matched);
+  if (recurrenceResult) removals.push(recurrenceResult.matched);
 
   let title = cleanTitle(rawText, removals);
   if (!title || title.length < 2) title = rawText;
@@ -471,6 +505,7 @@ export function classifyAndParse(text: string): ParsedResult {
     people,
     location: location || undefined,
     priority,
+    recurrence: recurrenceResult?.recurrence,
     tags,
     rawText,
   };

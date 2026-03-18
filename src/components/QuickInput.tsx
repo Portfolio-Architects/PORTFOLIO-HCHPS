@@ -2,10 +2,10 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
 import { classifyAndParse, ParsedResult } from '@/lib/korean-nlp';
-import { Zap, Calendar, Clock, MapPin, Users, DollarSign, AlertTriangle, Send } from 'lucide-react';
+import { Zap, Calendar, Clock, MapPin, Users, DollarSign, AlertTriangle, Send, Repeat } from 'lucide-react';
 
 interface QuickInputProps {
-  onCreateTask: (data: { title: string; dueDate?: string; priority: 'low' | 'medium' | 'high'; tags: string[]; category: string }) => void;
+  onCreateTask: (data: { title: string; dueDate?: string; priority: 'low' | 'medium' | 'high'; tags: string[]; category: string; recurrence?: string }) => void;
   onNavigate: (module: string) => void;
 }
 
@@ -37,6 +37,7 @@ export function QuickInput({ onCreateTask, onNavigate }: QuickInputProps) {
       priority: parsed.priority,
       tags,
       category: parsed.category || '',
+      recurrence: parsed.recurrence,
     });
 
     onNavigate('workspace');
@@ -111,6 +112,11 @@ export function QuickInput({ onCreateTask, onNavigate }: QuickInputProps) {
             {parsed.priority === 'high' && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] bg-red-50 text-red-600">
                 <AlertTriangle size={10} /> 긴급
+              </span>
+            )}
+            {parsed.recurrence && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] bg-teal-50 text-teal-600">
+                <Repeat size={10} /> {parsed.recurrence}
               </span>
             )}
             <span className="text-[10px] text-[var(--color-text-tertiary)] ml-auto hidden sm:inline">
