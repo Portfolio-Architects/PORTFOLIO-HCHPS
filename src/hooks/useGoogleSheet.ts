@@ -39,6 +39,21 @@ export function useGoogleSheet<T extends { id: string }>(
           setData(rows);
           // Cache in localStorage
           try { localStorage.setItem(localStorageKey, JSON.stringify(rows)); } catch { /* ignore */ }
+        } else {
+          // KV is empty — push localStorage data to KV if available (one-time migration)
+          const stored = localStorage.getItem(localStorageKey);
+          if (stored) {
+            try {
+              const localData = JSON.parse(stored) as T[];
+              if (localData.length > 0) {
+                import('@/lib/sheets-api').then(({ replaceAll }) => {
+                  replaceAll(sheetName, localData).then(ok => {
+                    if (ok) console.log(`[KV Sync] 로컬 데이터 마이그레이션 완료: ${sheetName} (${localData.length}건)`);
+                  });
+                });
+              }
+            } catch { /* ignore parse errors */ }
+          }
         }
       })
       .catch(() => {
