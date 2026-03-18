@@ -24,6 +24,7 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, categor
   const [category, setCategory] = useState(editTask?.category || '');
   const [dueDate, setDueDate] = useState(editTask?.dueDate || '');
   const [projectId, setProjectId] = useState(editTask?.projectId || '');
+  const [recurrence, setRecurrence] = useState(editTask?.recurrence || '');
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>(editTask?.tags || []);
 
@@ -36,10 +37,11 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, categor
       setCategory(editTask.category);
       setDueDate(editTask.dueDate || '');
       setProjectId(editTask.projectId || '');
+      setRecurrence(editTask.recurrence || '');
       setTags(editTask.tags);
     } else {
       setTitle(''); setDescription(''); setStatus('todo'); setPriority('medium');
-      setCategory(''); setDueDate(''); setProjectId(''); setTags([]);
+      setCategory(''); setDueDate(''); setProjectId(''); setRecurrence(''); setTags([]);
     }
   }, [editTask, isOpen]);
 
@@ -48,9 +50,9 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, categor
     if (!title.trim()) return;
 
     if (editTask && onUpdate) {
-      onUpdate(editTask.id, { title, description, status, priority, category, dueDate: dueDate || undefined, projectId: projectId || undefined, tags });
+      onUpdate(editTask.id, { title, description, status, priority, category, dueDate: dueDate || undefined, projectId: projectId || undefined, recurrence: recurrence || undefined, tags });
     } else {
-      onSave({ title, description, status, priority, category, dueDate: dueDate || undefined, projectId: projectId || undefined, tags });
+      onSave({ title, description, status, priority, category, dueDate: dueDate || undefined, projectId: projectId || undefined, recurrence: recurrence || undefined, tags });
     }
     onClose();
   };
@@ -147,6 +149,11 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, categor
             <label className={labelClass}>마감일</label>
             <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className={inputClass} />
           </div>
+        </div>
+        
+        <div>
+          <label className={labelClass}>반복 일정</label>
+          <input type="text" value={recurrence} onChange={e => setRecurrence(e.target.value)} className={inputClass} placeholder="예: 매일, 매주 화요일" />
         </div>
 
         {projects.length > 0 && (

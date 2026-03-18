@@ -9,7 +9,7 @@ import { Modal } from './ui/modal';
 import {
   Plus, Pencil, Trash2, CheckCircle2, Circle, Search,
   CalendarDays, MapPin, Users, FileText, FolderKanban,
-  ListTodo, ChevronDown, ChevronRight
+  ListTodo, ChevronDown, ChevronRight, Repeat
 } from 'lucide-react';
 
 type ItemFilter = 'all' | 'tasks' | 'meetings';
@@ -191,6 +191,11 @@ export function TaskListView({
                 </span>
               )}
               {task.category && <span className="text-xs text-[var(--color-text-tertiary)]">{task.category}</span>}
+              {task.recurrence && (
+                <span className="flex items-center gap-1 text-[11px] font-semibold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-100">
+                  <Repeat size={10} /> {task.recurrence}
+                </span>
+              )}
               {task.tags.map(tag => (
                 <span key={tag} className="text-xs bg-gray-100 text-[var(--color-text-secondary)] px-1.5 py-0.5 rounded">{tag}</span>
               ))}

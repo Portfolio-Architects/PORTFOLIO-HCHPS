@@ -1,12 +1,36 @@
 'use client';
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef, useEffect } from 'react';
 import { useGoogleSheet, useSheetCrud } from './useGoogleSheet';
 import { Task, TaskStatus, TaskPriority, generateId } from '@/types';
+
+function calculateNextDueDate(currentDueDate?: string, recurrence?: string): string | undefined {
+  if (!recurrence) return currentDueDate;
+  
+  const baseDate = currentDueDate ? new Date(currentDueDate) : new Date();
+  const nextDate = new Date(baseDate);
+  
+  if (recurrence.includes('매일') || recurrence.includes('매 일')) {
+    nextDate.setDate(nextDate.getDate() + 1);
+  } else if (recurrence.includes('격주')) {
+    nextDate.setDate(nextDate.getDate() + 14);
+  } else if (recurrence.includes('월') || recurrence.includes('달')) {
+    nextDate.setMonth(nextDate.getMonth() + 1);
+  } else {
+    // Default fallback for "매주", "주 2회" etc
+    nextDate.setDate(nextDate.getDate() + 7);
+  }
+  
+  // Return in YYYY-MM-DD format (local time)
+  return new Date(nextDate.getTime() - (nextDate.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+}
 
 export function useTasks() {
   const [tasks, setTasks] = useGoogleSheet<Task>('TASKS', 'hchps-tasks', []);
   const { syncAdd, syncUpdate, syncDelete } = useSheetCrud<Task>('TASKS');
+
+  const tasksRef = useRef(tasks);
+  useEffect(() => { tasksRef.current = tasks; }, [tasks]);
 
   const addTask = useCallback((task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => {
     const now = new Date().toISOString();
@@ -17,10 +41,30 @@ export function useTasks() {
   }, [setTasks, syncAdd]);
 
   const updateTask = useCallback((id: string, updates: Partial<Task>) => {
+    const task = tasksRef.current.find(t => t.id === id);
+
+    if (task && updates.status === 'done' && task.status !== 'done' && task.recurrence) {
+      // Auto-duplicate recurring task for the next cycle
+      const nextDate = calculateNextDueDate(task.dueDate, task.recurrence);
+      const nextTask = {
+        title: task.title,
+        description: task.description,
+        status: 'todo' as TaskStatus,
+        priority: task.priority,
+        category: task.category,
+        dueDate: nextDate,
+        projectId: task.projectId,
+        tags: [...task.tags],
+        recurrence: task.recurrence
+      };
+      // Delay scheduling the next task to prevent state conflict during current render
+      setTimeout(() => addTask(nextTask), 50);
+    }
+
     const updatedFields = { ...updates, updatedAt: new Date().toISOString() };
     setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updatedFields } : t));
     syncUpdate(id, updatedFields);
-  }, [setTasks, syncUpdate]);
+  }, [setTasks, syncUpdate, addTask]);
 
   const deleteTask = useCallback((id: string) => {
     setTasks(prev => prev.filter(t => t.id !== id));
