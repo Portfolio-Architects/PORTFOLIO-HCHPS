@@ -49,7 +49,9 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, categor
   const [recurrenceDays, setRecurrenceDays] = useState<string[]>(initRecurrence.days);
   const [customRecurrence, setCustomRecurrence] = useState(initRecurrence.custom);
   
+  const [recurrenceStartDate, setRecurrenceStartDate] = useState(editTask?.recurrenceStartDate || '');
   const [recurrenceEndDate, setRecurrenceEndDate] = useState(editTask?.recurrenceEndDate || '');
+  const [recurrenceCount, setRecurrenceCount] = useState<number | ''>(editTask?.recurrenceCount || '');
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>(editTask?.tags || []);
 
@@ -68,15 +70,40 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, categor
       setRecurrenceDays(parsed.days);
       setCustomRecurrence(parsed.custom);
       
+      setRecurrenceStartDate(editTask.recurrenceStartDate || '');
       setRecurrenceEndDate(editTask.recurrenceEndDate || '');
+      setRecurrenceCount(editTask.recurrenceCount || '');
       setTags(editTask.tags);
     } else {
       setTitle(''); setDescription(''); setStatus('todo'); setPriority('medium');
       setCategory(''); setDueDate(''); setProjectId('');
       setRecurrenceType('none'); setRecurrenceDays([]); setCustomRecurrence('');
-      setRecurrenceEndDate(''); setTags([]);
+      setRecurrenceStartDate(''); setRecurrenceEndDate(''); setRecurrenceCount(''); setTags([]);
     }
   }, [editTask, isOpen]);
+
+  // Auto-calculate end date from start date + count + pattern
+  React.useEffect(() => {
+    if (!recurrenceStartDate || !recurrenceCount || recurrenceType === 'none') return;
+    const count = typeof recurrenceCount === 'number' ? recurrenceCount : parseInt(String(recurrenceCount));
+    if (!count || count <= 0) return;
+    
+    const start = new Date(recurrenceStartDate);
+    if (recurrenceType === 'daily') {
+      start.setDate(start.getDate() + (count - 1));
+    } else if (recurrenceType === 'biweekly') {
+      start.setDate(start.getDate() + (count - 1) * 14);
+    } else if (recurrenceType === 'weekly') {
+      const numDays = recurrenceDays.length || 1;
+      const weeks = Math.ceil(count / numDays);
+      start.setDate(start.getDate() + (weeks - 1) * 7);
+    } else {
+      // custom/monthly fallback
+      start.setDate(start.getDate() + (count - 1) * 7);
+    }
+    const endStr = new Date(start.getTime() - (start.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+    setRecurrenceEndDate(endStr);
+  }, [recurrenceStartDate, recurrenceCount, recurrenceType, recurrenceDays]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,10 +121,12 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, categor
       finalRecurrence = customRecurrence.trim();
     }
 
+    const countVal = typeof recurrenceCount === 'number' ? recurrenceCount : (parseInt(String(recurrenceCount)) || undefined);
+
     if (editTask && onUpdate) {
-      onUpdate(editTask.id, { title, description, status, priority, category, dueDate: dueDate || undefined, projectId: projectId || undefined, recurrence: finalRecurrence || undefined, recurrenceEndDate: recurrenceEndDate || undefined, tags });
+      onUpdate(editTask.id, { title, description, status, priority, category, dueDate: dueDate || undefined, projectId: projectId || undefined, recurrence: finalRecurrence || undefined, recurrenceStartDate: recurrenceStartDate || undefined, recurrenceEndDate: recurrenceEndDate || undefined, recurrenceCount: countVal, tags });
     } else {
-      onSave({ title, description, status, priority, category, dueDate: dueDate || undefined, projectId: projectId || undefined, recurrence: finalRecurrence || undefined, recurrenceEndDate: recurrenceEndDate || undefined, tags });
+      onSave({ title, description, status, priority, category, dueDate: dueDate || undefined, projectId: projectId || undefined, recurrence: finalRecurrence || undefined, recurrenceStartDate: recurrenceStartDate || undefined, recurrenceEndDate: recurrenceEndDate || undefined, recurrenceCount: countVal, tags });
     }
     onClose();
   };
@@ -239,10 +268,33 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, categor
             )}
           </div>
           
-          <div className="col-span-2 sm:col-span-1">
-            <label className={labelClass}>반복 종료일 (선택)</label>
-            <input type="date" value={recurrenceEndDate} onChange={e => setRecurrenceEndDate(e.target.value)} className={inputClass} disabled={recurrenceType === 'none'} />
-          </div>
+          {recurrenceType !== 'none' && (
+            <div className="col-span-2 space-y-3">
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className={labelClass}>시작일</label>
+                  <input type="date" value={recurrenceStartDate} onChange={e => setRecurrenceStartDate(e.target.value)} className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>총 횟수</label>
+                  <input type="number" min="1" value={recurrenceCount} onChange={e => setRecurrenceCount(e.target.value ? parseInt(e.target.value) : '')} className={inputClass} placeholder="예: 12" />
+                </div>
+                <div>
+                  <label className={labelClass}>종료일 (자동계산)</label>
+                  <input type="date" value={recurrenceEndDate} onChange={e => setRecurrenceEndDate(e.target.value)} className={inputClass} />
+                </div>
+              </div>
+              
+              {recurrenceStartDate && recurrenceCount && recurrenceEndDate && (
+                <div className="text-xs bg-teal-50 border border-teal-100 rounded-lg px-3 py-2 text-teal-700 flex items-center gap-2">
+                  <CalendarDays size={12} />
+                  <span>
+                    {recurrenceStartDate.replace(/-/g, '.')} ~ {recurrenceEndDate.replace(/-/g, '.')} · 총 <strong>{recurrenceCount}회</strong> 반복
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {projects.length > 0 && (

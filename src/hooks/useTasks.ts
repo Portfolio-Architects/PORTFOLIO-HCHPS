@@ -66,7 +66,9 @@ export function useTasks() {
           projectId: task.projectId,
           tags: [...task.tags],
           recurrence: task.recurrence,
-          recurrenceEndDate: task.recurrenceEndDate
+          recurrenceStartDate: task.recurrenceStartDate,
+          recurrenceEndDate: task.recurrenceEndDate,
+          recurrenceCount: task.recurrenceCount
         };
         // Delay scheduling the next task to prevent state conflict during current render
         setTimeout(() => addTask(nextTask), 50);

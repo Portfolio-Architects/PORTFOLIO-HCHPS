@@ -12,7 +12,9 @@ export interface Task {
   dueDate?: string;
   projectId?: string;
   recurrence?: string; // 반복 패턴: '매주 목요일', '매월 15일', '매일' 등
+  recurrenceStartDate?: string;
   recurrenceEndDate?: string;
+  recurrenceCount?: number; // 총 반복 횟수
   createdAt: string;
   updatedAt: string;
   tags: string[];

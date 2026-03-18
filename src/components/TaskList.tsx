@@ -195,7 +195,7 @@ export function TaskListView({
               {task.category && <span className="text-xs text-[var(--color-text-tertiary)]">{task.category}</span>}
               {task.recurrence && (
                 <span className="flex items-center gap-1 text-[11px] font-semibold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-100">
-                  <Repeat size={10} /> {task.recurrence}
+                  <Repeat size={10} /> {task.recurrence}{task.recurrenceCount ? ` · ${task.recurrenceCount}회` : ''}
                 </span>
               )}
               {task.tags.map(tag => (
