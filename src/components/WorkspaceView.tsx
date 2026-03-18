@@ -59,6 +59,8 @@ interface WorkspaceViewProps {
   toggleChecklistItem: (projectId: string, itemId: string) => void;
   deleteChecklistItem: (projectId: string, itemId: string) => void;
   getProjectProgress: (projectId: string) => number;
+  // Knowledge
+  knowledgeEntries: import('@/types').KnowledgeEntry[];
 }
 
 export function WorkspaceView(props: WorkspaceViewProps) {
@@ -170,6 +172,7 @@ export function WorkspaceView(props: WorkspaceViewProps) {
         onUpdate={props.updateTask}
         categories={taskCategories}
         projects={props.projects.map(p => ({ id: p.id, name: p.name }))}
+        knowledgeEntries={props.knowledgeEntries}
       />
     </>
   );

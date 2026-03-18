@@ -6,6 +6,7 @@ import { Zap, Calendar, Clock, MapPin, Users, DollarSign, AlertTriangle, Send, R
 
 interface QuickInputProps {
   onCreateTask: (data: { title: string; dueDate?: string; priority: 'low' | 'medium' | 'high'; tags: string[]; category: string; recurrence?: string }) => void;
+  onCreateKnowledge?: (data: { title: string; content: string; tags: string[]; category: string }) => void;
   onNavigate: (module: string) => void;
 }
 
@@ -14,9 +15,10 @@ function formatAmount(n: number): string {
   return `${n.toLocaleString()}원`;
 }
 
-export function QuickInput({ onCreateTask, onNavigate }: QuickInputProps) {
+export function QuickInput({ onCreateTask, onCreateKnowledge, onNavigate }: QuickInputProps) {
   const [text, setText] = useState('');
   const [justCreated, setJustCreated] = useState(false);
+  const [createdLabel, setCreatedLabel] = useState('업무 생성 완료!');
 
   const parsed = useMemo<ParsedResult | null>(() => {
     if (text.trim().length < 2) return null;
@@ -37,20 +39,32 @@ export function QuickInput({ onCreateTask, onNavigate }: QuickInputProps) {
       dueDate = `${dueDate}T${parsed.time}`;
     }
 
-    onCreateTask({
-      title: parsed.title,
-      dueDate,
-      priority: parsed.priority,
-      tags,
-      category: parsed.category || '',
-      recurrence: parsed.recurrence,
-    });
+    if (parsed.type === 'knowledge' && onCreateKnowledge) {
+      onCreateKnowledge({
+        title: parsed.title,
+        content: parsed.rawText,
+        tags,
+        category: parsed.category || '',
+      });
+      setCreatedLabel('지식 등록 완료!');
+      onNavigate('knowledge');
+    } else {
+      onCreateTask({
+        title: parsed.title,
+        dueDate,
+        priority: parsed.priority,
+        tags,
+        category: parsed.category || '',
+        recurrence: parsed.recurrence,
+      });
+      setCreatedLabel('업무 생성 완료!');
+      onNavigate('workspace');
+    }
 
-    onNavigate('workspace');
     setText('');
     setJustCreated(true);
     setTimeout(() => setJustCreated(false), 2500);
-  }, [parsed, text, onCreateTask, onNavigate]);
+  }, [parsed, text, onCreateTask, onCreateKnowledge, onNavigate]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -73,8 +87,12 @@ export function QuickInput({ onCreateTask, onNavigate }: QuickInputProps) {
         />
 
         {parsed && (
-          <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-[rgba(74,108,247,0.08)] text-[var(--color-primary)]">
-            📋 업무
+          <span className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold ${
+            parsed.type === 'knowledge' 
+              ? 'bg-[rgba(234,179,8,0.1)] text-yellow-600'
+              : 'bg-[rgba(74,108,247,0.08)] text-[var(--color-primary)]'
+          }`}>
+            {parsed.type === 'knowledge' ? '💡 지식' : '📋 업무'}
           </span>
         )}
 
@@ -132,7 +150,7 @@ export function QuickInput({ onCreateTask, onNavigate }: QuickInputProps) {
 
       {justCreated && (
         <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-xs font-medium text-[var(--color-success)] animate-pulse">
-          ✅ 업무 생성 완료!
+          ✅ {createdLabel}
         </div>
       )}
     </div>

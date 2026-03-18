@@ -8,10 +8,12 @@ import { useInventory } from '@/hooks/useInventory';
 import { useMeetings } from '@/hooks/useMeetings';
 import { useProjects } from '@/hooks/useProjects';
 import { useSignal } from '@/hooks/useSignal';
+import { useKnowledge } from '@/hooks/useKnowledge';
 import { Sidebar } from '@/components/Sidebar';
 import { QuickInput } from '@/components/QuickInput';
 import { WorkspaceView } from '@/components/WorkspaceView';
 import { MindMap3D } from '@/components/MindMap3D';
+import { KnowledgeList } from '@/components/knowledge/KnowledgeList';
 import { Lock, Eye, EyeOff } from 'lucide-react';
 
 // Passcode gate for mindmap
@@ -95,6 +97,7 @@ export default function Home() {
   const { meetings, addMeeting, updateMeeting, deleteMeeting, getUpcomingMeetings, getTodayMeetings } = useMeetings();
   const { projects, addProject, updateProject, deleteProject, addChecklistItem, toggleChecklistItem, deleteChecklistItem, getProjectProgress } = useProjects();
   const { entries: signalEntries, addSignal, keywordMap } = useSignal();
+  const { entries: knowledgeEntries, addKnowledge, updateKnowledge, deleteKnowledge, filterKnowledge, metadata: knowledgeMetadata } = useKnowledge();
 
   // Auto-lock mindmap after inactivity
   const resetInactivityTimer = useCallback(() => {
@@ -169,6 +172,19 @@ export default function Home() {
             toggleChecklistItem={toggleChecklistItem}
             deleteChecklistItem={deleteChecklistItem}
             getProjectProgress={getProjectProgress}
+            knowledgeEntries={knowledgeEntries}
+          />
+        );
+
+      case 'knowledge':
+        return (
+          <KnowledgeList
+            entries={knowledgeEntries}
+            addKnowledge={addKnowledge}
+            updateKnowledge={updateKnowledge}
+            deleteKnowledge={deleteKnowledge}
+            filterKnowledge={filterKnowledge}
+            metadata={knowledgeMetadata}
           />
         );
 
@@ -188,6 +204,11 @@ export default function Home() {
       icon: '📋',
       title: '업무관리',
       sub: 'HCHPS Work Manager',
+    },
+    knowledge: {
+      icon: '💡',
+      title: '지식창고',
+      sub: '업무 암묵지 및 어드바이스 관리',
     },
     mindmap: {
       icon: '📡',
@@ -209,6 +230,10 @@ export default function Home() {
             onCreateTask={(data) => {
               addTask({ title: data.title, status: 'todo', priority: data.priority, category: data.category, dueDate: data.dueDate, tags: data.tags, description: '', recurrence: data.recurrence });
               if (activeModule !== 'workspace') setActiveModule('workspace');
+            }}
+            onCreateKnowledge={(data) => {
+              addKnowledge({ title: data.title, content: data.content, tags: data.tags, category: data.category });
+              if (activeModule !== 'knowledge') setActiveModule('knowledge');
             }}
             onNavigate={(m) => handleModuleChange(m as ModuleType)}
           />

@@ -103,8 +103,19 @@ export interface DocumentEntry {
   status: 'draft' | 'ready' | 'done'; // 상태
 }
 
+// ============ Knowledge Base Module ============
+export interface KnowledgeEntry {
+  id: string;
+  title: string;
+  content: string;
+  category: string;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ============ Navigation ============
-export type ModuleType = 'workspace' | 'mindmap';
+export type ModuleType = 'workspace' | 'knowledge' | 'mindmap';
 
 // ============ Utility ============
 export function generateId(): string {

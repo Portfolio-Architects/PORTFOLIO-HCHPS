@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Task, TaskStatus, TaskPriority, generateId } from '@/types';
+import React, { useState, useMemo } from 'react';
+import { Task, TaskStatus, TaskPriority, KnowledgeEntry } from '@/types';
 import { Modal } from './ui/modal';
+import { Lightbulb } from 'lucide-react';
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -12,9 +13,10 @@ interface TaskModalProps {
   onUpdate?: (id: string, updates: Partial<Task>) => void;
   categories: string[];
   projects: { id: string; name: string }[];
+  knowledgeEntries: KnowledgeEntry[];
 }
 
-export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, categories, projects }: TaskModalProps) {
+export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, categories, projects, knowledgeEntries }: TaskModalProps) {
   const [title, setTitle] = useState(editTask?.title || '');
   const [description, setDescription] = useState(editTask?.description || '');
   const [status, setStatus] = useState<TaskStatus>(editTask?.status || 'todo');
@@ -60,15 +62,53 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, categor
     }
   };
 
+  const matchedAdvice = useMemo(() => {
+    if (!knowledgeEntries || knowledgeEntries.length === 0) return [];
+    
+    return knowledgeEntries.filter(entry => {
+      // 1. Direct tag match (task has a tag that matches entry's tag)
+      if (entry.tags && entry.tags.some(t => tags.includes(t))) return true;
+      // 2. Category match
+      if (entry.category && entry.category === category) return true;
+      // 3. Keyword match from title
+      if (title) {
+        // Very basic keyword check: if entry tags or title exist in task title
+        if (entry.tags && entry.tags.some(t => title.includes(t))) return true;
+        
+        // Exclude generic terms before checking title inclusion
+        const genericTerms = ['보고', '회의', '미팅', '작성', '확인', '검토', '기획'];
+        if (!genericTerms.includes(entry.title) && title.includes(entry.title)) return true;
+      }
+      return false;
+    });
+  }, [knowledgeEntries, tags, category, title]);
+
   const inputClass = "w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent transition-shadow";
   const labelClass = "block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5";
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={editTask ? '업무 수정' : '새 업무'}>
       <form onSubmit={handleSubmit} className="space-y-4">
+        {matchedAdvice.length > 0 && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 mb-2 animate-in fade-in slide-in-from-top-2 duration-300">
+            <h4 className="flex items-center gap-1.5 text-xs font-bold text-yellow-800 mb-2">
+              <Lightbulb size={14} className="text-yellow-600" />
+              💡 참고할 조언 / 어드바이스 ({matchedAdvice.length}건)
+            </h4>
+            <div className="space-y-2 max-h-32 overflow-y-auto custom-scrollbar">
+              {matchedAdvice.map(advice => (
+                <div key={advice.id} className="bg-white/80 rounded-lg p-2 text-xs">
+                  <div className="font-semibold text-gray-800 mb-0.5">{advice.title}</div>
+                  <div className="text-gray-600 whitespace-pre-wrap leading-relaxed">{advice.content}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div>
           <label className={labelClass}>제목 *</label>
-          <input type="text" value={title} onChange={e => setTitle(e.target.value)} className={inputClass} placeholder="업무 제목을 입력하세요" required />
+          <input type="text" value={title} onChange={e => setTitle(e.target.value)} className={inputClass} placeholder="업무 제목을 입력하세요" required autoFocus />
         </div>
 
         <div>
