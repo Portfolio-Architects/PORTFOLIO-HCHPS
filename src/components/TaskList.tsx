@@ -1,10 +1,18 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Task, TaskStatus, TaskPriority } from '@/types';
+import React, { useState, useMemo } from 'react';
+import { Task, TaskStatus, TaskPriority, Meeting, Project, generateId } from '@/types';
 import { Badge } from './ui/badge';
 import { Card } from './ui/card';
-import { Plus, Pencil, Trash2, CheckCircle2, Circle, Search, Filter } from 'lucide-react';
+import { ProgressBar } from './ui/progress-bar';
+import { Modal } from './ui/modal';
+import {
+  Plus, Pencil, Trash2, CheckCircle2, Circle, Search,
+  CalendarDays, MapPin, Users, FileText, FolderKanban,
+  ListTodo, ChevronDown, ChevronRight
+} from 'lucide-react';
+
+type ItemFilter = 'all' | 'tasks' | 'meetings';
 
 interface TaskListProps {
   tasks: Task[];
@@ -12,11 +20,19 @@ interface TaskListProps {
   onDelete: (id: string) => void;
   onStatusChange: (id: string, status: TaskStatus) => void;
   onAdd: () => void;
+  // Meeting props
+  meetings: Meeting[];
+  addMeeting: (m: Omit<Meeting, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateMeeting: (id: string, updates: Partial<Meeting>) => void;
+  deleteMeeting: (id: string) => void;
+  // Project props
+  projects: Project[];
+  addProject: (p: Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'checklistItems'>) => void;
+  deleteProject: (id: string) => void;
 }
 
 const priorityLabel: Record<TaskPriority, string> = { low: '낮음', medium: '보통', high: '높음' };
 const priorityVariant: Record<TaskPriority, 'success' | 'warning' | 'danger'> = { low: 'success', medium: 'warning', high: 'danger' };
-const statusLabel: Record<TaskStatus, string> = { todo: '대기', 'in-progress': '진행중', done: '완료' };
 
 function getDDay(dueDate?: string) {
   if (!dueDate) return null;
@@ -27,97 +43,394 @@ function getDDay(dueDate?: string) {
   return { label: `D-${diff}`, color: 'text-[var(--color-text-tertiary)]' };
 }
 
-export function TaskListView({ tasks, onEdit, onDelete, onStatusChange, onAdd }: TaskListProps) {
+function formatDT(iso: string) {
+  const d = new Date(iso);
+  return d.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', weekday: 'short' }) + ' ' + d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+}
+
+const PROJECT_COLORS = ['#4A6CF7', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
+
+export function TaskListView({
+  tasks, onEdit, onDelete, onStatusChange, onAdd,
+  meetings, addMeeting, updateMeeting, deleteMeeting,
+  projects, addProject, deleteProject
+}: TaskListProps) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<TaskStatus | ''>('');
   const [priorityFilter, setPriorityFilter] = useState<TaskPriority | ''>('');
+  const [itemFilter, setItemFilter] = useState<ItemFilter>('all');
+  const [projectFilter, setProjectFilter] = useState<string>('');
 
-  const filtered = tasks.filter(t => {
-    if (search && !t.title.toLowerCase().includes(search.toLowerCase()) && !(t.description || '').toLowerCase().includes(search.toLowerCase())) return false;
-    if (statusFilter && t.status !== statusFilter) return false;
-    if (priorityFilter && t.priority !== priorityFilter) return false;
-    return true;
-  });
+  // Meeting modal state
+  const [showMeetingModal, setShowMeetingModal] = useState(false);
+  const [editMeeting, setEditMeeting] = useState<Meeting | null>(null);
+  const [mTitle, setMTitle] = useState('');
+  const [mDatetime, setMDatetime] = useState('');
+  const [mEndTime, setMEndTime] = useState('');
+  const [mLocation, setMLocation] = useState('');
+  const [mAttendeesStr, setMAttendeesStr] = useState('');
+  const [mAgenda, setMAgenda] = useState('');
+  const [mNotes, setMNotes] = useState('');
+  const [expandedMeetingId, setExpandedMeetingId] = useState<string | null>(null);
+
+  // Project modal state
+  const [showProjectModal, setShowProjectModal] = useState(false);
+  const [pName, setPName] = useState('');
+  const [pDescription, setPDescription] = useState('');
+  const [projectBarExpanded, setProjectBarExpanded] = useState(true);
+
+  const inputClass = "w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition-shadow";
+
+  // -- Filter logic --
+  const filteredTasks = useMemo(() => {
+    return tasks.filter(t => {
+      if (search && !t.title.toLowerCase().includes(search.toLowerCase()) && !(t.description || '').toLowerCase().includes(search.toLowerCase())) return false;
+      if (statusFilter && t.status !== statusFilter) return false;
+      if (priorityFilter && t.priority !== priorityFilter) return false;
+      if (projectFilter && t.projectId !== projectFilter) return false;
+      return true;
+    });
+  }, [tasks, search, statusFilter, priorityFilter, projectFilter]);
+
+  const filteredMeetings = useMemo(() => {
+    if (!search) return meetings;
+    return meetings.filter(m => m.title.toLowerCase().includes(search.toLowerCase()));
+  }, [meetings, search]);
+
+  const now = new Date();
+  const sortedMeetings = useMemo(() =>
+    [...filteredMeetings].sort((a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime()),
+    [filteredMeetings]
+  );
+
+  // -- Project progress (task-based) --
+  const getProjectProgress = (projectId: string) => {
+    const projectTasks = tasks.filter(t => t.projectId === projectId);
+    if (projectTasks.length === 0) return 0;
+    const completed = projectTasks.filter(t => t.status === 'done').length;
+    return Math.round((completed / projectTasks.length) * 100);
+  };
+
+  const getProjectTaskCount = (projectId: string) => {
+    const projectTasks = tasks.filter(t => t.projectId === projectId);
+    const done = projectTasks.filter(t => t.status === 'done').length;
+    return { total: projectTasks.length, done };
+  };
+
+  // -- Meeting modal --
+  const openAddMeeting = () => {
+    setEditMeeting(null); setMTitle(''); setMDatetime(''); setMEndTime(''); setMLocation(''); setMAttendeesStr(''); setMAgenda(''); setMNotes('');
+    setShowMeetingModal(true);
+  };
+  const openEditMeeting = (m: Meeting) => {
+    setEditMeeting(m); setMTitle(m.title); setMDatetime(m.datetime.slice(0, 16)); setMEndTime(m.endTime || ''); setMLocation(m.location || ''); setMAttendeesStr(m.attendees.join(', ')); setMAgenda(m.agenda || ''); setMNotes(m.notes || '');
+    setShowMeetingModal(true);
+  };
+  const handleMeetingSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mTitle.trim() || !mDatetime) return;
+    const data = { title: mTitle, datetime: new Date(mDatetime).toISOString(), endTime: mEndTime || undefined, location: mLocation || undefined, attendees: mAttendeesStr.split(',').map(s => s.trim()).filter(Boolean), agenda: mAgenda || undefined, notes: mNotes || undefined };
+    if (editMeeting) { updateMeeting(editMeeting.id, data); } else { addMeeting(data); }
+    setShowMeetingModal(false);
+  };
+
+  // -- Project modal --
+  const handleProjectSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pName.trim()) return;
+    addProject({ name: pName, description: pDescription || undefined, color: PROJECT_COLORS[projects.length % PROJECT_COLORS.length] });
+    setPName(''); setPDescription(''); setShowProjectModal(false);
+  };
+
+  // -- Render items --
+  const renderTask = (task: Task) => {
+    const dday = getDDay(task.dueDate);
+    const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
+    return (
+      <Card key={task.id} hover>
+        <div className="px-4 py-3 flex items-center gap-3">
+          <button
+            onClick={() => onStatusChange(task.id, task.status === 'done' ? 'todo' : 'done')}
+            className="shrink-0 cursor-pointer"
+          >
+            {task.status === 'done' ?
+              <CheckCircle2 size={20} className="text-[var(--color-success)]" /> :
+              <Circle size={20} className="text-[var(--color-text-tertiary)] hover:text-[var(--color-primary)] transition-colors" />
+            }
+          </button>
+          <div className="flex-1 min-w-0" onClick={() => onEdit(task)}>
+            <div className={`text-sm font-medium ${task.status === 'done' ? 'line-through text-[var(--color-text-tertiary)]' : ''}`}>
+              {task.title}
+            </div>
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              <Badge variant={priorityVariant[task.priority]}>{priorityLabel[task.priority]}</Badge>
+              {project && (
+                <span className="flex items-center gap-1 text-xs text-[var(--color-text-secondary)]">
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: project.color }} />
+                  {project.name}
+                </span>
+              )}
+              {task.category && <span className="text-xs text-[var(--color-text-tertiary)]">{task.category}</span>}
+              {dday && <span className={`text-xs font-semibold ${dday.color}`}>{dday.label}</span>}
+              {task.tags.map(tag => (
+                <span key={tag} className="text-xs bg-gray-100 text-[var(--color-text-secondary)] px-1.5 py-0.5 rounded">{tag}</span>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            <button onClick={() => onEdit(task)} className="p-2 rounded hover:bg-gray-100 text-[var(--color-text-tertiary)] hover:text-[var(--color-primary)] transition-colors cursor-pointer">
+              <Pencil size={14} />
+            </button>
+            <button onClick={() => onDelete(task.id)} className="p-2 rounded hover:bg-gray-100 text-[var(--color-text-tertiary)] hover:text-[var(--color-danger)] transition-colors cursor-pointer">
+              <Trash2 size={14} />
+            </button>
+          </div>
+        </div>
+      </Card>
+    );
+  };
+
+  const renderMeeting = (m: Meeting) => {
+    const isPast = new Date(m.datetime) < now;
+    const isExpanded = expandedMeetingId === m.id;
+    return (
+      <Card key={m.id} hover onClick={() => setExpandedMeetingId(isExpanded ? null : m.id)}>
+        <div className={`px-4 py-3 ${isPast ? 'opacity-60' : ''}`}>
+          <div className="flex items-start justify-between">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <CalendarDays size={14} className="text-[var(--color-primary)] shrink-0" />
+                <span className="font-semibold text-sm truncate">{m.title}</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-[var(--color-primary)] font-medium shrink-0">미팅</span>
+              </div>
+              <div className="text-xs text-[var(--color-text-tertiary)] mt-1 ml-[22px]">{formatDT(m.datetime)}</div>
+            </div>
+            <div className="flex gap-1 shrink-0">
+              <button onClick={e => { e.stopPropagation(); openEditMeeting(m); }} className="p-1.5 rounded hover:bg-gray-100 text-[var(--color-text-tertiary)] cursor-pointer"><Pencil size={14} /></button>
+              <button onClick={e => { e.stopPropagation(); deleteMeeting(m.id); }} className="p-1.5 rounded hover:bg-gray-100 text-[var(--color-text-tertiary)] hover:text-[var(--color-danger)] cursor-pointer"><Trash2 size={14} /></button>
+            </div>
+          </div>
+          {isExpanded && (
+            <div className="mt-3 pt-3 border-t border-[var(--color-border-light)] ml-[22px] space-y-2 text-xs text-[var(--color-text-secondary)]">
+              {m.location && <div className="flex items-center gap-1.5"><MapPin size={12} />{m.location}</div>}
+              {m.attendees.length > 0 && <div className="flex items-center gap-1.5"><Users size={12} />{m.attendees.join(', ')}</div>}
+              {m.agenda && <div className="flex items-start gap-1.5"><FileText size={12} className="mt-0.5 shrink-0" /><span>{m.agenda}</span></div>}
+              {m.notes && <div className="bg-gray-50 rounded-lg p-2 mt-1 text-[var(--color-text-secondary)]">{m.notes}</div>}
+            </div>
+          )}
+        </div>
+      </Card>
+    );
+  };
+
+  // Show either tasks, meetings, or both
+  const showTasks = itemFilter !== 'meetings';
+  const showMeetings = itemFilter !== 'tasks';
+  const hasVisibleTasks = showTasks && filteredTasks.length > 0;
+  const hasVisibleMeetings = showMeetings && sortedMeetings.length > 0;
+  const isEmpty = !hasVisibleTasks && !hasVisibleMeetings;
+  const noTasks = filteredTasks.length === 0 && tasks.length > 0;
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-xl font-bold">업무 목록</h2>
-        <button onClick={onAdd} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[var(--color-primary)] text-white text-sm font-medium hover:opacity-90 transition-opacity cursor-pointer">
-          <Plus size={16} /> 새 업무
-        </button>
-      </div>
-
-      {/* Search & Filter */}
-      <div className="flex gap-2 flex-wrap">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" />
-          <input type="text" value={search} onChange={e => setSearch(e.target.value)} className="w-full pl-9 pr-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition-shadow" placeholder="업무 검색..." />
+        <div className="flex items-center gap-2">
+          {(itemFilter === 'all' || itemFilter === 'meetings') && (
+            <button onClick={openAddMeeting} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--color-primary)] text-[var(--color-primary)] text-sm font-medium hover:bg-blue-50 transition-colors cursor-pointer">
+              <CalendarDays size={16} /> 새 미팅
+            </button>
+          )}
+          {(itemFilter === 'all' || itemFilter === 'tasks') && (
+            <button onClick={onAdd} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[var(--color-primary)] text-white text-sm font-medium hover:opacity-90 transition-opacity cursor-pointer">
+              <Plus size={16} /> 새 업무
+            </button>
+          )}
         </div>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as TaskStatus | '')} className="px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]">
-          <option value="">전체 상태</option>
-          <option value="todo">대기</option>
-          <option value="in-progress">진행중</option>
-          <option value="done">완료</option>
-        </select>
-        <select value={priorityFilter} onChange={e => setPriorityFilter(e.target.value as TaskPriority | '')} className="px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]">
-          <option value="">전체 우선순위</option>
-          <option value="high">높음</option>
-          <option value="medium">보통</option>
-          <option value="low">낮음</option>
-        </select>
       </div>
 
-      {/* Task List */}
-      <div className="space-y-2">
-        {filtered.length === 0 ? (
-          <Card>
-            <div className="px-5 py-10 text-center text-sm text-[var(--color-text-tertiary)]">
-              {tasks.length === 0 ? '업무를 추가해 보세요!' : '검색 결과가 없습니다'}
-            </div>
-          </Card>
-        ) : (
-          filtered.map(task => {
-            const dday = getDDay(task.dueDate);
-            return (
-              <Card key={task.id} hover>
-                <div className="px-4 py-3 flex items-center gap-3">
-                  <button
-                    onClick={() => onStatusChange(task.id, task.status === 'done' ? 'todo' : 'done')}
-                    className="shrink-0 cursor-pointer"
-                  >
-                    {task.status === 'done' ?
-                      <CheckCircle2 size={20} className="text-[var(--color-success)]" /> :
-                      <Circle size={20} className="text-[var(--color-text-tertiary)] hover:text-[var(--color-primary)] transition-colors" />
-                    }
-                  </button>
-                  <div className="flex-1 min-w-0" onClick={() => onEdit(task)}>
-                    <div className={`text-sm font-medium ${task.status === 'done' ? 'line-through text-[var(--color-text-tertiary)]' : ''}`}>
-                      {task.title}
+      {/* Project Summary Bar */}
+      {projects.length > 0 && (
+        <Card>
+          <div className="px-4 py-3">
+            <button
+              onClick={() => setProjectBarExpanded(!projectBarExpanded)}
+              className="flex items-center gap-2 w-full text-left cursor-pointer"
+            >
+              {projectBarExpanded ? <ChevronDown size={14} className="text-[var(--color-text-tertiary)]" /> : <ChevronRight size={14} className="text-[var(--color-text-tertiary)]" />}
+              <FolderKanban size={14} className="text-[var(--color-text-secondary)]" />
+              <span className="text-sm font-semibold text-[var(--color-text-secondary)]">프로젝트</span>
+              <span className="text-xs text-[var(--color-text-tertiary)] ml-1">{projects.length}개</span>
+              <div className="flex-1" />
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowProjectModal(true); }}
+                className="p-1 rounded hover:bg-gray-100 text-[var(--color-text-tertiary)] hover:text-[var(--color-primary)] cursor-pointer transition-colors"
+              >
+                <Plus size={14} />
+              </button>
+            </button>
+
+            {projectBarExpanded && (
+              <div className="mt-3 space-y-2">
+                {projects.map(project => {
+                  const progress = getProjectProgress(project.id);
+                  const counts = getProjectTaskCount(project.id);
+                  const isSelected = projectFilter === project.id;
+                  return (
+                    <div
+                      key={project.id}
+                      onClick={() => setProjectFilter(isSelected ? '' : project.id)}
+                      className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-all ${
+                        isSelected ? 'bg-blue-50 ring-1 ring-[var(--color-primary)]' : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: project.color }} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium truncate">{project.name}</div>
+                      </div>
+                      <span className="text-xs text-[var(--color-text-tertiary)] shrink-0">{counts.done}/{counts.total}</span>
+                      <div className="w-16 sm:w-20 shrink-0"><ProgressBar value={progress} color={project.color} /></div>
+                      <span className="text-xs font-semibold shrink-0 w-8 text-right" style={{ color: project.color }}>{progress}%</span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); deleteProject(project.id); }}
+                        className="p-1 rounded hover:bg-gray-100 text-[var(--color-text-tertiary)] hover:text-[var(--color-danger)] cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <Trash2 size={12} />
+                      </button>
                     </div>
-                    <div className="flex items-center gap-2 mt-1 flex-wrap">
-                      <Badge variant={priorityVariant[task.priority]}>{priorityLabel[task.priority]}</Badge>
-                      {task.category && <span className="text-xs text-[var(--color-text-tertiary)]">{task.category}</span>}
-                      {dday && <span className={`text-xs font-semibold ${dday.color}`}>{dday.label}</span>}
-                      {task.tags.map(tag => (
-                        <span key={tag} className="text-xs bg-gray-100 text-[var(--color-text-secondary)] px-1.5 py-0.5 rounded">{tag}</span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button onClick={() => onEdit(task)} className="p-2 rounded hover:bg-gray-100 text-[var(--color-text-tertiary)] hover:text-[var(--color-primary)] transition-colors cursor-pointer">
-                      <Pencil size={14} />
-                    </button>
-                    <button onClick={() => onDelete(task.id)} className="p-2 rounded hover:bg-gray-100 text-[var(--color-text-tertiary)] hover:text-[var(--color-danger)] transition-colors cursor-pointer">
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </div>
-              </Card>
-            );
-          })
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* Filters */}
+      <div className="flex gap-2 flex-wrap items-center">
+        {/* Item type filter toggle */}
+        <div className="flex rounded-lg border border-[var(--color-border)] overflow-hidden">
+          {([['all', '전체'], ['tasks', '업무'], ['meetings', '미팅']] as [ItemFilter, string][]).map(([val, label]) => (
+            <button
+              key={val}
+              onClick={() => setItemFilter(val)}
+              className={`px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
+                itemFilter === val
+                  ? 'bg-[var(--color-primary)] text-white'
+                  : 'bg-white text-[var(--color-text-secondary)] hover:bg-gray-50'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Search */}
+        <div className="relative flex-1 min-w-[160px]">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" />
+          <input type="text" value={search} onChange={e => setSearch(e.target.value)} className="w-full pl-9 pr-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition-shadow" placeholder="검색..." />
+        </div>
+
+        {showTasks && (
+          <>
+            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as TaskStatus | '')} className="px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]">
+              <option value="">전체 상태</option>
+              <option value="todo">대기</option>
+              <option value="in-progress">진행중</option>
+              <option value="done">완료</option>
+            </select>
+            <select value={priorityFilter} onChange={e => setPriorityFilter(e.target.value as TaskPriority | '')} className="px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]">
+              <option value="">전체 우선순위</option>
+              <option value="high">높음</option>
+              <option value="medium">보통</option>
+              <option value="low">낮음</option>
+            </select>
+          </>
+        )}
+
+        {projectFilter && (
+          <button
+            onClick={() => setProjectFilter('')}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 text-[var(--color-primary)] text-xs font-medium cursor-pointer hover:bg-blue-100 transition-colors"
+          >
+            {projects.find(p => p.id === projectFilter)?.name} ×
+          </button>
         )}
       </div>
+
+      {/* Items List */}
+      <div className="space-y-2">
+        {/* Tasks */}
+        {showTasks && filteredTasks.length > 0 && (
+          <>
+            {showMeetings && sortedMeetings.length > 0 && (
+              <h3 className="text-xs font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wide flex items-center gap-1.5 pt-1">
+                <ListTodo size={12} /> 업무 · {filteredTasks.length}건
+              </h3>
+            )}
+            {filteredTasks.map(renderTask)}
+          </>
+        )}
+
+        {/* Meetings */}
+        {showMeetings && sortedMeetings.length > 0 && (
+          <>
+            {showTasks && filteredTasks.length > 0 && <div className="pt-2" />}
+            <h3 className="text-xs font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wide flex items-center gap-1.5 pt-1">
+              <CalendarDays size={12} /> 미팅 · {sortedMeetings.length}건
+            </h3>
+            {sortedMeetings.map(renderMeeting)}
+          </>
+        )}
+
+        {/* Empty state */}
+        {isEmpty && (
+          <Card>
+            <div className="px-5 py-10 text-center text-sm text-[var(--color-text-tertiary)]">
+              {(() => {
+                if (itemFilter === 'meetings') return '미팅 일정을 추가해 보세요';
+                if (itemFilter === 'tasks') return noTasks ? '검색 결과가 없습니다' : '업무를 추가해 보세요!';
+                return '업무 또는 미팅을 추가해 보세요';
+              })()}
+            </div>
+          </Card>
+        )}
+
+        {/* Only tasks empty but meetings exist (in "all" or "tasks" mode) */}
+        {showTasks && filteredTasks.length === 0 && !showMeetings && (
+          <Card>
+            <div className="px-5 py-10 text-center text-sm text-[var(--color-text-tertiary)]">
+              {noTasks ? '검색 결과가 없습니다' : '업무를 추가해 보세요!'}
+            </div>
+          </Card>
+        )}
+      </div>
+
+      {/* Meeting Modal */}
+      <Modal isOpen={showMeetingModal} onClose={() => setShowMeetingModal(false)} title={editMeeting ? '미팅 수정' : '새 미팅'}>
+        <form onSubmit={handleMeetingSubmit} className="space-y-4">
+          <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">제목 *</label><input type="text" value={mTitle} onChange={e => setMTitle(e.target.value)} className={inputClass} required placeholder="미팅 제목" /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">시작 *</label><input type="datetime-local" value={mDatetime} onChange={e => setMDatetime(e.target.value)} className={inputClass} required /></div>
+            <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">종료</label><input type="time" value={mEndTime} onChange={e => setMEndTime(e.target.value)} className={inputClass} /></div>
+          </div>
+          <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">장소</label><input type="text" value={mLocation} onChange={e => setMLocation(e.target.value)} className={inputClass} placeholder="회의실, 온라인 링크 등" /></div>
+          <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">참석자 (쉼표 구분)</label><input type="text" value={mAttendeesStr} onChange={e => setMAttendeesStr(e.target.value)} className={inputClass} placeholder="홍길동, 김철수" /></div>
+          <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">안건</label><textarea value={mAgenda} onChange={e => setMAgenda(e.target.value)} className={`${inputClass} resize-none`} rows={2} placeholder="회의 안건" /></div>
+          <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">메모/회의록</label><textarea value={mNotes} onChange={e => setMNotes(e.target.value)} className={`${inputClass} resize-none`} rows={3} placeholder="회의 메모" /></div>
+          <button type="submit" className="w-full px-4 py-2.5 rounded-lg bg-[var(--color-primary)] text-white text-sm font-medium hover:opacity-90 transition-opacity cursor-pointer">{editMeeting ? '수정' : '추가'}</button>
+        </form>
+      </Modal>
+
+      {/* Project Modal */}
+      <Modal isOpen={showProjectModal} onClose={() => setShowProjectModal(false)} title="새 프로젝트" size="sm">
+        <form onSubmit={handleProjectSubmit} className="space-y-4">
+          <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">프로젝트명 *</label><input type="text" value={pName} onChange={e => setPName(e.target.value)} className={inputClass} required /></div>
+          <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">설명</label><textarea value={pDescription} onChange={e => setPDescription(e.target.value)} className={`${inputClass} resize-none`} rows={2} /></div>
+          <button type="submit" className="w-full px-4 py-2.5 rounded-lg bg-[var(--color-primary)] text-white text-sm font-medium hover:opacity-90 transition-opacity cursor-pointer">생성</button>
+        </form>
+      </Modal>
     </div>
   );
 }

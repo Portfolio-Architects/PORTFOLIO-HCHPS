@@ -139,7 +139,6 @@ export default function Home() {
             budgetStats={overallStats}
             meetings={meetings}
             projects={projects}
-            getProjectProgress={getProjectProgress}
             getUpcomingMeetings={getUpcomingMeetings}
             onNavigate={m => handleModuleChange(m as ModuleType)}
           />
@@ -237,7 +236,7 @@ export default function Home() {
         <div className="max-w-[1800px] mx-auto">
           {/* Page Title */}
           <div className="mb-6">
-            <h1 className="text-2xl font-bold text-[var(--color-text-primary)] tracking-tight">
+            <h1 className="text-3xl font-bold text-[var(--color-text-primary)] tracking-tight">
               {page.icon} {page.title}
             </h1>
             <p className="text-sm text-[var(--color-text-tertiary)] mt-1">

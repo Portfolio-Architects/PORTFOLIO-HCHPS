@@ -6,22 +6,18 @@ import { TaskListView } from '@/components/TaskList';
 import { TaskModal } from '@/components/TaskModal';
 import { BudgetDashboard } from '@/components/budget/BudgetDashboard';
 import { InventoryList } from '@/components/inventory/InventoryList';
-import { MeetingScheduler } from '@/components/meeting/MeetingScheduler';
-import { ProjectBoard } from '@/components/project/ProjectBoard';
 import { CalendarView } from '@/components/CalendarView';
 import { DocumentGenerator } from '@/components/document/DocumentGenerator';
 import {
-  ListTodo, Wallet, Package, CalendarDays, FolderKanban, Calendar, FileText
+  ListTodo, Wallet, Package, Calendar, FileText
 } from 'lucide-react';
 
-type SubTab = 'tasks' | 'budget' | 'inventory' | 'meetings' | 'projects' | 'calendar' | 'documents';
+type SubTab = 'tasks' | 'budget' | 'inventory' | 'calendar' | 'documents';
 
 const subTabs: { id: SubTab; label: string; icon: React.ElementType }[] = [
   { id: 'tasks', label: '업무', icon: ListTodo },
   { id: 'budget', label: '예산', icon: Wallet },
   { id: 'inventory', label: '재고', icon: Package },
-  { id: 'meetings', label: '미팅', icon: CalendarDays },
-  { id: 'projects', label: '프로젝트', icon: FolderKanban },
   { id: 'calendar', label: '캘린더', icon: Calendar },
   { id: 'documents', label: '문서', icon: FileText },
 ];
@@ -92,6 +88,13 @@ export function WorkspaceView(props: WorkspaceViewProps) {
               onDelete={props.deleteTask}
               onStatusChange={(id, status) => props.moveTask(id, status)}
               onAdd={() => openTaskModal()}
+              meetings={props.meetings}
+              addMeeting={props.addMeeting}
+              updateMeeting={props.updateMeeting}
+              deleteMeeting={props.deleteMeeting}
+              projects={props.projects}
+              addProject={props.addProject}
+              deleteProject={props.deleteProject}
             />
           </div>
         );
@@ -120,30 +123,6 @@ export function WorkspaceView(props: WorkspaceViewProps) {
             deleteItem={props.deleteItem}
             adjustStock={props.adjustStock}
             getItemHistory={props.getItemHistory}
-          />
-        );
-
-      case 'meetings':
-        return (
-          <MeetingScheduler
-            meetings={props.meetings}
-            addMeeting={props.addMeeting}
-            updateMeeting={props.updateMeeting}
-            deleteMeeting={props.deleteMeeting}
-          />
-        );
-
-      case 'projects':
-        return (
-          <ProjectBoard
-            projects={props.projects}
-            addProject={props.addProject}
-            updateProject={props.updateProject}
-            deleteProject={props.deleteProject}
-            addChecklistItem={props.addChecklistItem}
-            toggleChecklistItem={props.toggleChecklistItem}
-            deleteChecklistItem={props.deleteChecklistItem}
-            getProjectProgress={props.getProjectProgress}
           />
         );
 

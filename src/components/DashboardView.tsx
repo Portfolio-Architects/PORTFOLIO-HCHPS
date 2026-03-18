@@ -12,7 +12,6 @@ interface DashboardViewProps {
   budgetStats: { totalBudget: number; totalSpent: number; remaining: number };
   meetings: Meeting[];
   projects: Project[];
-  getProjectProgress: (id: string) => number;
   getUpcomingMeetings: (limit?: number) => Meeting[];
   onNavigate: (module: string) => void;
 }
@@ -27,11 +26,19 @@ function formatDate(iso: string): string {
 }
 
 export function DashboardView({
-  tasks, taskStats, budgetStats, meetings, projects, getProjectProgress, getUpcomingMeetings, onNavigate
+  tasks, taskStats, budgetStats, meetings, projects, getUpcomingMeetings, onNavigate
 }: DashboardViewProps) {
   const upcoming = getUpcomingMeetings(3);
   const today = new Date().toISOString().split('T')[0];
   const todayTasks = tasks.filter(t => t.dueDate?.startsWith(today) && t.status !== 'done');
+
+  // Task-based project progress
+  const getProjectProgress = (projectId: string) => {
+    const projectTasks = tasks.filter(t => t.projectId === projectId);
+    if (projectTasks.length === 0) return 0;
+    const completed = projectTasks.filter(t => t.status === 'done').length;
+    return Math.round((completed / projectTasks.length) * 100);
+  };
 
   return (
     <div className="space-y-6">
@@ -190,7 +197,7 @@ export function DashboardView({
                           {project.name}
                         </span>
                         <span className="text-xs text-[var(--color-text-tertiary)]">
-                          {project.checklistItems.filter(i => i.completed).length}/{project.checklistItems.length}
+                          {tasks.filter(t => t.projectId === project.id && t.status === 'done').length}/{tasks.filter(t => t.projectId === project.id).length}
                         </span>
                       </div>
                       <ProgressBar value={progress} color={project.color} />
