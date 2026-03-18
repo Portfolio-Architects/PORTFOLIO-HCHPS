@@ -31,9 +31,15 @@ export function QuickInput({ onCreateTask, onNavigate }: QuickInputProps) {
     if (parsed.location) tags.push(parsed.location);
     if (parsed.amount) tags.push(formatAmount(parsed.amount));
 
+    // Merge date + time into dueDate (e.g. "2026-03-19T14:00")
+    let dueDate = parsed.date;
+    if (dueDate && parsed.time) {
+      dueDate = `${dueDate}T${parsed.time}`;
+    }
+
     onCreateTask({
       title: parsed.title,
-      dueDate: parsed.date,
+      dueDate,
       priority: parsed.priority,
       tags,
       category: parsed.category || '',
