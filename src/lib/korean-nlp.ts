@@ -49,9 +49,24 @@ const WEEKDAY_MAP: Record<string, number> = {
 function getNextWeekday(targetDay: number, weeksAhead: number = 0): Date {
   const today = getToday();
   const currentDay = today.getDay();
+
+  if (weeksAhead > 0) {
+    // Calendar-week based: find Monday of current week, then jump weeksAhead weeks
+    const mondayOfThisWeek = new Date(today);
+    const daysToMonday = currentDay === 0 ? -6 : 1 - currentDay;
+    mondayOfThisWeek.setDate(mondayOfThisWeek.getDate() + daysToMonday);
+    // Jump to target week's Monday
+    mondayOfThisWeek.setDate(mondayOfThisWeek.getDate() + weeksAhead * 7);
+    // Add day offset (Mon=1→0, Tue=2→1, ..., Sun=0→6)
+    const dayOffset = targetDay === 0 ? 6 : targetDay - 1;
+    mondayOfThisWeek.setDate(mondayOfThisWeek.getDate() + dayOffset);
+    return mondayOfThisWeek;
+  }
+
+  // weeksAhead = 0: find the next occurrence of this weekday
   let diff = targetDay - currentDay;
   if (diff <= 0) diff += 7;
-  today.setDate(today.getDate() + diff + (weeksAhead * 7));
+  today.setDate(today.getDate() + diff);
   return today;
 }
 
