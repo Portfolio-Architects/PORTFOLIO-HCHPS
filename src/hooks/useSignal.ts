@@ -13,7 +13,7 @@ export interface SignalEntry {
 const STORAGE_KEY = 'hchps-signal-log';
 const SHEET_NAME = 'SIGNAL_LOG';
 
-function extractKeywords(text: string): string[] {
+export function extractKeywords(text: string): string[] {
   // Step 1: 특수문자 제거, 공백 정리
   const cleaned = text
     .replace(/[.,!?~…·\-()[\]{}'\"``""''@#$%^&*+=|\\/<>:;]/g, ' ')

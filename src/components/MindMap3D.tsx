@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { OntologyCanvasEngine } from '@/lib/OntologyCanvasEngine';
 import { buildSignalGraph } from '@/lib/signal-graph';
-import { SignalEntry } from '@/hooks/useSignal';
+import { SignalEntry, extractKeywords } from '@/hooks/useSignal';
 import {
   OrbitalNode, OntologyEdge,
   GROUP_COLORS, GROUP_LABELS, OntologyGroup,
@@ -300,6 +300,12 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal }: MindMa
     );
   }
 
+  // Real-time keyword extraction preview
+  const previewKeywords = useMemo(() => {
+    if (signalText.trim().length < 2) return [];
+    return extractKeywords(signalText);
+  }, [signalText]);
+
   const handleSignalSubmit = () => {
     if (signalText.trim().length < 2) return;
     onAddSignal(signalText.trim());
@@ -312,29 +318,45 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal }: MindMa
     <div className="space-y-4">
       {/* Signal Input Bar */}
       <div className="relative">
-        <div className="flex items-center gap-2 bg-[var(--color-card)] rounded-2xl border border-emerald-200 shadow-[var(--shadow-sm)] px-4 py-2 transition-shadow focus-within:shadow-md focus-within:border-emerald-400">
+        <div className="flex items-center gap-2 bg-[var(--color-card)] rounded-2xl border border-emerald-200 shadow-[var(--shadow-sm)] px-3 sm:px-4 py-2 transition-shadow focus-within:shadow-md focus-within:border-emerald-400 min-w-0">
           <Radio size={16} className="text-emerald-500 shrink-0" />
           <input
             type="text"
             value={signalText}
             onChange={e => setSignalText(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSignalSubmit(); } }}
-            className="flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--color-text-tertiary)]"
-            placeholder="지금 느끼는 것을 자유롭게 기록하세요..."
+            className="flex-1 min-w-0 bg-transparent text-sm outline-none placeholder:text-[var(--color-text-tertiary)]"
+            placeholder="상황을 문장으로 입력하세요... 핵심 키워드가 자동 추출됩니다"
           />
-          {signalText.trim().length >= 2 && (
-            <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-600">
-              📡 시그널
+          {previewKeywords.length > 0 && (
+            <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-600 shrink-0">
+              📡 {previewKeywords.length}개 키워드
             </span>
           )}
           <button
             onClick={handleSignalSubmit}
             disabled={signalText.trim().length < 2}
-            className={`p-2 rounded-xl transition-all cursor-pointer ${signalText.trim().length >= 2 ? 'bg-emerald-500 text-white hover:opacity-90' : 'bg-gray-100 text-[var(--color-text-tertiary)]'}`}
+            className={`p-2 rounded-xl transition-all cursor-pointer shrink-0 ${signalText.trim().length >= 2 ? 'bg-emerald-500 text-white hover:opacity-90' : 'bg-gray-100 text-[var(--color-text-tertiary)]'}`}
           >
             <Send size={14} />
           </button>
         </div>
+
+        {/* Keyword Preview Chips */}
+        {previewKeywords.length > 0 && (
+          <div className="flex items-center gap-1.5 mt-2 px-1 flex-wrap">
+            <span className="text-[10px] text-[var(--color-text-tertiary)] shrink-0">추출 키워드:</span>
+            {previewKeywords.map((kw, i) => (
+              <span
+                key={`${kw}-${i}`}
+                className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200"
+              >
+                {kw}
+              </span>
+            ))}
+          </div>
+        )}
+
         {signalCreated && (
           <div className="absolute -bottom-7 left-1/2 -translate-x-1/2 text-xs font-medium text-emerald-500 animate-pulse">
             📡 시그널 기록 완료!
@@ -485,15 +507,6 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal }: MindMa
               </div>
             </div>
 
-            {/* Domain Stats */}
-            <div className="bg-white rounded-xl border border-[var(--color-border-light)] shadow-sm overflow-hidden">
-              <div className="px-4 py-2.5 border-b border-[var(--color-border-light)] bg-gray-50/50">
-                <h3 className="text-xs font-semibold text-[var(--color-text-secondary)]">도메인 분포</h3>
-              </div>
-              <div className="p-3">
-                <DomainStats nodes={engineRef.current?.nodes ?? []} />
-              </div>
-            </div>
           </div>
         )}
 
@@ -588,41 +601,3 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal }: MindMa
   );
 }
 
-// ============ Domain Stats Sub-Component ============
-
-function DomainStats({ nodes }: { nodes: OrbitalNode[] }) {
-  const domainCounts = new Map<OntologyGroup, number>();
-
-  for (const node of nodes) {
-    const group = node.group as OntologyGroup;
-    domainCounts.set(group, (domainCounts.get(group) || 0) + 1);
-  }
-
-  const total = nodes.length || 1;
-  const sorted = [...domainCounts.entries()]
-    .filter(([k]) => k !== 'OTHER')
-    .sort((a, b) => b[1] - a[1]);
-
-  return (
-    <div className="space-y-2">
-      {sorted.map(([group, count]) => {
-        const pct = Math.round((count / total) * 100);
-        return (
-          <div key={group} className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: GROUP_COLORS[group] }} />
-            <span className="flex-1 text-[10px] text-[var(--color-text-secondary)] truncate">
-              {GROUP_LABELS[group]}
-            </span>
-            <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all"
-                style={{ width: `${pct}%`, backgroundColor: GROUP_COLORS[group] }}
-              />
-            </div>
-            <span className="text-[10px] font-medium text-[var(--color-text-tertiary)] w-5 text-right">{count}</span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
