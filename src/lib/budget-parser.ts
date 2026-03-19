@@ -120,10 +120,7 @@ export function parseBudgetDocument(text: string): ParsedBudgetDoc | null {
   for (const pat of budgetPatterns) {
     const m = lines.match(pat);
     if (m) {
-      budgetAccount = m[1].trim()
-        // Clean up: remove trailing parenthetical
-        .replace(/\s*\(예산편성부서\s*[:：]\s*[^)]+\)\s*$/, '')
-        .trim();
+      budgetAccount = m[1].trim();
       confidence += 0.15;
       break;
     }

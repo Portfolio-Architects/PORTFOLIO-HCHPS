@@ -11,7 +11,7 @@ import { parseBudgetDocument, ParsedBudgetDoc } from '@/lib/budget-parser';
 interface BudgetDashboardProps {
   categories: BudgetCategory[];
   entries: BudgetEntry[];
-  addCategory: (cat: Omit<BudgetCategory, 'id'>) => void;
+  addCategory: (cat: Omit<BudgetCategory, 'id'>) => BudgetCategory;
   updateCategory: (id: string, updates: Partial<BudgetCategory>) => void;
   deleteCategory: (id: string) => void;
   addEntry: (entry: Omit<BudgetEntry, 'id'>) => void;
@@ -112,10 +112,19 @@ export function BudgetDashboard({ categories, entries, addCategory, updateCatego
     if (parsedDoc.paymentMethod) memoFragments.push(`지급방법: ${parsedDoc.paymentMethod}`);
     if (parsedDoc.memo) memoFragments.push(parsedDoc.memo);
     setEntryMemo(memoFragments.join(' / '));
-    // Try to match budget category by name
+    // Auto-match or create budget category from parsed account
     if (parsedDoc.budgetAccount) {
-      const matched = categories.find(c => parsedDoc.budgetAccount.includes(c.name));
-      if (matched) setSelectedCatId(matched.id);
+      const accountText = parsedDoc.budgetAccount;
+      // Check exact match first, then partial match
+      let matched = categories.find(c => c.name === accountText);
+      if (!matched) matched = categories.find(c => accountText.includes(c.name) || c.name.includes(accountText));
+      if (matched) {
+        setSelectedCatId(matched.id);
+      } else {
+        // Auto-create new category with the budget account text
+        const newCat = addCategory({ name: accountText, totalBudget: 0, color: COLORS[categories.length % COLORS.length] });
+        if (newCat) setSelectedCatId(newCat.id);
+      }
     }
     setShowDocModal(false);
     setDocText('');

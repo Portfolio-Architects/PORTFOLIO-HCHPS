@@ -31,7 +31,7 @@ interface WorkspaceViewProps {
   // Budget
   budgetCategories: BudgetCategory[];
   budgetEntries: BudgetEntry[];
-  addCategory: (cat: Omit<BudgetCategory, 'id'>) => void;
+  addCategory: (cat: Omit<BudgetCategory, 'id'>) => BudgetCategory;
   updateCategory: (id: string, updates: Partial<BudgetCategory>) => void;
   deleteCategory: (id: string) => void;
   addEntry: (entry: Omit<BudgetEntry, 'id'>) => void;
