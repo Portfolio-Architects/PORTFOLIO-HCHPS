@@ -131,7 +131,7 @@ export default function Home() {
   const { items: inventoryItems, addItem, updateItem, deleteItem, adjustStock, getItemHistory } = useInventory();
   const { meetings, addMeeting, updateMeeting, deleteMeeting, getUpcomingMeetings, getTodayMeetings } = useMeetings();
   const { projects, addProject, updateProject, deleteProject, addChecklistItem, toggleChecklistItem, deleteChecklistItem, getProjectProgress } = useProjects();
-  const { entries: signalEntries, addSignal, deleteSignal, keywordMap } = useSignal();
+  const { entries: signalEntries, addSignal, deleteSignal, updateSignalKeywords, keywordMap } = useSignal();
   const { entries: knowledgeEntries, addKnowledge, updateKnowledge, deleteKnowledge, filterKnowledge, metadata: knowledgeMetadata } = useKnowledge();
 
   // Prevent hydration mismatch — hooks read localStorage data on client
@@ -232,7 +232,7 @@ export default function Home() {
         }
         return (
           <MindMapErrorBoundary>
-            <MindMap3D signalKeywords={keywordMap} signalEntries={signalEntries} onAddSignal={addSignal} onDeleteSignal={deleteSignal} />
+            <MindMap3D signalKeywords={keywordMap} signalEntries={signalEntries} onAddSignal={addSignal} onDeleteSignal={deleteSignal} onUpdateKeywords={updateSignalKeywords} />
           </MindMapErrorBoundary>
         );
 

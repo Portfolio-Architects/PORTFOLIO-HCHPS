@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { readSheet, addRow, deleteRow } from '@/lib/sheets-api';
+import { readSheet, addRow, deleteRow, updateRow } from '@/lib/sheets-api';
 
 export interface SignalEntry {
   id: string;
@@ -203,6 +203,16 @@ export function useSignal() {
     });
   }, []);
 
+  const updateSignalKeywords = useCallback((id: string, keywords: string[]) => {
+    setEntries(prev => prev.map(e =>
+      e.id === id ? { ...e, keywords } : e
+    ));
+    // Background sync — update keywords in KV
+    updateRow(SHEET_NAME, id, { keywords: JSON.stringify(keywords) }).catch(() => {
+      console.warn('시그널 키워드 업데이트 Sheets 동기화 실패');
+    });
+  }, []);
+
   // Aggregate keywords with frequency
   const keywordMap = useMemo(() => entries.reduce<Record<string, number>>((acc, entry) => {
     entry.keywords.forEach(kw => {
@@ -211,5 +221,5 @@ export function useSignal() {
     return acc;
   }, {}), [entries]);
 
-  return { entries, addSignal, deleteSignal, keywordMap };
+  return { entries, addSignal, deleteSignal, updateSignalKeywords, keywordMap };
 }
