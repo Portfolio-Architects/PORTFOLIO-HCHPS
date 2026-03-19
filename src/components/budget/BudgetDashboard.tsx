@@ -5,7 +5,8 @@ import { BudgetCategory, BudgetEntry, BudgetEntryType } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { ProgressBar } from '@/components/ui/progress-bar';
 import { Modal } from '@/components/ui/modal';
-import { Plus, Pencil, Trash2, FileCheck, FilePlus2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, FileCheck, FilePlus2, FileText, CheckCircle2 } from 'lucide-react';
+import { parseBudgetDocument, ParsedBudgetDoc } from '@/lib/budget-parser';
 
 interface BudgetDashboardProps {
   categories: BudgetCategory[];
@@ -41,6 +42,10 @@ export function BudgetDashboard({ categories, entries, addCategory, updateCatego
   const [entryType, setEntryType] = useState<BudgetEntryType>('approval');
   const [editCatId, setEditCatId] = useState<string | null>(null);
   const [viewFilter, setViewFilter] = useState<'all' | BudgetEntryType>('all');
+  // Document paste states
+  const [showDocModal, setShowDocModal] = useState(false);
+  const [docText, setDocText] = useState('');
+  const [parsedDoc, setParsedDoc] = useState<ParsedBudgetDoc | null>(null);
 
   const inputClass = "w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition-shadow";
 
@@ -86,6 +91,38 @@ export function BudgetDashboard({ categories, entries, addCategory, updateCatego
     setShowEntryModal(true);
   };
 
+  // Document paste handler
+  const handleDocTextChange = (text: string) => {
+    setDocText(text);
+    const parsed = parseBudgetDocument(text);
+    setParsedDoc(parsed);
+  };
+
+  const handleDocConfirm = () => {
+    if (!parsedDoc) return;
+    // Auto-fill entry form from parsed document
+    setEntryType('approval');
+    setEntryAmount(parsedDoc.amount ? String(parsedDoc.amount) : '');
+    setEntryPurpose(parsedDoc.title || '');
+    const memoFragments: string[] = [];
+    if (parsedDoc.vendorName) memoFragments.push(`업체: ${parsedDoc.vendorName}`);
+    if (parsedDoc.vendorRegNo) memoFragments.push(`사업자: ${parsedDoc.vendorRegNo}`);
+    if (parsedDoc.relatedDoc) memoFragments.push(`관련문서: ${parsedDoc.relatedDoc}`);
+    if (parsedDoc.budgetAccount) memoFragments.push(`예산과목: ${parsedDoc.budgetAccount}`);
+    if (parsedDoc.paymentMethod) memoFragments.push(`지급방법: ${parsedDoc.paymentMethod}`);
+    if (parsedDoc.memo) memoFragments.push(parsedDoc.memo);
+    setEntryMemo(memoFragments.join(' / '));
+    // Try to match budget category by name
+    if (parsedDoc.budgetAccount) {
+      const matched = categories.find(c => parsedDoc.budgetAccount.includes(c.name));
+      if (matched) setSelectedCatId(matched.id);
+    }
+    setShowDocModal(false);
+    setDocText('');
+    setParsedDoc(null);
+    setShowEntryModal(true);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -99,6 +136,9 @@ export function BudgetDashboard({ categories, entries, addCategory, updateCatego
           </button>
           <button onClick={() => openEntryModal('resolution')} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[var(--color-primary)] text-white text-sm font-medium hover:opacity-90 transition-opacity cursor-pointer" disabled={categories.length === 0}>
             <FileCheck size={16} /> 지출 결의
+          </button>
+          <button onClick={() => { setDocText(''); setParsedDoc(null); setShowDocModal(true); }} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-500 text-white text-sm font-medium hover:opacity-90 transition-opacity cursor-pointer">
+            <FileText size={16} /> 기안문 입력
           </button>
         </div>
       </div>
@@ -258,6 +298,96 @@ export function BudgetDashboard({ categories, entries, addCategory, updateCatego
             {TYPE_CONFIG[entryType].label} 등록
           </button>
         </form>
+      </Modal>
+
+      {/* Document Paste Modal */}
+      <Modal isOpen={showDocModal} onClose={() => setShowDocModal(false)} title="기안문 자동 입력" size="lg">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">기안문 텍스트를 붙여넣으세요</label>
+            <textarea
+              value={docText}
+              onChange={e => handleDocTextChange(e.target.value)}
+              className="w-full h-40 px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 transition-shadow resize-none font-mono"
+              placeholder={"1. 보건행정과-1141(2026.01.29.)호와 관련입니다.\n2. ...\n     가. 건    명 : ...\n     나. 지 급 액 : 금000,000원\n     ..."}
+            />
+          </div>
+
+          {parsedDoc && (
+            <div className="bg-gray-50 rounded-lg p-4 space-y-3 border border-[var(--color-border-light)]">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-[var(--color-text-secondary)] flex items-center gap-1.5">
+                  <CheckCircle2 size={14} className="text-emerald-500" /> 추출된 정보
+                </span>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                  parsedDoc.confidence >= 0.7 ? 'bg-emerald-100 text-emerald-700' :
+                  parsedDoc.confidence >= 0.4 ? 'bg-amber-100 text-amber-700' :
+                  'bg-red-100 text-red-600'
+                }`}>
+                  정확도 {Math.round(parsedDoc.confidence * 100)}%
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                {parsedDoc.title && (
+                  <div className="sm:col-span-2 bg-white rounded-md px-3 py-2 border border-[var(--color-border-light)]">
+                    <span className="text-[var(--color-text-tertiary)]">건명</span>
+                    <div className="font-medium mt-0.5">{parsedDoc.title}</div>
+                  </div>
+                )}
+                {parsedDoc.amount > 0 && (
+                  <div className="bg-white rounded-md px-3 py-2 border border-[var(--color-border-light)]">
+                    <span className="text-[var(--color-text-tertiary)]">금액</span>
+                    <div className="font-bold text-[var(--color-primary)] mt-0.5">{formatN(parsedDoc.amount)}원</div>
+                  </div>
+                )}
+                {parsedDoc.vendorName && (
+                  <div className="bg-white rounded-md px-3 py-2 border border-[var(--color-border-light)]">
+                    <span className="text-[var(--color-text-tertiary)]">업체명</span>
+                    <div className="font-medium mt-0.5">{parsedDoc.vendorName}</div>
+                  </div>
+                )}
+                {parsedDoc.vendorRegNo && (
+                  <div className="bg-white rounded-md px-3 py-2 border border-[var(--color-border-light)]">
+                    <span className="text-[var(--color-text-tertiary)]">사업자등록번호</span>
+                    <div className="font-medium mt-0.5">{parsedDoc.vendorRegNo}</div>
+                  </div>
+                )}
+                {parsedDoc.relatedDoc && (
+                  <div className="bg-white rounded-md px-3 py-2 border border-[var(--color-border-light)]">
+                    <span className="text-[var(--color-text-tertiary)]">관련문서</span>
+                    <div className="font-medium mt-0.5">{parsedDoc.relatedDoc}</div>
+                  </div>
+                )}
+                {parsedDoc.budgetAccount && (
+                  <div className="sm:col-span-2 bg-white rounded-md px-3 py-2 border border-[var(--color-border-light)]">
+                    <span className="text-[var(--color-text-tertiary)]">예산과목</span>
+                    <div className="font-medium mt-0.5">{parsedDoc.budgetAccount}</div>
+                  </div>
+                )}
+                {parsedDoc.paymentMethod && (
+                  <div className="sm:col-span-2 bg-white rounded-md px-3 py-2 border border-[var(--color-border-light)]">
+                    <span className="text-[var(--color-text-tertiary)]">지급방법</span>
+                    <div className="font-medium mt-0.5 text-[11px]">{parsedDoc.paymentMethod}</div>
+                  </div>
+                )}
+              </div>
+
+              <button
+                onClick={handleDocConfirm}
+                className="w-full px-4 py-2.5 rounded-lg bg-emerald-500 text-white text-sm font-medium hover:opacity-90 transition-opacity cursor-pointer flex items-center justify-center gap-2"
+              >
+                <FilePlus2 size={16} /> 지출 품의로 등록
+              </button>
+            </div>
+          )}
+
+          {docText.length > 10 && !parsedDoc && (
+            <div className="text-center text-xs text-[var(--color-text-tertiary)] py-4">
+              기안문 형식을 인식하지 못했습니다. 건명, 지급액 등이 포함된 텍스트를 붙여넣어 주세요.
+            </div>
+          )}
+        </div>
       </Modal>
     </div>
   );
