@@ -288,6 +288,20 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal }: MindMa
     }
   }, []);
 
+  // Real-time keyword extraction preview (MUST be before any early returns — React Rules of Hooks)
+  const previewKeywords = useMemo(() => {
+    if (signalText.trim().length < 2) return [];
+    return extractKeywords(signalText);
+  }, [signalText]);
+
+  const handleSignalSubmit = () => {
+    if (signalText.trim().length < 2) return;
+    onAddSignal(signalText.trim());
+    setSignalText('');
+    setSignalCreated(true);
+    setTimeout(() => setSignalCreated(false), 2500);
+  };
+
   // ── Loading / Error States ──
   if (loading) {
     return (
@@ -312,20 +326,6 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal }: MindMa
       </div>
     );
   }
-
-  // Real-time keyword extraction preview
-  const previewKeywords = useMemo(() => {
-    if (signalText.trim().length < 2) return [];
-    return extractKeywords(signalText);
-  }, [signalText]);
-
-  const handleSignalSubmit = () => {
-    if (signalText.trim().length < 2) return;
-    onAddSignal(signalText.trim());
-    setSignalText('');
-    setSignalCreated(true);
-    setTimeout(() => setSignalCreated(false), 2500);
-  };
 
   return (
     <div className="space-y-4">
