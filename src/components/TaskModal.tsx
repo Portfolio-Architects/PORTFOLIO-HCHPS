@@ -39,7 +39,14 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, allTags
   const [title, setTitle] = useState(editTask?.title || '');
   const [description, setDescription] = useState(editTask?.description || '');
   const [status, setStatus] = useState<TaskStatus>(editTask?.status || 'todo');
-  const [dueDate, setDueDate] = useState(editTask?.dueDate || '');
+  const [dueDate, setDueDate] = useState(() => {
+    const dd = editTask?.dueDate || '';
+    return dd.includes('T') ? dd.split('T')[0] : dd;
+  });
+  const [dueTime, setDueTime] = useState(() => {
+    const dd = editTask?.dueDate || '';
+    return dd.includes('T') ? dd.split('T')[1]?.slice(0, 5) || '' : '';
+  });
   const [projectId, setProjectId] = useState(editTask?.projectId || '');
   
   const initRecurrence = useMemo(() => parseRecurrence(editTask?.recurrence || ''), [editTask?.recurrence]);
@@ -58,7 +65,8 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, allTags
       setTitle(editTask.title);
       setDescription(editTask.description || '');
       setStatus(editTask.status);
-      setDueDate(editTask.dueDate || '');
+      setDueDate(editTask.dueDate?.includes('T') ? editTask.dueDate.split('T')[0] : editTask.dueDate || '');
+      setDueTime(editTask.dueDate?.includes('T') ? editTask.dueDate.split('T')[1]?.slice(0, 5) || '' : '');
       setProjectId(editTask.projectId || '');
       
       const parsed = parseRecurrence(editTask.recurrence || '');
@@ -72,7 +80,7 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, allTags
       setTags(editTask.tags);
     } else {
       setTitle(''); setDescription(''); setStatus('todo');
-      setDueDate(''); setProjectId('');
+      setDueDate(''); setDueTime(''); setProjectId('');
       setRecurrenceType('none'); setRecurrenceDays([]); setCustomRecurrence('');
       setRecurrenceStartDate(''); setRecurrenceEndDate(''); setRecurrenceCount(''); setTags([]);
     }
@@ -129,10 +137,13 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, allTags
 
     const countVal = typeof recurrenceCount === 'number' ? recurrenceCount : (parseInt(String(recurrenceCount)) || undefined);
 
+    // Combine date + time
+    const combinedDueDate = dueDate ? (dueTime ? `${dueDate}T${dueTime}` : dueDate) : undefined;
+
     if (editTask && onUpdate) {
-      onUpdate(editTask.id, { title, description, status, priority: 'medium', category: '', dueDate: dueDate || undefined, projectId: projectId || undefined, recurrence: finalRecurrence || undefined, recurrenceStartDate: recurrenceStartDate || undefined, recurrenceEndDate: recurrenceEndDate || undefined, recurrenceCount: countVal, tags });
+      onUpdate(editTask.id, { title, description, status, priority: 'medium', category: '', dueDate: combinedDueDate, projectId: projectId || undefined, recurrence: finalRecurrence || undefined, recurrenceStartDate: recurrenceStartDate || undefined, recurrenceEndDate: recurrenceEndDate || undefined, recurrenceCount: countVal, tags });
     } else {
-      onSave({ title, description, status, priority: 'medium', category: '', dueDate: dueDate || undefined, projectId: projectId || undefined, recurrence: finalRecurrence || undefined, recurrenceStartDate: recurrenceStartDate || undefined, recurrenceEndDate: recurrenceEndDate || undefined, recurrenceCount: countVal, tags });
+      onSave({ title, description, status, priority: 'medium', category: '', dueDate: combinedDueDate, projectId: projectId || undefined, recurrence: finalRecurrence || undefined, recurrenceStartDate: recurrenceStartDate || undefined, recurrenceEndDate: recurrenceEndDate || undefined, recurrenceCount: countVal, tags });
     }
     onClose();
   };
@@ -206,8 +217,21 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, allTags
             </select>
           </div>
           <div>
-            <label className={labelClass}>마감일</label>
-            <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className={inputClass} />
+            <label className={labelClass}>
+              D-Day
+              {dueDate && (() => {
+                const today = new Date(); today.setHours(0,0,0,0);
+                const due = new Date(dueDate + 'T00:00:00'); 
+                const diff = Math.ceil((due.getTime() - today.getTime()) / (1000*60*60*24));
+                const label = diff === 0 ? 'D-Day' : diff > 0 ? `D-${diff}` : `D+${Math.abs(diff)}`;
+                const color = diff < 0 ? 'text-red-500' : diff === 0 ? 'text-orange-500' : diff <= 3 ? 'text-amber-500' : 'text-emerald-500';
+                return <span className={`ml-1.5 text-[11px] font-bold ${color}`}>({label})</span>;
+              })()}
+            </label>
+            <div className="flex gap-2">
+              <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className={`${inputClass} flex-1`} />
+              <input type="time" value={dueTime} onChange={e => setDueTime(e.target.value)} className={`${inputClass} w-28`} placeholder="시간" />
+            </div>
           </div>
         </div>
         
