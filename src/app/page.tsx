@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { ModuleType } from '@/types';
 import { useTasks } from '@/hooks/useTasks';
 import { useBudget } from '@/hooks/useBudget';
 import { useInventory } from '@/hooks/useInventory';
 import { useMeetings } from '@/hooks/useMeetings';
 import { useProjects } from '@/hooks/useProjects';
-import { useSignal } from '@/hooks/useSignal';
+import { useSignal, extractKeywords } from '@/hooks/useSignal';
 import { useKnowledge } from '@/hooks/useKnowledge';
 import { Sidebar } from '@/components/Sidebar';
 import { QuickInput } from '@/components/QuickInput';
@@ -70,6 +70,38 @@ export default function Home() {
     setActiveModule(mod);
   };
 
+  // ── Merge keywords from Tasks + Knowledge into Signal Map ──
+  const mergedKeywordMap = useMemo(() => {
+    const map: Record<string, number> = { ...keywordMap };
+    for (const task of tasks) {
+      const words = extractKeywords(task.title);
+      task.tags.forEach(t => { if (t.length >= 2) words.push(t); });
+      words.forEach(kw => { map[kw] = (map[kw] || 0) + 1; });
+    }
+    for (const entry of (knowledgeEntries || [])) {
+      const words = extractKeywords(`${entry.title} ${entry.content}`);
+      entry.tags.forEach(t => { if (t.length >= 2) words.push(t); });
+      words.forEach(kw => { map[kw] = (map[kw] || 0) + 1; });
+    }
+    return map;
+  }, [keywordMap, tasks, knowledgeEntries]);
+
+  const mergedEntries = useMemo(() => {
+    const taskEntries = tasks.map(t => ({
+      id: `task-${t.id}`,
+      text: t.title,
+      keywords: [...extractKeywords(t.title), ...t.tags.filter(tag => tag.length >= 2)],
+      createdAt: t.createdAt,
+    }));
+    const knowledgeSignals = (knowledgeEntries || []).map(e => ({
+      id: `know-${e.id}`,
+      text: e.title,
+      keywords: [...extractKeywords(`${e.title} ${e.content}`), ...e.tags.filter(tag => tag.length >= 2)],
+      createdAt: e.createdAt,
+    }));
+    return [...signalEntries, ...taskEntries, ...knowledgeSignals];
+  }, [signalEntries, tasks, knowledgeEntries]);
+
   const renderContent = () => {
     switch (activeModule) {
       case 'workspace':
@@ -126,7 +158,7 @@ export default function Home() {
       case 'mindmap':
         return (
           <MindMapErrorBoundary>
-            <MindMap3D signalKeywords={keywordMap} signalEntries={signalEntries} onAddSignal={addSignal} onDeleteSignal={deleteSignal} onUpdateKeywords={updateSignalKeywords} />
+            <MindMap3D signalKeywords={mergedKeywordMap} signalEntries={mergedEntries} onAddSignal={addSignal} onDeleteSignal={deleteSignal} onUpdateKeywords={updateSignalKeywords} />
           </MindMapErrorBoundary>
         );
 
