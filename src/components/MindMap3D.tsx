@@ -12,6 +12,7 @@ import {
 import {
   Radio, Loader2, RefreshCw, AlertTriangle,
   Circle, Link2, X, ChevronRight, Zap, Maximize2, Minimize2, Send,
+  Trash2, FileText,
 } from 'lucide-react';
 
 // ============ Props ============
@@ -20,11 +21,12 @@ interface MindMap3DProps {
   signalKeywords: Record<string, number>;
   signalEntries: SignalEntry[];
   onAddSignal: (text: string) => void;
+  onDeleteSignal?: (id: string) => void;
 }
 
 // ============ Component ============
 
-export function MindMap3D({ signalKeywords, signalEntries, onAddSignal }: MindMap3DProps) {
+export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDeleteSignal }: MindMap3DProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<OntologyCanvasEngine | null>(null);
@@ -516,6 +518,59 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal }: MindMa
                       연결된 관계를 확인할 수 있어요
                     </div>
                   </div>
+                )}
+              </div>
+            </div>
+
+            {/* Signal Log Panel */}
+            <div className="bg-white rounded-xl border border-[var(--color-border-light)] shadow-sm overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-[var(--color-border-light)] bg-gray-50/50 flex items-center justify-between">
+                <h3 className="text-xs font-semibold text-[var(--color-text-secondary)] flex items-center gap-1.5">
+                  <FileText size={12} /> 시그널 로그 ({signalEntries.length}건)
+                </h3>
+              </div>
+              <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
+                {signalEntries.length === 0 ? (
+                  <div className="px-4 py-6 text-center text-[11px] text-[var(--color-text-tertiary)]">
+                    아직 기록된 시그널이 없습니다
+                  </div>
+                ) : (
+                  signalEntries.map((entry) => (
+                    <div
+                      key={entry.id}
+                      className="px-4 py-3 border-b border-[var(--color-border-light)] last:border-b-0 hover:bg-gray-50/50 transition-colors group"
+                    >
+                      <div className="flex items-start gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[11px] text-[var(--color-text-primary)] leading-relaxed line-clamp-2">
+                            {entry.text}
+                          </div>
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {entry.keywords.map((kw, i) => (
+                              <span
+                                key={`${kw}-${i}`}
+                                className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-emerald-50 text-emerald-700"
+                              >
+                                {kw}
+                              </span>
+                            ))}
+                          </div>
+                          <div className="text-[9px] text-[var(--color-text-tertiary)] mt-1">
+                            {new Date(entry.createdAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        </div>
+                        {onDeleteSignal && (
+                          <button
+                            onClick={() => onDeleteSignal(entry.id)}
+                            className="p-1.5 rounded-lg text-[var(--color-text-tertiary)] hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all cursor-pointer shrink-0"
+                            title="시그널 삭제"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))
                 )}
               </div>
             </div>
