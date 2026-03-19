@@ -9,8 +9,11 @@ import { Modal } from './ui/modal';
 import {
   Plus, Pencil, Trash2, CheckCircle2, Circle, Search,
   CalendarDays, MapPin, Users, FileText, FolderKanban,
-  ListTodo, ChevronDown, ChevronRight, Repeat, Tag
+  ListTodo, ChevronDown, ChevronRight, Repeat, Tag,
+  ArrowUpDown, ArrowUp, ArrowDown, Settings, X
 } from 'lucide-react';
+
+type SortBy = 'default' | 'dueDate' | 'createdAt' | 'status' | 'tag';
 
 type ItemFilter = 'all' | 'tasks' | 'meetings';
 
@@ -20,6 +23,7 @@ interface TaskListProps {
   onDelete: (id: string) => void;
   onStatusChange: (id: string, status: TaskStatus) => void;
   onAdd: () => void;
+  onUpdateTask?: (id: string, updates: Partial<Task>) => void;
   // Meeting props
   meetings: Meeting[];
   addMeeting: (m: Omit<Meeting, 'id' | 'createdAt' | 'updatedAt'>) => void;
@@ -52,7 +56,7 @@ function formatDT(iso: string) {
 const PROJECT_COLORS = ['#4A6CF7', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
 
 export function TaskListView({
-  tasks, onEdit, onDelete, onStatusChange, onAdd,
+  tasks, onEdit, onDelete, onStatusChange, onAdd, onUpdateTask,
   meetings, addMeeting, updateMeeting, deleteMeeting,
   projects, addProject, deleteProject
 }: TaskListProps) {
@@ -62,6 +66,16 @@ export function TaskListView({
   const [projectFilter, setProjectFilter] = useState<string>('');
   const [tagFilter, setTagFilter] = useState<string>('');
   const [showRecurringOnly, setShowRecurringOnly] = useState(false);
+
+  // Sort state
+  const [sortBy, setSortBy] = useState<SortBy>('default');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+
+  // Tag management state
+  const [showTagManager, setShowTagManager] = useState(false);
+  const [newTagName, setNewTagName] = useState('');
+  const [editingTagFrom, setEditingTagFrom] = useState<string | null>(null);
+  const [editingTagTo, setEditingTagTo] = useState('');
 
   // Meeting modal state
   const [showMeetingModal, setShowMeetingModal] = useState(false);
@@ -83,9 +97,9 @@ export function TaskListView({
 
   const inputClass = "w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition-shadow";
 
-  // -- Filter logic --
+  // -- Filter + Sort logic --
   const filteredTasks = useMemo(() => {
-    return tasks.filter(t => {
+    const filtered = tasks.filter(t => {
       if (search && !t.title.toLowerCase().includes(search.toLowerCase()) && !(t.description || '').toLowerCase().includes(search.toLowerCase())) return false;
       if (statusFilter && t.status !== statusFilter) return false;
       if (projectFilter && t.projectId !== projectFilter) return false;
@@ -93,7 +107,81 @@ export function TaskListView({
       if (showRecurringOnly && !t.recurrence) return false;
       return true;
     });
-  }, [tasks, search, statusFilter, projectFilter, tagFilter, showRecurringOnly]);
+
+    // Sort
+    if (sortBy === 'default') return filtered;
+
+    const dir = sortOrder === 'asc' ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      switch (sortBy) {
+        case 'dueDate': {
+          const aDate = a.dueDate || '9999-12-31';
+          const bDate = b.dueDate || '9999-12-31';
+          return dir * aDate.localeCompare(bDate);
+        }
+        case 'createdAt':
+          return dir * a.createdAt.localeCompare(b.createdAt);
+        case 'status': {
+          const statusOrder: Record<string, number> = { 'todo': 0, 'in-progress': 1, 'done': 2 };
+          return dir * ((statusOrder[a.status] ?? 0) - (statusOrder[b.status] ?? 0));
+        }
+        case 'tag': {
+          const aTag = a.tags[0] || 'zzz';
+          const bTag = b.tags[0] || 'zzz';
+          return dir * aTag.localeCompare(bTag);
+        }
+        default:
+          return 0;
+      }
+    });
+  }, [tasks, search, statusFilter, projectFilter, tagFilter, showRecurringOnly, sortBy, sortOrder]);
+
+  // -- Tag management helpers --
+  const allTags = useMemo(() => [...new Set(tasks.flatMap(t => t.tags).filter(Boolean))], [tasks]);
+
+  const handleAddTag = () => {
+    // Adding a new global tag: this is a no-op by itself since tags live on tasks.
+    // The new tag will appear in the list once a task uses it.
+    // But we allow creating it in the tag manager so it shows in allTags for TaskModal.
+    // We'll add it to the first task that has no tags, or just inform the user.
+    if (!newTagName.trim()) return;
+    setNewTagName('');
+  };
+
+  const handleDeleteTag = (tagToDelete: string) => {
+    if (!onUpdateTask) return;
+    if (!confirm(`"${tagToDelete}" 태그를 모든 업무에서 제거하시겠습니까?`)) return;
+    tasks.forEach(task => {
+      if (task.tags.includes(tagToDelete)) {
+        onUpdateTask(task.id, { tags: task.tags.filter(t => t !== tagToDelete) });
+      }
+    });
+    if (tagFilter === tagToDelete) setTagFilter('');
+  };
+
+  const handleRenameTag = (oldName: string) => {
+    if (!onUpdateTask || !editingTagTo.trim() || editingTagTo.trim() === oldName) {
+      setEditingTagFrom(null);
+      return;
+    }
+    const newName = editingTagTo.trim();
+    tasks.forEach(task => {
+      if (task.tags.includes(oldName)) {
+        onUpdateTask(task.id, { tags: task.tags.map(t => t === oldName ? newName : t) });
+      }
+    });
+    if (tagFilter === oldName) setTagFilter(newName);
+    setEditingTagFrom(null);
+    setEditingTagTo('');
+  };
+
+  const SORT_OPTIONS: { value: SortBy; label: string }[] = [
+    { value: 'default', label: '기본순' },
+    { value: 'dueDate', label: '마감일순' },
+    { value: 'createdAt', label: '생성일순' },
+    { value: 'status', label: '상태순' },
+    { value: 'tag', label: '태그순' },
+  ];
 
   const filteredMeetings = useMemo(() => {
     if (!search) return meetings;
@@ -253,11 +341,9 @@ export function TaskListView({
 
   return (
     <div className="space-y-4">
-      {/* Tag Sub-tabs */}
-      {(() => {
-        const allTags = [...new Set(tasks.flatMap(t => t.tags).filter(Boolean))];
-        if (allTags.length === 0) return null;
-        return (
+      {/* Tag Sub-tabs + Tag Manager */}
+      {allTags.length > 0 && (
+        <div className="space-y-2">
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
             <Tag size={12} className="text-[var(--color-text-tertiary)] shrink-0" />
             {allTags.map(tag => {
@@ -277,9 +363,78 @@ export function TaskListView({
                 </button>
               );
             })}
+            {/* Tag Manager Toggle */}
+            <button
+              onClick={() => setShowTagManager(!showTagManager)}
+              className={`shrink-0 p-1.5 rounded-full transition-all cursor-pointer ${
+                showTagManager
+                  ? 'bg-violet-100 text-violet-600 shadow-sm ring-1 ring-violet-300'
+                  : 'text-[var(--color-text-tertiary)] hover:bg-gray-100 hover:text-[var(--color-text-secondary)]'
+              }`}
+              title="태그 관리"
+            >
+              <Settings size={13} />
+            </button>
           </div>
-        );
-      })()}
+
+          {/* Tag Management Panel */}
+          {showTagManager && onUpdateTask && (
+            <Card>
+              <div className="px-4 py-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-semibold text-[var(--color-text-secondary)] flex items-center gap-1.5">
+                    <Tag size={12} /> 태그 관리
+                  </h4>
+                  <button onClick={() => setShowTagManager(false)} className="p-1 rounded hover:bg-gray-100 text-[var(--color-text-tertiary)] cursor-pointer">
+                    <X size={14} />
+                  </button>
+                </div>
+                {/* Tag list */}
+                <div className="space-y-1.5">
+                  {allTags.map(tag => {
+                    const count = tasks.filter(t => t.tags.includes(tag)).length;
+                    const isEditing = editingTagFrom === tag;
+                    return (
+                      <div key={tag} className="flex items-center gap-2 group">
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={editingTagTo}
+                            onChange={e => setEditingTagTo(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') handleRenameTag(tag); if (e.key === 'Escape') setEditingTagFrom(null); }}
+                            onBlur={() => handleRenameTag(tag)}
+                            className="flex-1 px-2 py-1 rounded border border-violet-300 bg-violet-50 text-xs focus:outline-none focus:ring-1 focus:ring-violet-400"
+                            autoFocus
+                          />
+                        ) : (
+                          <span
+                            className="flex-1 text-xs text-[var(--color-text-primary)] cursor-pointer hover:text-violet-600 transition-colors px-2 py-1 rounded hover:bg-violet-50"
+                            onClick={() => { setEditingTagFrom(tag); setEditingTagTo(tag); }}
+                            title="클릭하여 이름 변경"
+                          >
+                            #{tag}
+                          </span>
+                        )}
+                        <span className="text-[10px] text-[var(--color-text-tertiary)] tabular-nums">{count}건</span>
+                        <button
+                          onClick={() => handleDeleteTag(tag)}
+                          className="p-1 rounded hover:bg-red-50 text-[var(--color-text-tertiary)] hover:text-[var(--color-danger)] opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                          title="이 태그를 모든 업무에서 제거"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+                {allTags.length === 0 && (
+                  <p className="text-xs text-[var(--color-text-tertiary)] text-center py-2">등록된 태그가 없습니다</p>
+                )}
+              </div>
+            </Card>
+          )}
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -366,6 +521,32 @@ export function TaskListView({
 
         {showTasks && (
           <>
+            {/* Sort Dropdown */}
+            <div className="flex items-center gap-0.5 shrink-0">
+              <select
+                value={sortBy}
+                onChange={e => setSortBy(e.target.value as SortBy)}
+                className={`px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] cursor-pointer transition-colors ${
+                  sortBy !== 'default'
+                    ? 'border-violet-300 bg-violet-50 text-violet-700 font-medium'
+                    : 'border-[var(--color-border)] bg-white text-[var(--color-text-secondary)]'
+                }`}
+              >
+                {SORT_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+              {sortBy !== 'default' && (
+                <button
+                  onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                  className="p-2 rounded-lg border border-violet-300 bg-violet-50 text-violet-600 hover:bg-violet-100 transition-colors cursor-pointer"
+                  title={sortOrder === 'asc' ? '오름차순 (클릭하여 내림차순)' : '내림차순 (클릭하여 오름차순)'}
+                >
+                  {sortOrder === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+                </button>
+              )}
+            </div>
+
             <button
               onClick={() => setShowRecurringOnly(!showRecurringOnly)}
               className={`shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border cursor-pointer flex items-center gap-1.5 ${

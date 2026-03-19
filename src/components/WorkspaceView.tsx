@@ -89,6 +89,7 @@ export function WorkspaceView(props: WorkspaceViewProps) {
               onDelete={props.deleteTask}
               onStatusChange={(id, status) => props.moveTask(id, status)}
               onAdd={() => openTaskModal()}
+              onUpdateTask={props.updateTask}
               meetings={props.meetings}
               addMeeting={props.addMeeting}
               updateMeeting={props.updateMeeting}
