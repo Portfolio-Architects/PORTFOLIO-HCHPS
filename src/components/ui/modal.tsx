@@ -13,7 +13,7 @@ interface ModalProps {
 
 const sizeClasses = {
   sm: 'max-w-md',
-  md: 'max-w-xl',
+  md: 'max-w-2xl',
   lg: 'max-w-3xl',
 };
 
@@ -30,7 +30,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop">
       <div
         className={`bg-[var(--color-card)] rounded-[var(--radius-lg)] shadow-[var(--shadow-lg)] w-full ${sizeClasses[size]} max-h-[85vh] flex flex-col`}
         onClick={e => e.stopPropagation()}

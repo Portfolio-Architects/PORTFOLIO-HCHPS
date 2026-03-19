@@ -68,7 +68,7 @@ export function TaskListView({
   const [showRecurringOnly, setShowRecurringOnly] = useState(false);
 
   // Sort state
-  const [sortBy, setSortBy] = useState<SortBy>('default');
+  const [sortBy, setSortBy] = useState<SortBy>('dueDate');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
   // Tag management state
