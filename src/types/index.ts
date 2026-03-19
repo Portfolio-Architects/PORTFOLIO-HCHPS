@@ -21,6 +21,8 @@ export interface Task {
 }
 
 // ============ Budget Module ============
+export type BudgetEntryType = 'approval' | 'resolution'; // 지출 품의 / 지출 결의
+
 export interface BudgetCategory {
   id: string;
   name: string;
@@ -37,6 +39,7 @@ export interface BudgetEntry {
   purpose: string;
   memo?: string;
   isPlanned: boolean; // true = 계획 지출, false = 실제 지출
+  entryType: BudgetEntryType; // 'approval' = 지출 품의, 'resolution' = 지출 결의
   inventoryItemId?: string;
 }
 
