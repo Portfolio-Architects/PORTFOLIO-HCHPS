@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { KnowledgeEntry } from '@/types';
-import { BookOpen, Search, Plus, Tag, Trash2, Edit2 } from 'lucide-react';
+import { BookOpen, Search, Plus, Tag, Trash2, Edit2, X, Check } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 
 interface KnowledgeListProps {
@@ -20,11 +20,18 @@ export function KnowledgeList({ entries, addKnowledge, updateKnowledge, deleteKn
   const [activeTag, setActiveTag] = useState<string>('');
   const [isAdding, setIsAdding] = useState(false);
   
-  // Form state
+  // Add form state
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [category, setCategory] = useState('');
   const [tags, setTags] = useState('');
+
+  // Edit state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editContent, setEditContent] = useState('');
+  const [editCategory, setEditCategory] = useState('');
+  const [editTags, setEditTags] = useState('');
 
   const filtered = filterKnowledge({ search, category: activeCategory, tag: activeTag });
 
@@ -45,6 +52,31 @@ export function KnowledgeList({ entries, addKnowledge, updateKnowledge, deleteKn
     setTags('');
     setIsAdding(false);
   };
+
+  const startEdit = (entry: KnowledgeEntry) => {
+    setEditingId(entry.id);
+    setEditTitle(entry.title);
+    setEditContent(entry.content);
+    setEditCategory(entry.category || '');
+    setEditTags(entry.tags.join(', '));
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+  };
+
+  const saveEdit = () => {
+    if (!editingId || !editTitle.trim() || !editContent.trim()) return;
+    updateKnowledge(editingId, {
+      title: editTitle.trim(),
+      content: editContent.trim(),
+      category: editCategory.trim(),
+      tags: editTags.split(',').map(t => t.trim()).filter(Boolean),
+    });
+    setEditingId(null);
+  };
+
+  const inputClass = "w-full px-3 py-2 border rounded-lg focus:ring-2 outline-none text-sm transition-shadow";
 
   return (
     <div className="space-y-6">
@@ -132,32 +164,105 @@ export function KnowledgeList({ entries, addKnowledge, updateKnowledge, deleteKn
             <p>등록된 지식이 없습니다.</p>
           </div>
         ) : (
-          filtered.map(entry => (
-            <Card key={entry.id} className="p-5 flex flex-col hover:border-blue-200 transition-colors group">
-              <div className="flex justify-between items-start mb-2">
-                <div className="flex items-center gap-2">
-                  {entry.category && <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">{entry.category}</span>}
-                  <h3 className="font-semibold text-gray-900">{entry.title}</h3>
+          filtered.map(entry => {
+            const isEditing = editingId === entry.id;
+
+            if (isEditing) {
+              return (
+                <Card key={entry.id} className="p-5 border-amber-300 bg-amber-50/40 shadow-sm">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between border-b border-amber-200 pb-2">
+                      <h4 className="text-xs font-semibold text-amber-800 flex items-center gap-1.5">
+                        <Edit2 size={12} /> 지식 수정
+                      </h4>
+                      <button onClick={cancelEdit} className="p-1 rounded hover:bg-amber-100 text-amber-600 cursor-pointer">
+                        <X size={14} />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <input
+                        type="text"
+                        value={editTitle}
+                        onChange={e => setEditTitle(e.target.value)}
+                        placeholder="제목"
+                        className={`${inputClass} border-amber-200 focus:ring-amber-400`}
+                        autoFocus
+                      />
+                      <input
+                        type="text"
+                        value={editCategory}
+                        onChange={e => setEditCategory(e.target.value)}
+                        placeholder="카테고리"
+                        className={`${inputClass} border-amber-200 focus:ring-amber-400`}
+                      />
+                    </div>
+                    <textarea
+                      value={editContent}
+                      onChange={e => setEditContent(e.target.value)}
+                      placeholder="내용"
+                      className={`${inputClass} border-amber-200 focus:ring-amber-400 resize-none h-28`}
+                    />
+                    <input
+                      type="text"
+                      value={editTags}
+                      onChange={e => setEditTags(e.target.value)}
+                      placeholder="태그 (쉼표로 구분)"
+                      className={`${inputClass} border-amber-200 focus:ring-amber-400`}
+                    />
+                    <div className="flex justify-end gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={cancelEdit}
+                        className="px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded-lg text-sm font-medium cursor-pointer"
+                      >
+                        취소
+                      </button>
+                      <button
+                        type="button"
+                        onClick={saveEdit}
+                        className="flex items-center gap-1.5 px-4 py-1.5 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 transition-colors cursor-pointer"
+                      >
+                        <Check size={14} /> 저장
+                      </button>
+                    </div>
+                  </div>
+                </Card>
+              );
+            }
+
+            return (
+              <Card key={entry.id} className="p-5 flex flex-col hover:border-blue-200 transition-colors group">
+                <div className="flex justify-between items-start mb-2">
+                  <div className="flex items-center gap-2">
+                    {entry.category && <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">{entry.category}</span>}
+                    <h3 className="font-semibold text-gray-900">{entry.title}</h3>
+                  </div>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => startEdit(entry)} className="text-gray-300 hover:text-amber-600 cursor-pointer p-1 rounded hover:bg-amber-50 transition-colors" title="수정">
+                      <Edit2 size={15} />
+                    </button>
+                    <button onClick={() => deleteKnowledge(entry.id)} className="text-gray-300 hover:text-red-500 cursor-pointer p-1 rounded hover:bg-red-50 transition-colors" title="삭제">
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
                 </div>
-                <button onClick={() => deleteKnowledge(entry.id)} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Trash2 size={16} />
-                </button>
-              </div>
-              <p className="text-sm text-gray-600 flex-1 whitespace-pre-wrap leading-relaxed">{entry.content}</p>
-              
-              {entry.tags && entry.tags.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-4 pt-3 border-t border-gray-100">
-                  {entry.tags.map(tag => (
-                    <span key={tag} className="text-[11px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded flex items-center gap-1">
-                      <Tag size={10} /> {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </Card>
-          ))
+                <p className="text-sm text-gray-600 flex-1 whitespace-pre-wrap leading-relaxed">{entry.content}</p>
+                
+                {entry.tags && entry.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-4 pt-3 border-t border-gray-100">
+                    {entry.tags.map(tag => (
+                      <span key={tag} className="text-[11px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded flex items-center gap-1">
+                        <Tag size={10} /> {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            );
+          })
         )}
       </div>
     </div>
   );
 }
+
