@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { readSheet, addRow, deleteRow } from '@/lib/sheets-api';
 
 export interface SignalEntry {
@@ -204,12 +204,12 @@ export function useSignal() {
   }, []);
 
   // Aggregate keywords with frequency
-  const keywordMap = entries.reduce<Record<string, number>>((acc, entry) => {
+  const keywordMap = useMemo(() => entries.reduce<Record<string, number>>((acc, entry) => {
     entry.keywords.forEach(kw => {
       acc[kw] = (acc[kw] || 0) + 1;
     });
     return acc;
-  }, {});
+  }, {}), [entries]);
 
   return { entries, addSignal, deleteSignal, keywordMap };
 }
