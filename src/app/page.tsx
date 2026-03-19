@@ -33,7 +33,7 @@ class MindMapErrorBoundary extends React.Component<
       return (
         <div className="flex flex-col items-center justify-center py-20 gap-4">
           <AlertTriangle size={48} className="text-amber-400" />
-          <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">시그널 맵 로드 실패</h2>
+          <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">시그널 로드 실패</h2>
           <p className="text-sm text-[var(--color-text-tertiary)] max-w-md text-center">
             {this.state.errorMsg || '컴포넌트 렌더링 중 오류가 발생했습니다.'}
           </p>

@@ -14,7 +14,7 @@ interface TopNavProps {
 const navItems: { id: ModuleType; label: string; icon: React.ElementType }[] = [
   { id: 'workspace', label: '업무관리', icon: ClipboardList },
   { id: 'knowledge', label: '지식창고', icon: BookOpen },
-  { id: 'mindmap', label: '시그널 맵', icon: Radio },
+  { id: 'mindmap', label: '시그널', icon: Radio },
 ];
 
 export function Sidebar({ activeModule, onModuleChange, taskStats, quickInput }: TopNavProps) {

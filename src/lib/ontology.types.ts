@@ -26,12 +26,12 @@ export const GROUP_COLORS: Record<OntologyGroup, string> = {
 };
 
 export const GROUP_LABELS: Record<OntologyGroup, string> = {
-  CORE_PROJECT:   '핵심 프로젝트',
-  MACRO_RESEARCH: '거시경제 리서치',
-  DCF_MODELING:   'DCF 모델링',
-  DATA_PIPELINE:  '데이터 파이프라인',
-  INFRASTRUCTURE: '인프라',
-  SYSTEM_RISK:    '시스템 리스크',
+  CORE_PROJECT:   '핵심 키워드',
+  MACRO_RESEARCH: '주요 키워드',
+  DCF_MODELING:   '반복 키워드',
+  DATA_PIPELINE:  '일반 키워드',
+  INFRASTRUCTURE: '기초 키워드',
+  SYSTEM_RISK:    '주의 키워드',
   OTHER:          '기타',
 };
 

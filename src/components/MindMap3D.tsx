@@ -386,7 +386,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold flex items-center gap-2">
           <Radio size={22} className="text-emerald-500" />
-          시그널 맵
+          시그널
         </h2>
         <div className="flex items-center gap-2">
           {usingSample && (
@@ -628,19 +628,19 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                 아직 기록된 시그널이 없습니다. 위에서 상황을 입력해보세요.
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
+              <div>
                 {signalEntries.map((entry) => {
                   const isEditing = editingEntryId === entry.id;
                   return (
                     <div
                       key={entry.id}
-                      className={`px-5 py-3.5 border-b border-r border-[var(--color-border-light)] transition-colors group ${
+                      className={`px-5 py-4 border-b border-[var(--color-border-light)] last:border-b-0 transition-colors group ${
                         isEditing ? 'bg-emerald-50/40' : 'hover:bg-gray-50/50'
                       }`}
                     >
                       <div className="flex items-start gap-3">
                         <div className="flex-1 min-w-0">
-                          <div className="text-xs text-[var(--color-text-primary)] leading-relaxed">
+                          <div className="text-sm text-[var(--color-text-primary)] leading-relaxed">
                             {entry.text}
                           </div>
                           {/* Keywords — editable or static */}
@@ -648,7 +648,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                             {entry.keywords.map((kw, i) => (
                               <span
                                 key={`${kw}-${i}`}
-                                className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium ${
+                                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium ${
                                   isEditing
                                     ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                                     : 'bg-emerald-50 text-emerald-700'
@@ -683,7 +683,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                                   type="text"
                                   value={newKeyword}
                                   onChange={(e) => setNewKeyword(e.target.value)}
-                                  className="w-20 px-2 py-1 rounded-md text-[10px] border border-emerald-300 bg-white outline-none focus:ring-1 focus:ring-emerald-400"
+                                  className="w-24 px-2.5 py-1 rounded-md text-[11px] border border-emerald-300 bg-white outline-none focus:ring-1 focus:ring-emerald-400"
                                   placeholder="+ 키워드 추가"
                                 />
                                 <button
@@ -695,7 +695,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                               </form>
                             )}
                           </div>
-                          <div className="text-[10px] text-[var(--color-text-tertiary)] mt-1.5">
+                          <div className="text-[11px] text-[var(--color-text-tertiary)] mt-2">
                             {new Date(entry.createdAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                           </div>
                         </div>
@@ -716,7 +716,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                               }`}
                               title={isEditing ? '편집 완료' : '키워드 편집'}
                             >
-                              <Edit2 size={14} />
+                              <Edit2 size={16} />
                             </button>
                           )}
                           {onDeleteSignal && (
@@ -725,7 +725,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                               className="p-2 rounded-lg text-[var(--color-text-tertiary)] hover:text-red-500 hover:bg-red-50 cursor-pointer transition-colors"
                               title="시그널 삭제"
                             >
-                              <Trash2 size={14} />
+                              <Trash2 size={16} />
                             </button>
                           )}
                         </div>
