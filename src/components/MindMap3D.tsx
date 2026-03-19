@@ -31,6 +31,12 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal }: MindMa
   const animationRef = useRef<number>(0);
   const dprRef = useRef(1);
 
+  // Use refs for props to avoid re-creating initEngine on every data change
+  const signalKeywordsRef = useRef(signalKeywords);
+  const signalEntriesRef = useRef(signalEntries);
+  signalKeywordsRef.current = signalKeywords;
+  signalEntriesRef.current = signalEntries;
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [usingSample, setUsingSample] = useState(false);
@@ -42,14 +48,14 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal }: MindMa
   const [signalText, setSignalText] = useState('');
   const [signalCreated, setSignalCreated] = useState(false);
 
-  // ── Init Engine ──
+  // ── Init Engine (stable — no deps on props) ──
   const initEngine = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const graph = buildSignalGraph(signalKeywords, signalEntries);
-      setUsingSample(Object.keys(signalKeywords).length === 0);
+      const graph = buildSignalGraph(signalKeywordsRef.current, signalEntriesRef.current);
+      setUsingSample(Object.keys(signalKeywordsRef.current).length === 0);
 
       const engine = new OntologyCanvasEngine();
       engine.init(graph, {
@@ -77,7 +83,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal }: MindMa
     } finally {
       setLoading(false);
     }
-  }, [signalKeywords, signalEntries]);
+  }, []);
 
   // ── Animation Loop ──
   useEffect(() => {
