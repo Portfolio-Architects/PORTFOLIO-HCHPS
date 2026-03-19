@@ -48,8 +48,8 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal }: MindMa
   const [signalText, setSignalText] = useState('');
   const [signalCreated, setSignalCreated] = useState(false);
 
-  // ── Init Engine (stable — no deps on props) ──
-  const initEngine = useCallback(async () => {
+  // ── Init Engine (stable — deferred callbacks) ──
+  const initEngine = useCallback(() => {
     setLoading(true);
     setError(null);
 
@@ -58,26 +58,33 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal }: MindMa
       setUsingSample(Object.keys(signalKeywordsRef.current).length === 0);
 
       const engine = new OntologyCanvasEngine();
-      engine.init(graph, {
+      // Init WITHOUT callbacks to avoid triggering setState during init
+      engine.init(graph);
+
+      engineRef.current = engine;
+
+      // Set state AFTER engine is fully initialized (no callbacks during init)
+      const initialNode = engine.centerNode;
+      const initialEdges = initialNode ? engine.getConnectedEdges(initialNode.id) : [];
+      const initialStats = { nodes: engine.nodeCount, edges: engine.edgeCount };
+
+      // Attach callbacks AFTER init for user interaction
+      engine.callbacks = {
         onActiveNodeChange: (node) => {
           setActiveNode(node ?? null);
-          if (node && engine) {
-            setConnectedEdges(engine.getConnectedEdges(node.id));
+          if (node && engineRef.current) {
+            setConnectedEdges(engineRef.current.getConnectedEdges(node.id));
           } else {
             setConnectedEdges([]);
           }
         },
         onHoveredNodeChange: (node) => setHoveredNode(node ?? null),
-      });
+      };
 
-      engineRef.current = engine;
-      setStats({ nodes: engine.nodeCount, edges: engine.edgeCount });
-
-      // Set initial active
-      if (engine.centerNode) {
-        setActiveNode(engine.centerNode);
-        setConnectedEdges(engine.getConnectedEdges(engine.centerNode.id));
-      }
+      // Batch state updates
+      setStats(initialStats);
+      setActiveNode(initialNode);
+      setConnectedEdges(initialEdges);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : '초기화 실패');
     } finally {

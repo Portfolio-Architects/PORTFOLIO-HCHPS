@@ -14,7 +14,41 @@ import { QuickInput } from '@/components/QuickInput';
 import { WorkspaceView } from '@/components/WorkspaceView';
 import { MindMap3D } from '@/components/MindMap3D';
 import { KnowledgeList } from '@/components/knowledge/KnowledgeList';
-import { Lock, Eye, EyeOff } from 'lucide-react';
+import { Lock, Eye, EyeOff, AlertTriangle, RefreshCw } from 'lucide-react';
+
+// Error Boundary for MindMap3D — prevents signal map crash from breaking entire app
+class MindMapErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; errorMsg: string }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, errorMsg: '' };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, errorMsg: error.message };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center py-20 gap-4">
+          <AlertTriangle size={48} className="text-amber-400" />
+          <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">시그널 맵 로드 실패</h2>
+          <p className="text-sm text-[var(--color-text-tertiary)] max-w-md text-center">
+            {this.state.errorMsg || '컴포넌트 렌더링 중 오류가 발생했습니다.'}
+          </p>
+          <button
+            onClick={() => this.setState({ hasError: false, errorMsg: '' })}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors cursor-pointer"
+          >
+            <RefreshCw size={14} /> 다시 시도
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 // Passcode gate for mindmap
 function PasscodeGate({ onUnlock }: { onUnlock: () => void }) {
@@ -196,7 +230,11 @@ export default function Home() {
         if (!mindmapUnlocked) {
           return <PasscodeGate onUnlock={() => setMindmapUnlocked(true)} />;
         }
-        return <MindMap3D signalKeywords={keywordMap} signalEntries={signalEntries} onAddSignal={addSignal} />;
+        return (
+          <MindMapErrorBoundary>
+            <MindMap3D signalKeywords={keywordMap} signalEntries={signalEntries} onAddSignal={addSignal} />
+          </MindMapErrorBoundary>
+        );
 
       default:
         return null;

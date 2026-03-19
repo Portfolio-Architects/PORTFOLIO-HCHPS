@@ -64,7 +64,7 @@ export class OntologyCanvasEngine {
   edgeCount = 0;
 
   // Callbacks
-  private callbacks: EngineCallbacks = {};
+  callbacks: EngineCallbacks = {};
 
   // Precomputed
   private orbitRadii: number[] = [];
