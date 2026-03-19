@@ -489,13 +489,24 @@ function cleanTitle(raw: string, removals: string[]): string {
     title = title.replace(r, ' ');
   }
 
+  // Remove leading numbering: ①②③, 1. 2., (1) (2), 1) 2), ▶, ■, ●, ※ etc.
+  title = title.replace(/^\s*[①②③④⑤⑥⑦⑧⑨⑩▶■●※◆◇○☆★]\s*/, '');
+  title = title.replace(/^\s*\(?\d{1,2}\)?[\.\)]\s*/, '');
+  title = title.replace(/^\s*[-–—·]\s*/, '');
+
   // Remove meta-action phrases (the act of registering, not the task)
   title = title.replace(/\s*(일정\s*(등록|잡기|추가)|업무\s*(등록|추가)|등록해\s*줘|등록해\s*주세요|추가해\s*줘|추가해\s*주세요|등록\s*부탁|메모해\s*줘|기록해\s*줘)\s*/g, ' ');
   // Trailing standalone "등록", "추가" that are meta-actions
   title = title.replace(/\s+(등록|추가|메모|기록)\s*$/, '');
 
+  // Remove formal request endings (polite closings that aren't task content)
+  title = title.replace(/\s*(부탁드립니다|부탁합니다|부탁해요|부탁이요|바랍니다|감사합니다|감사해요|수고하세요|수고해주세요)\s*/g, ' ');
+  title = title.replace(/\s*(해\s*주시기\s*바랍니다|해\s*주시면\s*감사하겠습니다|처리\s*바랍니다|조치\s*바랍니다)\s*/g, ' ');
+  title = title.replace(/\s*(해\s*주시기\s*바람|해\s*주시기\s*바랍니다|주시기\s*바랍니다|주시면\s*됩니다)\s*/g, ' ');
+  title = title.replace(/\s*(부탁\s*드려요|부탁\s*드림|부탁\s*드립니다)\s*/g, ' ');
+
   // Remove action-ending phrases
-  title = title.replace(/\s*(해야\s*함|해야\s*해|해야\s*됨|해야\s*된다|해야\s*합니다|해\s*줘|해\s*주세요)\s*$/g, '');
+  title = title.replace(/\s*(해야\s*함|해야\s*해|해야\s*됨|해야\s*된다|해야\s*합니다|해\s*줘|해\s*주세요|해주세요|해주시고)\s*/g, ' ');
 
   // Remove filler/connector words that don't add meaning
   title = title.replace(/\s*(있을|있는|없는|할\s*수?\s*있(게|도록)|할\s*수?\s*없|하게|되게|되도록)\s*/g, ' ');
@@ -520,6 +531,18 @@ function cleanTitle(raw: string, removals: string[]): string {
 
   // Remove trailing commas, periods
   title = title.replace(/[,，.。、]+\s*$/, '').trim();
+
+  // Cap title length for readability (break at natural word boundary)
+  if (title.length > 50) {
+    const breakAt = title.lastIndexOf(' ', 50);
+    if (breakAt > 20) {
+      title = title.slice(0, breakAt).trim();
+    } else {
+      title = title.slice(0, 50).trim();
+    }
+    // Clean any trailing particle after truncation
+    title = title.replace(/\s+(에|을|를|은|는|이|가|의|에서|후|하고|으로)\s*$/, '').trim();
+  }
 
   return title;
 }

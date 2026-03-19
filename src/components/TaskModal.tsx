@@ -45,7 +45,7 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, allTags
   });
   const [dueTime, setDueTime] = useState(() => {
     const dd = editTask?.dueDate || '';
-    return dd.includes('T') ? dd.split('T')[1]?.slice(0, 5) || '' : '';
+    return dd.includes('T') ? dd.split('T')[1]?.slice(0, 5) || '01:00' : '01:00';
   });
   const [projectId, setProjectId] = useState(editTask?.projectId || '');
   
@@ -66,7 +66,7 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, allTags
       setDescription(editTask.description || '');
       setStatus(editTask.status);
       setDueDate(editTask.dueDate?.includes('T') ? editTask.dueDate.split('T')[0] : editTask.dueDate || '');
-      setDueTime(editTask.dueDate?.includes('T') ? editTask.dueDate.split('T')[1]?.slice(0, 5) || '' : '');
+      setDueTime(editTask.dueDate?.includes('T') ? editTask.dueDate.split('T')[1]?.slice(0, 5) || '01:00' : '01:00');
       setProjectId(editTask.projectId || '');
       
       const parsed = parseRecurrence(editTask.recurrence || '');
@@ -80,7 +80,7 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, allTags
       setTags(editTask.tags);
     } else {
       setTitle(''); setDescription(''); setStatus('todo');
-      setDueDate(''); setDueTime(''); setProjectId('');
+      setDueDate(''); setDueTime('01:00'); setProjectId('');
       setRecurrenceType('none'); setRecurrenceDays([]); setCustomRecurrence('');
       setRecurrenceStartDate(''); setRecurrenceEndDate(''); setRecurrenceCount(''); setTags([]);
     }
@@ -117,6 +117,8 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, allTags
     const mm = String(start.getMonth() + 1).padStart(2, '0');
     const dd = String(start.getDate()).padStart(2, '0');
     setRecurrenceEndDate(`${yyyy}-${mm}-${dd}`);
+    // Auto-set D-Day to recurrence end date
+    setDueDate(`${yyyy}-${mm}-${dd}`);
   }, [recurrenceStartDate, recurrenceCount, recurrenceType, recurrenceDays]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -230,7 +232,7 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, allTags
             </label>
             <div className="flex gap-2">
               <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className={`${inputClass} flex-1`} />
-              <input type="time" value={dueTime} onChange={e => setDueTime(e.target.value)} className={`${inputClass} w-28`} placeholder="시간" />
+              <input type="time" value={dueTime} onChange={e => setDueTime(e.target.value)} onWheel={e => e.currentTarget.blur()} step="3600" className={`${inputClass} w-28`} placeholder="시간" />
             </div>
           </div>
         </div>
