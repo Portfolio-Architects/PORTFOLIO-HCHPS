@@ -220,7 +220,7 @@ export default function Home() {
   const page = pageTitles[activeModule];
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col min-h-screen overflow-x-hidden">
       <Sidebar
         activeModule={activeModule}
         onModuleChange={handleModuleChange}
@@ -240,7 +240,7 @@ export default function Home() {
         }
       />
 
-      <main className="flex-1 p-6 lg:p-8 overflow-y-auto custom-scrollbar">
+      <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto custom-scrollbar">
         <div className="max-w-[1800px] mx-auto">
           {/* Page Title */}
           <div className="mb-6">

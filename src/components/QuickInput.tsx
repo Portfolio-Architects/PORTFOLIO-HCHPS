@@ -75,15 +75,15 @@ export function QuickInput({ onCreateTask, onCreateKnowledge, onNavigate }: Quic
   };
 
   return (
-    <div className="relative">
-      <div className="flex items-center gap-2 bg-[var(--color-card)] rounded-2xl border border-[var(--color-border-light)] shadow-[var(--shadow-sm)] px-4 py-2 transition-shadow focus-within:shadow-md focus-within:border-[var(--color-primary)]">
+    <div className="relative overflow-hidden">
+      <div className="flex items-center gap-2 bg-[var(--color-card)] rounded-2xl border border-[var(--color-border-light)] shadow-[var(--shadow-sm)] px-3 sm:px-4 py-2 transition-shadow focus-within:shadow-md focus-within:border-[var(--color-primary)] min-w-0">
         <Zap size={16} className="text-[var(--color-primary)] shrink-0" />
         <input
           type="text"
           value={text}
           onChange={e => setText(e.target.value)}
           onKeyDown={handleKeyDown}
-          className="flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--color-text-tertiary)]"
+          className="flex-1 min-w-0 bg-transparent text-sm outline-none placeholder:text-[var(--color-text-tertiary)]"
           placeholder="아무 말이나 입력하세요... 예: 회의 자료 준비, 20일까지 결제 해야함"
         />
 
@@ -107,7 +107,7 @@ export function QuickInput({ onCreateTask, onCreateKnowledge, onNavigate }: Quic
       </div>
 
       {parsed && (
-        <div className="flex items-center gap-2 mt-2 flex-wrap px-1">
+        <div className="flex items-center gap-2 mt-2 flex-wrap px-1 overflow-x-auto no-scrollbar">
           {parsed.date && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] bg-blue-50 text-blue-600">
               <Calendar size={10} /> {parsed.date}
