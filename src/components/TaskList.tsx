@@ -38,8 +38,9 @@ interface TaskListProps {
 
 function getDDay(dueDate?: string) {
   if (!dueDate) return null;
-  // Parse as local time — new Date('YYYY-MM-DD') parses as UTC, causing timezone issues
-  const [y, m, d] = dueDate.split('-').map(Number);
+  // Strip time part if present (e.g. "2026-03-19T01:00" → "2026-03-19")
+  const datePart = dueDate.includes('T') ? dueDate.split('T')[0] : dueDate;
+  const [y, m, d] = datePart.split('-').map(Number);
   const due = new Date(y, m - 1, d).getTime();
   const diff = Math.ceil((due - new Date().setHours(0,0,0,0)) / (1000*60*60*24));
   if (diff < 0) return { label: `D+${Math.abs(diff)}`, color: 'text-[var(--color-danger)]' };

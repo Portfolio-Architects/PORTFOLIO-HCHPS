@@ -117,8 +117,8 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, allTags
     const mm = String(start.getMonth() + 1).padStart(2, '0');
     const dd = String(start.getDate()).padStart(2, '0');
     setRecurrenceEndDate(`${yyyy}-${mm}-${dd}`);
-    // Auto-set D-Day to recurrence end date
-    setDueDate(`${yyyy}-${mm}-${dd}`);
+    // Auto-set D-Day to recurrence start date
+    setDueDate(recurrenceStartDate);
   }, [recurrenceStartDate, recurrenceCount, recurrenceType, recurrenceDays]);
 
   const handleSubmit = (e: React.FormEvent) => {
