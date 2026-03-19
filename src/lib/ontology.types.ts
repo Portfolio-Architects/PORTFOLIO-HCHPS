@@ -16,13 +16,13 @@ export type OntologyGroup =
   | 'OTHER';
 
 export const GROUP_COLORS: Record<OntologyGroup, string> = {
-  CORE_PROJECT:   '#2563EB',  // 로얄 블루
-  MACRO_RESEARCH: '#059669',  // 에메랄드 그린
-  DCF_MODELING:   '#7C3AED',  // 바이올렛 퍼플
-  DATA_PIPELINE:  '#D97706',  // 앰버 골드
-  INFRASTRUCTURE: '#0891B2',  // 시안 틸
-  SYSTEM_RISK:    '#DC2626',  // 크림슨 레드
-  OTHER:          '#6B7280',
+  CORE_PROJECT:   '#0055FF',  // 비비드 블루
+  MACRO_RESEARCH: '#00CC44',  // 핫 그린
+  DCF_MODELING:   '#8800FF',  // 일렉트릭 바이올렛
+  DATA_PIPELINE:  '#FF6600',  // 브라이트 오렌지
+  INFRASTRUCTURE: '#00BBDD',  // 딥 시안
+  SYSTEM_RISK:    '#FF0044',  // 크림슨 레드
+  OTHER:          '#888888',
 };
 
 export const GROUP_LABELS: Record<OntologyGroup, string> = {
