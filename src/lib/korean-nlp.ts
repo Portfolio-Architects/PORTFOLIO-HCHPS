@@ -6,7 +6,7 @@
 
 // ============ Types ============
 
-export type ParsedType = 'task' | 'meeting' | 'budget' | 'knowledge';
+export type ParsedType = 'task' | 'meeting' | 'budget' | 'knowledge' | 'signal';
 
 export interface ParsedResult {
   type: ParsedType;
@@ -553,6 +553,7 @@ const MEETING_KEYWORDS = ['회의', '미팅', 'meeting', '면담', '상담', '�
 const BUDGET_KEYWORDS = ['구매', '구입', '지출', '결제', '입금', '송금', '배정', '집행', '충당', '조달'];
 const TASK_ACTION_KEYWORDS = ['해야', '까지', '제출', '완료', '작성', '처리', '보고', '마감', '확인', '검토', '준비', '정리', '진행', '수행', '실행', '점검'];
 const KNOWLEDGE_KEYWORDS = ['지식창고', '암묵지', '어드바이스', '팁'];
+const SIGNAL_KEYWORDS = ['시그널', '신호', '동향', '트렌드', '징후', '조짐', '움직임', '분위기', '기류', '낌새'];
 
 export function classifyAndParse(text: string): ParsedResult {
   const rawText = text.trim();
@@ -603,6 +604,7 @@ export function classifyAndParse(text: string): ParsedResult {
   let type: ParsedType = 'task';
   let confidence = 0.6;
 
+  const hasSignalKeyword = SIGNAL_KEYWORDS.some(k => lowerText.includes(k));
   const hasKnowledgeKeyword = KNOWLEDGE_KEYWORDS.some(k => lowerText.includes(k));
   const hasMeetingKeyword = MEETING_KEYWORDS.some(k => lowerText.includes(k));
   const hasBudgetKeyword = BUDGET_KEYWORDS.some(k => lowerText.includes(k));
@@ -611,7 +613,10 @@ export function classifyAndParse(text: string): ParsedResult {
   const hasPeople = people.length > 0;
   const hasTime = timeResult !== null;
 
-  if (hasKnowledgeKeyword) {
+  if (hasSignalKeyword) {
+    type = 'signal';
+    confidence = 0.95;
+  } else if (hasKnowledgeKeyword) {
     type = 'knowledge';
     confidence = 0.95;
   } else if (hasMeetingKeyword || (hasPeople && hasTime && !hasAmount)) {

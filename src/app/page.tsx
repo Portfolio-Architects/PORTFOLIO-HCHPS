@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ModuleType } from '@/types';
 import { useTasks } from '@/hooks/useTasks';
 import { useBudget } from '@/hooks/useBudget';
@@ -14,7 +14,7 @@ import { QuickInput } from '@/components/QuickInput';
 import { WorkspaceView } from '@/components/WorkspaceView';
 import { MindMap3D } from '@/components/MindMap3D';
 import { KnowledgeList } from '@/components/knowledge/KnowledgeList';
-import { Lock, Eye, EyeOff, AlertTriangle, RefreshCw } from 'lucide-react';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
 
 // Error Boundary for MindMap3D — prevents signal map crash from breaking entire app
 class MindMapErrorBoundary extends React.Component<
@@ -50,80 +50,9 @@ class MindMapErrorBoundary extends React.Component<
   }
 }
 
-// Passcode gate for mindmap
-function PasscodeGate({ onUnlock }: { onUnlock: () => void }) {
-  const [code, setCode] = useState('');
-  const [error, setError] = useState(false);
-  const [showCode, setShowCode] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    // SHA-256 hash comparison (CWE-798 fix)
-    const encoder = new TextEncoder();
-    const hashBuf = await crypto.subtle.digest('SHA-256', encoder.encode(code));
-    const hashHex = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
-    // Pre-computed SHA-256 of the passcode
-    if (hashHex === '8a6782cb246333c161ba10949109af17c656c2d0bf53128a745bc6a822df94e2') {
-      onUnlock();
-    } else {
-      setError(true);
-      setCode('');
-      setTimeout(() => setError(false), 2000);
-    }
-  };
-
-  return (
-    <div className="flex items-center justify-center py-32">
-      <form onSubmit={handleSubmit} className="text-center space-y-4">
-        <div className="w-16 h-16 mx-auto bg-gray-100 rounded-2xl flex items-center justify-center">
-          <Lock size={28} className="text-[var(--color-text-tertiary)]" />
-        </div>
-        <div>
-          <h3 className="text-lg font-semibold text-[var(--color-text-primary)]">접근 코드 입력</h3>
-          <p className="text-xs text-[var(--color-text-tertiary)] mt-1">이 영역은 코드가 필요합니다</p>
-        </div>
-        <div className="relative">
-          <input
-            type={showCode ? 'text' : 'password'}
-            value={code}
-            onChange={e => setCode(e.target.value)}
-            placeholder="코드를 입력하세요"
-            autoFocus
-            className={`w-60 px-4 py-3 text-sm text-center border rounded-xl outline-none transition-colors ${
-              error
-                ? 'border-red-400 bg-red-50 animate-[shake_0.3s_ease-in-out]'
-                : 'border-[var(--color-border)] focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent'
-            }`}
-          />
-          <button
-            type="button"
-            onClick={() => setShowCode(!showCode)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] cursor-pointer"
-          >
-            {showCode ? <EyeOff size={16} /> : <Eye size={16} />}
-          </button>
-        </div>
-        {error && (
-          <p className="text-xs text-red-500 font-medium">코드가 일치하지 않습니다</p>
-        )}
-        <button
-          type="submit"
-          className="px-6 py-2.5 text-sm font-medium rounded-xl bg-[var(--color-primary)] text-white hover:opacity-90 transition-opacity cursor-pointer"
-        >
-          확인
-        </button>
-      </form>
-    </div>
-  );
-}
-
 export default function Home() {
   const [activeModule, setActiveModule] = useState<ModuleType>('workspace');
-  const [mindmapUnlocked, setMindmapUnlocked] = useState(false);
-  const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [mounted, setMounted] = useState(false);
-
-  const LOCK_TIMEOUT_MS = 5 * 60 * 1000; // 5분
 
   // Hooks
   const { tasks, addTask, updateTask, deleteTask, moveTask, stats: taskStats } = useTasks();
@@ -137,39 +66,7 @@ export default function Home() {
   // Prevent hydration mismatch — hooks read localStorage data on client
   useEffect(() => setMounted(true), []);
 
-  // Auto-lock mindmap after inactivity
-  const resetInactivityTimer = useCallback(() => {
-    if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
-    inactivityTimer.current = setTimeout(() => {
-      setMindmapUnlocked(false);
-    }, LOCK_TIMEOUT_MS);
-  }, [LOCK_TIMEOUT_MS]);
-
-  useEffect(() => {
-    if (activeModule !== 'mindmap' || !mindmapUnlocked) {
-      if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
-      return;
-    }
-
-    // Start timer when mindmap is unlocked
-    resetInactivityTimer();
-
-    // Reset on user activity
-    const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'] as const;
-    const handler = () => resetInactivityTimer();
-    events.forEach(evt => window.addEventListener(evt, handler, { passive: true }));
-
-    return () => {
-      if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
-      events.forEach(evt => window.removeEventListener(evt, handler));
-    };
-  }, [activeModule, mindmapUnlocked, resetInactivityTimer]);
-
-  // Reset mindmap lock when navigating away
   const handleModuleChange = (mod: ModuleType) => {
-    if (activeModule === 'mindmap' && mod !== 'mindmap') {
-      setMindmapUnlocked(false);
-    }
     setActiveModule(mod);
   };
 
@@ -227,9 +124,6 @@ export default function Home() {
         );
 
       case 'mindmap':
-        if (!mindmapUnlocked) {
-          return <PasscodeGate onUnlock={() => setMindmapUnlocked(true)} />;
-        }
         return (
           <MindMapErrorBoundary>
             <MindMap3D signalKeywords={keywordMap} signalEntries={signalEntries} onAddSignal={addSignal} onDeleteSignal={deleteSignal} onUpdateKeywords={updateSignalKeywords} />
@@ -254,7 +148,7 @@ export default function Home() {
     },
     mindmap: {
       icon: '📡',
-      title: '시그널 맵',
+      title: '시그널',
       sub: '시그널 네트워크 시각화',
     },
   };
@@ -304,6 +198,10 @@ export default function Home() {
             onCreateKnowledge={(data) => {
               addKnowledge({ title: data.title, content: data.content, tags: data.tags, category: data.category });
               if (activeModule !== 'knowledge') setActiveModule('knowledge');
+            }}
+            onAddSignal={(text) => {
+              addSignal(text);
+              if (activeModule !== 'mindmap') setActiveModule('mindmap');
             }}
             onNavigate={(m) => handleModuleChange(m as ModuleType)}
           />

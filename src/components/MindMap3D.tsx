@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { OntologyCanvasEngine } from '@/lib/OntologyCanvasEngine';
 import { buildSignalGraph } from '@/lib/signal-graph';
-import { SignalEntry, extractKeywords } from '@/hooks/useSignal';
+import { SignalEntry } from '@/hooks/useSignal';
 import {
   OrbitalNode, OntologyEdge,
   GROUP_COLORS, GROUP_LABELS, OntologyGroup,
@@ -11,7 +11,7 @@ import {
 } from '@/lib/ontology.types';
 import {
   Radio, Loader2, RefreshCw, AlertTriangle,
-  Circle, Link2, X, ChevronRight, Zap, Maximize2, Minimize2, Send,
+  Circle, Link2, X, ChevronRight, Zap, Maximize2, Minimize2,
   Trash2, FileText, Edit2, Plus,
 } from 'lucide-react';
 
@@ -48,8 +48,6 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   const [connectedEdges, setConnectedEdges] = useState<Array<{ edge: OntologyEdge; otherNode: OrbitalNode }>>([]);
   const [stats, setStats] = useState({ nodes: 0, edges: 0 });
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [signalText, setSignalText] = useState('');
-  const [signalCreated, setSignalCreated] = useState(false);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [newKeyword, setNewKeyword] = useState('');
 
@@ -293,19 +291,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
     }
   }, []);
 
-  // Real-time keyword extraction preview (MUST be before any early returns — React Rules of Hooks)
-  const previewKeywords = useMemo(() => {
-    if (signalText.trim().length < 2) return [];
-    return extractKeywords(signalText);
-  }, [signalText]);
 
-  const handleSignalSubmit = () => {
-    if (signalText.trim().length < 2) return;
-    onAddSignal(signalText.trim());
-    setSignalText('');
-    setSignalCreated(true);
-    setTimeout(() => setSignalCreated(false), 2500);
-  };
 
   // ── Loading / Error States ──
   if (loading) {
@@ -334,53 +320,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
 
   return (
     <div className="space-y-4">
-      {/* Signal Input Bar */}
-      <div className="relative">
-        <div className="flex items-center gap-2 bg-[var(--color-card)] rounded-2xl border border-emerald-200 shadow-[var(--shadow-sm)] px-3 sm:px-4 py-2 transition-shadow focus-within:shadow-md focus-within:border-emerald-400 min-w-0">
-          <Radio size={16} className="text-emerald-500 shrink-0" />
-          <input
-            type="text"
-            value={signalText}
-            onChange={e => setSignalText(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSignalSubmit(); } }}
-            className="flex-1 min-w-0 bg-transparent text-sm outline-none placeholder:text-[var(--color-text-tertiary)]"
-            placeholder="상황을 문장으로 입력하세요... 핵심 키워드가 자동 추출됩니다"
-          />
-          {previewKeywords.length > 0 && (
-            <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-600 shrink-0">
-              📡 {previewKeywords.length}개 키워드
-            </span>
-          )}
-          <button
-            onClick={handleSignalSubmit}
-            disabled={signalText.trim().length < 2}
-            className={`p-2 rounded-xl transition-all cursor-pointer shrink-0 ${signalText.trim().length >= 2 ? 'bg-emerald-500 text-white hover:opacity-90' : 'bg-gray-100 text-[var(--color-text-tertiary)]'}`}
-          >
-            <Send size={14} />
-          </button>
-        </div>
 
-        {/* Keyword Preview Chips */}
-        {previewKeywords.length > 0 && (
-          <div className="flex items-center gap-1.5 mt-2 px-1 flex-wrap">
-            <span className="text-[10px] text-[var(--color-text-tertiary)] shrink-0">추출 키워드:</span>
-            {previewKeywords.map((kw, i) => (
-              <span
-                key={`${kw}-${i}`}
-                className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200"
-              >
-                {kw}
-              </span>
-            ))}
-          </div>
-        )}
-
-        {signalCreated && (
-          <div className="absolute -bottom-7 left-1/2 -translate-x-1/2 text-xs font-medium text-emerald-500 animate-pulse">
-            📡 시그널 기록 완료!
-          </div>
-        )}
-      </div>
 
       {/* Header */}
       <div className="flex items-center justify-between">
