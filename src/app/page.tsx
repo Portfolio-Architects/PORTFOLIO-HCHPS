@@ -87,6 +87,7 @@ export default function Home() {
   const [activeModule, setActiveModule] = useState<ModuleType>('workspace');
   const [mindmapUnlocked, setMindmapUnlocked] = useState(false);
   const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [mounted, setMounted] = useState(false);
 
   const LOCK_TIMEOUT_MS = 5 * 60 * 1000; // 5분
 
@@ -98,6 +99,9 @@ export default function Home() {
   const { projects, addProject, updateProject, deleteProject, addChecklistItem, toggleChecklistItem, deleteChecklistItem, getProjectProgress } = useProjects();
   const { entries: signalEntries, addSignal, keywordMap } = useSignal();
   const { entries: knowledgeEntries, addKnowledge, updateKnowledge, deleteKnowledge, filterKnowledge, metadata: knowledgeMetadata } = useKnowledge();
+
+  // Prevent hydration mismatch — hooks read localStorage data on client
+  useEffect(() => setMounted(true), []);
 
   // Auto-lock mindmap after inactivity
   const resetInactivityTimer = useCallback(() => {
@@ -218,6 +222,34 @@ export default function Home() {
   };
 
   const page = pageTitles[activeModule];
+
+  // SSR/static export: show loading skeleton until client mounts
+  if (!mounted) {
+    return (
+      <div className="flex flex-col min-h-screen overflow-x-hidden">
+        <header className="sticky top-0 z-40 bg-[var(--color-card)] border-b border-[var(--color-border-light)] shadow-[var(--shadow-sm)]">
+          <div className="max-w-[1800px] mx-auto px-4 sm:px-6">
+            <div className="flex items-center h-14 gap-3">
+              <div className="w-24 h-8 bg-gray-100 rounded-full animate-pulse" />
+              <div className="w-20 h-8 bg-gray-100 rounded-full animate-pulse" />
+              <div className="w-24 h-8 bg-gray-100 rounded-full animate-pulse" />
+              <div className="flex-1" />
+            </div>
+          </div>
+        </header>
+        <main className="flex-1 p-4 sm:p-6 lg:p-8">
+          <div className="max-w-[1800px] mx-auto">
+            <div className="w-48 h-9 bg-gray-100 rounded-lg animate-pulse mb-6" />
+            <div className="space-y-3">
+              <div className="h-16 bg-gray-50 rounded-xl animate-pulse" />
+              <div className="h-16 bg-gray-50 rounded-xl animate-pulse" />
+              <div className="h-16 bg-gray-50 rounded-xl animate-pulse" />
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col min-h-screen overflow-x-hidden">
