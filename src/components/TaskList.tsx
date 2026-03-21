@@ -67,6 +67,7 @@ export function TaskListView({
   const [projectFilter, setProjectFilter] = useState<string>('');
   const [tagFilter, setTagFilter] = useState<string>('');
   const [showRecurringOnly, setShowRecurringOnly] = useState(false);
+  const [showCompleted, setShowCompleted] = useState(false);
 
   // Sort state
   const [sortBy, setSortBy] = useState<SortBy>('dueDate');
@@ -282,7 +283,7 @@ export function TaskListView({
                 </span>
               )}
               {task.tags.map(tag => (
-                <span key={tag} className="text-xs bg-gray-100 text-[var(--color-text-secondary)] px-1.5 py-0.5 rounded">{tag}</span>
+                <span key={tag} className="text-[13px] bg-gray-100 text-[var(--color-text-secondary)] px-2 py-1 rounded-md">{tag}</span>
               ))}
             </div>
           </div>
@@ -354,7 +355,7 @@ export function TaskListView({
                 <button
                   key={tag}
                   onClick={() => setTagFilter(active ? '' : tag)}
-                  className={`shrink-0 px-2.5 py-1 rounded-full text-[11px] font-medium transition-all cursor-pointer ${
+                  className={`shrink-0 px-3.5 py-1.5 rounded-full text-[13px] font-medium transition-all cursor-pointer ${
                     active
                       ? 'bg-violet-100 text-violet-700 shadow-sm ring-1 ring-violet-300'
                       : 'bg-gray-50 text-[var(--color-text-secondary)] hover:bg-gray-100 border border-gray-200'
@@ -409,14 +410,14 @@ export function TaskListView({
                           />
                         ) : (
                           <span
-                            className="flex-1 text-xs text-[var(--color-text-primary)] cursor-pointer hover:text-violet-600 transition-colors px-2 py-1 rounded hover:bg-violet-50"
+                            className="flex-1 text-[13px] text-[var(--color-text-primary)] cursor-pointer hover:text-violet-600 transition-colors px-2 py-1 rounded-md hover:bg-violet-50"
                             onClick={() => { setEditingTagFrom(tag); setEditingTagTo(tag); }}
                             title="클릭하여 이름 변경"
                           >
                             #{tag}
                           </span>
                         )}
-                        <span className="text-[10px] text-[var(--color-text-tertiary)] tabular-nums">{count}건</span>
+                        <span className="text-xs text-[var(--color-text-tertiary)] tabular-nums">{count}건</span>
                         <button
                           onClick={() => handleDeleteTag(tag)}
                           className="p-1 rounded hover:bg-red-50 text-[var(--color-text-tertiary)] hover:text-[var(--color-danger)] opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
@@ -587,7 +588,34 @@ export function TaskListView({
                 <ListTodo size={12} /> 업무 · {filteredTasks.length}건
               </h3>
             )}
-            {filteredTasks.map(renderTask)}
+            {(() => {
+              if (statusFilter === 'done') return filteredTasks.map(renderTask);
+              
+              const activeTasks = filteredTasks.filter(t => t.status !== 'done');
+              const doneTasks = filteredTasks.filter(t => t.status === 'done');
+              
+              return (
+                <>
+                  {activeTasks.map(renderTask)}
+                  {doneTasks.length > 0 && (
+                    <div className="pt-2">
+                      <button
+                        onClick={() => setShowCompleted(!showCompleted)}
+                        className="flex items-center gap-1.5 px-2 py-1.5 text-sm font-semibold text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors cursor-pointer rounded-lg hover:bg-gray-50 w-full mb-2"
+                      >
+                        {showCompleted ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                        완료된 업무 {doneTasks.length}개
+                      </button>
+                      {showCompleted && (
+                        <div className="space-y-2 opacity-75">
+                          {doneTasks.map(renderTask)}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </>
         )}
 

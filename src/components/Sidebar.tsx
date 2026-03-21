@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { ModuleType } from '@/types';
-import { LayoutDashboard, ClipboardList, Radio, BookOpen } from 'lucide-react';
+import { SquareCheck, Archive, Zap } from 'lucide-react';
 
 interface TopNavProps {
   activeModule: ModuleType;
@@ -12,9 +12,9 @@ interface TopNavProps {
 }
 
 const navItems: { id: ModuleType; label: string; icon: React.ElementType }[] = [
-  { id: 'workspace', label: '업무관리', icon: ClipboardList },
-  { id: 'knowledge', label: '지식창고', icon: BookOpen },
-  { id: 'mindmap', label: '시그널', icon: Radio },
+  { id: 'workspace', label: '업무관리', icon: SquareCheck },
+  { id: 'knowledge', label: '지식창고', icon: Archive },
+  { id: 'mindmap', label: '시그널', icon: Zap },
 ];
 
 export function Sidebar({ activeModule, onModuleChange, taskStats, quickInput }: TopNavProps) {
