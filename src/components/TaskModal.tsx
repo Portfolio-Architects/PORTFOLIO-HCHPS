@@ -86,12 +86,12 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, allTags
     }
   }, [editTask, isOpen]);
 
-  // Auto-fill dueDate from recurrence start date
+  // Auto-fill dueDate from recurrence start date ONLY for new tasks
   React.useEffect(() => {
-    if (recurrenceStartDate && recurrenceType !== 'none') {
+    if (!editTask && recurrenceStartDate && recurrenceType !== 'none') {
       setDueDate(recurrenceStartDate);
     }
-  }, [recurrenceStartDate, recurrenceType]);
+  }, [recurrenceStartDate, recurrenceType, editTask]);
 
   // Auto-calculate end date from start date + count + pattern
   React.useEffect(() => {
@@ -117,8 +117,6 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, allTags
     const mm = String(start.getMonth() + 1).padStart(2, '0');
     const dd = String(start.getDate()).padStart(2, '0');
     setRecurrenceEndDate(`${yyyy}-${mm}-${dd}`);
-    // Auto-set D-Day to recurrence start date
-    setDueDate(recurrenceStartDate);
   }, [recurrenceStartDate, recurrenceCount, recurrenceType, recurrenceDays]);
 
   const handleSubmit = (e: React.FormEvent) => {
