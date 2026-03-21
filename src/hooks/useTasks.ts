@@ -3,26 +3,73 @@
 import { useCallback, useMemo, useRef, useEffect } from 'react';
 import { useGoogleSheet, useSheetCrud } from './useGoogleSheet';
 import { Task, TaskStatus, TaskPriority, generateId } from '@/types';
+import { isHoliday } from '@/lib/holidays';
+
+const WEEKDAYS_MAP: Record<string, number> = { '일': 0, '월': 1, '화': 2, '수': 3, '목': 4, '금': 5, '토': 6 };
+const adjustedDay = (d: number) => (d === 0 ? 6 : d - 1); // Mon=0, Sun=6
+
+function formatYMD(nextDate: Date) {
+  return new Date(nextDate.getTime() - (nextDate.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+}
 
 function calculateNextDueDate(currentDueDate?: string, recurrence?: string): string | undefined {
   if (!recurrence) return currentDueDate;
   
   const baseDate = currentDueDate ? new Date(currentDueDate) : new Date();
-  const nextDate = new Date(baseDate);
   
-  if (recurrence.includes('매일') || recurrence.includes('매 일')) {
-    nextDate.setDate(nextDate.getDate() + 1);
-  } else if (recurrence.includes('격주')) {
-    nextDate.setDate(nextDate.getDate() + 14);
-  } else if (recurrence.includes('월') || recurrence.includes('달')) {
+  if (recurrence === '매일') {
+    let nextDate = new Date(baseDate);
+    do {
+      nextDate.setDate(nextDate.getDate() + 1);
+    } while (isHoliday(nextDate));
+    return formatYMD(nextDate);
+  }
+
+  if (recurrence.startsWith('매주 ') || recurrence.startsWith('격주 ')) {
+    const isBiweekly = recurrence.startsWith('격주 ');
+    const daysStr = recurrence.replace(isBiweekly ? '격주 ' : '매주 ', '');
+    const allowedDays = daysStr.split(', ').map(d => d.replace('요일', '')); 
+    const allowedIndices = allowedDays.map(d => WEEKDAYS_MAP[d]).filter(i => i !== undefined);
+    
+    if (allowedIndices.length > 0) {
+      let nextDate = new Date(baseDate);
+      let baseAdjDay = adjustedDay(baseDate.getDay());
+      let weeksSkipped = false;
+      
+      while (true) {
+        nextDate.setDate(nextDate.getDate() + 1);
+        let currAdjDay = adjustedDay(nextDate.getDay());
+        
+        // If we wrap around to a new week
+        if (currAdjDay < baseAdjDay) {
+          if (isBiweekly && !weeksSkipped) {
+            nextDate.setDate(nextDate.getDate() + 7); // Skip one week
+            weeksSkipped = true;
+            currAdjDay = adjustedDay(nextDate.getDay());
+          }
+          baseAdjDay = -1; // reset base so we don't skip again in this loop
+        }
+        
+        if (allowedIndices.includes(nextDate.getDay())) {
+          if (!isHoliday(nextDate)) {
+            return formatYMD(nextDate);
+          }
+        }
+      }
+    }
+  }
+
+  // Monthly or simple weekly fallback
+  let nextDate = new Date(baseDate);
+  if (recurrence.includes('월') || recurrence.includes('달')) {
     nextDate.setMonth(nextDate.getMonth() + 1);
+    while (isHoliday(nextDate)) nextDate.setDate(nextDate.getDate() + 1);
   } else {
-    // Default fallback for "매주", "주 2회" etc
     nextDate.setDate(nextDate.getDate() + 7);
+    while (isHoliday(nextDate)) nextDate.setDate(nextDate.getDate() + 1);
   }
   
-  // Return in YYYY-MM-DD format (local time)
-  return new Date(nextDate.getTime() - (nextDate.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+  return formatYMD(nextDate);
 }
 
 export function useTasks() {
