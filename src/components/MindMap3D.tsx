@@ -12,8 +12,9 @@ import {
 import {
   Radio, Loader2, RefreshCw, AlertTriangle,
   Circle, Link2, X, ChevronRight, Zap, Maximize2, Minimize2,
-  Trash2, FileText, Edit2, Plus,
+  Trash2, FileText, Edit2, Plus, Palette, PinOff, PlusSquare, Waypoints
 } from 'lucide-react';
+import { useGraphCustomization } from '@/hooks/useGraphCustomization';
 
 // ============ Props ============
 
@@ -23,11 +24,13 @@ interface MindMap3DProps {
   onAddSignal: (text: string) => void;
   onDeleteSignal?: (id: string) => void;
   onUpdateKeywords?: (id: string, keywords: string[]) => void;
+  onRenameCategory?: (oldName: string, newName: string) => void;
+  onDeleteCategory?: (name: string) => void;
 }
 
 // ============ Component ============
 
-export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDeleteSignal, onUpdateKeywords }: MindMap3DProps) {
+export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDeleteSignal, onUpdateKeywords, onRenameCategory, onDeleteCategory }: MindMap3DProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<OntologyCanvasEngine | null>(null);
@@ -47,9 +50,21 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   const [hoveredNode, setHoveredNode] = useState<OrbitalNode | null>(null);
   const [connectedEdges, setConnectedEdges] = useState<Array<{ edge: OntologyEdge; otherNode: OrbitalNode }>>([]);
   const [stats, setStats] = useState({ nodes: 0, edges: 0 });
+  const { overrides, customNodes, customEdges, setNodeOverride, clearNodeOverride, addCustomNode, deleteCustomNode, addCustomEdge, clearOverrides, clearAll } = useGraphCustomization();
+  
+  const overridesRef = useRef(overrides);
+  const customNodesRef = useRef(customNodes);
+  const customEdgesRef = useRef(customEdges);
+  overridesRef.current = overrides;
+  customNodesRef.current = customNodes;
+  customEdgesRef.current = customEdges;
+
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [newKeyword, setNewKeyword] = useState('');
+  const [edgeModeSource, setEdgeModeSource] = useState<string | null>(null);
+
+  const PRESET_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef', '#64748b'];
 
   // ── Init Engine (stable — deferred callbacks) ──
   const initEngine = useCallback(() => {
@@ -57,7 +72,11 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
     setError(null);
 
     try {
-      const graph = buildSignalGraph(signalKeywordsRef.current, signalEntriesRef.current);
+      const graph = buildSignalGraph(signalKeywordsRef.current, signalEntriesRef.current, {
+        overrides: overridesRef.current,
+        customNodes: customNodesRef.current,
+        customEdges: customEdgesRef.current,
+      });
       setUsingSample(Object.keys(signalKeywordsRef.current).length === 0);
 
       const engine = new OntologyCanvasEngine();
@@ -82,6 +101,9 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
           }
         },
         onHoveredNodeChange: (node) => setHoveredNode(node ?? null),
+        onNodeDragged: (id, x, y) => {
+          setNodeOverride(id, { fixedX: x, fixedY: y });
+        }
       };
 
       // Batch state updates
@@ -178,21 +200,23 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     const engine = engineRef.current;
-    if (!engine) return;
+    const canvas = canvasRef.current;
+    if (!engine || !canvas) return;
     const { x, y } = getCanvasPos(e.nativeEvent);
     engine.handleHover(x, y);
 
     // Drag
     if (e.buttons === 1) {
-      engine.handleDragMove(y);
+      const dpr = dprRef.current;
+      engine.handleDragMove(x, y, canvas.width / dpr, canvas.height / dpr);
     }
   }, [getCanvasPos]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     const engine = engineRef.current;
     if (!engine) return;
-    const { y } = getCanvasPos(e.nativeEvent);
-    engine.handleDragStart(y);
+    const { x, y } = getCanvasPos(e.nativeEvent);
+    engine.handleDragStart(x, y);
   }, [getCanvasPos]);
 
   const handleMouseUp = useCallback(() => {
@@ -206,7 +230,15 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
     if (!engine) return;
     const { x, y } = getCanvasPos(e.nativeEvent);
     engine.handleClick(x, y);
-  }, [getCanvasPos]);
+
+    // If edge connecting mode is active, handle it
+    if (edgeModeSource && engine.activeNode && engine.activeNode.id !== edgeModeSource) {
+      addCustomEdge(edgeModeSource, engine.activeNode.id);
+      setEdgeModeSource(null);
+      // Timeout needed to let React update state before re-initializing engine
+      setTimeout(() => initEngine(), 50);
+    }
+  }, [getCanvasPos, edgeModeSource, addCustomEdge, initEngine]);
 
   // ── Touch Events for Mobile ──
   const touchStartRef = useRef<{ x: number; y: number; time: number; pinchDist?: number }>({ x: 0, y: 0, time: 0 });
@@ -233,12 +265,13 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
     const { x, y } = getCanvasPos(e.nativeEvent as unknown as TouchEvent);
     touchStartRef.current = { x, y, time: Date.now() };
     isTouchDragging.current = false;
-    engine.handleDragStart(y);
+    engine.handleDragStart(x, y);
   }, [getCanvasPos]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     const engine = engineRef.current;
-    if (!engine) return;
+    const canvas = canvasRef.current;
+    if (!engine || !canvas) return;
     e.preventDefault();
 
     // Pinch zoom
@@ -256,7 +289,8 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
     if (dx > 5 || dy > 5) isTouchDragging.current = true;
 
     engine.handleHover(x, y);
-    engine.handleDragMove(y);
+    const dpr = dprRef.current;
+    engine.handleDragMove(x, y, canvas.width / dpr, canvas.height / dpr);
   }, [getCanvasPos]);
 
   const handleTouchEnd = useCallback((e: React.TouchEvent) => {
@@ -335,10 +369,35 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
             </span>
           )}
           <button
+            onClick={() => {
+              const label = prompt('추가할 노드 이름을 입력하세요:');
+              if (label) {
+                const isCategory = confirm('이 노드를 [업무 카테고리(1번 궤도)]로 등록하여 태그로 연동할까요?\n\n확인: 카테고리로 추가\n취소: 일반 메모로 추가');
+                const x = (Math.random() - 0.5) * 100;
+                const y = (Math.random() - 0.5) * 100;
+                const newNode = addCustomNode(label, x, y);
+                // If it's a category, we override its group to MACRO_RESEARCH so it joins orbit 1 and acts as category
+                if (isCategory) {
+                  setNodeOverride(newNode.id, { customGroup: 'MACRO_RESEARCH' });
+                }
+                setTimeout(() => initEngine(), 10);
+              }
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--color-primary)] text-white text-xs font-semibold hover:opacity-90 shadow-sm border border-emerald-600 cursor-pointer transition-colors"
+          >
+            <PlusSquare size={14} /> 빈 노드 던지기
+          </button>
+          <button
             onClick={() => initEngine()}
             className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-[var(--color-text-secondary)] hover:bg-gray-100 cursor-pointer transition-colors"
           >
             <RefreshCw size={12} /> 새로고침
+          </button>
+          <button
+            onClick={() => { clearOverrides(); initEngine(); }}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-[var(--color-text-secondary)] hover:bg-gray-100 cursor-pointer transition-colors"
+          >
+            초기화
           </button>
         </div>
       </div>
@@ -366,8 +425,49 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                         {activeNode.label.charAt(0)}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-sm text-[var(--color-text-primary)] leading-snug">
-                          {activeNode.label}
+                        <div className="font-semibold text-sm text-[var(--color-text-primary)] leading-snug flex items-center justify-between">
+                          <span className="truncate pr-2">{activeNode.label}</span>
+                          <button
+                            onClick={() => {
+                              const newName = prompt('새 이름을 입력하세요:', activeNode.label);
+                              if (newName && newName.trim() !== activeNode.label) {
+                                // Migrating auto-generated category node overrides to their new ID
+                                let targetId = activeNode.id;
+                                const rawOld = activeNode.label.startsWith('#') ? activeNode.label.slice(1) : activeNode.label;
+                                const rawNew = newName.trim().startsWith('#') ? newName.trim().slice(1) : newName.trim();
+                                
+                                if (activeNode.id.startsWith('tag-')) {
+                                  targetId = `tag-${rawNew}`;
+                                  // Transfer existing overrides to the new anticipated ID
+                                  const existingOverride = overrides[activeNode.id] || {};
+                                  setNodeOverride(targetId, { ...existingOverride, customLabel: newName.trim() });
+                                  clearNodeOverride(activeNode.id);
+                                } else {
+                                  // Custom nodes retain their original ID
+                                  setNodeOverride(targetId, { customLabel: newName.trim() });
+                                }
+                                
+                                // Mutate engine immediately for fluid UI
+                                if (engineRef.current) {
+                                  const engineNode = engineRef.current.nodes.find((n: OrbitalNode) => n.id === activeNode.id);
+                                  if (engineNode) {
+                                    engineNode.label = newName.trim();
+                                    engineNode.id = targetId; // Sync internal engine ID too!
+                                  }
+                                  setActiveNode({ ...activeNode, id: targetId, label: newName.trim() });
+                                }
+
+                                // Call global sync if it's a category node
+                                if ((activeNode.orbitIndex === 1 || activeNode.group === 'MACRO_RESEARCH') && onRenameCategory) {
+                                  onRenameCategory(activeNode.label, newName.trim());
+                                }
+                              }
+                            }}
+                            className="p-1.5 bg-gray-100 text-gray-500 rounded-lg hover:bg-gray-200 hover:text-gray-700 transition-colors cursor-pointer shrink-0"
+                            title="이름 수정"
+                          >
+                            <Edit2 size={12} />
+                          </button>
                         </div>
                         <span className="text-[10px] text-[var(--color-text-tertiary)]">
                           {GROUP_LABELS[activeNode.group as OntologyGroup]}
@@ -406,6 +506,104 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                         <div className="text-xs font-bold text-[var(--color-text-primary)]">
                           {activeNode.orbitIndex === 0 ? '중심' : `${activeNode.orbitIndex}궤도`}
                         </div>
+                      </div>
+                    </div>
+
+                    {/* Node Controls (Whiteboard) */}
+                    <div className="mb-4 bg-gray-50 rounded-lg p-3 border border-gray-100">
+                      <div className="text-[10px] font-semibold text-[var(--color-text-tertiary)] mb-2 flex items-center gap-1">
+                        <Palette size={10} /> 색상 변경
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 mb-3">
+                        {PRESET_COLORS.map(c => (
+                          <button
+                            key={c}
+                            onClick={() => {
+                              setNodeOverride(activeNode.id, { customColor: c });
+                              if (engineRef.current) {
+                                const engineNode = engineRef.current.nodes.find((n: OrbitalNode) => n.id === activeNode.id);
+                                if (engineNode) engineNode.customColor = c;
+                                setActiveNode({ ...activeNode, customColor: c });
+                              }
+                            }}
+                            className="w-5 h-5 rounded-full shadow-sm hover:scale-110 transition-transform cursor-pointer border border-black/10"
+                            style={{ backgroundColor: c }}
+                          />
+                        ))}
+                        <button
+                          onClick={() => {
+                            setNodeOverride(activeNode.id, { customColor: undefined });
+                            if (engineRef.current) {
+                              const engineNode = engineRef.current.nodes.find((n: OrbitalNode) => n.id === activeNode.id);
+                              if (engineNode) delete engineNode.customColor;
+                              const newNode = { ...activeNode };
+                              delete newNode.customColor;
+                              setActiveNode(newNode);
+                            }
+                          }}
+                          className="w-5 h-5 rounded-full flex items-center justify-center border border-gray-300 bg-white text-gray-500 hover:bg-gray-100 cursor-pointer text-[9px]"
+                          title="색칠 지우기"
+                        >
+                          <X size={10} />
+                        </button>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        {activeNode.fixedX !== undefined && (
+                          <button
+                            onClick={() => {
+                              setNodeOverride(activeNode.id, { fixedX: undefined, fixedY: undefined });
+                              if (engineRef.current) {
+                                const engineNode = engineRef.current.nodes.find((n: OrbitalNode) => n.id === activeNode.id);
+                                if (engineNode) {
+                                  delete engineNode.fixedX;
+                                  delete engineNode.fixedY;
+                                }
+                                const newNode = { ...activeNode };
+                                delete newNode.fixedX;
+                                delete newNode.fixedY;
+                                setActiveNode(newNode);
+                              }
+                            }}
+                            className="flex items-center gap-1 px-2 py-1 bg-white border border-gray-200 rounded text-[10px] font-medium text-gray-600 hover:bg-gray-50 cursor-pointer"
+                          >
+                            <PinOff size={10} /> 궤도 고정 해제
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setEdgeModeSource(activeNode.id)}
+                          className={`flex items-center gap-1 px-2 py-1 border rounded text-[10px] font-medium cursor-pointer transition-colors ${
+                            edgeModeSource === activeNode.id
+                              ? 'bg-blue-50 border-blue-200 text-blue-600'
+                              : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                          }`}
+                        >
+                          <Waypoints size={10} /> {edgeModeSource === activeNode.id ? '대상 노드 찍기...' : '이 노드에서 선분 연결'}
+                        </button>
+                        {(activeNode.id.startsWith('custom-') || activeNode.orbitIndex === 1) && (
+                          <button
+                            onClick={() => {
+                              if (confirm('이 카테고리(또는 노드)를 삭제할까요?\n(주의: 카테고리 삭제 시 연동된 모든 업무에서 태그가 제거됩니다)')) {
+                                // Global sync for category deletion
+                                if ((activeNode.orbitIndex === 1 || activeNode.group === 'MACRO_RESEARCH') && onDeleteCategory) {
+                                  onDeleteCategory(activeNode.label);
+                                }
+                                if (activeNode.id.startsWith('custom-')) {
+                                  deleteCustomNode(activeNode.id);
+                                }
+                                
+                                if (engineRef.current) {
+                                  engineRef.current.nodes = engineRef.current.nodes.filter(n => n.id !== activeNode.id);
+                                  engineRef.current.edges = engineRef.current.edges.filter(e => e.source !== activeNode.id && e.target !== activeNode.id);
+                                  setActiveNode(null);
+                                }
+                              }
+                            }}
+                            className="flex items-center gap-1 px-2 py-1 bg-red-50 border border-red-200 rounded text-[10px] font-medium text-red-600 hover:bg-red-100 cursor-pointer ml-auto"
+                          >
+                            <Trash2 size={10} /> {activeNode.orbitIndex === 1 ? '카테고리 삭제' : '노드 삭제'}
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -469,8 +667,12 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
         {/* ── Canvas Container ── */}
         <div
           ref={containerRef}
-          className="relative rounded-xl overflow-hidden border border-[var(--color-border-light)] order-1 lg:order-none"
-          style={{ height: isFullscreen ? '85vh' : 'min(600px, 70vh)', backgroundColor: '#f8f9fc' }}
+          className={
+            isFullscreen 
+              ? 'fixed inset-0 z-[100] bg-[#f8f9fc]' 
+              : 'relative rounded-xl overflow-hidden border border-[var(--color-border-light)] order-1 lg:order-none'
+          }
+          style={{ height: isFullscreen ? '100vh' : 'min(600px, 70vh)', backgroundColor: '#f8f9fc' }}
         >
           <canvas
             ref={canvasRef}
@@ -485,6 +687,19 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
           />
+
+          {/* Whiteboard Toolbar (top-left) - Moved specific tools here if any, or remove */}
+          {edgeModeSource && (
+            <div className="absolute top-16 left-3 z-10 flex flex-col gap-2">
+              <div className="bg-blue-50/90 backdrop-blur rounded-lg px-3 py-2 shadow-sm border border-blue-200 text-xs font-semibold text-blue-700 animate-pulse">
+                대상을 클릭해 선을 연결하세요...
+                <button 
+                  onClick={() => setEdgeModeSource(null)}
+                  className="ml-2 underline text-blue-500 hover:text-blue-800 cursor-pointer"
+                >취소</button>
+              </div>
+            </div>
+          )}
 
           {/* Stats overlay (top-right) */}
           <div className="absolute top-3 right-3 z-10 flex items-center gap-2">
@@ -580,7 +795,25 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                     >
                       <div className="flex items-start gap-3">
                         <div className="flex-1 min-w-0">
-                          <div className="text-sm text-[var(--color-text-primary)] leading-relaxed">
+                          <div className="text-sm text-[var(--color-text-primary)] leading-relaxed flex items-center gap-2">
+                            {/* Source Badge */}
+                            <span className={`shrink-0 px-2 py-0.5 rounded text-[10px] font-bold ${
+                              entry.id.startsWith('sig-') ? 'bg-purple-100 text-purple-700' :
+                              entry.id.startsWith('task-') ? 'bg-blue-100 text-blue-700' :
+                              entry.id.startsWith('know-') ? 'bg-yellow-100 text-yellow-700' :
+                              entry.id.startsWith('proj-') ? 'bg-indigo-100 text-indigo-700' :
+                              entry.id.startsWith('meet-') ? 'bg-pink-100 text-pink-700' :
+                              entry.id.startsWith('budg-') ? 'bg-green-100 text-green-700' :
+                              'bg-gray-100 text-gray-700'
+                            }`}>
+                              {entry.id.startsWith('sig-') ? '🧠 생각' :
+                               entry.id.startsWith('task-') ? '📋 업무' :
+                               entry.id.startsWith('know-') ? '💡 지식' :
+                               entry.id.startsWith('proj-') ? '🚀 PJ' :
+                               entry.id.startsWith('meet-') ? '🤝 회의' :
+                               entry.id.startsWith('budg-') ? '💰 예산' :
+                               '📦 재고'}
+                            </span>
                             {entry.text}
                           </div>
                           {/* Keywords — editable or static */}
@@ -595,7 +828,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                                 }`}
                               >
                                 {kw}
-                                {isEditing && onUpdateKeywords && (
+                                {isEditing && onUpdateKeywords && entry.id.startsWith('sig-') && (
                                   <button
                                     onClick={() => onUpdateKeywords(entry.id, entry.keywords.filter((_, idx) => idx !== i))}
                                     className="hover:text-red-600 cursor-pointer"
@@ -607,7 +840,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                               </span>
                             ))}
                             {/* Add keyword input — visible when editing */}
-                            {isEditing && onUpdateKeywords && (
+                            {isEditing && onUpdateKeywords && entry.id.startsWith('sig-') && (
                               <form
                                 className="inline-flex items-center"
                                 onSubmit={(e) => {
@@ -639,36 +872,38 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                             {new Date(entry.createdAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                           </div>
                         </div>
-                        {/* Action buttons */}
-                        <div className={`flex items-center gap-1 shrink-0 ${
-                          isEditing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                        } transition-all`}>
-                          {onUpdateKeywords && (
-                            <button
-                              onClick={() => {
-                                setEditingEntryId(isEditing ? null : entry.id);
-                                setNewKeyword('');
-                              }}
-                              className={`p-2 rounded-lg cursor-pointer transition-colors ${
-                                isEditing
-                                  ? 'text-emerald-600 bg-emerald-100'
-                                  : 'text-[var(--color-text-tertiary)] hover:text-emerald-600 hover:bg-emerald-50'
-                              }`}
-                              title={isEditing ? '편집 완료' : '키워드 편집'}
-                            >
-                              <Edit2 size={16} />
-                            </button>
-                          )}
-                          {onDeleteSignal && (
-                            <button
-                              onClick={() => onDeleteSignal(entry.id)}
-                              className="p-2 rounded-lg text-[var(--color-text-tertiary)] hover:text-red-500 hover:bg-red-50 cursor-pointer transition-colors"
-                              title="시그널 삭제"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          )}
-                        </div>
+                        {/* Action buttons (Only for raw signals) */}
+                        {entry.id.startsWith('sig-') && (
+                          <div className={`flex items-center gap-1 shrink-0 ${
+                            isEditing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                          } transition-all`}>
+                            {onUpdateKeywords && (
+                              <button
+                                onClick={() => {
+                                  setEditingEntryId(isEditing ? null : entry.id);
+                                  setNewKeyword('');
+                                }}
+                                className={`p-2 rounded-lg cursor-pointer transition-colors ${
+                                  isEditing
+                                    ? 'text-emerald-600 bg-emerald-100'
+                                    : 'text-[var(--color-text-tertiary)] hover:text-emerald-600 hover:bg-emerald-50'
+                                }`}
+                                title={isEditing ? '편집 완료' : '키워드 편집'}
+                              >
+                                <Edit2 size={16} />
+                              </button>
+                            )}
+                            {onDeleteSignal && (
+                              <button
+                                onClick={() => onDeleteSignal(entry.id)}
+                                className="p-2 rounded-lg text-[var(--color-text-tertiary)] hover:text-red-500 hover:bg-red-50 cursor-pointer transition-colors"
+                                title="시그널 삭제"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   );

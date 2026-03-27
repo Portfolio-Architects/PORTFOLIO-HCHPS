@@ -8,6 +8,8 @@ export interface SignalEntry {
   text: string;
   keywords: string[];
   createdAt: string;
+  category?: string;
+  tags?: string[];
 }
 
 const STORAGE_KEY = 'hchps-signal-log';

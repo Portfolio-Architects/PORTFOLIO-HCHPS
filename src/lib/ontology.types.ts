@@ -67,6 +67,13 @@ export interface OntologyNode {
   label: string;
   group: OntologyGroup;
   baseValue: number;           // 0-100, user-input importance
+  parentId?: string;           // Optional parent ID for radial branch alignment
+  // === User Overrides ===
+  fixedX?: number;             // User pinned X coordinate
+  fixedY?: number;             // User pinned Y coordinate
+  customColor?: string;        // User overridden color
+  customLabel?: string;        // User overridden text
+  customGroup?: OntologyGroup; // User overridden group
   // === Runtime computed ===
   centralityScore?: number;    // Eigenvector-weighted centrality (0-1)
   renderSize?: number;         // blended size (0-1)

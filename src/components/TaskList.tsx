@@ -33,6 +33,8 @@ interface TaskListProps {
   projects: Project[];
   addProject: (p: Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'checklistItems'>) => void;
   deleteProject: (id: string) => void;
+  // Global Tags
+  allTags?: string[];
 }
 
 
@@ -59,7 +61,7 @@ const PROJECT_COLORS = ['#4A6CF7', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '
 export function TaskListView({
   tasks, onEdit, onDelete, onStatusChange, onAdd, onUpdateTask,
   meetings, addMeeting, updateMeeting, deleteMeeting,
-  projects, addProject, deleteProject
+  projects, addProject, deleteProject, allTags: globalTags
 }: TaskListProps) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<TaskStatus | ''>('');
@@ -139,7 +141,13 @@ export function TaskListView({
   }, [tasks, search, statusFilter, projectFilter, tagFilter, showRecurringOnly, sortBy, sortOrder]);
 
   // -- Tag management helpers --
-  const allTags = useMemo(() => [...new Set(tasks.flatMap(t => t.tags).filter(Boolean))], [tasks]);
+  const allTags = useMemo(() => {
+    const localTags = [...new Set(tasks.flatMap(t => t.tags).filter(Boolean))];
+    if (globalTags) {
+      return [...new Set([...globalTags, ...localTags])];
+    }
+    return localTags;
+  }, [tasks, globalTags]);
 
   const handleAddTag = () => {
     // Adding a new global tag: this is a no-op by itself since tags live on tasks.

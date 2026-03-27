@@ -35,6 +35,7 @@ const FORCE_WARMUP_TICKS = 150; // freeze after this many ticks
 export interface EngineCallbacks {
   onActiveNodeChange?: (node: OrbitalNode | null) => void;
   onHoveredNodeChange?: (node: OrbitalNode | null) => void;
+  onNodeDragged?: (nodeId: string, fixedX: number, fixedY: number) => void;
 }
 
 // ============ Engine Class ============
@@ -54,10 +55,12 @@ export class OntologyCanvasEngine {
   private targetOffsetX = 0;
   private targetOffsetY = 0;
 
-  // Drag state
+  // Physics / Interaction
   private isDragging = false;
+  private dragStartX = 0;
   private dragStartY = 0;
   private dragStartTilt = 0;
+  private draggedNode: OrbitalNode | null = null;
 
   // Stats
   nodeCount = 0;
@@ -134,24 +137,51 @@ export class OntologyCanvasEngine {
     this.nodes.push(centerOrbital);
     this.centerNode = centerOrbital;
     this.nodeMap.set(centerOrbital.id, centerOrbital);
+    // Categories (Orbit 1) and Leaves (Orbit 2+)
+    const categoryNodes = otherNodes.filter(n => !n.parentId);
+    const leafNodes = otherNodes.filter(n => n.parentId);
 
-    // Orbit nodes
-    otherNodes.forEach((node, i) => {
-      const orbitIndex = Math.min(NUM_ORBITS, Math.floor(i / nodesPerOrbit) + 1);
-      const posInOrbit = i % nodesPerOrbit;
-      const countInOrbit = Math.min(nodesPerOrbit, otherNodes.length - Math.floor(i / nodesPerOrbit) * nodesPerOrbit);
-      const angle = (2 * Math.PI * posInOrbit / countInOrbit) + (orbitIndex * 0.5);
-
-      const orbital = this.makeOrbitalNode(node, orbitIndex, angle, centerId, connectionMap);
+    const categoryCount = categoryNodes.length;
+    
+    // 1. Place Categories on Orbit 1 radially evenly
+    categoryNodes.forEach((node, i) => {
+      const angle = (2 * Math.PI * i / categoryCount);
+      const orbital = this.makeOrbitalNode(node, 1, angle, centerId, connectionMap);
       this.nodes.push(orbital);
       this.nodeMap.set(orbital.id, orbital);
+    });
+
+    // 2. Place Leaves on Orbit 2, 3, 4 aligned with Parent
+    const leavesByParent = new Map<string, OntologyNode[]>();
+    leafNodes.forEach(node => {
+      if (!node.parentId) return;
+      if (!leavesByParent.has(node.parentId)) leavesByParent.set(node.parentId, []);
+      leavesByParent.get(node.parentId)!.push(node);
+    });
+
+    leavesByParent.forEach((leaves, parentId) => {
+      const parent = this.nodeMap.get(parentId);
+      if (!parent) return; 
+
+      // Leaves are already sorted by centrality/frequency
+      leaves.forEach((node, idx) => {
+        // Distribute outwards: Orbit 2, 3, 4, 5...
+        const orbitIndex = Math.min(NUM_ORBITS, 2 + Math.floor(idx * 0.5));
+        
+        // Exact same angle and speed as parent category to form a straight ray
+        const orbital = this.makeOrbitalNode(node, orbitIndex, parent.orbitAngle, centerId, connectionMap);
+        orbital.orbitSpeed = parent.orbitSpeed; 
+        
+        this.nodes.push(orbital);
+        this.nodeMap.set(orbital.id, orbital);
+      });
     });
 
     // Set active to center
     this.activeNode = this.centerNode;
     this.callbacks.onActiveNodeChange?.(this.activeNode);
 
-    // Initialize force state
+    // Initialize force state (disabled for radial tech tree mode)
     this.velocityX.clear();
     this.velocityY.clear();
     this.forceOffsetX.clear();
@@ -210,14 +240,17 @@ export class OntologyCanvasEngine {
       node.orbitAngle += node.orbitSpeed;
     }
 
-    // ── Force Relaxation (warmup only) ──
-    // Runs for first N ticks, then freezes offsets.
+    // ── Radial Tech Tree Mode: Disable Force Relaxation ──
+    // Because we specifically want the nodes to align perfectly in clock-hands (rays)
+    // we skip the spring physics to maintain pure geometric alignment.
+    /* 
     if (this.forceTickCount < FORCE_WARMUP_TICKS) {
       this.forceTickCount++;
       const progress = this.forceTickCount / FORCE_WARMUP_TICKS;
-      const alpha = FORCE_ALPHA * (1 - progress); // linear cool-down to 0
+      const alpha = FORCE_ALPHA * (1 - progress); 
       this.applyForces(alpha);
-    }
+    } 
+    */
   }
 
   private applyForces(alpha: number): void {
@@ -320,8 +353,8 @@ export class OntologyCanvasEngine {
   // ============ Compute Positions ============
 
   private computePositions(canvasW: number, canvasH: number): void {
-    const centerX = canvasW / 2 + this.cameraOffsetX;
-    const centerY = canvasH / 2 + this.cameraOffsetY;
+    const cx = canvasW / 2 + this.cameraOffsetX;
+    const cy = canvasH / 2 + this.cameraOffsetY;
     const cosTilt = Math.cos(this.cameraTilt);
     const sinTilt = Math.sin(this.cameraTilt);
 
@@ -332,22 +365,30 @@ export class OntologyCanvasEngine {
     );
 
     for (const node of this.nodes) {
-      if (node.orbitIndex === 0) {
-        node.renderX = centerX;
-        node.renderY = centerY;
-        node.renderZ = 0.5;
-        continue;
-      }
-      const orbR = this.orbitRadii[node.orbitIndex];
-      const x3d = Math.cos(node.orbitAngle) * orbR * ELLIPSE_RATIO;
-      const y3d = Math.sin(node.orbitAngle) * orbR;
+      // 1. Orbital position
+      let worldX = 0;
+      let worldY = 0;
 
-      // Base orbital position + force offset
-      const ox = this.forceOffsetX.get(node.id) || 0;
-      const oy = this.forceOffsetY.get(node.id) || 0;
-      node.renderX = centerX + (x3d + ox) * this.zoom;
-      node.renderY = centerY + (y3d * cosTilt + oy) * this.zoom;
-      node.renderZ = Math.sin(node.orbitAngle) * sinTilt; // -1 to 1
+      if (node.fixedX !== undefined && node.fixedY !== undefined) {
+        worldX = node.fixedX;
+        worldY = node.fixedY;
+      } else {
+        const orbR = this.orbitRadii[node.orbitIndex];
+        const orbitX = Math.cos(node.orbitAngle) * orbR * ELLIPSE_RATIO;
+        const orbitY = Math.sin(node.orbitAngle) * orbR;
+        // Apply offset forces (if any)
+        worldX = orbitX + (this.forceOffsetX.get(node.id) ?? 0);
+        worldY = orbitY + (this.forceOffsetY.get(node.id) ?? 0);
+      }
+
+      // Map to isometric/tilted 3D space
+      // Apply camera tilt
+      const tiltedY = worldY * Math.cos(this.cameraTilt);
+      const renderZ = worldY * Math.sin(this.cameraTilt) / 500; 
+
+      node.renderX = cx + worldX * this.zoom;
+      node.renderY = cy + tiltedY * this.zoom;
+      node.renderZ = renderZ;
     }
   }
 
@@ -573,15 +614,23 @@ export class OntologyCanvasEngine {
         ctx.arc(node.renderX, node.renderY, r * 2.5, 0, 2 * Math.PI);
         ctx.fill();
 
-        // Core
-        const coreGrad = ctx.createRadialGradient(
-          node.renderX - r * 0.2, node.renderY - r * 0.2, 0,
-          node.renderX, node.renderY, r,
+        // 3D Highlight Layer
+        const baseR = node.nodeRadius * this.zoom;
+        const x = node.renderX;
+        const y = node.renderY;
+        const sizeOverride = (this.activeNode && this.activeNode.id === node.id) ? baseR * 1.5 : (isHovered ? baseR * 1.2 : baseR);
+
+        // Check if there is a custom color set
+        const nodeColor = node.customColor || GROUP_COLORS[node.group as OntologyGroup];
+
+        const gradient = ctx.createRadialGradient(
+          x - sizeOverride * 0.3, y - sizeOverride * 0.3, 0,
+          x, y, sizeOverride
         );
-        coreGrad.addColorStop(0, '#ffffff');
-        coreGrad.addColorStop(0.6, this.lightenColor(baseColor, 0.7));
-        coreGrad.addColorStop(1, baseColor);
-        ctx.fillStyle = coreGrad;
+        gradient.addColorStop(0, '#ffffff'); // bright spot
+        gradient.addColorStop(0.3, nodeColor);
+        gradient.addColorStop(1, '#000000'); // shadow edge
+        ctx.fillStyle = gradient;
         ctx.beginPath();
         ctx.arc(node.renderX, node.renderY, r, 0, 2 * Math.PI);
         ctx.fill();
@@ -675,61 +724,26 @@ export class OntologyCanvasEngine {
         ctx.setLineDash([]);
       }
 
-      // ── Label — Progressive visibility + Occlusion ──
-      const tier1 = isCenter || isActive || isHovered;
-      const tier2 = isConnectedToActive;
-      const tier3 = node.baseValue > 80 && this.zoom > 0.8;
-      const tier4 = this.zoom > 1.8;
-      let showLabel = tier1 || tier2 || tier3 || tier4;
+      // ── Label — Always Visible Full Text ──
+      const isActiveOrHovered = isActive || isHovered;
+      const fontSize = Math.max(8, Math.min(12, 9 * this.zoom));
+      const fontWeight = (isCenter || isActive) ? 'bold' : 'normal';
+      
+      ctx.font = `${fontWeight} ${fontSize}px 'Pretendard', 'Inter', system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
 
-      if (showLabel) {
-        const fontSize = Math.max(8, Math.min(12, 9 * this.zoom));
-        const fontWeight = (isCenter || isActive) ? 'bold' : 'normal';
-        ctx.font = `${fontWeight} ${fontSize}px 'Pretendard', 'Inter', system-ui, sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
+      // No truncation: show full label
+      const label = node.label;
 
-        // Truncate long labels
-        const maxChars = isCenter || isActive ? 20 : this.zoom > 1.5 ? 12 : 8;
-        const label = node.label.length > maxChars
-          ? node.label.slice(0, maxChars) + '..'
-          : node.label;
+      const labelY = node.renderY + r + 3;
 
-        // Label bounding box for occlusion test
-        const textWidth = ctx.measureText(label).width;
-        const labelX = node.renderX - textWidth / 2;
-        const labelY = node.renderY + r + 3;
-        const labelW = textWidth;
-        const labelH = fontSize + 2;
-
-        // Occlusion check: skip label if it overlaps a higher-priority label
-        let occluded = false;
-        if (!tier1) { // tier1 labels are never occluded
-          for (const placed of placedLabels) {
-            if (
-              labelX < placed.x + placed.w &&
-              labelX + labelW > placed.x &&
-              labelY < placed.y + placed.h &&
-              labelY + labelH > placed.y
-            ) {
-              occluded = true;
-              break;
-            }
-          }
-        }
-
-        if (!occluded) {
-          // Fade labels based on tier
-          const labelAlpha = tier1 ? 1 : tier2 ? 0.85 : tier3 ? 0.6 : 0.4;
-          ctx.fillStyle = isCenter || isActive
-            ? '#1e293b'
-            : `rgba(30,41,59,${Math.min(labelAlpha, opacity)})`;
-          ctx.fillText(label, node.renderX, labelY);
-
-          // Register placed label
-          placedLabels.push({ x: labelX, y: labelY, w: labelW, h: labelH });
-        }
-      }
+      // Always show label regardless of occlusion or zoom
+      ctx.fillStyle = isCenter || isActiveOrHovered
+        ? '#1e293b'
+        : `rgba(30,41,59,${Math.max(0.6, opacity)})`;
+        
+      ctx.fillText(label, node.renderX, labelY);
 
       ctx.restore();
     }
@@ -792,22 +806,62 @@ export class OntologyCanvasEngine {
     this.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, this.zoom * zoomFactor));
   }
 
-  handleDragStart(my: number): void {
+  // ── Interaction ──
+
+  handleDragStart(nx: number, ny: number): void {
     this.isDragging = true;
-    this.dragStartY = my;
+    this.dragStartX = nx;
+    this.dragStartY = ny;
     this.dragStartTilt = this.cameraTilt;
+    this.draggedNode = null;
+
+    // Check hit test for node dragging
+    let closestId = null;
+    let minDist = Infinity;
+    for (const node of this.nodes) {
+      if (node.id === 'root-HCHPS') continue; // Don't drag the main sun
+      const dx = nx - node.renderX;
+      const dy = ny - node.renderY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < minDist && dist <= node.nodeRadius + 15) {
+        minDist = dist;
+        closestId = node.id;
+      }
+    }
+
+    if (closestId) {
+      this.draggedNode = this.nodeMap.get(closestId)!;
+    }
   }
 
-  handleDragMove(my: number): void {
+  handleDragMove(nx: number, ny: number, w: number, h: number): void {
     if (!this.isDragging) return;
-    const dy = my - this.dragStartY;
-    this.cameraTilt = Math.max(MIN_TILT, Math.min(MAX_TILT,
-      this.dragStartTilt + dy * 0.003
-    ));
+
+    if (this.draggedNode) {
+      // Inverse projection to find World X, Y
+      const cx = w / 2 + this.cameraOffsetX;
+      const cy = h / 2 + this.cameraOffsetY;
+      const worldX = (nx - cx) / this.zoom;
+      const worldY = (ny - cy) / this.zoom / Math.cos(this.cameraTilt);
+      
+      this.draggedNode.fixedX = worldX;
+      this.draggedNode.fixedY = worldY;
+    } else {
+      // Camera Tilt
+      const dy = ny - this.dragStartY;
+      const tiltSensitivity = 0.005;
+      this.cameraTilt = this.dragStartTilt + dy * tiltSensitivity;
+      this.cameraTilt = Math.max(0, Math.min(Math.PI / 2.5, this.cameraTilt));
+    }
   }
 
   handleDragEnd(): void {
+    if (this.draggedNode) {
+      // Fire callback to save the pinned position
+      this.callbacks.onNodeDragged?.(this.draggedNode.id, this.draggedNode.fixedX!, this.draggedNode.fixedY!);
+    }
     this.isDragging = false;
+    this.draggedNode = null;
   }
 
   // ============ Queries ============

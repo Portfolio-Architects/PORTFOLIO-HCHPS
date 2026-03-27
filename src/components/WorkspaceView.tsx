@@ -8,6 +8,7 @@ import { BudgetDashboard } from '@/components/budget/BudgetDashboard';
 import { InventoryList } from '@/components/inventory/InventoryList';
 
 import { DocumentGenerator } from '@/components/document/DocumentGenerator';
+import { useGraphCustomization } from '@/hooks/useGraphCustomization';
 import {
   ListTodo, Wallet, Package, Calendar, FileText
 } from 'lucide-react';
@@ -76,7 +77,18 @@ export function WorkspaceView(props: WorkspaceViewProps) {
     setShowTaskModal(true);
   };
 
-  const allTags = [...new Set(props.tasks.flatMap(t => t.tags).filter(Boolean))];
+  const { overrides, customNodes } = useGraphCustomization();
+
+  const allTags = [
+    ...new Set([
+      ...props.tasks.flatMap(t => t.tags).filter(Boolean),
+      // Add custom category labels (strip # if present)
+      ...customNodes
+        .filter(n => n.group === 'MACRO_RESEARCH' || overrides[n.id]?.customGroup === 'MACRO_RESEARCH')
+        .map(n => overrides[n.id]?.customLabel || n.label)
+        .map(label => label.startsWith('#') ? label.slice(1) : label)
+    ])
+  ];
 
   const renderSubContent = () => {
     switch (activeTab) {
@@ -97,6 +109,7 @@ export function WorkspaceView(props: WorkspaceViewProps) {
               projects={props.projects}
               addProject={props.addProject}
               deleteProject={props.deleteProject}
+              allTags={allTags}
             />
           </div>
         );
