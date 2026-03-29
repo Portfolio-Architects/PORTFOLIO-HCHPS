@@ -14,7 +14,7 @@ import { QuickInput } from '@/components/QuickInput';
 import { WorkspaceView } from '@/components/WorkspaceView';
 import { MindMap3D } from '@/components/MindMap3D';
 import { KnowledgeList } from '@/components/knowledge/KnowledgeList';
-import { AlertTriangle, RefreshCw, SquareCheck, Archive, Zap } from 'lucide-react';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
 
 // Error Boundary for MindMap3D — prevents signal map crash from breaking entire app
 class MindMapErrorBoundary extends React.Component<
@@ -66,8 +66,50 @@ export default function Home() {
   // Prevent hydration mismatch — hooks read localStorage data on client
   useEffect(() => setMounted(true), []);
 
-  const handleModuleChange = (mod: ModuleType) => {
-    setActiveModule(mod);
+  // Swipe gesture state
+  const touchStartX = useRef<number | null>(null);
+  const touchEndX = useRef<number | null>(null);
+
+  const handleModuleChange = (module: ModuleType) => {
+    setActiveModule(module);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.targetTouches[0].clientX;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchEndX.current = e.targetTouches[0].clientX;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null || touchEndX.current === null) return;
+    
+    // Disable swipe navigation on mindmap since panning the graph is a core interaction
+    if (activeModule === 'mindmap') {
+      touchStartX.current = null;
+      touchEndX.current = null;
+      return;
+    }
+    
+    const distance = touchStartX.current - touchEndX.current;
+    
+    // Minimum horizontal swipe distance
+    if (Math.abs(distance) > 60) {
+      const order: ModuleType[] = ['workspace', 'knowledge', 'mindmap'];
+      const currentIndex = order.indexOf(activeModule);
+      
+      if (distance > 0 && currentIndex < order.length - 1) {
+        // Swiped left => next tab
+        handleModuleChange(order[currentIndex + 1]);
+      } else if (distance < 0 && currentIndex > 0) {
+        // Swiped right => previous tab
+        handleModuleChange(order[currentIndex - 1]);
+      }
+    }
+    
+    touchStartX.current = null;
+    touchEndX.current = null;
   };
 
   const handleRenameCategory = (oldName: string, newName: string) => {
@@ -225,25 +267,7 @@ export default function Home() {
     }
   };
 
-  const pageTitles: Record<ModuleType, { icon: React.ReactNode; title: string; sub: string }> = {
-    workspace: {
-      icon: <SquareCheck size={28} strokeWidth={1.8} />,
-      title: '업무관리',
-      sub: 'HCHPS Work Manager',
-    },
-    knowledge: {
-      icon: <Archive size={28} strokeWidth={1.8} />,
-      title: '지식창고',
-      sub: '업무 암묵지 및 어드바이스 관리',
-    },
-    mindmap: {
-      icon: <Zap size={28} strokeWidth={1.8} />,
-      title: '시그널',
-      sub: '시그널 네트워크 시각화',
-    },
-  };
 
-  const page = pageTitles[activeModule];
 
   // SSR/static export: show loading skeleton until client mounts
   if (!mounted) {
@@ -261,7 +285,7 @@ export default function Home() {
         </header>
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
           <div className="max-w-[1800px] mx-auto">
-            <div className="w-48 h-9 bg-gray-100 rounded-lg animate-pulse mb-6" />
+
             <div className="space-y-3">
               <div className="h-16 bg-gray-50 rounded-xl animate-pulse" />
               <div className="h-16 bg-gray-50 rounded-xl animate-pulse" />
@@ -274,7 +298,12 @@ export default function Home() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen overflow-x-hidden">
+    <div 
+      className="flex flex-col min-h-screen overflow-x-hidden"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
       <Sidebar
         activeModule={activeModule}
         onModuleChange={handleModuleChange}
@@ -298,17 +327,9 @@ export default function Home() {
         }
       />
 
-      <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto custom-scrollbar">
+      <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto custom-scrollbar sm:pb-8">
         <div className="max-w-[1800px] mx-auto">
-          {/* Page Title */}
-          <div className="mb-6">
-            <h1 className="text-3xl font-bold text-[var(--color-text-primary)] tracking-tight flex items-center gap-2">
-              <span className="text-[var(--color-text-secondary)]">{page.icon}</span> {page.title}
-            </h1>
-            <p className="text-sm text-[var(--color-text-tertiary)] mt-1">
-              {page.sub}
-            </p>
-          </div>
+
 
           {renderContent()}
         </div>

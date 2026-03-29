@@ -57,8 +57,11 @@ export class OntologyCanvasEngine {
 
   // Physics / Interaction
   private isDragging = false;
+  private hasDragged = false;
   private dragStartX = 0;
   private dragStartY = 0;
+  private lastDragX = 0;
+  private lastDragY = 0;
   private dragStartTilt = 0;
   private draggedNode: OrbitalNode | null = null;
 
@@ -165,11 +168,22 @@ export class OntologyCanvasEngine {
 
       // Leaves are already sorted by centrality/frequency
       leaves.forEach((node, idx) => {
-        // Distribute outwards: Orbit 2, 3, 4, 5...
-        const orbitIndex = Math.min(NUM_ORBITS, 2 + Math.floor(idx * 0.5));
+        // Bush structure: 3 nodes per orbit layer (Orbit 2, 3, 4...)
+        const layer = Math.floor(idx / 3);
+        const orbitIndex = Math.min(NUM_ORBITS, 2 + layer);
         
-        // Exact same angle and speed as parent category to form a straight ray
-        const orbital = this.makeOrbitalNode(node, orbitIndex, parent.orbitAngle, centerId, connectionMap);
+        // Position within the layer: 0 (center), 1 (left), 2 (right)
+        const pos = idx % 3;
+        
+        let angleOffset = 0;
+        // As depth increases, the branches spread slightly wider to prevent collision with inner nodes
+        const spreadStep = 0.18 + (layer * 0.04);
+        if (pos === 1) angleOffset = -spreadStep;
+        if (pos === 2) angleOffset = spreadStep;
+        
+        const angle = parent.orbitAngle + angleOffset;
+        
+        const orbital = this.makeOrbitalNode(node, orbitIndex, angle, centerId, connectionMap);
         orbital.orbitSpeed = parent.orbitSpeed; 
         
         this.nodes.push(orbital);
@@ -733,15 +747,35 @@ export class OntologyCanvasEngine {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
 
-      // No truncation: show full label
       const label = node.label;
-
       const labelY = node.renderY + r + 3;
+      const textWidth = ctx.measureText(label).width;
 
-      // Always show label regardless of occlusion or zoom
+      // Draw premium pill background behind text to prevent overlap clutter
+      ctx.fillStyle = `rgba(255, 255, 255, ${Math.min(0.85, opacity * 1.5)})`;
+      const paddingX = 4;
+      const paddingY = 2;
+      const bgWidth = textWidth + paddingX * 2;
+      const bgHeight = fontSize + paddingY * 2;
+      
+      ctx.beginPath();
+      if (ctx.roundRect) {
+        ctx.roundRect(node.renderX - bgWidth / 2, labelY - paddingY, bgWidth, bgHeight, 6);
+      } else {
+        ctx.rect(node.renderX - bgWidth / 2, labelY - paddingY, bgWidth, bgHeight);
+      }
+      ctx.fill();
+
+      // Text stroke for extra crispness
+      ctx.strokeStyle = `rgba(255, 255, 255, ${opacity})`;
+      ctx.lineWidth = 2;
+      ctx.lineJoin = 'round';
+      ctx.strokeText(label, node.renderX, labelY);
+
+      // Main Text
       ctx.fillStyle = isCenter || isActiveOrHovered
         ? '#1e293b'
-        : `rgba(30,41,59,${Math.max(0.6, opacity)})`;
+        : `rgba(30,41,59,${Math.max(0.7, opacity)})`;
         
       ctx.fillText(label, node.renderX, labelY);
 
@@ -769,13 +803,16 @@ export class OntologyCanvasEngine {
   }
 
   handleClick(mx: number, my: number): void {
+    if (this.hasDragged) {
+      this.hasDragged = false;
+      return;
+    }
+
     const hit = this.hitTest(mx, my);
     if (hit) {
       if (this.activeNode?.id === hit.id) {
-        // Toggle off → back to center
+        // Toggle off → just deselect, maintain camera pos
         this.activeNode = this.centerNode;
-        this.targetOffsetX = 0;
-        this.targetOffsetY = 0;
       } else {
         this.activeNode = hit;
         // Center clicked node on screen
@@ -785,10 +822,8 @@ export class OntologyCanvasEngine {
         this.targetOffsetY = screenCenterY - (hit.renderY - this.cameraOffsetY);
       }
     } else {
-      // Click empty space → reset
+      // Click empty space → deselect, maintain camera pos
       this.activeNode = this.centerNode;
-      this.targetOffsetX = 0;
-      this.targetOffsetY = 0;
     }
     this.callbacks.onActiveNodeChange?.(this.activeNode);
   }
@@ -810,8 +845,11 @@ export class OntologyCanvasEngine {
 
   handleDragStart(nx: number, ny: number): void {
     this.isDragging = true;
+    this.hasDragged = false;
     this.dragStartX = nx;
     this.dragStartY = ny;
+    this.lastDragX = nx;
+    this.lastDragY = ny;
     this.dragStartTilt = this.cameraTilt;
     this.draggedNode = null;
 
@@ -837,6 +875,10 @@ export class OntologyCanvasEngine {
   handleDragMove(nx: number, ny: number, w: number, h: number): void {
     if (!this.isDragging) return;
 
+    if (Math.abs(nx - this.dragStartX) > 5 || Math.abs(ny - this.dragStartY) > 5) {
+      this.hasDragged = true;
+    }
+
     if (this.draggedNode) {
       // Inverse projection to find World X, Y
       const cx = w / 2 + this.cameraOffsetX;
@@ -844,14 +886,33 @@ export class OntologyCanvasEngine {
       const worldX = (nx - cx) / this.zoom;
       const worldY = (ny - cy) / this.zoom / Math.cos(this.cameraTilt);
       
-      this.draggedNode.fixedX = worldX;
-      this.draggedNode.fixedY = worldY;
+      // Calculate angle from center (0,0) to mouse position
+      // ELLIPSE_RATIO expands the X axis so we inverse-scale it back to get pure angle
+      const angle = Math.atan2(worldY, worldX / ELLIPSE_RATIO);
+      
+      // Force node to strictly stay on its orbit track
+      const orbR = this.orbitRadii[this.draggedNode.orbitIndex];
+      if (orbR !== undefined && orbR > 0) {
+        this.draggedNode.orbitAngle = angle;
+        this.draggedNode.fixedX = Math.cos(angle) * orbR * ELLIPSE_RATIO;
+        this.draggedNode.fixedY = Math.sin(angle) * orbR;
+      } else {
+        // Fallback or Center node
+        this.draggedNode.fixedX = worldX;
+        this.draggedNode.fixedY = worldY;
+      }
     } else {
-      // Camera Tilt
-      const dy = ny - this.dragStartY;
-      const tiltSensitivity = 0.005;
-      this.cameraTilt = this.dragStartTilt + dy * tiltSensitivity;
-      this.cameraTilt = Math.max(0, Math.min(Math.PI / 2.5, this.cameraTilt));
+      // Camera Panning
+      const dx = nx - this.lastDragX;
+      const dy = ny - this.lastDragY;
+      
+      this.cameraOffsetX += dx;
+      this.cameraOffsetY += dy;
+      this.targetOffsetX = this.cameraOffsetX;
+      this.targetOffsetY = this.cameraOffsetY;
+      
+      this.lastDragX = nx;
+      this.lastDragY = ny;
     }
   }
 

@@ -154,7 +154,7 @@ export function WorkspaceView(props: WorkspaceViewProps) {
   return (
     <>
       {/* Sub-tab navigation */}
-      <div className="flex items-center gap-2 mb-6 border-b border-[var(--color-border-light)] pb-3 overflow-x-auto no-scrollbar">
+      <div className="flex items-center gap-1 sm:gap-2 mb-6 border-b border-[var(--color-border-light)] pb-3 overflow-x-auto no-scrollbar touch-pan-x">
         {subTabs.map(tab => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -162,15 +162,15 @@ export function WorkspaceView(props: WorkspaceViewProps) {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-5 py-3 text-[15px] font-medium cursor-pointer transition-all border-b-2 -mb-[13px] ${
+              className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 sm:py-3 text-[13px] sm:text-[15px] font-medium cursor-pointer transition-all border-b-2 -mb-[13px] whitespace-nowrap ${
                 isActive
                   ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
                   : 'border-transparent text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:border-gray-200'
               }`}
               title={tab.label}
             >
-              <Icon size={20} />
-              <span className="hidden sm:inline">{tab.label}</span>
+              <Icon size={18} className="sm:w-[20px] sm:h-[20px]" />
+              <span>{tab.label}</span>
             </button>
           );
         })}

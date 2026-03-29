@@ -11,6 +11,7 @@ export interface NodeOverride {
   customColor?: string;
   customLabel?: string;
   customGroup?: string;
+  hidden?: boolean;
 }
 
 export interface MapCustomizationData {
@@ -93,6 +94,13 @@ export function useGraphCustomization() {
     });
   }, []);
 
+  const updateCustomNodeText = useCallback((id: string, newLabel: string) => {
+    setData(prev => ({
+      ...prev,
+      customNodes: prev.customNodes.map(n => n.id === id ? { ...n, label: newLabel } : n)
+    }));
+  }, []);
+
   const addCustomEdge = useCallback((source: string, target: string) => {
     setData(prev => {
       // Check if already exists
@@ -132,6 +140,7 @@ export function useGraphCustomization() {
     clearNodeOverride,
     addCustomNode,
     deleteCustomNode,
+    updateCustomNodeText,
     addCustomEdge,
     clearOverrides,
     clearAll,

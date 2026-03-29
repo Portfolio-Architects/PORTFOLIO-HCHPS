@@ -21,7 +21,7 @@ export function buildSignalGraph(
   keywordMap: Record<string, number>,
   entries: SignalEntry[],
   customData?: {
-    overrides: Record<string, { fixedX?: number; fixedY?: number; customColor?: string; customLabel?: string; customGroup?: string }>;
+    overrides: Record<string, { fixedX?: number; fixedY?: number; customColor?: string; customLabel?: string; customGroup?: string; hidden?: boolean }>;
     customNodes: OntologyNode[];
     customEdges: OntologyEdge[];
   }
@@ -143,7 +143,30 @@ export function buildSignalGraph(
 
   // 4. Merge Custom Nodes and Edges from Whiteboard
   if (customData) {
-    customData.customNodes.forEach(cn => nodes.push(cn));
+    const dataLabels = new Map<string, string>(); // label -> id
+    nodes.forEach(n => dataLabels.set(n.label, n.id));
+
+    customData.customNodes.forEach(cn => {
+      const override = customData.overrides[cn.id];
+      const actualLabel = override?.customLabel || cn.label;
+
+      if (dataLabels.has(actualLabel)) {
+        // A data node with this label exists. Transfer overrides and skip rendering the duplicate.
+        const dataNodeId = dataLabels.get(actualLabel)!;
+        if (override) {
+          customData.overrides[dataNodeId] = {
+            ...customData.overrides[dataNodeId],
+            fixedX: override.fixedX ?? customData.overrides[dataNodeId]?.fixedX,
+            fixedY: override.fixedY ?? customData.overrides[dataNodeId]?.fixedY,
+            customColor: override.customColor ?? customData.overrides[dataNodeId]?.customColor,
+            customGroup: override.customGroup ?? customData.overrides[dataNodeId]?.customGroup,
+          };
+        }
+        return; // Skip adding `cn`
+      }
+      nodes.push(cn);
+    });
+
     customData.customEdges.forEach(ce => edges.push(ce));
 
     // Apply Overrides (Pins, Colors, Labels, Groups)
@@ -159,5 +182,20 @@ export function buildSignalGraph(
     });
   }
 
-  return { nodes, edges };
+  let finalNodes = nodes;
+  let finalEdges = edges;
+
+  if (customData) {
+    const hiddens = new Set<string>();
+    nodes.forEach(n => {
+      if (customData.overrides[n.id]?.hidden) hiddens.add(n.id);
+    });
+
+    if (hiddens.size > 0) {
+      finalNodes = nodes.filter(n => !hiddens.has(n.id));
+      finalEdges = edges.filter(e => !hiddens.has(e.source) && !hiddens.has(e.target));
+    }
+  }
+
+  return { nodes: finalNodes, edges: finalEdges };
 }

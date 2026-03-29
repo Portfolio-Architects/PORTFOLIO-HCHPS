@@ -12,7 +12,7 @@ import {
 import {
   Radio, Loader2, RefreshCw, AlertTriangle,
   Circle, Link2, X, ChevronRight, Zap, Maximize2, Minimize2,
-  Trash2, FileText, Edit2, Plus, Palette, PinOff, PlusSquare, Waypoints
+  Trash2, FileText, Edit2, Plus, Palette, PinOff, PlusSquare, Waypoints, Eraser
 } from 'lucide-react';
 import { useGraphCustomization } from '@/hooks/useGraphCustomization';
 
@@ -50,7 +50,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   const [hoveredNode, setHoveredNode] = useState<OrbitalNode | null>(null);
   const [connectedEdges, setConnectedEdges] = useState<Array<{ edge: OntologyEdge; otherNode: OrbitalNode }>>([]);
   const [stats, setStats] = useState({ nodes: 0, edges: 0 });
-  const { overrides, customNodes, customEdges, setNodeOverride, clearNodeOverride, addCustomNode, deleteCustomNode, addCustomEdge, clearOverrides, clearAll } = useGraphCustomization();
+  const { overrides, customNodes, customEdges, setNodeOverride, clearNodeOverride, addCustomNode, deleteCustomNode, updateCustomNodeText, addCustomEdge, clearOverrides, clearAll } = useGraphCustomization();
   
   const overridesRef = useRef(overrides);
   const customNodesRef = useRef(customNodes);
@@ -406,12 +406,21 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
       <div className={isFullscreen ? '' : 'grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4'}>
 
         {/* ── Side Panel (left on desktop, below canvas on mobile) ── */}
-        {!isFullscreen && (
-          <div className="order-2 lg:order-none lg:self-start" style={{ maxHeight: isFullscreen ? undefined : 'min(600px, 70vh)', overflowY: 'auto' }}>
-            {/* Node Detail */}
+        <div 
+          className={
+            isFullscreen 
+              ? 'hidden md:block fixed top-4 right-auto bottom-4 left-4 z-[110] w-[280px] lg:w-[320px] shadow-2xl rounded-xl custom-scrollbar'
+              : 'order-2 lg:order-none lg:self-start w-full'
+          }
+          style={{ 
+            maxHeight: isFullscreen ? 'calc(100vh - 32px)' : 'min(600px, 70vh)', 
+            overflowY: 'auto' 
+          }}
+        >
+          {/* Node Detail */}
             <div className="bg-white rounded-xl border border-[var(--color-border-light)] shadow-sm overflow-hidden h-full">
               <div className="px-4 py-3 border-b border-[var(--color-border-light)] bg-gray-50/50">
-                <h3 className="text-xs font-semibold text-[var(--color-text-secondary)]">노드 상세</h3>
+                <h3 className="text-sm font-semibold text-[var(--color-text-secondary)]">노드 상세</h3>
               </div>
               <div className="overflow-y-auto custom-scrollbar" style={{ maxHeight: 'calc(min(600px, 70vh) - 44px)' }}>
                 {activeNode ? (
@@ -419,13 +428,13 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                     {/* Group color + label */}
                     <div className="flex items-start gap-3 mb-3">
                       <div
-                        className="w-10 h-10 rounded-xl shrink-0 flex items-center justify-center text-white text-sm font-bold"
+                        className="w-10 h-10 rounded-xl shrink-0 flex items-center justify-center text-white text-base font-bold"
                         style={{ backgroundColor: GROUP_COLORS[activeNode.group as OntologyGroup] }}
                       >
                         {activeNode.label.charAt(0)}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-sm text-[var(--color-text-primary)] leading-snug flex items-center justify-between">
+                        <div className="font-semibold text-base text-[var(--color-text-primary)] leading-snug flex items-center justify-between">
                           <span className="truncate pr-2">{activeNode.label}</span>
                           <button
                             onClick={() => {
@@ -435,16 +444,21 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                                 let targetId = activeNode.id;
                                 const rawOld = activeNode.label.startsWith('#') ? activeNode.label.slice(1) : activeNode.label;
                                 const rawNew = newName.trim().startsWith('#') ? newName.trim().slice(1) : newName.trim();
+                                const isUncategorized = activeNode.id === 'tag-💭 미분류';
                                 
-                                if (activeNode.id.startsWith('tag-')) {
+                                if (activeNode.id.startsWith('tag-') && !isUncategorized) {
                                   targetId = `tag-${rawNew}`;
                                   // Transfer existing overrides to the new anticipated ID
                                   const existingOverride = overrides[activeNode.id] || {};
                                   setNodeOverride(targetId, { ...existingOverride, customLabel: newName.trim() });
                                   clearNodeOverride(activeNode.id);
                                 } else {
-                                  // Custom nodes retain their original ID
-                                  setNodeOverride(targetId, { customLabel: newName.trim() });
+                                  // Custom nodes OR '미분류' retain their original ID
+                                  const existingOverride = overrides[targetId] || {};
+                                  setNodeOverride(targetId, { ...existingOverride, customLabel: newName.trim() });
+                                  if (targetId.startsWith('custom-')) {
+                                    updateCustomNodeText(targetId, newName.trim());
+                                  }
                                 }
                                 
                                 // Mutate engine immediately for fluid UI
@@ -452,7 +466,10 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                                   const engineNode = engineRef.current.nodes.find((n: OrbitalNode) => n.id === activeNode.id);
                                   if (engineNode) {
                                     engineNode.label = newName.trim();
-                                    engineNode.id = targetId; // Sync internal engine ID too!
+                                    // Make sure we update ID for category migration, BUT don't break custom or uncategorized nodes
+                                    if (activeNode.id.startsWith('tag-') && !isUncategorized) {
+                                      engineNode.id = targetId; 
+                                    }
                                   }
                                   setActiveNode({ ...activeNode, id: targetId, label: newName.trim() });
                                 }
@@ -469,7 +486,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                             <Edit2 size={12} />
                           </button>
                         </div>
-                        <span className="text-[10px] text-[var(--color-text-tertiary)]">
+                        <span className="text-xs text-[var(--color-text-tertiary)]">
                           {GROUP_LABELS[activeNode.group as OntologyGroup]}
                         </span>
                       </div>
@@ -477,17 +494,17 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
 
                     {/* Tags */}
                     <div className="flex flex-wrap gap-1.5 mb-3">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-50 text-blue-600">
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-600">
                         중요도 {activeNode.baseValue}
                       </span>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-50 text-purple-600">
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-600">
                         중심성 {((activeNode.centralityScore ?? 0) * 100).toFixed(0)}%
                       </span>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-600">
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-600">
                         연결 {connectedEdges.length}개
                       </span>
                       {activeNode.isHedge && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-50 text-red-600">
+                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600">
                           🚧 병목 노드
                         </span>
                       )}
@@ -496,14 +513,14 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                     {/* Metrics bar */}
                     <div className="flex gap-2 mb-4">
                       <div className="flex-1 bg-gray-50 rounded-lg px-2.5 py-1.5 text-center">
-                        <div className="text-[10px] text-[var(--color-text-tertiary)]">순가중치</div>
-                        <div className={`text-xs font-bold ${(activeNode.netWeight ?? 0) < 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                        <div className="text-xs text-[var(--color-text-tertiary)]">순가중치</div>
+                        <div className={`text-sm font-bold ${(activeNode.netWeight ?? 0) < 0 ? 'text-red-500' : 'text-blue-500'}`}>
                           {(activeNode.netWeight ?? 0) >= 0 ? '+' : ''}{(activeNode.netWeight ?? 0).toFixed(2)}
                         </div>
                       </div>
                       <div className="flex-1 bg-gray-50 rounded-lg px-2.5 py-1.5 text-center">
-                        <div className="text-[10px] text-[var(--color-text-tertiary)]">궤도</div>
-                        <div className="text-xs font-bold text-[var(--color-text-primary)]">
+                        <div className="text-xs text-[var(--color-text-tertiary)]">궤도</div>
+                        <div className="text-sm font-bold text-[var(--color-text-primary)]">
                           {activeNode.orbitIndex === 0 ? '중심' : `${activeNode.orbitIndex}궤도`}
                         </div>
                       </div>
@@ -511,7 +528,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
 
                     {/* Node Controls (Whiteboard) */}
                     <div className="mb-4 bg-gray-50 rounded-lg p-3 border border-gray-100">
-                      <div className="text-[10px] font-semibold text-[var(--color-text-tertiary)] mb-2 flex items-center gap-1">
+                      <div className="text-xs font-semibold text-[var(--color-text-tertiary)] mb-2 flex items-center gap-1">
                         <Palette size={10} /> 색상 변경
                       </div>
                       <div className="flex flex-wrap gap-1.5 mb-3">
@@ -565,25 +582,44 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                                 setActiveNode(newNode);
                               }
                             }}
-                            className="flex items-center gap-1 px-2 py-1 bg-white border border-gray-200 rounded text-[10px] font-medium text-gray-600 hover:bg-gray-50 cursor-pointer"
+                            className="flex items-center gap-1 px-2 py-1 bg-white border border-gray-200 rounded text-xs font-medium text-gray-600 hover:bg-gray-50 cursor-pointer"
                           >
-                            <PinOff size={10} /> 궤도 고정 해제
+                            <PinOff size={12} /> 궤도 고정 해제
                           </button>
                         )}
                         <button
                           onClick={() => setEdgeModeSource(activeNode.id)}
-                          className={`flex items-center gap-1 px-2 py-1 border rounded text-[10px] font-medium cursor-pointer transition-colors ${
+                          className={`flex items-center gap-1 px-2 py-1 border rounded text-xs font-medium cursor-pointer transition-colors ${
                             edgeModeSource === activeNode.id
                               ? 'bg-blue-50 border-blue-200 text-blue-600'
                               : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
                           }`}
                         >
-                          <Waypoints size={10} /> {edgeModeSource === activeNode.id ? '대상 노드 찍기...' : '이 노드에서 선분 연결'}
+                          <Waypoints size={12} /> {edgeModeSource === activeNode.id ? '대상 노드 찍기...' : '이 노드에서 선분 연결'}
                         </button>
+                        <div className="flex-1 min-w-[20px]" /> {/* Spacer to push actions entirely right */}
+                        
+                        <button
+                          onClick={() => {
+                            if (confirm('이 노드를 화면에서 숨길까요?\n(데이터는 지워지지 않으며, 초기화 시 복구할 수 있습니다)')) {
+                              setNodeOverride(activeNode.id, { hidden: true });
+                              if (engineRef.current) {
+                                engineRef.current.nodes = engineRef.current.nodes.filter(n => n.id !== activeNode.id);
+                                engineRef.current.edges = engineRef.current.edges.filter(e => e.source !== activeNode.id && e.target !== activeNode.id);
+                                setActiveNode(null);
+                              }
+                            }
+                          }}
+                          className="flex items-center gap-1 px-2 py-1 bg-orange-50 border border-orange-200 rounded text-xs font-medium text-orange-600 hover:bg-orange-100 cursor-pointer"
+                          title="화면에서 지우기"
+                        >
+                          <Eraser size={12} /> 숨기기
+                        </button>
+
                         {(activeNode.id.startsWith('custom-') || activeNode.orbitIndex === 1) && (
                           <button
                             onClick={() => {
-                              if (confirm('이 카테고리(또는 노드)를 삭제할까요?\n(주의: 카테고리 삭제 시 연동된 모든 업무에서 태그가 제거됩니다)')) {
+                              if (confirm('이 카테고리(또는 노드)를 완전히 삭제할까요?\n(주의: 시스템 전체에서 태그/데이터가 제거됩니다)')) {
                                 // Global sync for category deletion
                                 if ((activeNode.orbitIndex === 1 || activeNode.group === 'MACRO_RESEARCH') && onDeleteCategory) {
                                   onDeleteCategory(activeNode.label);
@@ -599,9 +635,9 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                                 }
                               }
                             }}
-                            className="flex items-center gap-1 px-2 py-1 bg-red-50 border border-red-200 rounded text-[10px] font-medium text-red-600 hover:bg-red-100 cursor-pointer ml-auto"
+                            className="flex items-center gap-1 px-2 py-1 bg-red-50 border border-red-200 rounded text-xs font-medium text-red-600 hover:bg-red-100 cursor-pointer"
                           >
-                            <Trash2 size={10} /> {activeNode.orbitIndex === 1 ? '카테고리 삭제' : '노드 삭제'}
+                            <Trash2 size={12} /> {activeNode.orbitIndex === 1 ? '카테고리 삭제' : '노드 삭제'}
                           </button>
                         )}
                       </div>
@@ -610,8 +646,8 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                     {/* Connected edges */}
                     {connectedEdges.length > 0 && (
                       <div>
-                        <div className="flex items-center gap-1 text-[10px] font-semibold text-[var(--color-text-tertiary)] mb-2">
-                          <Link2 size={10} />
+                        <div className="flex items-center gap-1 text-xs font-semibold text-[var(--color-text-tertiary)] mb-2">
+                          <Link2 size={12} />
                           연결된 항목 ({connectedEdges.length}개)
                         </div>
                         <div className="space-y-1 max-h-[280px] overflow-y-auto custom-scrollbar">
@@ -626,14 +662,14 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                                 style={{ backgroundColor: GROUP_COLORS[otherNode.group as OntologyGroup] }}
                               />
                               <div className="flex-1 min-w-0">
-                                <div className="text-[11px] font-medium text-[var(--color-text-primary)] truncate">
+                                <div className="text-sm font-medium text-[var(--color-text-primary)] truncate">
                                   {otherNode.label}
                                 </div>
-                                <div className="text-[9px] text-[var(--color-text-tertiary)]">
+                                <div className="text-xs text-[var(--color-text-tertiary)]">
                                   {EDGE_TYPE_LABELS[edge.type as EdgeType] || edge.type}
                                 </div>
                               </div>
-                              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold shrink-0 ${
+                              <span className={`px-1.5 py-0.5 rounded text-xs font-bold shrink-0 ${
                                 edge.weight < 0
                                   ? 'bg-red-50 text-red-500'
                                   : edge.weight >= 0.7
@@ -652,7 +688,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                 ) : (
                   <div className="text-center py-8">
                     <Radio size={28} className="mx-auto mb-3 text-[var(--color-text-tertiary)] opacity-30" />
-                    <div className="text-xs text-[var(--color-text-tertiary)] leading-relaxed">
+                    <div className="text-sm text-[var(--color-text-tertiary)] leading-relaxed">
                       노드를 선택해보세요<br />
                       그래프의 점을 클릭하면<br />
                       연결된 관계를 확인할 수 있어요
@@ -661,8 +697,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                 )}
               </div>
             </div>
-          </div>
-        )}
+        </div>
 
         {/* ── Canvas Container ── */}
         <div
@@ -763,8 +798,8 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
 
           {/* Instructions */}
           <div className="absolute bottom-3 left-3 z-10 bg-white/80 backdrop-blur rounded-lg px-3 py-1.5 text-[10px] text-[var(--color-text-tertiary)]">
-            <span className="hidden sm:inline">🖱️ 클릭: 노드 선택 · 드래그: 틸트 · 스크롤: 줌</span>
-            <span className="sm:hidden">👆 탭: 선택 · 드래그: 틸트 · 핀치: 줌</span>
+            <span className="hidden sm:inline">🖱️ 클릭: 노드 선택 · 드래그: 이동 · 스크롤: 줌</span>
+            <span className="sm:hidden">👆 탭: 선택 · 드래그: 이동 · 핀치: 줌</span>
           </div>
         </div>
       </div>
