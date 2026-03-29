@@ -43,7 +43,7 @@ export function QuickInput({ onCreateTask, onCreateKnowledge, onAddSignal, onNav
     if (parsed.type === 'signal' && onAddSignal) {
       onAddSignal(parsed.rawText);
       setCreatedLabel('📡 시그널 기록 완료!');
-      onNavigate('mindmap');
+      onNavigate('knowledge');
     } else if (parsed.type === 'knowledge' && onCreateKnowledge) {
       onCreateKnowledge({
         title: parsed.title,

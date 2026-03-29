@@ -1,34 +1,19 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Task, TaskStatus, BudgetCategory, BudgetEntry, InventoryItem, StockChange, Meeting, Project } from '@/types';
-import { TaskListView } from '@/components/TaskList';
-import { TaskModal } from '@/components/TaskModal';
+import { BudgetCategory, BudgetEntry, InventoryItem, StockChange } from '@/types';
 import { BudgetDashboard } from '@/components/budget/BudgetDashboard';
 import { InventoryList } from '@/components/inventory/InventoryList';
+import { Wallet, Package } from 'lucide-react';
 
-import { DocumentGenerator } from '@/components/document/DocumentGenerator';
-import { useGraphCustomization } from '@/hooks/useGraphCustomization';
-import {
-  ListTodo, Wallet, Package, Calendar, FileText
-} from 'lucide-react';
-
-type SubTab = 'tasks' | 'budget' | 'inventory' | 'documents';
+type SubTab = 'budget' | 'inventory';
 
 const subTabs: { id: SubTab; label: string; icon: React.ElementType }[] = [
-  { id: 'tasks', label: '업무', icon: ListTodo },
   { id: 'budget', label: '예산', icon: Wallet },
   { id: 'inventory', label: '재고', icon: Package },
-  { id: 'documents', label: '문서', icon: FileText },
 ];
 
 interface WorkspaceViewProps {
-  // Tasks
-  tasks: Task[];
-  addTask: (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => void;
-  updateTask: (id: string, updates: Partial<Task>) => void;
-  deleteTask: (id: string) => void;
-  moveTask: (id: string, status: TaskStatus) => void;
   // Budget
   budgetCategories: BudgetCategory[];
   budgetEntries: BudgetEntry[];
@@ -46,74 +31,13 @@ interface WorkspaceViewProps {
   deleteItem: (id: string) => void;
   adjustStock: (itemId: string, change: number, reason: string) => void;
   getItemHistory: (itemId: string) => StockChange[];
-  // Meetings
-  meetings: Meeting[];
-  addMeeting: (meeting: Omit<Meeting, 'id' | 'createdAt' | 'updatedAt'>) => void;
-  updateMeeting: (id: string, updates: Partial<Meeting>) => void;
-  deleteMeeting: (id: string) => void;
-  // Projects
-  projects: Project[];
-  addProject: (p: Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'checklistItems'>) => void;
-  updateProject: (id: string, updates: Partial<Project>) => void;
-  deleteProject: (id: string) => void;
-  addChecklistItem: (projectId: string, text: string) => void;
-  toggleChecklistItem: (projectId: string, itemId: string) => void;
-  deleteChecklistItem: (projectId: string, itemId: string) => void;
-  getProjectProgress: (projectId: string) => number;
-  // Knowledge
-  knowledgeEntries: import('@/types').KnowledgeEntry[];
 }
 
 export function WorkspaceView(props: WorkspaceViewProps) {
-  const [activeTab, setActiveTab] = useState<SubTab>('tasks');
-
-  const [showTaskModal, setShowTaskModal] = useState(false);
-  const [editTask, setEditTask] = useState<Task | null>(null);
-  const [defaultStatus, setDefaultStatus] = useState<TaskStatus>('todo');
-
-  const openTaskModal = (task?: Task, status?: TaskStatus) => {
-    setEditTask(task || null);
-    setDefaultStatus(status || 'todo');
-    setShowTaskModal(true);
-  };
-
-  const { overrides, customNodes } = useGraphCustomization();
-
-  const allTags = [
-    ...new Set([
-      ...props.tasks.flatMap(t => t.tags).filter(Boolean),
-      // Add custom category labels (strip # if present)
-      ...customNodes
-        .filter(n => n.group === 'MACRO_RESEARCH' || overrides[n.id]?.customGroup === 'MACRO_RESEARCH')
-        .map(n => overrides[n.id]?.customLabel || n.label)
-        .map(label => label.startsWith('#') ? label.slice(1) : label)
-    ])
-  ];
+  const [activeTab, setActiveTab] = useState<SubTab>('budget');
 
   const renderSubContent = () => {
     switch (activeTab) {
-      case 'tasks':
-        return (
-          <div className="space-y-4">
-            <TaskListView
-              tasks={props.tasks}
-              onEdit={(task) => openTaskModal(task)}
-              onDelete={props.deleteTask}
-              onStatusChange={(id, status) => props.moveTask(id, status)}
-              onAdd={() => openTaskModal()}
-              onUpdateTask={props.updateTask}
-              meetings={props.meetings}
-              addMeeting={props.addMeeting}
-              updateMeeting={props.updateMeeting}
-              deleteMeeting={props.deleteMeeting}
-              projects={props.projects}
-              addProject={props.addProject}
-              deleteProject={props.deleteProject}
-              allTags={allTags}
-            />
-          </div>
-        );
-
       case 'budget':
         return (
           <BudgetDashboard
@@ -141,11 +65,6 @@ export function WorkspaceView(props: WorkspaceViewProps) {
           />
         );
 
-      case 'documents':
-        return (
-          <DocumentGenerator />
-        );
-
       default:
         return null;
     }
@@ -153,7 +72,6 @@ export function WorkspaceView(props: WorkspaceViewProps) {
 
   return (
     <>
-      {/* Sub-tab navigation */}
       <div className="flex items-center gap-1 sm:gap-2 mb-6 border-b border-[var(--color-border-light)] pb-3 overflow-x-auto no-scrollbar touch-pan-x">
         {subTabs.map(tab => {
           const Icon = tab.icon;
@@ -177,17 +95,6 @@ export function WorkspaceView(props: WorkspaceViewProps) {
       </div>
 
       {renderSubContent()}
-
-      <TaskModal
-        isOpen={showTaskModal}
-        onClose={() => { setShowTaskModal(false); setEditTask(null); }}
-        onSave={(task) => props.addTask({ ...task, status: defaultStatus })}
-        editTask={editTask}
-        onUpdate={props.updateTask}
-        allTags={allTags}
-        projects={props.projects.map(p => ({ id: p.id, name: p.name }))}
-        knowledgeEntries={props.knowledgeEntries}
-      />
     </>
   );
 }

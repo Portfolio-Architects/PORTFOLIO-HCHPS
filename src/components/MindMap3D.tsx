@@ -12,7 +12,7 @@ import {
 import {
   Radio, Loader2, RefreshCw, AlertTriangle,
   Circle, Link2, X, ChevronRight, Zap, Maximize2, Minimize2,
-  Trash2, FileText, Edit2, Plus, Palette, PinOff, PlusSquare, Waypoints, Eraser
+  Trash2, FileText, Edit2, Plus, Palette, PinOff, PlusSquare, Waypoints, Eraser, Play, Pause
 } from 'lucide-react';
 import { useGraphCustomization } from '@/hooks/useGraphCustomization';
 
@@ -46,25 +46,54 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [usingSample, setUsingSample] = useState(false);
+  const [isOrbiting, setIsOrbiting] = useState(false);
   const [activeNode, setActiveNode] = useState<OrbitalNode | null>(null);
   const [hoveredNode, setHoveredNode] = useState<OrbitalNode | null>(null);
   const [connectedEdges, setConnectedEdges] = useState<Array<{ edge: OntologyEdge; otherNode: OrbitalNode }>>([]);
   const [stats, setStats] = useState({ nodes: 0, edges: 0 });
-  const { overrides, customNodes, customEdges, setNodeOverride, clearNodeOverride, addCustomNode, deleteCustomNode, updateCustomNodeText, addCustomEdge, clearOverrides, clearAll } = useGraphCustomization();
+  const { overrides, customNodes, customEdges, undo, redo, setNodeOverride, clearNodeOverride, addCustomNode, deleteCustomNode, updateCustomNodeText, addCustomEdge, clearOverrides, clearAll } = useGraphCustomization();
+  
+  // ── Keyboard Shortcuts (Undo/Redo) ──
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Prevent running if user is typing in an input or textarea
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        if (e.shiftKey) {
+          e.preventDefault();
+          redo();
+        } else {
+          e.preventDefault();
+          undo();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        redo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo, redo]);
   
   const overridesRef = useRef(overrides);
   const customNodesRef = useRef(customNodes);
   const customEdgesRef = useRef(customEdges);
+  const isOrbitingRef = useRef(isOrbiting);
   overridesRef.current = overrides;
   customNodesRef.current = customNodes;
   customEdgesRef.current = customEdges;
+  isOrbitingRef.current = isOrbiting;
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [newKeyword, setNewKeyword] = useState('');
   const [edgeModeSource, setEdgeModeSource] = useState<string | null>(null);
 
-  const PRESET_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef', '#64748b'];
+  // 직관적이고 구분이 또렷한 원색(Vivid/Primary) 컬러 팔레트 배정
+  const PRESET_COLORS = ['#FF2222', '#FF8800', '#FFDD00', '#00CC44', '#00BBDD', '#0055FF', '#8800FF', '#FF00AA', '#111111', '#FFFFFF'];
 
   // ── Init Engine (stable — deferred callbacks) ──
   const initEngine = useCallback(() => {
@@ -82,6 +111,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
       const engine = new OntologyCanvasEngine();
       // Init WITHOUT callbacks to avoid triggering setState during init
       engine.init(graph);
+      engine.isOrbiting = isOrbitingRef.current;
 
       engineRef.current = engine;
 
@@ -101,8 +131,11 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
           }
         },
         onHoveredNodeChange: (node) => setHoveredNode(node ?? null),
-        onNodeDragged: (id, x, y) => {
-          setNodeOverride(id, { fixedX: x, fixedY: y });
+        onNodeReparent: (id, newParentId, newOrbit) => {
+          // Changed categorical parent, set target orbit, and clean up any physical pins
+          setNodeOverride(id, { customParent: newParentId, customOrbitIndex: newOrbit, fixedX: undefined, fixedY: undefined });
+          // Defer initEngine so React state batching processes first
+          setTimeout(() => initEngine(), 30);
         }
       };
 
@@ -116,6 +149,12 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (engineRef.current) {
+      engineRef.current.isOrbiting = isOrbiting;
+    }
+  }, [isOrbiting]);
 
   // ── Animation Loop ──
   useEffect(() => {
@@ -369,6 +408,16 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
             </span>
           )}
           <button
+            onClick={() => setIsOrbiting((prev) => !prev)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold shadow-sm border cursor-pointer transition-colors ${
+              isOrbiting 
+                ? 'bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-100' 
+                : 'bg-white text-[var(--color-primary)] border-[var(--color-border-light)] hover:bg-gray-50'
+            }`}
+          >
+            {isOrbiting ? <Pause size={14} /> : <Play size={14} />} {isOrbiting ? '공전 정지' : '공전 시작'}
+          </button>
+          <button
             onClick={() => {
               const label = prompt('추가할 노드 이름을 입력하세요:');
               if (label) {
@@ -385,7 +434,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
             }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--color-primary)] text-white text-xs font-semibold hover:opacity-90 shadow-sm border border-emerald-600 cursor-pointer transition-colors"
           >
-            <PlusSquare size={14} /> 빈 노드 던지기
+            <PlusSquare size={14} /> 노드 추가
           </button>
           <button
             onClick={() => initEngine()}

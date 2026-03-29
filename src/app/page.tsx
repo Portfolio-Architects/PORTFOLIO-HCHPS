@@ -13,7 +13,7 @@ import { Sidebar } from '@/components/Sidebar';
 import { QuickInput } from '@/components/QuickInput';
 import { WorkspaceView } from '@/components/WorkspaceView';
 import { MindMap3D } from '@/components/MindMap3D';
-import { KnowledgeList } from '@/components/knowledge/KnowledgeList';
+import { TaskKnowledgeView } from '@/components/TaskKnowledgeView';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 
 // Error Boundary for MindMap3D — prevents signal map crash from breaking entire app
@@ -199,11 +199,6 @@ export default function Home() {
       case 'workspace':
         return (
           <WorkspaceView
-            tasks={tasks}
-            addTask={addTask}
-            updateTask={updateTask}
-            deleteTask={deleteTask}
-            moveTask={moveTask}
             budgetCategories={budgetCategories}
             budgetEntries={budgetEntries}
             addCategory={addCategory}
@@ -219,31 +214,32 @@ export default function Home() {
             deleteItem={deleteItem}
             adjustStock={adjustStock}
             getItemHistory={getItemHistory}
+          />
+        );
+
+      case 'knowledge':
+        return (
+          <TaskKnowledgeView
+            tasks={tasks}
+            addTask={addTask}
+            updateTask={updateTask}
+            deleteTask={deleteTask}
+            moveTask={moveTask}
             meetings={meetings}
             addMeeting={addMeeting}
             updateMeeting={updateMeeting}
             deleteMeeting={deleteMeeting}
             projects={projects}
             addProject={addProject}
-            updateProject={updateProject}
             deleteProject={deleteProject}
-            addChecklistItem={addChecklistItem}
-            toggleChecklistItem={toggleChecklistItem}
-            deleteChecklistItem={deleteChecklistItem}
-            getProjectProgress={getProjectProgress}
             knowledgeEntries={knowledgeEntries}
-          />
-        );
-
-      case 'knowledge':
-        return (
-          <KnowledgeList
-            entries={knowledgeEntries}
             addKnowledge={addKnowledge}
             updateKnowledge={updateKnowledge}
             deleteKnowledge={deleteKnowledge}
             filterKnowledge={filterKnowledge}
-            metadata={knowledgeMetadata}
+            knowledgeMetadata={knowledgeMetadata}
+            signalEntries={signalEntries}
+            deleteSignal={deleteSignal}
           />
         );
 

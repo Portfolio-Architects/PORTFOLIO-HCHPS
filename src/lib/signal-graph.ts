@@ -21,7 +21,7 @@ export function buildSignalGraph(
   keywordMap: Record<string, number>,
   entries: SignalEntry[],
   customData?: {
-    overrides: Record<string, { fixedX?: number; fixedY?: number; customColor?: string; customLabel?: string; customGroup?: string; hidden?: boolean }>;
+    overrides: Record<string, { fixedX?: number; fixedY?: number; customColor?: string; customLabel?: string; customGroup?: string; customParent?: string; customOrbitIndex?: number; hidden?: boolean }>;
     customNodes: OntologyNode[];
     customEdges: OntologyEdge[];
   }
@@ -67,15 +67,28 @@ export function buildSignalGraph(
     .slice(0, 15);
 
   const tagNodesMap = new Map<string, string>();
+  const tagGroupMap = new Map<string, OntologyGroup>();
+
+  const categoryGroups: OntologyGroup[] = [
+    'MACRO_RESEARCH',
+    'DCF_MODELING',
+    'DATA_PIPELINE',
+    'INFRASTRUCTURE',
+    'SYSTEM_RISK'
+  ];
 
   // Add Orbit 1 Nodes
   sortedTags.forEach(([tag, count], i) => {
     const id = `tag-${tag}`;
+    const groupAssign = categoryGroups[i % categoryGroups.length];
+    
     tagNodesMap.set(tag, id);
+    tagGroupMap.set(tag, groupAssign);
+
     nodes.push({
       id,
       label: tag === '💭 미분류' ? tag : `#${tag}`,
-      group: 'MACRO_RESEARCH', // Emerald color for categories
+      group: groupAssign, // Assigned cycle color per category branch
       baseValue: 80,
       centralityScore: 1000 - i, // Orbit 1
     });
@@ -116,6 +129,8 @@ export function buildSignalGraph(
   // Create Leaf Nodes & Branched Edges
   keywordFreqByTag.forEach((kwMap, tag) => {
     const tagNodeId = tagNodesMap.get(tag)!;
+    const branchGroup = tagGroupMap.get(tag) || 'OTHER';
+    
     // Top 8 keywords per branch to prevent chaos
     const sortedKw = Array.from(kwMap.entries())
       .sort((a, b) => b[1] - a[1])
@@ -126,7 +141,7 @@ export function buildSignalGraph(
       nodes.push({
         id: leafId,
         label: kw,
-        group: 'DATA_PIPELINE', // Amber/Cyan leaves
+        group: branchGroup, // Inherit category's color
         baseValue: Math.min(60, 30 + freq * 10),
         centralityScore: 100 + freq, // Orbit 2+
         parentId: tagNodeId,
@@ -178,12 +193,87 @@ export function buildSignalGraph(
         if (override.customColor !== undefined) n.customColor = override.customColor;
         if (override.customLabel !== undefined) n.label = override.customLabel;
         if (override.customGroup !== undefined) n.group = override.customGroup as OntologyGroup;
+        if (override.customOrbitIndex !== undefined) n.customOrbitIndex = override.customOrbitIndex;
+        if (override.customParent !== undefined) {
+          n.parentId = override.customParent;
+          
+          // Re-route the structural edge (target === n.id)
+          const edge = edges.find(e => e.target === n.id);
+          if (edge) {
+            edge.source = override.customParent;
+          } else {
+            edges.push({
+              source: override.customParent,
+              target: n.id,
+              weight: 0.7,
+              type: 'DEPENDENCY'
+            });
+          }
+          
+          // Sync colour with new parent if custom group/color are not explicitly overridden
+          const newParent = nodes.find(pn => pn.id === override.customParent);
+          if (newParent && override.customGroup === undefined && override.customColor === undefined) {
+            n.group = newParent.group;
+            if (newParent.customColor) {
+              n.customColor = newParent.customColor;
+            } else {
+              n.customColor = undefined;
+            }
+          }
+        }
+        
+        // If the custom node has been successfully pulled into the structural Orbit system, 
+        // we must clear its hardcoded fallback creation coordinates so it obeys the physics system!
+        if ((override.customOrbitIndex !== undefined || override.customParent !== undefined) && override.fixedX === undefined) {
+           n.fixedX = undefined;
+           n.fixedY = undefined;
+        }
       }
     });
   }
 
   let finalNodes = nodes;
   let finalEdges = edges;
+
+  // 5. Center Node Override Processing (Hijack Root Mode)
+  const forcedCenterNode = finalNodes.find(n => customData?.overrides[n.id]?.customOrbitIndex === 0);
+  if (forcedCenterNode) {
+    forcedCenterNode.centralityScore = 9999999;
+    forcedCenterNode.parentId = undefined;
+    forcedCenterNode.group = 'CORE_PROJECT'; // Shift to core group identity
+    forcedCenterNode.fixedX = undefined;     // <--- Must clear baked custom node coords to center perfectly!
+    forcedCenterNode.fixedY = undefined;
+    
+    // Find who was the center previously (the one with highest normal centrality among ACTIVE nodes)
+    const hiddenSet = new Set<string>();
+    finalNodes.forEach(n => { if (customData?.overrides[n.id]?.hidden) hiddenSet.add(n.id); });
+    
+    const rest = finalNodes.filter(n => n.id !== forcedCenterNode.id && !hiddenSet.has(n.id)).sort((a,b) => (b.centralityScore ?? 0) - (a.centralityScore ?? 0));
+    const oldCenter = rest[0];
+    
+    if (oldCenter) {
+      finalEdges.forEach(e => {
+        // Transfer all driving branches from Old Center to New Center
+        if (e.source === oldCenter.id) {
+          e.source = forcedCenterNode.id;
+        }
+        // Remove incoming edges targeting the New Center to prevent structural loops
+        if (e.target === forcedCenterNode.id) {
+          e.source = forcedCenterNode.id; // Mark as self-loop to be filtered out
+        }
+      });
+      // Formally push the old Center into Orbit 1 as a category of the new forced center
+      finalEdges.push({
+        source: forcedCenterNode.id,
+        target: oldCenter.id,
+        weight: 1.0,
+        type: 'CAUSAL_DRIVE'
+      });
+      
+      // Clean self-referencing edges
+      finalEdges = finalEdges.filter(e => e.source !== e.target);
+    }
+  }
 
   if (customData) {
     const hiddens = new Set<string>();

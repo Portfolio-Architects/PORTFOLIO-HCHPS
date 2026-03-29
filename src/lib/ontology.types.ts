@@ -74,6 +74,7 @@ export interface OntologyNode {
   customColor?: string;        // User overridden color
   customLabel?: string;        // User overridden text
   customGroup?: OntologyGroup; // User overridden group
+  customOrbitIndex?: number;   // User overridden orbit index
   // === Runtime computed ===
   centralityScore?: number;    // Eigenvector-weighted centrality (0-1)
   renderSize?: number;         // blended size (0-1)

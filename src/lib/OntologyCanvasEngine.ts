@@ -35,7 +35,7 @@ const FORCE_WARMUP_TICKS = 150; // freeze after this many ticks
 export interface EngineCallbacks {
   onActiveNodeChange?: (node: OrbitalNode | null) => void;
   onHoveredNodeChange?: (node: OrbitalNode | null) => void;
-  onNodeDragged?: (nodeId: string, fixedX: number, fixedY: number) => void;
+  onNodeReparent?: (nodeId: string, newParentId: string | undefined, newOrbitIndex: number) => void;
 }
 
 // ============ Engine Class ============
@@ -56,6 +56,7 @@ export class OntologyCanvasEngine {
   private targetOffsetY = 0;
 
   // Physics / Interaction
+  isOrbiting = false;
   private isDragging = false;
   private hasDragged = false;
   private dragStartX = 0;
@@ -64,6 +65,8 @@ export class OntologyCanvasEngine {
   private lastDragY = 0;
   private dragStartTilt = 0;
   private draggedNode: OrbitalNode | null = null;
+  private previousActiveNodeId: string | null = null;
+  private pendingCameraTargetId: string | null = null;
 
   // Stats
   nodeCount = 0;
@@ -140,21 +143,30 @@ export class OntologyCanvasEngine {
     this.nodes.push(centerOrbital);
     this.centerNode = centerOrbital;
     this.nodeMap.set(centerOrbital.id, centerOrbital);
-    // Categories (Orbit 1) and Leaves (Orbit 2+)
+    // Categories (No parent) and Leaves (Has parent)
     const categoryNodes = otherNodes.filter(n => !n.parentId);
     const leafNodes = otherNodes.filter(n => n.parentId);
 
-    const categoryCount = categoryNodes.length;
-    
-    // 1. Place Categories on Orbit 1 radially evenly
-    categoryNodes.forEach((node, i) => {
-      const angle = (2 * Math.PI * i / categoryCount);
-      const orbital = this.makeOrbitalNode(node, 1, angle, centerId, connectionMap);
-      this.nodes.push(orbital);
-      this.nodeMap.set(orbital.id, orbital);
+    // 1. Place Categories radially evenly, honoring their customOrbitIndex
+    const categoriesByOrbit = new Map<number, OntologyNode[]>();
+    categoryNodes.forEach(node => {
+      const oIndex = node.customOrbitIndex ?? 1;
+      if (!categoriesByOrbit.has(oIndex)) categoriesByOrbit.set(oIndex, []);
+      categoriesByOrbit.get(oIndex)!.push(node);
     });
 
-    // 2. Place Leaves on Orbit 2, 3, 4 aligned with Parent
+    categoriesByOrbit.forEach((catNodes, oIndex) => {
+      const N = catNodes.length;
+      catNodes.forEach((node, i) => {
+        const angle = (2 * Math.PI * i / N);
+        const orbital = this.makeOrbitalNode(node, oIndex, angle, centerId, connectionMap);
+        this.nodes.push(orbital);
+        this.nodeMap.set(orbital.id, orbital);
+      });
+    });
+
+    // 2. Place Leaves iteratively using a Queue (Topological order)
+    // This ensures parents are always processed before their children.
     const leavesByParent = new Map<string, OntologyNode[]>();
     leafNodes.forEach(node => {
       if (!node.parentId) return;
@@ -162,37 +174,74 @@ export class OntologyCanvasEngine {
       leavesByParent.get(node.parentId)!.push(node);
     });
 
-    leavesByParent.forEach((leaves, parentId) => {
-      const parent = this.nodeMap.get(parentId);
-      if (!parent) return; 
+    const queue: string[] = Array.from(this.nodeMap.keys());
+    
+    while(queue.length > 0) {
+      const parentId = queue.shift()!;
+      const leaves = leavesByParent.get(parentId);
+      if (!leaves) continue;
 
-      // Leaves are already sorted by centrality/frequency
+      const parent = this.nodeMap.get(parentId)!;
+
+      // Group leaves by their assigned orbit
+      const orbitGroups = new Map<number, OntologyNode[]>();
       leaves.forEach((node, idx) => {
-        // Bush structure: 3 nodes per orbit layer (Orbit 2, 3, 4...)
+        // If no custom orbit, auto-assign layer based on 3 nodes per layer
         const layer = Math.floor(idx / 3);
-        const orbitIndex = Math.min(NUM_ORBITS, 2 + layer);
+        const orbitIndex = node.customOrbitIndex ?? Math.min(NUM_ORBITS, 2 + layer);
+        if (!orbitGroups.has(orbitIndex)) orbitGroups.set(orbitIndex, []);
+        orbitGroups.get(orbitIndex)!.push(node);
+      });
+
+      // Spread each group in a fan (arc) around the parent's angle
+      orbitGroups.forEach((groupNodes, oIndex) => {
+        const N = groupNodes.length;
         
-        // Position within the layer: 0 (center), 1 (left), 2 (right)
-        const pos = idx % 3;
-        
-        let angleOffset = 0;
-        // As depth increases, the branches spread slightly wider to prevent collision with inner nodes
-        const spreadStep = 0.18 + (layer * 0.04);
-        if (pos === 1) angleOffset = -spreadStep;
-        if (pos === 2) angleOffset = spreadStep;
-        
-        const angle = parent.orbitAngle + angleOffset;
-        
-        const orbital = this.makeOrbitalNode(node, orbitIndex, angle, centerId, connectionMap);
-        orbital.orbitSpeed = parent.orbitSpeed; 
-        
+        // 0.22 radians is a nice visual gap for nodes. 
+        // Cap the max spread at slightly less than 360 degrees (Math.PI * 1.8) to prevent wrapping overlap
+        const totalSpreadAngle = Math.min(Math.PI * 1.5, N * 0.22); 
+        const startAngle = parent.orbitAngle - (totalSpreadAngle / 2);
+        const angleStep = N <= 1 ? 0 : totalSpreadAngle / (N - 1);
+
+        groupNodes.forEach((node, gIdx) => {
+          const angle = N === 1 ? parent.orbitAngle : startAngle + (gIdx * angleStep);
+          
+          const orbital = this.makeOrbitalNode(node, oIndex, angle, centerId, connectionMap);
+          orbital.orbitSpeed = parent.orbitSpeed; 
+          
+          this.nodes.push(orbital);
+          this.nodeMap.set(orbital.id, orbital);
+          
+          queue.push(orbital.id); // Queue children for processing
+        });
+      });
+      
+      leavesByParent.delete(parentId);
+    }
+    
+    // Fallback for isolated orphans or cycles (so no nodes visually vanish)
+    leavesByParent.forEach((leaves) => {
+      leaves.forEach(node => {
+        const angle = Math.random() * Math.PI * 2;
+        const oIndex = node.customOrbitIndex ?? 1;
+        const orbital = this.makeOrbitalNode(node, oIndex, angle, centerId, connectionMap);
         this.nodes.push(orbital);
         this.nodeMap.set(orbital.id, orbital);
       });
     });
 
-    // Set active to center
-    this.activeNode = this.centerNode;
+    // 3. Restore Active Node / Camera Tracking
+    if (this.previousActiveNodeId && this.nodeMap.has(this.previousActiveNodeId)) {
+      this.activeNode = this.nodeMap.get(this.previousActiveNodeId)!;
+      // Tell render loop to pan camera to this node smoothly on next frame
+      this.pendingCameraTargetId = this.previousActiveNodeId;
+    } else {
+      this.activeNode = this.centerNode;
+      // Center camera naturally
+      if (this.centerNode) {
+        this.pendingCameraTargetId = this.centerNode.id;
+      }
+    }
     this.callbacks.onActiveNodeChange?.(this.activeNode);
 
     // Initialize force state (disabled for radial tech tree mode)
@@ -248,10 +297,12 @@ export class OntologyCanvasEngine {
     this.cameraOffsetX += (this.targetOffsetX - this.cameraOffsetX) * LERP_SPEED;
     this.cameraOffsetY += (this.targetOffsetY - this.cameraOffsetY) * LERP_SPEED;
 
-    // Update orbital angles
-    for (const node of this.nodes) {
-      if (node.orbitIndex === 0) continue;
-      node.orbitAngle += node.orbitSpeed;
+    // Update orbital angles if enabled
+    if (this.isOrbiting) {
+      for (const node of this.nodes) {
+        if (node.orbitIndex === 0) continue;
+        node.orbitAngle += node.orbitSpeed;
+      }
     }
 
     // ── Radial Tech Tree Mode: Disable Force Relaxation ──
@@ -330,7 +381,14 @@ export class OntologyCanvasEngine {
     // 3. Apply forces → velocity → offset
     for (let i = 0; i < n; i++) {
       const node = this.nodes[i];
-      if (node.orbitIndex === 0) continue; // center is pinned
+      if (node.orbitIndex === 0) {
+        // Absolutely pin the center node exactly at the coordinate origin
+        this.forceOffsetX.set(node.id, 0);
+        this.forceOffsetY.set(node.id, 0);
+        this.velocityX.set(node.id, 0);
+        this.velocityY.set(node.id, 0);
+        continue;
+      }
 
       let vx = (this.velocityX.get(node.id) || 0) + fx[i];
       let vy = (this.velocityY.get(node.id) || 0) + fy[i];
@@ -404,6 +462,26 @@ export class OntologyCanvasEngine {
       node.renderY = cy + tiltedY * this.zoom;
       node.renderZ = renderZ;
     }
+
+    // Apply pending camera tracking instantly (after positions are known)
+    if (this.pendingCameraTargetId) {
+      const target = this.nodeMap.get(this.pendingCameraTargetId);
+      if (target) {
+        // Calculate offset algebraically to center the node
+        // target.renderX calculation was: (canvasW/2 + cameraOffsetX) + worldX * zoom
+        // We want target.renderX to equal canvasW/2 when the next frame computes.
+        // Therefore, targetOffsetX + worldX * zoom = 0 => targetOffsetX = - (worldX * zoom)
+        // But since we already have node.renderX with current offsets:
+        // targetOffsetX = this.cameraOffsetX - (target.renderX - canvasW/2)
+        const snapX = this.cameraOffsetX - (target.renderX - canvasW / 2);
+        const snapY = this.cameraOffsetY - (target.renderY - canvasH / 2);
+        
+        // We set the target offset so it smooth-scrolls (LERP_SPEED handles the rest)
+        this.targetOffsetX = snapX;
+        this.targetOffsetY = snapY;
+      }
+      this.pendingCameraTargetId = null;
+    }
   }
 
   // ============ Render ============
@@ -447,7 +525,7 @@ export class OntologyCanvasEngine {
     const centerY = h / 2 + this.cameraOffsetY;
     const cosTilt = Math.cos(this.cameraTilt);
 
-    ctx.strokeStyle = 'rgba(170,180,200,0.10)';
+    ctx.strokeStyle = 'rgba(170,180,200,0.35)';
     ctx.lineWidth = 1;
 
     for (let i = 1; i <= NUM_ORBITS; i++) {
@@ -589,7 +667,7 @@ export class OntologyCanvasEngine {
       const hasActiveSelection = !!activeId && activeId !== this.centerNode?.id;
 
       const depthAlpha = 0.4 + (node.renderZ + 1) * 0.3;
-      const baseColor = GROUP_COLORS[node.group as OntologyGroup] || GROUP_COLORS.OTHER;
+      const baseColor = node.customColor || GROUP_COLORS[node.group as OntologyGroup] || GROUP_COLORS.OTHER;
 
       // Determine opacity
       let opacity = hasActiveSelection
@@ -603,32 +681,32 @@ export class OntologyCanvasEngine {
 
       // ── Center Sun ──
       if (isCenter) {
-        // Large glow
+        // Large glow (softened)
         const glow = ctx.createRadialGradient(
           node.renderX, node.renderY, r * 0.5,
           node.renderX, node.renderY, r * 6,
         );
-        glow.addColorStop(0, this.colorWithAlpha(baseColor, 0.12));
-        glow.addColorStop(0.5, this.colorWithAlpha(baseColor, 0.04));
+        glow.addColorStop(0, this.colorWithAlpha(baseColor, 0.05));
+        glow.addColorStop(0.5, this.colorWithAlpha(baseColor, 0.01));
         glow.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = glow;
         ctx.beginPath();
         ctx.arc(node.renderX, node.renderY, r * 6, 0, 2 * Math.PI);
         ctx.fill();
 
-        // Corona
+        // Corona (softened)
         const corona = ctx.createRadialGradient(
           node.renderX, node.renderY, r * 0.8,
           node.renderX, node.renderY, r * 2.5,
         );
-        corona.addColorStop(0, this.colorWithAlpha(baseColor, 0.25));
+        corona.addColorStop(0, this.colorWithAlpha(baseColor, 0.08));
         corona.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = corona;
         ctx.beginPath();
         ctx.arc(node.renderX, node.renderY, r * 2.5, 0, 2 * Math.PI);
         ctx.fill();
 
-        // 3D Highlight Layer
+        // 3D Highlight Layer (Muted, pastel tone)
         const baseR = node.nodeRadius * this.zoom;
         const x = node.renderX;
         const y = node.renderY;
@@ -642,8 +720,8 @@ export class OntologyCanvasEngine {
           x, y, sizeOverride
         );
         gradient.addColorStop(0, '#ffffff'); // bright spot
-        gradient.addColorStop(0.3, nodeColor);
-        gradient.addColorStop(1, '#000000'); // shadow edge
+        gradient.addColorStop(0.3, this.lightenColor(nodeColor, 0.4)); // Faint/Pastel variant
+        gradient.addColorStop(1, this.lightenColor(nodeColor, 0.1)); // Soft border instead of harsh black
         ctx.fillStyle = gradient;
         ctx.beginPath();
         ctx.arc(node.renderX, node.renderY, r, 0, 2 * Math.PI);
@@ -813,8 +891,10 @@ export class OntologyCanvasEngine {
       if (this.activeNode?.id === hit.id) {
         // Toggle off → just deselect, maintain camera pos
         this.activeNode = this.centerNode;
+        this.previousActiveNodeId = this.centerNode?.id || null;
       } else {
         this.activeNode = hit;
+        this.previousActiveNodeId = hit.id;
         // Center clicked node on screen
         const screenCenterX = this.canvasW / 2;
         const screenCenterY = this.canvasH / 2;
@@ -824,6 +904,7 @@ export class OntologyCanvasEngine {
     } else {
       // Click empty space → deselect, maintain camera pos
       this.activeNode = this.centerNode;
+      this.previousActiveNodeId = this.centerNode?.id || null;
     }
     this.callbacks.onActiveNodeChange?.(this.activeNode);
   }
@@ -886,21 +967,9 @@ export class OntologyCanvasEngine {
       const worldX = (nx - cx) / this.zoom;
       const worldY = (ny - cy) / this.zoom / Math.cos(this.cameraTilt);
       
-      // Calculate angle from center (0,0) to mouse position
-      // ELLIPSE_RATIO expands the X axis so we inverse-scale it back to get pure angle
-      const angle = Math.atan2(worldY, worldX / ELLIPSE_RATIO);
-      
-      // Force node to strictly stay on its orbit track
-      const orbR = this.orbitRadii[this.draggedNode.orbitIndex];
-      if (orbR !== undefined && orbR > 0) {
-        this.draggedNode.orbitAngle = angle;
-        this.draggedNode.fixedX = Math.cos(angle) * orbR * ELLIPSE_RATIO;
-        this.draggedNode.fixedY = Math.sin(angle) * orbR;
-      } else {
-        // Fallback or Center node
-        this.draggedNode.fixedX = worldX;
-        this.draggedNode.fixedY = worldY;
-      }
+      // Just temporarily track mouse visually without snapping to orbits
+      this.draggedNode.fixedX = worldX;
+      this.draggedNode.fixedY = worldY;
     } else {
       // Camera Panning
       const dx = nx - this.lastDragX;
@@ -917,9 +986,56 @@ export class OntologyCanvasEngine {
   }
 
   handleDragEnd(): void {
-    if (this.draggedNode) {
-      // Fire callback to save the pinned position
-      this.callbacks.onNodeDragged?.(this.draggedNode.id, this.draggedNode.fixedX!, this.draggedNode.fixedY!);
+    if (this.draggedNode && this.hasDragged) {
+      let closestCat: OrbitalNode | null = null;
+      let minSqDist = Infinity;
+      
+      for (const node of this.nodes) {
+        // Any node (including Center Orbit 0) except self can act as a structural parent
+        if (node.id !== this.draggedNode.id) {
+          const dx = node.renderX - this.draggedNode.renderX;
+          const dy = node.renderY - this.draggedNode.renderY;
+          const sqDist = dx * dx + dy * dy;
+          // Only snap if relatively close (e.g., within 200px) so they aren't forcibly reparented to distant nodes when adjusting orbit
+          if (sqDist < 40000 && sqDist < minSqDist) {
+            minSqDist = sqDist;
+            closestCat = node;
+          }
+        }
+      }
+
+      // Compute the orbit ring based on dragged unscaled distance
+      let closestOrbit = this.draggedNode.orbitIndex;
+      let targetParentId: string | undefined = closestCat ? closestCat.id : undefined;
+
+      if (this.draggedNode.fixedX !== undefined && this.draggedNode.fixedY !== undefined) {
+        const distFromCenter = Math.sqrt((this.draggedNode.fixedX * this.draggedNode.fixedX) / (ELLIPSE_RATIO * ELLIPSE_RATIO) + this.draggedNode.fixedY * this.draggedNode.fixedY);
+        
+        // If dropped very close to the geometric center, promote to Orbit 0 (New Center)
+        if (distFromCenter < 70) {
+          closestOrbit = 0;
+          targetParentId = undefined; // Center node has no structural parent
+        } else {
+          let minOrbitDiff = Infinity;
+          // Check outer orbits starting from 1
+          for (let i = 1; i < this.orbitRadii.length; i++) {
+            const diff = Math.abs(distFromCenter - this.orbitRadii[i]);
+            if (diff < minOrbitDiff) {
+              minOrbitDiff = diff;
+              closestOrbit = i;
+            }
+          }
+        }
+      }
+      
+      // Auto reparent to the category OR promote to center
+      if (targetParentId || closestOrbit === 0) {
+        this.callbacks.onNodeReparent?.(this.draggedNode.id, targetParentId, closestOrbit);
+      }
+      
+      // Unpin immediately so physics recalcs around new parent
+      this.draggedNode.fixedX = undefined;
+      this.draggedNode.fixedY = undefined;
     }
     this.isDragging = false;
     this.draggedNode = null;
