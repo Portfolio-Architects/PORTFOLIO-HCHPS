@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { OntologyNode, OntologyEdge, OntologyGroup } from '@/lib/ontology.types';
+import { readSheet, replaceAll } from '@/lib/sheets-api';
 
 const STORAGE_KEY = 'hchps-map-customization';
 
@@ -42,10 +43,40 @@ export function useGraphCustomization() {
   const [past, setPast] = useState<MapCustomizationData[]>([]);
   const [future, setFuture] = useState<MapCustomizationData[]>([]);
 
+  // 1) 초기 클라우드 로딩
+  const initialLoadDone = useRef(false);
   useEffect(() => {
+    if (initialLoadDone.current) return;
+    initialLoadDone.current = true;
+
+    readSheet<MapCustomizationData & { id: string }>('MAP_CUSTOMIZATION')
+      .then(rows => {
+        if (rows.length > 0 && rows[0].overrides) {
+          setData(rows[0]);
+          try { localStorage.setItem(STORAGE_KEY, JSON.stringify(rows[0])); } catch { /* ignore */ }
+        }
+      })
+      .catch(console.warn);
+  }, []);
+
+  // 2) 데이터 변경 시 로컬 캐싱 및 클라우드 동기화 (간단한 디바운스 적용)
+  const isFirstDataSave = useRef(true);
+  useEffect(() => {
+    if (isFirstDataSave.current) {
+      isFirstDataSave.current = false;
+      return; // 초기 마운트 시 불필요한 클라우드 쓰기 방지
+    }
+
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     } catch { /* ignore */ }
+
+    // 디바운스: 짧은 시간 안에 발생하는 드래그 이벤트 등 다중 쓰기를 묶어서 처리
+    const timer = setTimeout(() => {
+      replaceAll('MAP_CUSTOMIZATION', [{ id: 'singleton', ...data }]).catch(console.warn);
+    }, 1500);
+
+    return () => clearTimeout(timer);
   }, [data]);
 
   const updateData = useCallback((updater: (prev: MapCustomizationData) => MapCustomizationData) => {

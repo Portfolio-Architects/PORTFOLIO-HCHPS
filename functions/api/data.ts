@@ -18,7 +18,8 @@ const ALLOWED_SHEETS = new Set([
   'TASKS', 'MEETINGS', 'PROJECTS',
   'BUDGET_CATEGORIES', 'BUDGET_ENTRIES',
   'INVENTORY', 'STOCK_CHANGES',
-  'SIGNAL_LOG', 'KNOWLEDGE'
+  'SIGNAL_LOG', 'KNOWLEDGE',
+  'MAP_CUSTOMIZATION'
 ]);
 
 function kvKey(sheet: string): string {
