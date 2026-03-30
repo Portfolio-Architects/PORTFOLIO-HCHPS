@@ -52,8 +52,8 @@ export class OntologyCanvasEngine {
   cameraTilt = 0.6;  // tilted 2D
   cameraOffsetX = 0;
   cameraOffsetY = 0;
-  private targetOffsetX = 0;
-  private targetOffsetY = 0;
+  targetOffsetX = 0;
+  targetOffsetY = 0;
 
   // Physics / Interaction
   isOrbiting = false;
@@ -65,7 +65,7 @@ export class OntologyCanvasEngine {
   private lastDragY = 0;
   private dragStartTilt = 0;
   private draggedNode: OrbitalNode | null = null;
-  private previousActiveNodeId: string | null = null;
+  previousActiveNodeId: string | null = null;
   private pendingCameraTargetId: string | null = null;
 
   // Stats
@@ -305,120 +305,108 @@ export class OntologyCanvasEngine {
       }
     }
 
-    // ── Radial Tech Tree Mode: Disable Force Relaxation ──
-    // Because we specifically want the nodes to align perfectly in clock-hands (rays)
-    // we skip the spring physics to maintain pure geometric alignment.
-    /* 
-    if (this.forceTickCount < FORCE_WARMUP_TICKS) {
+    // ── Angular Radial Physics ──
+    // 노드들이 동일 궤도상에서 겹치지 않고 자연스럽게 밀어내며 부모-자식 간에는 방사형으로 정렬되도록 각도 물리엔진 적용
+    if (this.forceTickCount < 600 || this.isDragging) {
       this.forceTickCount++;
-      const progress = this.forceTickCount / FORCE_WARMUP_TICKS;
-      const alpha = FORCE_ALPHA * (1 - progress); 
+      // 서서히 물리력을 줄여 완전히 안정화(Settled)되도록 합니다
+      const progress = Math.min(1, this.forceTickCount / 600);
+      const alpha = Math.max(0.005, 1 - progress); 
       this.applyForces(alpha);
-    } 
-    */
+    }
   }
 
   private applyForces(alpha: number): void {
     const n = this.nodes.length;
-    // Temporary force accumulators
-    const fx = new Float64Array(n);
-    const fy = new Float64Array(n);
+    const forceQ = new Float64Array(n);
 
-    // Build index map for O(1) lookup (avoids O(n) indexOf in loop)
     const idxMap = new Map<string, number>();
     for (let i = 0; i < n; i++) idxMap.set(this.nodes[i].id, i);
 
-    // 1. Charge repulsion (all pairs)
+    // 1. Angular Repulsion (Avoid node text/bubble overlap on same or adjacent orbits)
     for (let i = 0; i < n; i++) {
       const a = this.nodes[i];
-      if (a.orbitIndex === 0) continue; // skip center
-      const ax = a.renderX;
-      const ay = a.renderY;
+      if (a.orbitIndex === 0 || a.fixedX !== undefined) continue;
 
       for (let j = i + 1; j < n; j++) {
         const b = this.nodes[j];
-        if (b.orbitIndex === 0) continue;
+        if (b.orbitIndex === 0 || b.fixedX !== undefined) continue;
 
-        const dx = ax - b.renderX;
-        const dy = ay - b.renderY;
-        const distSq = dx * dx + dy * dy + 1; // +1 to avoid zero
-        const dist = Math.sqrt(distSq);
+        const orbitDiff = Math.abs(a.orbitIndex - b.orbitIndex);
+        if (orbitDiff > 1) continue; // 밀어내기는 같은 궤도 혹은 바로 옆 궤도까지만 적용
 
-        // Coulomb force: F = charge / dist²
-        const force = CHARGE_STRENGTH * alpha / distSq;
-        const forceX = (dx / dist) * force;
-        const forceY = (dy / dist) * force;
+        let angleDiff = a.orbitAngle - b.orbitAngle;
+        while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+        while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
 
-        fx[i] -= forceX;
-        fy[i] -= forceY;
-        fx[j] += forceX;
-        fy[j] += forceY;
+        const absDiff = Math.abs(angleDiff);
+        
+        // 안쪽 궤도일수록 물리적 원주 넓이는 좁지만 차지하는 비중이 큽니다.
+        // 1차 카테고리(Orbit 1)의 경우 맵의 기둥 역할을 하므로, 서로 완벽하게 360도를 등분하도록(항상 서로 밀어내도록) 설정합니다.
+        let baseThreshold = 0.20;
+        if (a.orbitIndex === 1) baseThreshold = Math.PI; // 360도 전 영역에서 밀어내어 완벽한 등간격 방사형 정렬
+        else if (a.orbitIndex === 2) baseThreshold = 0.6; // 약 34도 이내면 밀어냄
+        else if (a.orbitIndex === 3) baseThreshold = 0.35; // 약 20도 이내면 밀어냄
+        
+        const repulsionThreshold = orbitDiff === 0 ? baseThreshold : baseThreshold * 0.6;
+
+        if (absDiff === 0) angleDiff = (Math.random() - 0.5) * 0.05;
+
+        // 밀어내는 로직
+        if (absDiff < repulsionThreshold) {
+          const strength = (0.08 * alpha) * (1 - absDiff / repulsionThreshold) * Math.sign(angleDiff);
+          
+          if (a.orbitIndex === 1 && b.orbitIndex > 1) {
+            // a(1차)는 흔들리지 않고, b(2차 이상)만 밀려납니다
+            forceQ[j] -= strength;
+          } else if (b.orbitIndex === 1 && a.orbitIndex > 1) {
+            // b(1차)는 흔들리지 않고, a(2차 이상)만 밀려납니다
+            forceQ[i] += strength;
+          } else {
+            // 동급 궤도간에는 정상적으로 서로 밀어냅니다
+            forceQ[i] += strength;
+            forceQ[j] -= strength;
+          }
+        }
       }
     }
 
-    // 2. Link attraction (edges only)
+    // 2. Link Attraction (Edges act as angular springs pointing to same ray)
     for (const edge of this.edges) {
-      const src = this.nodeMap.get(edge.source);
-      const tgt = this.nodeMap.get(edge.target);
-      if (!src || !tgt) continue;
-      if (src.orbitIndex === 0 || tgt.orbitIndex === 0) continue;
-
       const srcIdx = idxMap.get(edge.source) ?? -1;
       const tgtIdx = idxMap.get(edge.target) ?? -1;
       if (srcIdx < 0 || tgtIdx < 0) continue;
 
-      const dx = tgt.renderX - src.renderX;
-      const dy = tgt.renderY - src.renderY;
-      const dist = Math.sqrt(dx * dx + dy * dy + 1);
-      const strength = LINK_STRENGTH * Math.abs(edge.weight) * alpha;
+      const src = this.nodes[srcIdx];
+      const tgt = this.nodes[tgtIdx];
+      
+      // 중심 노드(0)와의 엣지는 각도 정렬에서 무시
+      if (src.orbitIndex === 0 || tgt.orbitIndex === 0) continue;
 
-      fx[srcIdx] += dx * strength;
-      fy[srcIdx] += dy * strength;
-      fx[tgtIdx] -= dx * strength;
-      fy[tgtIdx] -= dy * strength;
+      let angleDiff = tgt.orbitAngle - src.orbitAngle;
+      while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+      while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+
+      // 당기는 힘도 0.08 -> 0.015 로 낮춰 튕기지 않도록 안정화
+      const pull = angleDiff * 0.015 * alpha;
+      
+      // 1차 카테고리(Orbit 1)는 자식의 무게(편향)에 끌려가지 않고 꿋꿋이 일정한 간격을 유지하도록 당기는 힘을 받지 않음
+      if (src.orbitIndex !== 1) forceQ[srcIdx] += pull;
+      if (tgt.orbitIndex !== 1) forceQ[tgtIdx] -= pull;
     }
 
-    // 3. Apply forces → velocity → offset
+    // 3. Apply angular delta (No XY offset manipulation, strictly locks onto orbit rings!)
     for (let i = 0; i < n; i++) {
-      const node = this.nodes[i];
-      if (node.orbitIndex === 0) {
-        // Absolutely pin the center node exactly at the coordinate origin
-        this.forceOffsetX.set(node.id, 0);
-        this.forceOffsetY.set(node.id, 0);
-        this.velocityX.set(node.id, 0);
-        this.velocityY.set(node.id, 0);
-        continue;
-      }
-
-      let vx = (this.velocityX.get(node.id) || 0) + fx[i];
-      let vy = (this.velocityY.get(node.id) || 0) + fy[i];
-
-      // Damping
-      vx *= DAMPING;
-      vy *= DAMPING;
-
-      // Clamp velocity
-      const speed = Math.sqrt(vx * vx + vy * vy);
-      if (speed > MAX_VELOCITY) {
-        vx = (vx / speed) * MAX_VELOCITY;
-        vy = (vy / speed) * MAX_VELOCITY;
-      }
-
-      this.velocityX.set(node.id, vx);
-      this.velocityY.set(node.id, vy);
-
-      // Update offset from orbital base position
-      const ox = (this.forceOffsetX.get(node.id) || 0) + vx;
-      const oy = (this.forceOffsetY.get(node.id) || 0) + vy;
-
-      // Restoring spring: keep offsets small (nodes stay on orbits)
-      const maxOffset = 40;
-      this.forceOffsetX.set(node.id, ox * 0.99);
-      this.forceOffsetY.set(node.id, oy * 0.99);
-
-      // Clamp max offset
-      if (Math.abs(ox) > maxOffset) this.forceOffsetX.set(node.id, Math.sign(ox) * maxOffset);
-      if (Math.abs(oy) > maxOffset) this.forceOffsetY.set(node.id, Math.sign(oy) * maxOffset);
+        const node = this.nodes[i];
+        if (node.orbitIndex === 0 || node.fixedX !== undefined) continue;
+        
+        // 프레임당 최대 이동 각도를 0.015 라디안(약 0.8도)으로 제한하여 화면 흔들림(진동) 완벽 차단
+        let delta = forceQ[i];
+        const maxDelta = 0.015;
+        if (Math.abs(delta) > maxDelta) {
+          delta = Math.sign(delta) * maxDelta;
+        }
+        node.orbitAngle += delta;
     }
   }
 
@@ -446,11 +434,8 @@ export class OntologyCanvasEngine {
         worldY = node.fixedY;
       } else {
         const orbR = this.orbitRadii[node.orbitIndex];
-        const orbitX = Math.cos(node.orbitAngle) * orbR * ELLIPSE_RATIO;
-        const orbitY = Math.sin(node.orbitAngle) * orbR;
-        // Apply offset forces (if any)
-        worldX = orbitX + (this.forceOffsetX.get(node.id) ?? 0);
-        worldY = orbitY + (this.forceOffsetY.get(node.id) ?? 0);
+        worldX = Math.cos(node.orbitAngle) * orbR * ELLIPSE_RATIO;
+        worldY = Math.sin(node.orbitAngle) * orbR;
       }
 
       // Map to isometric/tilted 3D space
@@ -537,8 +522,44 @@ export class OntologyCanvasEngine {
     }
   }
 
+  private getActiveTreeSet(): Set<string> {
+    const set = new Set<string>();
+    const rootId = this.activeNode?.id;
+    if (!rootId) return set;
+    
+    set.add(rootId);
+    
+    // 1-hop links
+    for (const edge of this.edges) {
+      if (edge.source === rootId) set.add(edge.target);
+      if (edge.target === rootId) set.add(edge.source);
+    }
+    
+    // Downward BFS (전체 하위 트리)
+    const queue = [rootId];
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      for (const edge of this.edges) {
+        if (edge.source === current && !set.has(edge.target)) {
+          set.add(edge.target);
+          queue.push(edge.target);
+        }
+      }
+    }
+    
+    // Upward parents (전체 상위 경로)
+    let currNode = this.nodeMap.get(rootId);
+    while (currNode && currNode.parentId) {
+      set.add(currNode.parentId);
+      currNode = this.nodeMap.get(currNode.parentId);
+    }
+    
+    return set;
+  }
+
   private renderEdges(ctx: CanvasRenderingContext2D): void {
     const activeId = this.activeNode?.id ?? null;
+    const activeTreeSet = this.getActiveTreeSet();
     const w = this.canvasW;
     const h = this.canvasH;
 
@@ -549,7 +570,7 @@ export class OntologyCanvasEngine {
       const tgt = this.nodeMap.get(edge.target);
       if (!src || !tgt) continue;
 
-      const isConnected = activeId && (edge.source === activeId || edge.target === activeId);
+      const isConnected = activeId && activeTreeSet.has(src.id) && activeTreeSet.has(tgt.id);
 
       // PERF: Skip non-connected edges when a node is selected (draw only faint batch below)
       if (activeId && !isConnected) continue;
@@ -647,6 +668,7 @@ export class OntologyCanvasEngine {
     const sorted = this.sortedNodes;
     const activeId = this.activeNode?.id;
     const hoveredId = this.hoveredNode?.id;
+    const activeTreeSet = this.getActiveTreeSet();
     const w = this.canvasW;
     const h = this.canvasH;
 
@@ -662,8 +684,8 @@ export class OntologyCanvasEngine {
       const isCenter = node.orbitIndex === 0;
       const isActive = node.id === activeId;
       const isHovered = node.id === hoveredId;
-      // O(1) connection check via pre-built Set
-      const isConnectedToActive = activeId ? this.connectionSet.has(node.id + '|||' + activeId) : false;
+      // 노드 자신 또는 1-hop, 하위, 상위 경로가 선택된 트리에 포함되는지 확인
+      const isConnectedToActive = activeTreeSet.has(node.id);
       const hasActiveSelection = !!activeId && activeId !== this.centerNode?.id;
 
       const depthAlpha = 0.4 + (node.renderZ + 1) * 0.3;
@@ -991,12 +1013,10 @@ export class OntologyCanvasEngine {
       let minSqDist = Infinity;
       
       for (const node of this.nodes) {
-        // Any node (including Center Orbit 0) except self can act as a structural parent
         if (node.id !== this.draggedNode.id) {
           const dx = node.renderX - this.draggedNode.renderX;
           const dy = node.renderY - this.draggedNode.renderY;
           const sqDist = dx * dx + dy * dy;
-          // Only snap if relatively close (e.g., within 200px) so they aren't forcibly reparented to distant nodes when adjusting orbit
           if (sqDist < 40000 && sqDist < minSqDist) {
             minSqDist = sqDist;
             closestCat = node;
@@ -1004,20 +1024,20 @@ export class OntologyCanvasEngine {
         }
       }
 
-      // Compute the orbit ring based on dragged unscaled distance
       let closestOrbit = this.draggedNode.orbitIndex;
       let targetParentId: string | undefined = closestCat ? closestCat.id : undefined;
+
+      // 만약 정밀하게 다른 노드 위(반경 100px 이내, sqDist 10000)에 드롭했다면 "해당 노드에 흡수(자식으로 편입)" 요청으로 간주합니다.
+      const isDirectDrop = closestCat !== null && minSqDist < 10000;
 
       if (this.draggedNode.fixedX !== undefined && this.draggedNode.fixedY !== undefined) {
         const distFromCenter = Math.sqrt((this.draggedNode.fixedX * this.draggedNode.fixedX) / (ELLIPSE_RATIO * ELLIPSE_RATIO) + this.draggedNode.fixedY * this.draggedNode.fixedY);
         
-        // If dropped very close to the geometric center, promote to Orbit 0 (New Center)
         if (distFromCenter < 70) {
           closestOrbit = 0;
-          targetParentId = undefined; // Center node has no structural parent
+          targetParentId = undefined;
         } else {
           let minOrbitDiff = Infinity;
-          // Check outer orbits starting from 1
           for (let i = 1; i < this.orbitRadii.length; i++) {
             const diff = Math.abs(distFromCenter - this.orbitRadii[i]);
             if (diff < minOrbitDiff) {
@@ -1025,15 +1045,24 @@ export class OntologyCanvasEngine {
               closestOrbit = i;
             }
           }
+          
+          if (isDirectDrop && closestCat) {
+            // 다른 노드 위로 정확히 올렸을 때 -> 궤도를 떠나서 강제로 흡수(자식 노드로 편입)
+            targetParentId = closestCat.id;
+            closestOrbit = closestCat.orbitIndex === 0 ? 1 : closestCat.orbitIndex + 1;
+          } else if (closestOrbit === 1) {
+            // 빈 공간 1번 궤도 위에 놓았을 때 -> 독립 카테고리 승격 (명시적으로 중앙 태양 노드를 부모로 지정)
+            targetParentId = 'root-HCHPS';
+          } else if (closestOrbit >= 2 && !targetParentId) {
+            // 안쪽 궤도로 떨어뜨렸는데 주변에 마땅한 부모가 없으면 기존 부모 유지
+            targetParentId = this.draggedNode.parentId;
+          }
         }
       }
       
-      // Auto reparent to the category OR promote to center
-      if (targetParentId || closestOrbit === 0) {
-        this.callbacks.onNodeReparent?.(this.draggedNode.id, targetParentId, closestOrbit);
-      }
+      // 드래그된 궤도/부모 결과를 항상 저장 (fixedX/Y 해제 포함)
+      this.callbacks.onNodeReparent?.(this.draggedNode.id, targetParentId, closestOrbit);
       
-      // Unpin immediately so physics recalcs around new parent
       this.draggedNode.fixedX = undefined;
       this.draggedNode.fixedY = undefined;
     }

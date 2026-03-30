@@ -64,7 +64,13 @@ export default function Home() {
   const { entries: knowledgeEntries, addKnowledge, updateKnowledge, deleteKnowledge, filterKnowledge, metadata: knowledgeMetadata } = useKnowledge();
 
   // Prevent hydration mismatch — hooks read localStorage data on client
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    setMounted(true);
+    const saved = localStorage.getItem('hchps_active_module');
+    if (saved === 'workspace' || saved === 'knowledge' || saved === 'mindmap') {
+      setActiveModule(saved);
+    }
+  }, []);
 
   // Swipe gesture state
   const touchStartX = useRef<number | null>(null);
@@ -72,6 +78,7 @@ export default function Home() {
 
   const handleModuleChange = (module: ModuleType) => {
     setActiveModule(module);
+    localStorage.setItem('hchps_active_module', module);
   };
 
   const handleTouchStart = (e: React.TouchEvent) => {

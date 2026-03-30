@@ -43,6 +43,7 @@ export function buildSignalGraph(
     group: 'CORE_PROJECT', // Vivid Blue
     baseValue: 100,
     centralityScore: 10000,
+    customColor: '#94a3b8', // 흐릿한 회색 (slate-400)
   });
 
   // 2. Extract Orbit 1 Tags (Category constraints from Tasks/Modules)
@@ -82,13 +83,28 @@ export function buildSignalGraph(
     const id = `tag-${tag}`;
     const groupAssign = categoryGroups[i % categoryGroups.length];
     
+    // 1차 카테고리 초기 색상 랜덤 (태그 문자열 해싱 기반으로 안정적인 랜덤 생성)
+    let hash = 0;
+    for (let j = 0; j < tag.length; j++) {
+      hash = tag.charCodeAt(j) + ((hash << 5) - hash);
+    }
+    
+    // Canvas 엔진(colorWithAlpha 등)이 HEX 형식을 요구하므로, 파스텔톤 HEX 팔레트에서 선택
+    const hexPalette = [
+      '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', 
+      '#ef4444', '#14b8a6', '#f97316', '#84cc16', '#6366f1',
+      '#0ea5e9', '#d946ef', '#eab308', '#f43f5e', '#8b5cf6'
+    ];
+    const stableColor = hexPalette[Math.abs(hash) % hexPalette.length];
+
     tagNodesMap.set(tag, id);
     tagGroupMap.set(tag, groupAssign);
 
     nodes.push({
       id,
       label: tag === '💭 미분류' ? tag : `#${tag}`,
-      group: groupAssign, // Assigned cycle color per category branch
+      group: groupAssign,
+      customColor: stableColor,
       baseValue: 80,
       centralityScore: 1000 - i, // Orbit 1
     });
@@ -241,6 +257,7 @@ export function buildSignalGraph(
     forcedCenterNode.centralityScore = 9999999;
     forcedCenterNode.parentId = undefined;
     forcedCenterNode.group = 'CORE_PROJECT'; // Shift to core group identity
+    forcedCenterNode.customColor = '#94a3b8'; // 중앙 노드는 흐릿한 회색 고정
     forcedCenterNode.fixedX = undefined;     // <--- Must clear baked custom node coords to center perfectly!
     forcedCenterNode.fixedY = undefined;
     
@@ -285,6 +302,44 @@ export function buildSignalGraph(
       finalNodes = nodes.filter(n => !hiddens.has(n.id));
       finalEdges = edges.filter(e => !hiddens.has(e.source) && !hiddens.has(e.target));
     }
+  }
+
+  // --- 6. Top-Down Color Inheritance ---
+  // 1차 카테고리의 색상을 하위 노드 전체로 전파합니다.
+  const childMap = new Map<string, string[]>();
+  finalEdges.forEach(e => {
+    const current = childMap.get(e.source) || [];
+    current.push(e.target);
+    childMap.set(e.source, current);
+  });
+
+  const rootId = forcedCenterNode ? forcedCenterNode.id : 'root-HCHPS';
+  const queue = childMap.get(rootId) ? [...childMap.get(rootId)!] : []; 
+  const visited = new Set<string>([rootId]);
+  
+  while (queue.length > 0) {
+    const currentId = queue.shift()!;
+    if (visited.has(currentId)) continue;
+    visited.add(currentId);
+    
+    const currentNode = finalNodes.find(n => n.id === currentId);
+    if (!currentNode) continue;
+
+    const parentEdge = finalEdges.find(e => e.target === currentId);
+    if (parentEdge) {
+      const parentNode = finalNodes.find(n => n.id === parentEdge.source);
+      // 부모 노드가 시각적 색상을 갖고 있고, 중앙 노드(rootId)가 아니라면 색상을 다단계로 전파
+      if (parentNode && parentNode.customColor && parentNode.id !== rootId) {
+        // 단, 사용자가 명시적으로 색상을 지정한 노드는 덮어쓰지 않음
+        const explicitOverride = customData?.overrides[currentId]?.customColor;
+        if (!explicitOverride) {
+          currentNode.customColor = parentNode.customColor;
+        }
+      }
+    }
+
+    const children = childMap.get(currentId) || [];
+    queue.push(...children);
   }
 
   return { nodes: finalNodes, edges: finalEdges };

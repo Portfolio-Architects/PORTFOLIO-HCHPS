@@ -91,6 +91,8 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [newKeyword, setNewKeyword] = useState('');
   const [edgeModeSource, setEdgeModeSource] = useState<string | null>(null);
+  const edgeModeSourceRef = useRef(edgeModeSource);
+  useEffect(() => { edgeModeSourceRef.current = edgeModeSource; }, [edgeModeSource]);
 
   // 직관적이고 구분이 또렷한 원색(Vivid/Primary) 컬러 팔레트 배정
   const PRESET_COLORS = ['#FF2222', '#FF8800', '#FFDD00', '#00CC44', '#00BBDD', '#0055FF', '#8800FF', '#FF00AA', '#111111', '#FFFFFF'];
@@ -113,16 +115,46 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
       engine.init(graph);
       engine.isOrbiting = isOrbitingRef.current;
 
+      // ----- 카메라 및 선택 상태 유지 (깜빡임/리셋 방지) -----
+      if (engineRef.current) {
+        engine.cameraOffsetX = engineRef.current.cameraOffsetX;
+        engine.cameraOffsetY = engineRef.current.cameraOffsetY;
+        engine.targetOffsetX = engineRef.current.targetOffsetX;
+        engine.targetOffsetY = engineRef.current.targetOffsetY;
+        engine.zoom = engineRef.current.zoom;
+        
+        if (engineRef.current.activeNode) {
+          const stillExists = engine.nodes.find(n => n.id === engineRef.current!.activeNode!.id);
+          if (stillExists) {
+            engine.activeNode = stillExists;
+            engine.previousActiveNodeId = stillExists.id;
+          }
+        }
+      }
+
       engineRef.current = engine;
 
       // Set state AFTER engine is fully initialized (no callbacks during init)
-      const initialNode = engine.centerNode;
+      const initialNode = engine.activeNode || engine.centerNode;
       const initialEdges = initialNode ? engine.getConnectedEdges(initialNode.id) : [];
       const initialStats = { nodes: engine.nodeCount, edges: engine.edgeCount };
 
       // Attach callbacks AFTER init for user interaction
       engine.callbacks = {
         onActiveNodeChange: (node) => {
+          // 대상 노드 찍기 (선분 연결 모드) 동작 처리
+          if (edgeModeSourceRef.current && node && node.id !== edgeModeSourceRef.current) {
+             const parentId = edgeModeSourceRef.current;
+             // 타겟 노드의 부모를 edgeModeSource로 설정 (의존성 생성)
+             setNodeOverride(node.id, { customParent: parentId, fixedX: undefined, fixedY: undefined });
+             setEdgeModeSource(null);
+             setTimeout(() => initEngine(), 30);
+             return;
+          }
+          if (node?.id === edgeModeSourceRef.current) {
+             setEdgeModeSource(null); // 자기자신을 한 번 더 누르면 취소
+          }
+
           setActiveNode(node ?? null);
           if (node && engineRef.current) {
             setConnectedEdges(engineRef.current.getConnectedEdges(node.id));
@@ -646,29 +678,33 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                         >
                           <Waypoints size={12} /> {edgeModeSource === activeNode.id ? '대상 노드 찍기...' : '이 노드에서 선분 연결'}
                         </button>
+                        
+                        {activeNode.orbitIndex >= 2 && (
+                          <button
+                            onClick={() => {
+                              if (confirm(`'${activeNode.label}' 노드를 1차 카테고리로 승격시킬까요?\n\n이 노드는 현재 부모에게서 떨어져 나와 독립적인 축(방사형 뿌리)를 형성하게 됩니다.`)) {
+                                setNodeOverride(activeNode.id, { customParent: 'root-HCHPS', customOrbitIndex: 1, fixedX: undefined, fixedY: undefined });
+                                setTimeout(() => initEngine(), 30);
+                              }
+                            }}
+                            className="flex items-center gap-1 px-2 py-1 bg-indigo-50 border border-indigo-200 rounded text-xs font-medium text-indigo-600 hover:bg-indigo-100 cursor-pointer shadow-sm"
+                            title="부모 노드에서 분리하여 독립시키기"
+                          >
+                            <Zap size={12} /> 1차 카테고리로 승격
+                          </button>
+                        )}
+
                         <div className="flex-1 min-w-[20px]" /> {/* Spacer to push actions entirely right */}
                         
                         <button
                           onClick={() => {
-                            if (confirm('이 노드를 화면에서 숨길까요?\n(데이터는 지워지지 않으며, 초기화 시 복구할 수 있습니다)')) {
-                              setNodeOverride(activeNode.id, { hidden: true });
-                              if (engineRef.current) {
-                                engineRef.current.nodes = engineRef.current.nodes.filter(n => n.id !== activeNode.id);
-                                engineRef.current.edges = engineRef.current.edges.filter(e => e.source !== activeNode.id && e.target !== activeNode.id);
-                                setActiveNode(null);
-                              }
-                            }
-                          }}
-                          className="flex items-center gap-1 px-2 py-1 bg-orange-50 border border-orange-200 rounded text-xs font-medium text-orange-600 hover:bg-orange-100 cursor-pointer"
-                          title="화면에서 지우기"
-                        >
-                          <Eraser size={12} /> 숨기기
-                        </button>
-
-                        {(activeNode.id.startsWith('custom-') || activeNode.orbitIndex === 1) && (
-                          <button
-                            onClick={() => {
-                              if (confirm('이 카테고리(또는 노드)를 완전히 삭제할까요?\n(주의: 시스템 전체에서 태그/데이터가 제거됩니다)')) {
+                            const isDeepDelete = activeNode.id.startsWith('custom-') || activeNode.orbitIndex === 1;
+                            const msg = isDeepDelete 
+                              ? '이 카테고리(또는 노드)를 완전히 삭제할까요?\n\n※ 연관된 태그나 데이터 연동이 해제될 수 있습니다.'
+                              : '이 노드를 맵에서 삭제할까요?\n\n※ 원본 데이터(업무/지식 등)는 보존되며 맵 화면에서만 지워집니다.';
+                            
+                            if (confirm(msg)) {
+                              if (isDeepDelete) {
                                 // Global sync for category deletion
                                 if ((activeNode.orbitIndex === 1 || activeNode.group === 'MACRO_RESEARCH') && onDeleteCategory) {
                                   onDeleteCategory(activeNode.label);
@@ -676,19 +712,23 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                                 if (activeNode.id.startsWith('custom-')) {
                                   deleteCustomNode(activeNode.id);
                                 }
-                                
-                                if (engineRef.current) {
-                                  engineRef.current.nodes = engineRef.current.nodes.filter(n => n.id !== activeNode.id);
-                                  engineRef.current.edges = engineRef.current.edges.filter(e => e.source !== activeNode.id && e.target !== activeNode.id);
-                                  setActiveNode(null);
-                                }
+                              } else {
+                                // Just hide from map
+                                setNodeOverride(activeNode.id, { hidden: true });
                               }
-                            }}
-                            className="flex items-center gap-1 px-2 py-1 bg-red-50 border border-red-200 rounded text-xs font-medium text-red-600 hover:bg-red-100 cursor-pointer"
-                          >
-                            <Trash2 size={12} /> {activeNode.orbitIndex === 1 ? '카테고리 삭제' : '노드 삭제'}
-                          </button>
-                        )}
+                              
+                              if (engineRef.current) {
+                                engineRef.current.nodes = engineRef.current.nodes.filter(n => n.id !== activeNode.id);
+                                engineRef.current.edges = engineRef.current.edges.filter(e => e.source !== activeNode.id && e.target !== activeNode.id);
+                                setActiveNode(null);
+                              }
+                            }
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 border border-red-200 rounded-lg text-xs font-bold text-red-600 hover:bg-red-100 hover:text-red-700 transition-colors shadow-sm cursor-pointer"
+                          title="삭제하기"
+                        >
+                          <Trash2 size={14} /> 삭제
+                        </button>
                       </div>
                     </div>
 
