@@ -46,7 +46,6 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [usingSample, setUsingSample] = useState(false);
-  const [isOrbiting, setIsOrbiting] = useState(false);
   const [activeNode, setActiveNode] = useState<OrbitalNode | null>(null);
   const [hoveredNode, setHoveredNode] = useState<OrbitalNode | null>(null);
   const [connectedEdges, setConnectedEdges] = useState<Array<{ edge: OntologyEdge; otherNode: OrbitalNode }>>([]);
@@ -81,11 +80,9 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   const overridesRef = useRef(overrides);
   const customNodesRef = useRef(customNodes);
   const customEdgesRef = useRef(customEdges);
-  const isOrbitingRef = useRef(isOrbiting);
   overridesRef.current = overrides;
   customNodesRef.current = customNodes;
   customEdgesRef.current = customEdges;
-  isOrbitingRef.current = isOrbiting;
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
@@ -112,8 +109,9 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
 
       const engine = new OntologyCanvasEngine();
       // Init WITHOUT callbacks to avoid triggering setState during init
-      engine.init(graph);
-      engine.isOrbiting = isOrbitingRef.current;
+      // 기존 노드들의 현재 위치(orbitAngle)를 백업(전달)하여 색상 변경 시의 카메라 급발진/순간이동 현상을 막습니다.
+      engine.init(graph, undefined, engineRef.current ? engineRef.current.nodes : undefined);
+      engine.isOrbiting = true;
 
       // ----- 카메라 및 선택 상태 유지 (깜빡임/리셋 방지) -----
       if (engineRef.current) {
@@ -181,12 +179,6 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
       setLoading(false);
     }
   }, []);
-
-  useEffect(() => {
-    if (engineRef.current) {
-      engineRef.current.isOrbiting = isOrbiting;
-    }
-  }, [isOrbiting]);
 
   // ── Animation Loop ──
   useEffect(() => {
@@ -439,26 +431,38 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
               시그널을 입력해주세요
             </span>
           )}
-          <button
-            onClick={() => setIsOrbiting((prev) => !prev)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold shadow-sm border cursor-pointer transition-colors ${
-              isOrbiting 
-                ? 'bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-100' 
-                : 'bg-white text-[var(--color-primary)] border-[var(--color-border-light)] hover:bg-gray-50'
-            }`}
-          >
-            {isOrbiting ? <Pause size={14} /> : <Play size={14} />} {isOrbiting ? '공전 정지' : '공전 시작'}
-          </button>
+
           <button
             onClick={() => {
               const label = prompt('추가할 노드 이름을 입력하세요:');
               if (label) {
-                const isCategory = confirm('이 노드를 [업무 카테고리(1번 궤도)]로 등록하여 태그로 연동할까요?\n\n확인: 카테고리로 추가\n취소: 일반 메모로 추가');
-                const x = (Math.random() - 0.5) * 100;
-                const y = (Math.random() - 0.5) * 100;
+                // 1번 궤도(기둥 카테고리) 목록 추출
+                const engine = engineRef.current;
+                const categories = engine ? engine.nodes.filter(n => n.orbitIndex === 1) : [];
+                
+                // 엔진 중앙에서 생성되도록 살짝 랜덤 좌표값 부여
+                const x = (Math.random() - 0.5) * 50;
+                const y = (Math.random() - 0.5) * 50;
                 const newNode = addCustomNode(label, x, y);
-                // If it's a category, we override its group to MACRO_RESEARCH so it joins orbit 1 and acts as category
-                if (isCategory) {
+
+                if (activeNode) {
+                  // 현재 클릭(선택)된 노드가 있다면, 새 노드를 그 노드의 직속 파생 자식으로 자동 배정
+                  setNodeOverride(newNode.id, { 
+                    customParent: activeNode.id,
+                    customOrbitIndex: activeNode.orbitIndex + 1,
+                    fixedX: undefined,
+                    fixedY: undefined
+                  });
+                } else if (categories.length > 0) {
+                  // 선택된 노드가 없으면 무작위 기둥 카테고리 하나를 골라 부모로 배정
+                  const randomCat = categories[Math.floor(Math.random() * categories.length)];
+                  setNodeOverride(newNode.id, { 
+                    customParent: randomCat.id,
+                    fixedX: undefined, 
+                    fixedY: undefined
+                  });
+                } else {
+                  // 등록된 카테고리가 아예 없다면 본인이 1번 궤도 기둥 카테고리로 승격
                   setNodeOverride(newNode.id, { customGroup: 'MACRO_RESEARCH' });
                 }
                 setTimeout(() => initEngine(), 10);
@@ -467,18 +471,6 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--color-primary)] text-white text-xs font-semibold hover:opacity-90 shadow-sm border border-emerald-600 cursor-pointer transition-colors"
           >
             <PlusSquare size={14} /> 노드 추가
-          </button>
-          <button
-            onClick={() => initEngine()}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-[var(--color-text-secondary)] hover:bg-gray-100 cursor-pointer transition-colors"
-          >
-            <RefreshCw size={12} /> 새로고침
-          </button>
-          <button
-            onClick={() => { clearOverrides(); initEngine(); }}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-[var(--color-text-secondary)] hover:bg-gray-100 cursor-pointer transition-colors"
-          >
-            초기화
           </button>
         </div>
       </div>
@@ -578,9 +570,6 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                       <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-600">
                         중요도 {activeNode.baseValue}
                       </span>
-                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-600">
-                        중심성 {((activeNode.centralityScore ?? 0) * 100).toFixed(0)}%
-                      </span>
                       <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-600">
                         연결 {connectedEdges.length}개
                       </span>
@@ -623,6 +612,8 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                                 if (engineNode) engineNode.customColor = c;
                                 setActiveNode({ ...activeNode, customColor: c });
                               }
+                              // 전체 재계산을 통해 자식 노드들에게도 색상 동기화를 트리거합니다
+                              setTimeout(() => initEngine(), 50);
                             }}
                             className="w-5 h-5 rounded-full shadow-sm hover:scale-110 transition-transform cursor-pointer border border-black/10"
                             style={{ backgroundColor: c }}
@@ -638,6 +629,8 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                               delete newNode.customColor;
                               setActiveNode(newNode);
                             }
+                            // 전체 재계산을 통해 자식 노드 탈색(복구) 처리 동기화
+                            setTimeout(() => initEngine(), 50);
                           }}
                           className="w-5 h-5 rounded-full flex items-center justify-center border border-gray-300 bg-white text-gray-500 hover:bg-gray-100 cursor-pointer text-[9px]"
                           title="색칠 지우기"
@@ -712,10 +705,10 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                                 if (activeNode.id.startsWith('custom-')) {
                                   deleteCustomNode(activeNode.id);
                                 }
-                              } else {
-                                // Just hide from map
-                                setNodeOverride(activeNode.id, { hidden: true });
                               }
+                              
+                              // 맵 화면에서는 항상 히든 처리합니다. (특히 '미분류' 같은 자동 생성 카테고리나, 서버 삭제 딜레이 시 빠른 UI 반영을 위함)
+                              setNodeOverride(activeNode.id, { hidden: true });
                               
                               if (engineRef.current) {
                                 engineRef.current.nodes = engineRef.current.nodes.filter(n => n.id !== activeNode.id);
@@ -740,9 +733,9 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                           연결된 항목 ({connectedEdges.length}개)
                         </div>
                         <div className="space-y-1 max-h-[280px] overflow-y-auto custom-scrollbar">
-                          {connectedEdges.map(({ edge, otherNode }) => (
+                          {connectedEdges.map(({ edge, otherNode }, idx) => (
                             <button
-                              key={otherNode.id}
+                              key={`${otherNode.id}-${idx}`}
                               onClick={() => handleNodeClickInPanel(otherNode.id)}
                               className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors text-left"
                             >
@@ -846,22 +839,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
             </div>
           </div>
 
-          {/* Domain legend (top-left) */}
-          <div className="absolute top-3 left-3 z-10">
-            <div className="bg-white/90 backdrop-blur rounded-lg px-3 py-2 shadow-sm border border-[var(--color-border-light)]">
-              <div className="grid grid-cols-2 gap-x-3 gap-y-1">
-                {(Object.entries(GROUP_LABELS) as [OntologyGroup, string][])
-                  .filter(([k]) => k !== 'OTHER')
-                  .map(([group, label]) => (
-                    <span key={group} className="flex items-center gap-1.5 text-[10px] text-[var(--color-text-secondary)]">
-                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: GROUP_COLORS[group] }} />
-                      {label}
-                    </span>
-                  ))
-                }
-              </div>
-            </div>
-          </div>
+          {/* Edge Legend (Removed as requested by user) */}
 
           {/* Hover tooltip */}
           {hoveredNode && hoveredNode.id !== activeNode?.id && (

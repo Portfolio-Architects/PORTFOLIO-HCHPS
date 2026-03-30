@@ -204,8 +204,17 @@ export function buildSignalGraph(
     nodes.forEach(n => {
       const override = customData.overrides[n.id];
       if (override) {
-        if (override.fixedX !== undefined) n.fixedX = override.fixedX;
-        if (override.fixedY !== undefined) n.fixedY = override.fixedY;
+        // --- X,Y 고정 좌표 무시 로직 ---
+        // 시스템 노드이거나, 사용자가 궤도로 끌어들인 커스텀 노드는 
+        // 물리 엔진(공전)에 무조건 편입되도록 과거의 강제 고정 좌표(fixed)를 무시합니다.
+        if (n.id.startsWith('custom-') && override.customParent === undefined && override.customOrbitIndex === undefined) {
+          if (override.fixedX !== undefined) n.fixedX = override.fixedX;
+          if (override.fixedY !== undefined) n.fixedY = override.fixedY;
+        } else {
+          n.fixedX = undefined;
+          n.fixedY = undefined;
+        }
+
         if (override.customColor !== undefined) n.customColor = override.customColor;
         if (override.customLabel !== undefined) n.label = override.customLabel;
         if (override.customGroup !== undefined) n.group = override.customGroup as OntologyGroup;
@@ -299,7 +308,15 @@ export function buildSignalGraph(
     });
 
     if (hiddens.size > 0) {
-      finalNodes = nodes.filter(n => !hiddens.has(n.id));
+      // 숨긴 노드 본인은 물론이고, 그 노드를 부모로 둔 자식 노드들까지 통째로 삭제(히든 처리)하여 가지치기(Pruning)합니다.
+      finalNodes = nodes.filter(n => {
+        if (hiddens.has(n.id)) return false;
+        if (n.parentId && hiddens.has(n.parentId)) {
+          hiddens.add(n.id); // 연쇄적인 하위 가지치기를 위해 자식도 hidden 셋에 추가
+          return false;
+        }
+        return true;
+      });
       finalEdges = edges.filter(e => !hiddens.has(e.source) && !hiddens.has(e.target));
     }
   }

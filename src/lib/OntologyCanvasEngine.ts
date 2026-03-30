@@ -5,7 +5,7 @@
 
 import {
   OntologyNode, OntologyEdge, OntologyGraph, OrbitalNode,
-  GROUP_COLORS, OntologyGroup, EDGE_TYPE_DASH, EdgeType,
+  GROUP_COLORS, OntologyGroup, EdgeType,
 } from './ontology.types';
 
 // ============ Constants ============
@@ -93,16 +93,26 @@ export class OntologyCanvasEngine {
   private forceSettled = false;
   private forceTickCount = 0;
 
-  // ============ Init ============
-
-  init(graph: OntologyGraph, callbacks?: EngineCallbacks): void {
-    this.callbacks = callbacks || {};
-    this.edges = graph.edges;
-    this.nodeCount = graph.nodes.length;
-    this.edgeCount = graph.edges.length;
-
-    // Pre-build connection set for O(1) lookup
-    this.connectionSet.clear();
+    // ============ Init ============
+  
+    init(graph: OntologyGraph, callbacks?: EngineCallbacks, prevNodes?: OrbitalNode[]): void {
+      this.callbacks = callbacks || {};
+      this.edges = graph.edges;
+      this.nodeCount = graph.nodes.length;
+      this.edgeCount = graph.edges.length;
+  
+      // 메모리에 잔존하는 NaN 카메라 좌표를 초기화하여 복구 (Hot Reload 시 캔버스 백화현상 방지)
+      if (isNaN(this.cameraOffsetX) || isNaN(this.cameraOffsetY) || 
+          isNaN(this.targetOffsetX) || isNaN(this.targetOffsetY)) {
+        this.cameraOffsetX = 0;
+        this.cameraOffsetY = 0;
+        this.targetOffsetX = 0;
+        this.targetOffsetY = 0;
+        this.zoom = 1;
+      }
+  
+      // Pre-build connection set for O(1) lookup
+      this.connectionSet.clear();
     for (const edge of this.edges) {
       this.connectionSet.add(edge.source + '|||' + edge.target);
       this.connectionSet.add(edge.target + '|||' + edge.source);
@@ -134,12 +144,26 @@ export class OntologyCanvasEngine {
 
     const nodesPerOrbit = Math.max(1, Math.ceil(otherNodes.length / NUM_ORBITS));
 
+    // 이전 엔진 상태(현재 공전 각도)를 백업해두어, 색상 변경 등으로 재초기화될 때 노드가 시작 좌표로 순간이동하는 현상(Whiplash)을 방지합니다.
+    const previousNodeMap = new Map<string, OrbitalNode>();
+    if (prevNodes) {
+      for (const n of prevNodes) {
+        previousNodeMap.set(n.id, n);
+      }
+    } else {
+      for (const n of this.nodes) {
+        previousNodeMap.set(n.id, n);
+      }
+    }
+
     // Build orbital nodes
     this.nodes = [];
     this.nodeMap.clear();
 
     // Center node
-    const centerOrbital = this.makeOrbitalNode(sorted[0], 0, 0, centerId, connectionMap);
+    const centerPre = previousNodeMap.get(sorted[0].id);
+    const centerAngle = (centerPre && typeof centerPre.orbitAngle === 'number' && !isNaN(centerPre.orbitAngle)) ? centerPre.orbitAngle : 0;
+    const centerOrbital = this.makeOrbitalNode(sorted[0], 0, centerAngle, centerId, connectionMap);
     this.nodes.push(centerOrbital);
     this.centerNode = centerOrbital;
     this.nodeMap.set(centerOrbital.id, centerOrbital);
@@ -157,8 +181,16 @@ export class OntologyCanvasEngine {
 
     categoriesByOrbit.forEach((catNodes, oIndex) => {
       const N = catNodes.length;
+      const randomRingOffset = Math.random() * Math.PI * 2;
       catNodes.forEach((node, i) => {
-        const angle = (2 * Math.PI * i / N);
+        let angle = (2 * Math.PI * i / N) + randomRingOffset;
+        
+        // 이전 엔진 상태 백업이 있다면 카테고리 기둥도 각도를 복원해야 합니다! (NaN 오염 방지)
+        const preData = previousNodeMap.get(node.id);
+        if (preData && typeof preData.orbitAngle === 'number' && !isNaN(preData.orbitAngle)) {
+          angle = preData.orbitAngle;
+        }
+
         const orbital = this.makeOrbitalNode(node, oIndex, angle, centerId, connectionMap);
         this.nodes.push(orbital);
         this.nodeMap.set(orbital.id, orbital);
@@ -196,19 +228,32 @@ export class OntologyCanvasEngine {
       // Spread each group in a fan (arc) around the parent's angle
       orbitGroups.forEach((groupNodes, oIndex) => {
         const N = groupNodes.length;
-        
-        // 0.22 radians is a nice visual gap for nodes. 
-        // Cap the max spread at slightly less than 360 degrees (Math.PI * 1.8) to prevent wrapping overlap
-        const totalSpreadAngle = Math.min(Math.PI * 1.5, N * 0.22); 
-        const startAngle = parent.orbitAngle - (totalSpreadAngle / 2);
-        const angleStep = N <= 1 ? 0 : totalSpreadAngle / (N - 1);
+        // 기둥 카테고리(1번 궤도)는 중앙 뿌리 주변 360도 전체에 균등하게 퍼뜨린 상태로 시작합니다 (우측 쏠림 후 펼쳐지는 애니메이션 방지)
+        const isCenterParent = parent.orbitIndex === 0;
+        const totalSpreadAngle = isCenterParent ? (Math.PI * 2) : Math.min(Math.PI * 1.5, N * 0.22);
+        // 중앙 부모일 경우 한 바퀴를 완전히 도는 것이므로 시작 각도를 무작위로 틀어주어 특정 0도 우측 좌표에 과도하게 몰려 겹치는 현상을 원천 방지합니다.
+        const startAngle = isCenterParent ? (Math.random() * Math.PI * 2) : parent.orbitAngle - (totalSpreadAngle / 2);
+        const angleStep = N <= 1 ? 0 : totalSpreadAngle / (isCenterParent ? N : (N - 1));
 
         groupNodes.forEach((node, gIdx) => {
-          const angle = N === 1 ? parent.orbitAngle : startAngle + (gIdx * angleStep);
+          let angle = N === 1 ? parent.orbitAngle : startAngle + (gIdx * angleStep);
+          // 기존에 공전 중이던 위치(각도)가 있다면 그대로 유지시켜 화면 중심 재정렬로 인한 순간이동 애니메이션 차단 (NaN 오염 방지)
+          const preData = previousNodeMap.get(node.id);
+          if (preData && typeof preData.orbitAngle === 'number' && !isNaN(preData.orbitAngle)) {
+            angle = preData.orbitAngle;
+          }
           
           const orbital = this.makeOrbitalNode(node, oIndex, angle, centerId, connectionMap);
-          orbital.orbitSpeed = parent.orbitSpeed; 
           
+          // 자식 노드가 고유 지정 색상이 없다면, 부모의 지정 색상(customColor)을 물려받아 
+          // 1차 카테고리를 색칠하면 하위 2, 3차 카테고리까지 색상이 자동 동기화(Cascade) 되도록 처리
+          if (!orbital.customColor && parent.customColor) {
+            orbital.customColor = parent.customColor;
+          }
+          
+          // 부모가 공전하지 않는 '중앙 중심 노드(태양)'일 경우, 부모의 0.0 속도를 모방하면 평생 멈춰버리게 됩니다!
+          // 이때는 본인(orbital)이 스스로 계산한 고유의 공전 속도를 사용하고, 그 외의 자식들은 부모의 속도로 동기화합니다.
+          orbital.orbitSpeed = parent.orbitIndex === 0 ? orbital.orbitSpeed : parent.orbitSpeed; 
           this.nodes.push(orbital);
           this.nodeMap.set(orbital.id, orbital);
           
@@ -222,7 +267,12 @@ export class OntologyCanvasEngine {
     // Fallback for isolated orphans or cycles (so no nodes visually vanish)
     leavesByParent.forEach((leaves) => {
       leaves.forEach(node => {
-        const angle = Math.random() * Math.PI * 2;
+        let angle = Math.random() * Math.PI * 2;
+        const preData = previousNodeMap.get(node.id);
+        if (preData) {
+          angle = preData.orbitAngle;
+        }
+        
         const oIndex = node.customOrbitIndex ?? 1;
         const orbital = this.makeOrbitalNode(node, oIndex, angle, centerId, connectionMap);
         this.nodes.push(orbital);
@@ -333,7 +383,9 @@ export class OntologyCanvasEngine {
         if (b.orbitIndex === 0 || b.fixedX !== undefined) continue;
 
         const orbitDiff = Math.abs(a.orbitIndex - b.orbitIndex);
-        if (orbitDiff > 1) continue; // 밀어내기는 같은 궤도 혹은 바로 옆 궤도까지만 적용
+        // 밀어내기(텍스트 겹침 방지)는 오직 완벽하게 같은 궤도(동일 반경)에 있는 노드끼리만 적용합니다!
+        // (부모가 자식을 밀어내거나, 다른 궤도 노드끼리 서로 간섭하여 진형을 붕괴시키는 현상을 원천 차단)
+        if (orbitDiff > 0) continue; 
 
         let angleDiff = a.orbitAngle - b.orbitAngle;
         while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
@@ -341,32 +393,28 @@ export class OntologyCanvasEngine {
 
         const absDiff = Math.abs(angleDiff);
         
-        // 안쪽 궤도일수록 물리적 원주 넓이는 좁지만 차지하는 비중이 큽니다.
-        // 1차 카테고리(Orbit 1)의 경우 맵의 기둥 역할을 하므로, 서로 완벽하게 360도를 등분하도록(항상 서로 밀어내도록) 설정합니다.
-        let baseThreshold = 0.20;
-        if (a.orbitIndex === 1) baseThreshold = Math.PI; // 360도 전 영역에서 밀어내어 완벽한 등간격 방사형 정렬
-        else if (a.orbitIndex === 2) baseThreshold = 0.6; // 약 34도 이내면 밀어냄
-        else if (a.orbitIndex === 3) baseThreshold = 0.35; // 약 20도 이내면 밀어냄
-        
-        const repulsionThreshold = orbitDiff === 0 ? baseThreshold : baseThreshold * 0.6;
+        let repulsionThreshold = 0.6;
+        if (a.orbitIndex === 1) repulsionThreshold = Math.PI; // 360도 균등 분할
+        else if (a.orbitIndex === 2) repulsionThreshold = 0.6;
+        else if (a.orbitIndex === 3) repulsionThreshold = 0.35;
 
         if (absDiff === 0) angleDiff = (Math.random() - 0.5) * 0.05;
 
-        // 밀어내는 로직
         if (absDiff < repulsionThreshold) {
           const strength = (0.08 * alpha) * (1 - absDiff / repulsionThreshold) * Math.sign(angleDiff);
           
-          if (a.orbitIndex === 1 && b.orbitIndex > 1) {
-            // a(1차)는 흔들리지 않고, b(2차 이상)만 밀려납니다
-            forceQ[j] -= strength;
-          } else if (b.orbitIndex === 1 && a.orbitIndex > 1) {
-            // b(1차)는 흔들리지 않고, a(2차 이상)만 밀려납니다
-            forceQ[i] += strength;
-          } else {
-            // 동급 궤도간에는 정상적으로 서로 밀어냅니다
-            forceQ[i] += strength;
-            forceQ[j] -= strength;
+          let finalStrength = strength;
+          // 2궤도 이상의 노드들 중 부모(파벌)가 서로 다른 노드끼리도
+          // 어느 정도 강하게 밀어내게 해서 부모가 인접해 있더라도 자식들끼리 시각적으로 겹치지 않고 온전히 공간을 확보하도록 합니다.
+          if (a.orbitIndex > 1 && b.orbitIndex > 1) {
+            if (a.parentId !== b.parentId) {
+              finalStrength *= 0.8;
+            }
           }
+
+          // 완벽한 동급 궤도간의 정상적인 척력
+          forceQ[i] += finalStrength;
+          forceQ[j] -= finalStrength;
         }
       }
     }
@@ -387,12 +435,42 @@ export class OntologyCanvasEngine {
       while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
       while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
 
-      // 당기는 힘도 0.08 -> 0.015 로 낮춰 튕기지 않도록 안정화
-      const pull = angleDiff * 0.015 * alpha;
+      // 부모 - 자식 간의 직접 연결 인력(Angular Spring)을 강하게 상향하여, 무작위로 날아가 다른 부모의 선과 꼬이는 크로스 링크 현상을 물리적으로 방어합니다.
+      let pullForce = 0.06; // 기존 0.015 에서 0.06 으로 상향 (깊은 궤도라도 부모 곁에 머물게 함)
+      if (src.orbitIndex === 1 || tgt.orbitIndex === 1) pullForce = 0.12;
+
+      const pull = angleDiff * pullForce * alpha;
       
       // 1차 카테고리(Orbit 1)는 자식의 무게(편향)에 끌려가지 않고 꿋꿋이 일정한 간격을 유지하도록 당기는 힘을 받지 않음
       if (src.orbitIndex !== 1) forceQ[srcIdx] += pull;
       if (tgt.orbitIndex !== 1) forceQ[tgtIdx] -= pull;
+    }
+
+    // 3. Category Attraction (같은 카테고리/색상 노드끼리 강하게 끌어당기는 군집화 인력)
+    for (let i = 0; i < n; i++) {
+      const a = this.nodes[i];
+      if (a.orbitIndex === 0 || a.fixedX !== undefined) continue;
+      const groupA = a.customGroup || a.group;
+
+      for (let j = i + 1; j < n; j++) {
+        const b = this.nodes[j];
+        if (b.orbitIndex === 0 || b.fixedX !== undefined) continue;
+        const groupB = b.customGroup || b.group;
+
+        if (groupA === groupB) {
+          let angleDiff = b.orbitAngle - a.orbitAngle;
+          while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+          while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+
+          // 선분(Edge)으로 이어진 것도 아닌데 오직 색상(카테고리)만 같다고 타 파벌 기둥(1궤도)으로 
+          // 강력하게 딸려가면 선이 엉키는 현상(Cross-tree tangling)이 발생합니다.
+          // 따라서 카테고리 자력은 최소한의 군집화만 유도하도록 아주 약하게(0.003) 고정시킵니다.
+          const pull = angleDiff * 0.003 * alpha;
+          
+          if (a.orbitIndex !== 1) forceQ[i] += pull;
+          if (b.orbitIndex !== 1) forceQ[j] -= pull;
+        }
+      }
     }
 
     // 3. Apply angular delta (No XY offset manipulation, strictly locks onto orbit rings!)
@@ -400,9 +478,9 @@ export class OntologyCanvasEngine {
         const node = this.nodes[i];
         if (node.orbitIndex === 0 || node.fixedX !== undefined) continue;
         
-        // 프레임당 최대 이동 각도를 0.015 라디안(약 0.8도)으로 제한하여 화면 흔들림(진동) 완벽 차단
+        // 프레임당 최대 이동 각도를 0.025 라디안으로 소폭 늘려 정렬을 신속하게 만듦
         let delta = forceQ[i];
-        const maxDelta = 0.015;
+        const maxDelta = 0.025;
         if (Math.abs(delta) > maxDelta) {
           delta = Math.sign(delta) * maxDelta;
         }
@@ -418,8 +496,8 @@ export class OntologyCanvasEngine {
     const cosTilt = Math.cos(this.cameraTilt);
     const sinTilt = Math.sin(this.cameraTilt);
 
-    // Orbit radii — wide spread for 100-node readability
-    const baseRadius = Math.min(canvasW, canvasH) * 0.58;
+    // Orbit radii — wide spread for 100-node readability (궤도 간격을 넓혀 시각적 쾌적함 확보)
+    const baseRadius = Math.min(canvasW, canvasH) * 0.65;
     this.orbitRadii = Array.from({ length: NUM_ORBITS + 1 }, (_, i) =>
       i === 0 ? 0 : baseRadius * (0.18 + (i / NUM_ORBITS) * 0.82)
     );
@@ -429,13 +507,25 @@ export class OntologyCanvasEngine {
       let worldX = 0;
       let worldY = 0;
 
-      if (node.fixedX !== undefined && node.fixedY !== undefined) {
+      // LocalStorage 혹은 이전 연산 오류로 인해 NaN이 들어왔을 경우 방어
+      if (typeof node.fixedX === 'number' && !isNaN(node.fixedX) && 
+          typeof node.fixedY === 'number' && !isNaN(node.fixedY)) {
         worldX = node.fixedX;
         worldY = node.fixedY;
       } else {
-        const orbR = this.orbitRadii[node.orbitIndex];
-        worldX = Math.cos(node.orbitAngle) * orbR * ELLIPSE_RATIO;
-        worldY = Math.sin(node.orbitAngle) * orbR;
+        let orbR = 0;
+        if (typeof node.orbitIndex === 'number' && !isNaN(node.orbitIndex) && node.orbitIndex <= NUM_ORBITS) {
+          orbR = this.orbitRadii[node.orbitIndex] || 0;
+        } else if (typeof node.orbitIndex === 'number' && !isNaN(node.orbitIndex)) {
+          // 지원하는 기본 궤도수(NUM_ORBITS)를 초과하는 깊은 자식 노드가 생성될 경우, 
+          // 멈추지 않고 선형적으로 궤도 반경을 무한히 확장하여 에러(NaN)를 원천 차단합니다.
+          const baseR = Math.min(canvasW, canvasH) * 0.65;
+          orbR = baseR * (0.18 + (node.orbitIndex / NUM_ORBITS) * 0.82);
+        }
+        
+        const safeAngle = typeof node.orbitAngle === 'number' && !isNaN(node.orbitAngle) ? node.orbitAngle : 0;
+        worldX = Math.cos(safeAngle) * orbR * ELLIPSE_RATIO;
+        worldY = Math.sin(safeAngle) * orbR;
       }
 
       // Map to isometric/tilted 3D space
@@ -451,19 +541,16 @@ export class OntologyCanvasEngine {
     // Apply pending camera tracking instantly (after positions are known)
     if (this.pendingCameraTargetId) {
       const target = this.nodeMap.get(this.pendingCameraTargetId);
-      if (target) {
-        // Calculate offset algebraically to center the node
-        // target.renderX calculation was: (canvasW/2 + cameraOffsetX) + worldX * zoom
-        // We want target.renderX to equal canvasW/2 when the next frame computes.
-        // Therefore, targetOffsetX + worldX * zoom = 0 => targetOffsetX = - (worldX * zoom)
-        // But since we already have node.renderX with current offsets:
-        // targetOffsetX = this.cameraOffsetX - (target.renderX - canvasW/2)
+      if (target && typeof target.renderX === 'number' && !isNaN(target.renderX) && 
+          typeof target.renderY === 'number' && !isNaN(target.renderY)) {
         const snapX = this.cameraOffsetX - (target.renderX - canvasW / 2);
         const snapY = this.cameraOffsetY - (target.renderY - canvasH / 2);
         
-        // We set the target offset so it smooth-scrolls (LERP_SPEED handles the rest)
-        this.targetOffsetX = snapX;
-        this.targetOffsetY = snapY;
+        // 확실한 숫자일 때만 갱신 (NaN 오염 방지)
+        if (!isNaN(snapX) && !isNaN(snapY)) {
+          this.targetOffsetX = snapX;
+          this.targetOffsetY = snapY;
+        }
       }
       this.pendingCameraTargetId = null;
     }
@@ -487,6 +574,11 @@ export class OntologyCanvasEngine {
 
     // 4. Nodes (depth-sorted, back-to-front)
     this.renderNodes(ctx);
+
+    // 5. Drag & Drop Live Preview Overlay
+    if (this.isDragging && this.hasDragged && this.draggedNode) {
+      this.renderDragPreview(ctx);
+    }
   }
 
   private renderBackground(ctx: CanvasRenderingContext2D, w: number, h: number): void {
@@ -529,20 +621,29 @@ export class OntologyCanvasEngine {
     
     set.add(rootId);
     
-    // 1-hop links
-    for (const edge of this.edges) {
-      if (edge.source === rootId) set.add(edge.target);
-      if (edge.target === rootId) set.add(edge.source);
-    }
-    
-    // Downward BFS (전체 하위 트리)
+    // BFS (전체 하위 트리 및 양방향 커스텀 연결망 탐색)
     const queue = [rootId];
     while (queue.length > 0) {
-      const current = queue.shift()!;
+      const currentId = queue.shift()!;
+      const current = this.nodeMap.get(currentId);
+      if (!current) continue;
+
       for (const edge of this.edges) {
-        if (edge.source === current && !set.has(edge.target)) {
-          set.add(edge.target);
-          queue.push(edge.target);
+        // 중심 노드(root)를 관통하여 전체 맵이 활성화되는 것 방지
+        if (rootId !== 'root-HCHPS' && (edge.source === 'root-HCHPS' || edge.target === 'root-HCHPS')) {
+          continue;
+        }
+
+        let nextId: string | null = null;
+        if (edge.source === currentId) nextId = edge.target;
+        else if (edge.target === currentId) nextId = edge.source;
+
+        if (nextId && !set.has(nextId)) {
+          // 구조적 부모 방향으로의 탐색은 방지 (부모의 다른 자식들까지 하이라이트되는 것 방지)
+          if (nextId === current.parentId) continue;
+          
+          set.add(nextId);
+          queue.push(nextId);
         }
       }
     }
@@ -555,6 +656,88 @@ export class OntologyCanvasEngine {
     }
     
     return set;
+  }
+
+  private renderDragPreview(ctx: CanvasRenderingContext2D): void {
+    if (!this.draggedNode) return;
+    
+    // 이전에 분리한 공통 로직 재사용
+    const { targetParentId, closestOrbit, isDirectDrop, closestCat } = this.getDropTarget(this.draggedNode);
+    const targetNode = targetParentId ? this.nodeMap.get(targetParentId) : null;
+    
+    // 1. 목표 타겟 부모와 연결되는 점선 및 하이라이트 표시
+    if (targetNode && targetNode.id !== 'root-HCHPS') {
+      ctx.save();
+      // 점선 연결
+      ctx.beginPath();
+      ctx.moveTo(this.draggedNode.renderX, this.draggedNode.renderY);
+      ctx.lineTo(targetNode.renderX, targetNode.renderY);
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.7)'; // 맑은 하늘색 (Tailwind light-blue)
+      ctx.lineWidth = 2 * this.zoom;
+      ctx.setLineDash([6 * this.zoom, 6 * this.zoom]);
+      ctx.stroke();
+
+      // 타겟 노드 글로우 링
+      ctx.beginPath();
+      const r = targetNode.nodeRadius * this.zoom + 8;
+      ctx.arc(targetNode.renderX, targetNode.renderY, r, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.9)';
+      ctx.lineWidth = 3 * this.zoom;
+      ctx.setLineDash([]);
+      ctx.stroke();
+      
+      // 타겟 배경 은은한 빛
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.15)';
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // 2. 마우스(현재 드래그 중인 노드) 상단에 헬퍼 텍스트(오버레이) 표시
+    ctx.save();
+    
+    // 문맥에 맞는 자연스러운 한국어 안내문 생성
+    let previewText = '';
+    
+    if (isDirectDrop && closestCat) {
+      previewText = `🎯 "${closestCat.label}"(올려둔 노드)의 하위 로 편입 (궤도 ${closestOrbit})`;
+    } else if (targetNode && targetNode.id !== 'root-HCHPS') {
+      previewText = `"${targetNode.label}" 중심의 ${closestOrbit}번 궤도 배치`;
+    } else if (closestOrbit === 1) {
+      previewText = `✨ 새로운 독립 카테고리로 1번 궤도 배치`;
+    } else if (closestOrbit === 0) {
+      previewText = `🌟 중앙 뿌리(태양) 노드로 초기화`;
+    } else {
+      previewText = `현재 구조 유지 (궤도 ${closestOrbit})`;
+    }
+         
+    const fontSize = Math.max(10, Math.min(13, 11 * this.zoom));
+    ctx.font = `600 ${fontSize}px 'Pretendard', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    const paddingX = 14;
+    const paddingY = 8;
+    const textWidth = ctx.measureText(previewText).width;
+    const bgWidth = textWidth + paddingX * 2;
+    const bgHeight = fontSize + paddingY * 2;
+    
+    // 노드 위에 띄울 Y 좌표 (노드 반지름 + 여백)
+    const tooltipY = this.draggedNode.renderY - (this.draggedNode.nodeRadius * this.zoom) - 24;
+    
+    // 반투명 프리미엄 다크 라벨 배경
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.85)'; // Slate-900
+    ctx.beginPath();
+    if (ctx.roundRect) {
+      ctx.roundRect(this.draggedNode.renderX - bgWidth/2, tooltipY - bgHeight/2, bgWidth, bgHeight, Math.min(8, bgHeight/2));
+    } else {
+      ctx.rect(this.draggedNode.renderX - bgWidth/2, tooltipY - bgHeight/2, bgWidth, bgHeight);
+    }
+    ctx.fill();
+    
+    // 눈에 띄는 하늘색 텍스트
+    ctx.fillStyle = '#38bdf8'; 
+    ctx.fillText(previewText, this.draggedNode.renderX, tooltipY);
+    ctx.restore();
   }
 
   private renderEdges(ctx: CanvasRenderingContext2D): void {
@@ -586,9 +769,10 @@ export class OntologyCanvasEngine {
       const avgZ = (src.renderZ + tgt.renderZ) / 2;
       const depthBrightness = 0.3 + (avgZ + 1) * 0.35;
 
-      let lineWidth = 0.5 + absWeight * 2;
-      if (isNegative) lineWidth *= 1.5;
-      if (isConnected) lineWidth *= 1.3;
+      // 선 굵기를 시각적으로 얇고 세련되게 줄입니다 (absWeight * 2 -> absWeight * 1.0)
+      let lineWidth = 0.3 + absWeight * 1.0;
+      if (isNegative) lineWidth *= 1.3;
+      if (isConnected) lineWidth *= 1.2;
 
       const alpha = isConnected
         ? Math.max(0.4, depthBrightness * 0.8)
@@ -603,21 +787,17 @@ export class OntologyCanvasEngine {
       }
 
       ctx.lineWidth = lineWidth;
-      ctx.setLineDash(isNegative ? [4, 3] : EDGE_TYPE_DASH[edge.type] || []);
+      ctx.setLineDash(isNegative ? [4, 3] : []);
       ctx.beginPath();
       ctx.moveTo(src.renderX, src.renderY);
       ctx.lineTo(tgt.renderX, tgt.renderY);
       ctx.stroke();
-
-      if (edge.type === 'CAUSAL_DRIVE' && isConnected) {
-        this.drawArrow(ctx, src, tgt, lineWidth, ctx.strokeStyle);
-      }
     }
 
     // If active node selected, draw remaining edges as ultra-faint batch
     if (activeId) {
-      ctx.strokeStyle = 'rgba(200,200,210,0.04)';
-      ctx.lineWidth = 0.5;
+      ctx.strokeStyle = 'rgba(200,200,210,0.15)';
+      ctx.lineWidth = 0.3; // 배경으로 물러나는 얇은 선
       ctx.setLineDash([]);
       ctx.beginPath();
       for (const edge of this.edges) {
@@ -693,7 +873,7 @@ export class OntologyCanvasEngine {
 
       // Determine opacity
       let opacity = hasActiveSelection
-        ? (isActive || isConnectedToActive ? 1 : 0.12)
+        ? (isActive || isConnectedToActive ? 1 : 0.28)
         : depthAlpha;
 
       if (isHovered && !isActive) opacity = Math.max(opacity, 0.9);
@@ -701,183 +881,225 @@ export class OntologyCanvasEngine {
       ctx.save();
       ctx.globalAlpha = opacity;
 
-      // ── Center Sun ──
-      if (isCenter) {
-        // Large glow (softened)
-        const glow = ctx.createRadialGradient(
-          node.renderX, node.renderY, r * 0.5,
-          node.renderX, node.renderY, r * 6,
-        );
-        glow.addColorStop(0, this.colorWithAlpha(baseColor, 0.05));
-        glow.addColorStop(0.5, this.colorWithAlpha(baseColor, 0.01));
-        glow.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = glow;
-        ctx.beginPath();
-        ctx.arc(node.renderX, node.renderY, r * 6, 0, 2 * Math.PI);
-        ctx.fill();
+      const labelText = node.label || '';
+      // 직관적이고 세련된 메타데이터 노드 분리 처리를 위한 정규식 패턴 판별
+      const isDateMeta = /^\d{4}\([가-힣]\)|^\d{2,4}[\.\-\/\s월]*\d{1,2}[\.\-\/\s일]*\d{0,2}|^\d{1,2}월\s*\d{1,2}일|\d{2}:\d{2}|^\d{1,2}시(?:\s*\d{1,2}분)?$|^\d{4}년/.test(labelText) || labelText.includes('요일');
+      const isPhoneMeta = /^0\d{1,2}-\d{3,4}-\d{4}/.test(labelText);
+      const isMetaNode = isDateMeta || isPhoneMeta;
 
-        // Corona (softened)
-        const corona = ctx.createRadialGradient(
-          node.renderX, node.renderY, r * 0.8,
-          node.renderX, node.renderY, r * 2.5,
-        );
-        corona.addColorStop(0, this.colorWithAlpha(baseColor, 0.08));
-        corona.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = corona;
-        ctx.beginPath();
-        ctx.arc(node.renderX, node.renderY, r * 2.5, 0, 2 * Math.PI);
-        ctx.fill();
-
-        // 3D Highlight Layer (Muted, pastel tone)
-        const baseR = node.nodeRadius * this.zoom;
-        const x = node.renderX;
-        const y = node.renderY;
-        const sizeOverride = (this.activeNode && this.activeNode.id === node.id) ? baseR * 1.5 : (isHovered ? baseR * 1.2 : baseR);
-
-        // Check if there is a custom color set
-        const nodeColor = node.customColor || GROUP_COLORS[node.group as OntologyGroup];
-
-        const gradient = ctx.createRadialGradient(
-          x - sizeOverride * 0.3, y - sizeOverride * 0.3, 0,
-          x, y, sizeOverride
-        );
-        gradient.addColorStop(0, '#ffffff'); // bright spot
-        gradient.addColorStop(0.3, this.lightenColor(nodeColor, 0.4)); // Faint/Pastel variant
-        gradient.addColorStop(1, this.lightenColor(nodeColor, 0.1)); // Soft border instead of harsh black
-        ctx.fillStyle = gradient;
-        ctx.beginPath();
-        ctx.arc(node.renderX, node.renderY, r, 0, 2 * Math.PI);
-        ctx.fill();
-
-        // White border
-        ctx.strokeStyle = 'rgba(255,255,255,0.8)';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-
-      // ── Active Node ──
-      } else if (isActive) {
-        // Glow
-        const glow = ctx.createRadialGradient(
-          node.renderX, node.renderY, r * 0.5,
-          node.renderX, node.renderY, r * 3,
-        );
-        glow.addColorStop(0, this.colorWithAlpha(baseColor, 0.15));
-        glow.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = glow;
-        ctx.beginPath();
-        ctx.arc(node.renderX, node.renderY, r * 3, 0, 2 * Math.PI);
-        ctx.fill();
-
-        // Core with gradient
-        const coreGrad = ctx.createRadialGradient(
-          node.renderX - r * 0.15, node.renderY - r * 0.15, 0,
-          node.renderX, node.renderY, r,
-        );
-        coreGrad.addColorStop(0, '#ffffff');
-        coreGrad.addColorStop(0.5, this.lightenColor(baseColor, 0.5));
-        coreGrad.addColorStop(1, baseColor);
-        ctx.fillStyle = coreGrad;
-        ctx.beginPath();
-        ctx.arc(node.renderX, node.renderY, r, 0, 2 * Math.PI);
-        ctx.fill();
-
-        // Border
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2.5;
-        ctx.stroke();
-        ctx.strokeStyle = baseColor;
-        ctx.lineWidth = 1.2;
-        ctx.beginPath();
-        ctx.arc(node.renderX, node.renderY, r + 3, 0, 2 * Math.PI);
-        ctx.stroke();
-
-      // ── Normal / Hovered / Connected ──
-      } else {
-        // Hover glow
-        if (isHovered) {
+      // 1. 일반 개념(Concept) 노드의 경우 기존처럼 입체적인 글로우 서클(Circle) 렌더링
+      if (!isMetaNode) {
+        // ── Center Sun ──
+        if (isCenter) {
+          // Large glow (softened)
           const glow = ctx.createRadialGradient(
             node.renderX, node.renderY, r * 0.5,
-            node.renderX, node.renderY, r * 2,
+            node.renderX, node.renderY, r * 6,
           );
-          glow.addColorStop(0, this.colorWithAlpha(baseColor, 0.12));
+          glow.addColorStop(0, this.colorWithAlpha(baseColor, 0.05));
+          glow.addColorStop(0.5, this.colorWithAlpha(baseColor, 0.01));
           glow.addColorStop(1, 'rgba(0,0,0,0)');
           ctx.fillStyle = glow;
           ctx.beginPath();
-          ctx.arc(node.renderX, node.renderY, r * 2, 0, 2 * Math.PI);
+          ctx.arc(node.renderX, node.renderY, r * 6, 0, 2 * Math.PI);
           ctx.fill();
+
+          // Corona (softened)
+          const corona = ctx.createRadialGradient(
+            node.renderX, node.renderY, r * 0.8,
+            node.renderX, node.renderY, r * 2.5,
+          );
+          corona.addColorStop(0, this.colorWithAlpha(baseColor, 0.08));
+          corona.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = corona;
+          ctx.beginPath();
+          ctx.arc(node.renderX, node.renderY, r * 2.5, 0, 2 * Math.PI);
+          ctx.fill();
+
+          // 3D Highlight Layer (Muted, pastel tone)
+          const baseR = node.nodeRadius * this.zoom;
+          const x = node.renderX;
+          const y = node.renderY;
+          const sizeOverride = (this.activeNode && this.activeNode.id === node.id) ? baseR * 1.5 : (isHovered ? baseR * 1.2 : baseR);
+
+          const gradient = ctx.createRadialGradient(
+            x - sizeOverride * 0.3, y - sizeOverride * 0.3, 0,
+            x, y, sizeOverride
+          );
+          gradient.addColorStop(0, '#ffffff'); // bright spot
+          gradient.addColorStop(0.3, this.lightenColor(baseColor, 0.4)); // Faint/Pastel variant
+          gradient.addColorStop(1, this.lightenColor(baseColor, 0.1)); // Soft border instead of harsh black
+          ctx.fillStyle = gradient;
+          ctx.beginPath();
+          ctx.arc(node.renderX, node.renderY, r, 0, 2 * Math.PI);
+          ctx.fill();
+
+          // White border
+          ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+
+        // ── Active Node ──
+        } else if (isActive) {
+          // Glow
+          const glow = ctx.createRadialGradient(
+            node.renderX, node.renderY, r * 0.5,
+            node.renderX, node.renderY, r * 3,
+          );
+          glow.addColorStop(0, this.colorWithAlpha(baseColor, 0.15));
+          glow.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = glow;
+          ctx.beginPath();
+          ctx.arc(node.renderX, node.renderY, r * 3, 0, 2 * Math.PI);
+          ctx.fill();
+
+          // Core with gradient
+          const coreGrad = ctx.createRadialGradient(
+            node.renderX - r * 0.15, node.renderY - r * 0.15, 0,
+            node.renderX, node.renderY, r,
+          );
+          coreGrad.addColorStop(0, '#ffffff');
+          coreGrad.addColorStop(0.5, this.lightenColor(baseColor, 0.5));
+          coreGrad.addColorStop(1, baseColor);
+          ctx.fillStyle = coreGrad;
+          ctx.beginPath();
+          ctx.arc(node.renderX, node.renderY, r, 0, 2 * Math.PI);
+          ctx.fill();
+
+          // Border
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2.5;
+          ctx.stroke();
+          ctx.strokeStyle = baseColor;
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.arc(node.renderX, node.renderY, r + 3, 0, 2 * Math.PI);
+          ctx.stroke();
+
+        // ── Normal / Hovered / Connected ──
+        } else {
+          // Hover glow
+          if (isHovered) {
+            const glow = ctx.createRadialGradient(
+              node.renderX, node.renderY, r * 0.5,
+              node.renderX, node.renderY, r * 2,
+            );
+            glow.addColorStop(0, this.colorWithAlpha(baseColor, 0.12));
+            glow.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = glow;
+            ctx.beginPath();
+            ctx.arc(node.renderX, node.renderY, r * 2, 0, 2 * Math.PI);
+            ctx.fill();
+          }
+
+          // Core
+          const coreGrad = ctx.createRadialGradient(
+            node.renderX - r * 0.15, node.renderY - r * 0.15, 0,
+            node.renderX, node.renderY, r,
+          );
+          coreGrad.addColorStop(0, this.lightenColor(baseColor, 0.4));
+          coreGrad.addColorStop(1, baseColor);
+          ctx.fillStyle = coreGrad;
+          ctx.beginPath();
+          ctx.arc(node.renderX, node.renderY, r, 0, 2 * Math.PI);
+          ctx.fill();
+
+          // Connected highlight ring
+          if (isConnectedToActive) {
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+          }
         }
 
-        // Core
-        const coreGrad = ctx.createRadialGradient(
-          node.renderX - r * 0.15, node.renderY - r * 0.15, 0,
-          node.renderX, node.renderY, r,
-        );
-        coreGrad.addColorStop(0, this.lightenColor(baseColor, 0.4));
-        coreGrad.addColorStop(1, baseColor);
-        ctx.fillStyle = coreGrad;
+        // ── Hedge dashed ring ──
+        if (node.isHedge) {
+          ctx.setLineDash([3, 3]);
+          ctx.strokeStyle = GROUP_COLORS.SYSTEM_RISK;
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(node.renderX, node.renderY, r + 5, 0, 2 * Math.PI);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+      }
+
+      // 2. 렌더링 타입에 따른 텍스트/뱃지 라벨 드로잉
+      if (isMetaNode) {
+        // 날짜/전화번호 등 메타데이터는 공 형태가 아닌 '플로팅 태그 뱃지(Pill Badge)'로 렌더링
+        const icon = isDateMeta ? '🗓️' : '📞';
+        const fullLabel = `${icon} ${labelText}`;
+        
+        const fontSize = Math.max(9, Math.min(11, 10 * this.zoom));
+        ctx.font = `600 ${fontSize}px 'Pretendard', sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        const textWidth = ctx.measureText(fullLabel).width;
+        const paddingX = 8;
+        const paddingY = 4;
+        const bgWidth = textWidth + paddingX * 2;
+        const bgHeight = fontSize + paddingY * 2;
+        
+        // 아이콘 종류에 따라 파스텔 톤 메타 태그 색상 지정
+        ctx.fillStyle = isDateMeta ? 'rgba(56, 189, 248, 0.85)' : 'rgba(129, 142, 248, 0.85)';
+        ctx.strokeStyle = isDateMeta ? '#0284c7' : '#4f46e5';
+        ctx.lineWidth = 1.2;
+        
+        // 둥근 캡슐 (Pill) 테두리 그리기
         ctx.beginPath();
-        ctx.arc(node.renderX, node.renderY, r, 0, 2 * Math.PI);
+        if (ctx.roundRect) {
+          ctx.roundRect(node.renderX - bgWidth/2, node.renderY - bgHeight/2, bgWidth, bgHeight, bgHeight/2);
+        } else {
+          ctx.rect(node.renderX - bgWidth/2, node.renderY - bgHeight/2, bgWidth, bgHeight);
+        }
+        ctx.fill();
+        ctx.stroke();
+        
+        ctx.fillStyle = '#ffffff'; // 텍스트는 깔끔한 흰색
+        ctx.fillText(fullLabel, node.renderX, node.renderY);
+
+      } else {
+        // 일반 개념 노드의 라벨 렌더링
+        const isActiveOrHovered = isActive || isHovered;
+        const fontSize = Math.max(8, Math.min(12, 9 * this.zoom));
+        const fontWeight = (isCenter || isActive) ? 'bold' : 'normal';
+        
+        ctx.font = `${fontWeight} ${fontSize}px 'Pretendard', 'Inter', system-ui, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+
+        const labelY = node.renderY + r + 3;
+        const textWidth = ctx.measureText(labelText).width;
+
+        // Draw premium pill background behind text to prevent overlap clutter
+        ctx.fillStyle = `rgba(255, 255, 255, ${Math.min(0.85, opacity * 1.5)})`;
+        const paddingX = 4;
+        const paddingY = 2;
+        const bgWidth = textWidth + paddingX * 2;
+        const bgHeight = fontSize + paddingY * 2;
+        
+        ctx.beginPath();
+        if (ctx.roundRect) {
+          ctx.roundRect(node.renderX - bgWidth / 2, labelY - paddingY, bgWidth, bgHeight, 6);
+        } else {
+          ctx.rect(node.renderX - bgWidth / 2, labelY - paddingY, bgWidth, bgHeight);
+        }
         ctx.fill();
 
-        // Connected highlight ring
-        if (isConnectedToActive) {
-          ctx.strokeStyle = '#ffffff';
-          ctx.lineWidth = 1.5;
-          ctx.stroke();
-        }
+        // Text stroke for extra crispness
+        ctx.strokeStyle = `rgba(255, 255, 255, ${opacity})`;
+        ctx.lineWidth = 2;
+        ctx.lineJoin = 'round';
+        ctx.strokeText(labelText, node.renderX, labelY);
+
+        // Main Text
+        ctx.fillStyle = isCenter || isActiveOrHovered
+          ? '#1e293b'
+          : `rgba(30,41,59,${Math.max(0.7, opacity)})`;
+          
+        ctx.fillText(labelText, node.renderX, labelY);
       }
-
-      // ── Hedge dashed ring ──
-      if (node.isHedge) {
-        ctx.setLineDash([3, 3]);
-        ctx.strokeStyle = GROUP_COLORS.SYSTEM_RISK;
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.arc(node.renderX, node.renderY, r + 5, 0, 2 * Math.PI);
-        ctx.stroke();
-        ctx.setLineDash([]);
-      }
-
-      // ── Label — Always Visible Full Text ──
-      const isActiveOrHovered = isActive || isHovered;
-      const fontSize = Math.max(8, Math.min(12, 9 * this.zoom));
-      const fontWeight = (isCenter || isActive) ? 'bold' : 'normal';
-      
-      ctx.font = `${fontWeight} ${fontSize}px 'Pretendard', 'Inter', system-ui, sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'top';
-
-      const label = node.label;
-      const labelY = node.renderY + r + 3;
-      const textWidth = ctx.measureText(label).width;
-
-      // Draw premium pill background behind text to prevent overlap clutter
-      ctx.fillStyle = `rgba(255, 255, 255, ${Math.min(0.85, opacity * 1.5)})`;
-      const paddingX = 4;
-      const paddingY = 2;
-      const bgWidth = textWidth + paddingX * 2;
-      const bgHeight = fontSize + paddingY * 2;
-      
-      ctx.beginPath();
-      if (ctx.roundRect) {
-        ctx.roundRect(node.renderX - bgWidth / 2, labelY - paddingY, bgWidth, bgHeight, 6);
-      } else {
-        ctx.rect(node.renderX - bgWidth / 2, labelY - paddingY, bgWidth, bgHeight);
-      }
-      ctx.fill();
-
-      // Text stroke for extra crispness
-      ctx.strokeStyle = `rgba(255, 255, 255, ${opacity})`;
-      ctx.lineWidth = 2;
-      ctx.lineJoin = 'round';
-      ctx.strokeText(label, node.renderX, labelY);
-
-      // Main Text
-      ctx.fillStyle = isCenter || isActiveOrHovered
-        ? '#1e293b'
-        : `rgba(30,41,59,${Math.max(0.7, opacity)})`;
-        
-      ctx.fillText(label, node.renderX, labelY);
 
       ctx.restore();
     }
@@ -983,15 +1205,19 @@ export class OntologyCanvasEngine {
     }
 
     if (this.draggedNode) {
-      // Inverse projection to find World X, Y
-      const cx = w / 2 + this.cameraOffsetX;
-      const cy = h / 2 + this.cameraOffsetY;
-      const worldX = (nx - cx) / this.zoom;
-      const worldY = (ny - cy) / this.zoom / Math.cos(this.cameraTilt);
-      
-      // Just temporarily track mouse visually without snapping to orbits
-      this.draggedNode.fixedX = worldX;
-      this.draggedNode.fixedY = worldY;
+      // 클릭만 한 상태(미세한 떨림)에서는 좌표를 고정(fixedX)시키지 않습니다. 
+      // 고정시킬 경우 공전(Orbit)이 영구적으로 멈추는 버그가 발생하기 때문입니다.
+      if (this.hasDragged) {
+        // Inverse projection to find World X, Y
+        const cx = w / 2 + this.cameraOffsetX;
+        const cy = h / 2 + this.cameraOffsetY;
+        const worldX = (nx - cx) / this.zoom;
+        const worldY = (ny - cy) / this.zoom / Math.cos(this.cameraTilt);
+        
+        // Temporarily track mouse visually without snapping to orbits
+        this.draggedNode.fixedX = worldX;
+        this.draggedNode.fixedY = worldY;
+      }
     } else {
       // Camera Panning
       const dx = nx - this.lastDragX;
@@ -1007,58 +1233,64 @@ export class OntologyCanvasEngine {
     }
   }
 
+  private getDropTarget(draggedNode: OrbitalNode): { targetParentId: string | undefined; closestOrbit: number; isDirectDrop: boolean; closestCat: OrbitalNode | null } {
+    let closestCat: OrbitalNode | null = null;
+    let minSqDist = Infinity;
+    
+    for (const node of this.nodes) {
+      if (node.id !== draggedNode.id) {
+        const dx = node.renderX - draggedNode.renderX;
+        const dy = node.renderY - draggedNode.renderY;
+        const sqDist = dx * dx + dy * dy;
+        if (sqDist < 40000 && sqDist < minSqDist) {
+          minSqDist = sqDist;
+          closestCat = node;
+        }
+      }
+    }
+
+    let closestOrbit = draggedNode.orbitIndex;
+    let targetParentId: string | undefined = closestCat ? closestCat.id : undefined;
+
+    // 만약 정밀하게 다른 노드 위(반경 100px 이내, sqDist 10000)에 드롭했다면 "해당 노드에 흡수(자식으로 편입)" 요청으로 간주합니다.
+    const isDirectDrop = closestCat !== null && minSqDist < 10000;
+
+    if (draggedNode.fixedX !== undefined && draggedNode.fixedY !== undefined) {
+      const distFromCenter = Math.sqrt((draggedNode.fixedX * draggedNode.fixedX) / (ELLIPSE_RATIO * ELLIPSE_RATIO) + draggedNode.fixedY * draggedNode.fixedY);
+      
+      if (distFromCenter < 70) {
+        closestOrbit = 0;
+        targetParentId = undefined;
+      } else {
+        let minOrbitDiff = Infinity;
+        for (let i = 1; i < this.orbitRadii.length; i++) {
+          const diff = Math.abs(distFromCenter - this.orbitRadii[i]);
+          if (diff < minOrbitDiff) {
+            minOrbitDiff = diff;
+            closestOrbit = i;
+          }
+        }
+        
+        if (isDirectDrop && closestCat) {
+          // 다른 노드 위로 정확히 올렸을 때 -> 궤도를 떠나서 강제로 흡수(자식 노드로 편입)
+          targetParentId = closestCat.id;
+          closestOrbit = closestCat.orbitIndex === 0 ? 1 : closestCat.orbitIndex + 1;
+        } else if (closestOrbit === 1) {
+          // 빈 공간 1번 궤도 위에 놓았을 때 -> 독립 카테고리 승격 (명시적으로 중앙 태양 노드를 부모로 지정)
+          targetParentId = 'root-HCHPS';
+        } else if (closestOrbit >= 2 && !targetParentId) {
+          // 안쪽 궤도로 떨어뜨렸는데 주변에 마땅한 부모가 없으면 기존 부모 유지
+          targetParentId = draggedNode.parentId;
+        }
+      }
+    }
+
+    return { targetParentId, closestOrbit, isDirectDrop, closestCat };
+  }
+
   handleDragEnd(): void {
     if (this.draggedNode && this.hasDragged) {
-      let closestCat: OrbitalNode | null = null;
-      let minSqDist = Infinity;
-      
-      for (const node of this.nodes) {
-        if (node.id !== this.draggedNode.id) {
-          const dx = node.renderX - this.draggedNode.renderX;
-          const dy = node.renderY - this.draggedNode.renderY;
-          const sqDist = dx * dx + dy * dy;
-          if (sqDist < 40000 && sqDist < minSqDist) {
-            minSqDist = sqDist;
-            closestCat = node;
-          }
-        }
-      }
-
-      let closestOrbit = this.draggedNode.orbitIndex;
-      let targetParentId: string | undefined = closestCat ? closestCat.id : undefined;
-
-      // 만약 정밀하게 다른 노드 위(반경 100px 이내, sqDist 10000)에 드롭했다면 "해당 노드에 흡수(자식으로 편입)" 요청으로 간주합니다.
-      const isDirectDrop = closestCat !== null && minSqDist < 10000;
-
-      if (this.draggedNode.fixedX !== undefined && this.draggedNode.fixedY !== undefined) {
-        const distFromCenter = Math.sqrt((this.draggedNode.fixedX * this.draggedNode.fixedX) / (ELLIPSE_RATIO * ELLIPSE_RATIO) + this.draggedNode.fixedY * this.draggedNode.fixedY);
-        
-        if (distFromCenter < 70) {
-          closestOrbit = 0;
-          targetParentId = undefined;
-        } else {
-          let minOrbitDiff = Infinity;
-          for (let i = 1; i < this.orbitRadii.length; i++) {
-            const diff = Math.abs(distFromCenter - this.orbitRadii[i]);
-            if (diff < minOrbitDiff) {
-              minOrbitDiff = diff;
-              closestOrbit = i;
-            }
-          }
-          
-          if (isDirectDrop && closestCat) {
-            // 다른 노드 위로 정확히 올렸을 때 -> 궤도를 떠나서 강제로 흡수(자식 노드로 편입)
-            targetParentId = closestCat.id;
-            closestOrbit = closestCat.orbitIndex === 0 ? 1 : closestCat.orbitIndex + 1;
-          } else if (closestOrbit === 1) {
-            // 빈 공간 1번 궤도 위에 놓았을 때 -> 독립 카테고리 승격 (명시적으로 중앙 태양 노드를 부모로 지정)
-            targetParentId = 'root-HCHPS';
-          } else if (closestOrbit >= 2 && !targetParentId) {
-            // 안쪽 궤도로 떨어뜨렸는데 주변에 마땅한 부모가 없으면 기존 부모 유지
-            targetParentId = this.draggedNode.parentId;
-          }
-        }
-      }
+      const { targetParentId, closestOrbit } = this.getDropTarget(this.draggedNode);
       
       // 드래그된 궤도/부모 결과를 항상 저장 (fixedX/Y 해제 포함)
       this.callbacks.onNodeReparent?.(this.draggedNode.id, targetParentId, closestOrbit);
