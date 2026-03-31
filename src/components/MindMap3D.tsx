@@ -11,8 +11,9 @@ import {
 } from '@/lib/ontology.types';
 import {
   Radio, Loader2, RefreshCw, AlertTriangle,
-  Circle, Link2, X, ChevronRight, Zap, Maximize2, Minimize2,
-  Trash2, FileText, Edit2, Plus, Palette, PinOff, PlusSquare, Waypoints, Eraser, Play, Pause
+  Circle, Link2, X, ChevronRight, ChevronUp, ChevronDown, Zap, Maximize2, Minimize2,
+  Trash2, FileText, Edit2, Plus, Palette, PinOff, PlusSquare, Waypoints, Eraser, Play, Pause,
+  CheckCircle
 } from 'lucide-react';
 import { useGraphCustomization } from '@/hooks/useGraphCustomization';
 
@@ -672,23 +673,58 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                           <Waypoints size={12} /> {edgeModeSource === activeNode.id ? '대상 노드 찍기...' : '이 노드에서 선분 연결'}
                         </button>
                         
-                        {activeNode.orbitIndex >= 2 && (
-                          <button
-                            onClick={() => {
-                              if (confirm(`'${activeNode.label}' 노드를 1차 카테고리로 승격시킬까요?\n\n이 노드는 현재 부모에게서 떨어져 나와 독립적인 축(방사형 뿌리)를 형성하게 됩니다.`)) {
-                                setNodeOverride(activeNode.id, { customParent: 'root-HCHPS', customOrbitIndex: 1, fixedX: undefined, fixedY: undefined });
+                        {activeNode.orbitIndex > 0 && (
+                          <div className="flex bg-indigo-50 border border-indigo-200 rounded text-xs font-medium text-indigo-600 shadow-sm overflow-hidden shrink-0">
+                            <button
+                              onClick={() => {
+                                if (activeNode.orbitIndex === 2) {
+                                  if (confirm(`'${activeNode.label}' 노드를 1차 카테고리로 승격시킬까요?\n\n이 노드는 현재 부모에게서 분리되어 독립적인 중심축(방사형 뿌리)을 형성합니다.`)) {
+                                    setNodeOverride(activeNode.id, { customParent: 'root-HCHPS', customOrbitIndex: 1, fixedX: undefined, fixedY: undefined });
+                                    setTimeout(() => initEngine(), 30);
+                                  }
+                                } else if (activeNode.orbitIndex > 2) {
+                                  setNodeOverride(activeNode.id, { customOrbitIndex: activeNode.orbitIndex - 1, fixedX: undefined, fixedY: undefined });
+                                  setTimeout(() => initEngine(), 30);
+                                }
+                              }}
+                              disabled={activeNode.orbitIndex <= 1}
+                              className="flex items-center gap-1 px-2 py-1 hover:bg-indigo-100 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed border-r border-indigo-200"
+                              title="중심 궤도로 당기기 (승격)"
+                            >
+                              <ChevronUp size={12} /> 승격
+                            </button>
+                            <button
+                              onClick={() => {
+                                setNodeOverride(activeNode.id, { customOrbitIndex: activeNode.orbitIndex + 1, fixedX: undefined, fixedY: undefined });
                                 setTimeout(() => initEngine(), 30);
-                              }
-                            }}
-                            className="flex items-center gap-1 px-2 py-1 bg-indigo-50 border border-indigo-200 rounded text-xs font-medium text-indigo-600 hover:bg-indigo-100 cursor-pointer shadow-sm"
-                            title="부모 노드에서 분리하여 독립시키기"
-                          >
-                            <Zap size={12} /> 1차 카테고리로 승격
-                          </button>
+                              }}
+                              className="flex items-center gap-1 px-2 py-1 hover:bg-indigo-100 transition-colors cursor-pointer"
+                              title="외곽 궤도로 밀어내기 (하락)"
+                            >
+                              하락 <ChevronDown size={12} />
+                            </button>
+                          </div>
                         )}
 
                         <div className="flex-1 min-w-[20px]" /> {/* Spacer to push actions entirely right */}
                         
+                        <button
+                          onClick={() => {
+                            if (confirm(`'${activeNode.label}' 처리를 완료하고 지도에서 숨기시겠습니까?`)) {
+                              setNodeOverride(activeNode.id, { hidden: true });
+                              if (engineRef.current) {
+                                engineRef.current.nodes = engineRef.current.nodes.filter((n: OrbitalNode) => n.id !== activeNode.id);
+                                engineRef.current.edges = engineRef.current.edges.filter((e: OntologyEdge) => e.source !== activeNode.id && e.target !== activeNode.id);
+                                setActiveNode(null);
+                              }
+                            }
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-bold text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 transition-colors shadow-sm cursor-pointer"
+                          title="일정/업무 완료 처리 및 맵에서 숨기기"
+                        >
+                          <CheckCircle size={14} /> 완료 (숨기기)
+                        </button>
+
                         <button
                           onClick={() => {
                             const isDeepDelete = activeNode.id.startsWith('custom-') || activeNode.orbitIndex === 1;

@@ -1,9 +1,9 @@
-const CACHE_NAME = 'hchps-cache-v1';
+const CACHE_NAME = 'hchps-cache-v2';
 
 // Cache basic application assets
 const urlsToCache = [
-  '/',
-  '/manifest.json'
+  './',
+  './manifest.json'
 ];
 
 self.addEventListener('install', (event) => {

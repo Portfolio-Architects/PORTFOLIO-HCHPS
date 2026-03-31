@@ -48,7 +48,8 @@ export default function RootLayout({
             __html: `
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js').then(
+                  var basePath = window.location.pathname.startsWith('/PORTFOLIO-HCHPS') ? '/PORTFOLIO-HCHPS' : '';
+                  navigator.serviceWorker.register(basePath + '/sw.js').then(
                     function(registration) {
                       console.log('ServiceWorker registration successful scope: ', registration.scope);
                     },

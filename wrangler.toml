@@ -6,3 +6,6 @@ pages_build_output_dir = "out"
 [[kv_namespaces]]
 binding = "HCHPS_DATA"
 id = "37c88bf84da244cfbdad062d00ec6da8"
+
+[ai]
+binding = "AI"

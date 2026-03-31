@@ -322,16 +322,15 @@ export class OntologyCanvasEngine {
     const maxR = MAX_NODE_R * densityScale;
     const minR = MIN_NODE_R;
     const nodeRadius = minR + renderSize * (maxR - minR);
-    // Inner orbits rotate faster
-    const speedFactor = orbitIndex === 0 ? 0 : (1 - (orbitIndex - 1) / NUM_ORBITS) * 0.6 + 0.4;
-    // Small random variation
-    const speedVariation = 0.85 + Math.random() * 0.3;
+    // 맵 전체가 꼬이는 현상을 방지하기 위해 모든 노드가 동일한 속도(단일 팽이처럼)로 공전하도록 통일합니다.
+    // 기존의 무작위 속도 변수(speedVariation)가 파벌 간의 궤도 충돌을 유발했습니다.
+    const finalOrbitSpeed = orbitIndex === 0 ? 0 : ORBIT_SPEED_BASE * 0.8;
 
     return {
       ...node,
       orbitIndex,
       orbitAngle: angle,
-      orbitSpeed: orbitIndex === 0 ? 0 : ORBIT_SPEED_BASE * speedFactor * speedVariation,
+      orbitSpeed: finalOrbitSpeed,
       renderX: 0,
       renderY: 0,
       renderZ: 0,
@@ -358,10 +357,19 @@ export class OntologyCanvasEngine {
     // ── Angular Radial Physics ──
     // 노드들이 동일 궤도상에서 겹치지 않고 자연스럽게 밀어내며 부모-자식 간에는 방사형으로 정렬되도록 각도 물리엔진 적용
     if (this.forceTickCount < 600 || this.isDragging) {
-      this.forceTickCount++;
+      if (!this.isDragging) {
+        this.forceTickCount++;
+      }
+      
       // 서서히 물리력을 줄여 완전히 안정화(Settled)되도록 합니다
-      const progress = Math.min(1, this.forceTickCount / 600);
-      const alpha = Math.max(0.005, 1 - progress); 
+      let alpha = 0.005;
+      if (this.forceTickCount < 600) {
+        const progress = Math.min(1, this.forceTickCount / 600);
+        alpha = Math.max(0.005, 1 - Math.pow(progress, 0.5)); // 보다 일찍 안정화되지만 서서히 식게 만듦
+      }
+      
+      if (this.isDragging) alpha = Math.max(alpha, 0.1);
+
       this.applyForces(alpha);
     }
   }
@@ -401,14 +409,15 @@ export class OntologyCanvasEngine {
         if (absDiff === 0) angleDiff = (Math.random() - 0.5) * 0.05;
 
         if (absDiff < repulsionThreshold) {
-          const strength = (0.08 * alpha) * (1 - absDiff / repulsionThreshold) * Math.sign(angleDiff);
+          // 기존 0.08 대비 소폭 상향하여 겹침을 방지하는 동시에 흔들림(Jitter)은 유발하지 않는 적정선 (0.12)
+          const strength = (0.12 * alpha) * (1 - absDiff / repulsionThreshold) * Math.sign(angleDiff);
           
           let finalStrength = strength;
-          // 2궤도 이상의 노드들 중 부모(파벌)가 서로 다른 노드끼리도
-          // 어느 정도 강하게 밀어내게 해서 부모가 인접해 있더라도 자식들끼리 시각적으로 겹치지 않고 온전히 공간을 확보하도록 합니다.
+          // 2궤도 이상의 노드들 중 부모(파벌)가 서로 다른 노드끼리는
+          // 서로 침범하지 않도록 밀어내되, 지나치게 튕겨나가지 않도록 완만한 배율(x1.5) 부여
           if (a.orbitIndex > 1 && b.orbitIndex > 1) {
             if (a.parentId !== b.parentId) {
-              finalStrength *= 0.8;
+              finalStrength *= 1.5;
             }
           }
 
