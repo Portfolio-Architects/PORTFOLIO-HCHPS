@@ -408,20 +408,18 @@ export class OntologyCanvasEngine {
 
         const isAlien = a.orbitIndex > 1 && b.orbitIndex > 1 && a.parentId !== b.parentId;
         if (isAlien) {
-          // 에일리언(타 파벌) 브랜치 간에는 90도(Math.PI / 2) 반경 이내 접근 시 밀어내어 가지 꼬임을 완전 차단
-          repulsionThreshold = Math.PI * 0.5;
+          // 너무 거대한 척력(90도)은 물리계를 폭파시켜 선을 가로지르게 하므로, 적정 수준(약 50도)으로 제한하여 부드러운 파벌 경계만 만듭니다.
+          repulsionThreshold = 0.9;
         }
 
         if (absDiff === 0) angleDiff = (Math.random() - 0.5) * 0.05;
 
         if (absDiff < repulsionThreshold) {
-          // 기존 0.08 대비 소폭 상향하여 겹침을 방지하는 동시에 흔들림(Jitter)은 유발하지 않는 적정선 (0.12)
           const strength = (0.12 * alpha) * (1 - absDiff / repulsionThreshold) * Math.sign(angleDiff);
           
           let finalStrength = strength;
-          // 부모(파벌)가 서로 다른 에일리언 노드끼리 선이 겹치지 않도록 엄청난 배율(x2.5) 부여
           if (isAlien) {
-            finalStrength *= 2.5;
+            finalStrength *= 1.4; // 폭발을 막기 위해 2.5배에서 1.4배로 하향 조정
           }
 
           // 완벽한 동급 궤도간의 정상적인 척력
@@ -447,9 +445,10 @@ export class OntologyCanvasEngine {
       while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
       while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
 
-      // 부모 - 자식 간의 직접 연결 인력(Angular Spring)을 강하게 상향하여, 무작위로 날아가 다른 부모의 선과 꼬이는 크로스 링크 현상을 물리적으로 방어합니다.
-      let pullForce = 0.06; // 기존 0.015 에서 0.06 으로 상향 (깊은 궤도라도 부모 곁에 머물게 함)
-      if (src.orbitIndex === 1 || tgt.orbitIndex === 1) pullForce = 0.12;
+      // 부모 - 자식 간의 직접 연결 결속력(Angular Spring)을 극대화하여 척력에 의해 브랜치가 찢기거나 화면 반대편으로 날아가는 현상 방어
+      let pullForce = 0.08; 
+      // 1번 궤도(기둥)와 2번 궤도(주요 자식) 간의 결속은 가장 단단하게 고정!
+      if (src.orbitIndex === 1 || tgt.orbitIndex === 1) pullForce = 0.25;
 
       const pull = angleDiff * pullForce * alpha;
       

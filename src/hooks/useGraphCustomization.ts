@@ -15,6 +15,17 @@ export interface NodeOverride {
   customParent?: string;
   customOrbitIndex?: number;
   hidden?: boolean;
+  story5W1H?: {
+    who?: string;
+    when?: string;
+    where?: string;
+    what?: string;
+    how?: string;
+    why?: string;
+    contact?: string;
+    department?: string;
+    title?: string;
+  };
 }
 
 export interface MapCustomizationData {

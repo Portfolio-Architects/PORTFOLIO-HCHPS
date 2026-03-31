@@ -270,35 +270,28 @@ export function buildSignalGraph(
     forcedCenterNode.fixedX = undefined;     // <--- Must clear baked custom node coords to center perfectly!
     forcedCenterNode.fixedY = undefined;
     
-    // Find who was the center previously (the one with highest normal centrality among ACTIVE nodes)
-    const hiddenSet = new Set<string>();
-    finalNodes.forEach(n => { if (customData?.overrides[n.id]?.hidden) hiddenSet.add(n.id); });
+    // Find root-HCHPS which is ALWAYS the original source of Category edges in the stateless generator
+    finalEdges.forEach(e => {
+      // Transfer all foundational driving branches from the default root to the new forced center
+      if (e.source === 'root-HCHPS') {
+        e.source = forcedCenterNode.id;
+      }
+      // Remove incoming edges targeting the New Center to prevent structural loops
+      if (e.target === forcedCenterNode.id) {
+        e.source = forcedCenterNode.id; // Mark as self-loop to be filtered out
+      }
+    });
     
-    const rest = finalNodes.filter(n => n.id !== forcedCenterNode.id && !hiddenSet.has(n.id)).sort((a,b) => (b.centralityScore ?? 0) - (a.centralityScore ?? 0));
-    const oldCenter = rest[0];
+    // Formally push the old default root (아이뛰움) into Orbit 1 as a category of the new forced center
+    finalEdges.push({
+      source: forcedCenterNode.id,
+      target: 'root-HCHPS',
+      weight: 1.0,
+      type: 'CAUSAL_DRIVE'
+    });
     
-    if (oldCenter) {
-      finalEdges.forEach(e => {
-        // Transfer all driving branches from Old Center to New Center
-        if (e.source === oldCenter.id) {
-          e.source = forcedCenterNode.id;
-        }
-        // Remove incoming edges targeting the New Center to prevent structural loops
-        if (e.target === forcedCenterNode.id) {
-          e.source = forcedCenterNode.id; // Mark as self-loop to be filtered out
-        }
-      });
-      // Formally push the old Center into Orbit 1 as a category of the new forced center
-      finalEdges.push({
-        source: forcedCenterNode.id,
-        target: oldCenter.id,
-        weight: 1.0,
-        type: 'CAUSAL_DRIVE'
-      });
-      
-      // Clean self-referencing edges
-      finalEdges = finalEdges.filter(e => e.source !== e.target);
-    }
+    // Clean self-referencing edges
+    finalEdges = finalEdges.filter(e => e.source !== e.target);
   }
 
   if (customData) {
