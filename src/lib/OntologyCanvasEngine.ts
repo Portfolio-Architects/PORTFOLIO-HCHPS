@@ -406,6 +406,12 @@ export class OntologyCanvasEngine {
         else if (a.orbitIndex === 2) repulsionThreshold = 0.6;
         else if (a.orbitIndex === 3) repulsionThreshold = 0.35;
 
+        const isAlien = a.orbitIndex > 1 && b.orbitIndex > 1 && a.parentId !== b.parentId;
+        if (isAlien) {
+          // 에일리언(타 파벌) 브랜치 간에는 90도(Math.PI / 2) 반경 이내 접근 시 밀어내어 가지 꼬임을 완전 차단
+          repulsionThreshold = Math.PI * 0.5;
+        }
+
         if (absDiff === 0) angleDiff = (Math.random() - 0.5) * 0.05;
 
         if (absDiff < repulsionThreshold) {
@@ -413,12 +419,9 @@ export class OntologyCanvasEngine {
           const strength = (0.12 * alpha) * (1 - absDiff / repulsionThreshold) * Math.sign(angleDiff);
           
           let finalStrength = strength;
-          // 2궤도 이상의 노드들 중 부모(파벌)가 서로 다른 노드끼리는
-          // 서로 침범하지 않도록 밀어내되, 지나치게 튕겨나가지 않도록 완만한 배율(x1.5) 부여
-          if (a.orbitIndex > 1 && b.orbitIndex > 1) {
-            if (a.parentId !== b.parentId) {
-              finalStrength *= 1.5;
-            }
+          // 부모(파벌)가 서로 다른 에일리언 노드끼리 선이 겹치지 않도록 엄청난 배율(x2.5) 부여
+          if (isAlien) {
+            finalStrength *= 2.5;
           }
 
           // 완벽한 동급 궤도간의 정상적인 척력
@@ -1267,30 +1270,26 @@ export class OntologyCanvasEngine {
     if (draggedNode.fixedX !== undefined && draggedNode.fixedY !== undefined) {
       const distFromCenter = Math.sqrt((draggedNode.fixedX * draggedNode.fixedX) / (ELLIPSE_RATIO * ELLIPSE_RATIO) + draggedNode.fixedY * draggedNode.fixedY);
       
-      if (distFromCenter < 70) {
-        closestOrbit = 0;
-        targetParentId = undefined;
-      } else {
-        let minOrbitDiff = Infinity;
-        for (let i = 1; i < this.orbitRadii.length; i++) {
-          const diff = Math.abs(distFromCenter - this.orbitRadii[i]);
-          if (diff < minOrbitDiff) {
-            minOrbitDiff = diff;
-            closestOrbit = i;
-          }
+      let minOrbitDiff = Infinity;
+      // 중앙 노드(Orbit 0) 강제 편입 로직을 삭제하고 최소 1번 궤도(독립 카테고리)부터 탐색하게 하여 루트 노드 탈취 버그를 원천 삭제합니다.
+      for (let i = 1; i < this.orbitRadii.length; i++) {
+        const diff = Math.abs(distFromCenter - this.orbitRadii[i]);
+        if (diff < minOrbitDiff) {
+          minOrbitDiff = diff;
+          closestOrbit = i;
         }
-        
-        if (isDirectDrop && closestCat) {
-          // 다른 노드 위로 정확히 올렸을 때 -> 궤도를 떠나서 강제로 흡수(자식 노드로 편입)
-          targetParentId = closestCat.id;
-          closestOrbit = closestCat.orbitIndex === 0 ? 1 : closestCat.orbitIndex + 1;
-        } else if (closestOrbit === 1) {
-          // 빈 공간 1번 궤도 위에 놓았을 때 -> 독립 카테고리 승격 (명시적으로 중앙 태양 노드를 부모로 지정)
-          targetParentId = 'root-HCHPS';
-        } else if (closestOrbit >= 2 && !targetParentId) {
-          // 안쪽 궤도로 떨어뜨렸는데 주변에 마땅한 부모가 없으면 기존 부모 유지
-          targetParentId = draggedNode.parentId;
-        }
+      }
+      
+      if (isDirectDrop && closestCat) {
+        // 다른 노드 위로 정확히 올렸을 때 -> 궤도를 떠나서 강제로 흡수(자식 노드로 편입)
+        targetParentId = closestCat.id;
+        closestOrbit = closestCat.orbitIndex === 0 ? 1 : closestCat.orbitIndex + 1;
+      } else if (closestOrbit === 1) {
+        // 빈 공간 1번 궤도 위에 놓았을 때 -> 독립 카테고리 승격 (명시적으로 중앙 태양 노드를 부모로 지정)
+        targetParentId = 'root-HCHPS';
+      } else if (closestOrbit >= 2 && !targetParentId) {
+        // 안쪽 궤도로 떨어뜨렸는데 주변에 마땅한 부모가 없으면 기존 부모 유지
+        targetParentId = draggedNode.parentId;
       }
     }
 

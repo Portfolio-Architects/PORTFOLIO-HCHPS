@@ -677,7 +677,18 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                           <div className="flex bg-indigo-50 border border-indigo-200 rounded text-xs font-medium text-indigo-600 shadow-sm overflow-hidden shrink-0">
                             <button
                               onClick={() => {
-                                if (activeNode.orbitIndex === 2) {
+                                if (activeNode.orbitIndex === 1) {
+                                  if (confirm(`'${activeNode.label}' 노드를 시스템 전체의 중앙 뿌리(태양) 노드로 승격시킬까요?\n\n기존 중앙 노드가 있다면 1번 궤도로 밀려납니다.`)) {
+                                    // 기존에 중앙 노드(Orbit 0) 권한을 가진 노드들을 모두 1번 궤도로 강등
+                                    Object.entries(overrides).forEach(([nodeId, override]) => {
+                                      if (override?.customOrbitIndex === 0) {
+                                        setNodeOverride(nodeId, { customOrbitIndex: 1, customParent: 'root-HCHPS' });
+                                      }
+                                    });
+                                    setNodeOverride(activeNode.id, { customParent: undefined, customOrbitIndex: 0, fixedX: undefined, fixedY: undefined });
+                                    setTimeout(() => initEngine(), 50);
+                                  }
+                                } else if (activeNode.orbitIndex === 2) {
                                   if (confirm(`'${activeNode.label}' 노드를 1차 카테고리로 승격시킬까요?\n\n이 노드는 현재 부모에게서 분리되어 독립적인 중심축(방사형 뿌리)을 형성합니다.`)) {
                                     setNodeOverride(activeNode.id, { customParent: 'root-HCHPS', customOrbitIndex: 1, fixedX: undefined, fixedY: undefined });
                                     setTimeout(() => initEngine(), 30);
@@ -687,19 +698,26 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                                   setTimeout(() => initEngine(), 30);
                                 }
                               }}
-                              disabled={activeNode.orbitIndex <= 1}
+                              disabled={activeNode.orbitIndex <= 0}
                               className="flex items-center gap-1 px-2 py-1 hover:bg-indigo-100 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed border-r border-indigo-200"
-                              title="중심 궤도로 당기기 (승격)"
+                              title="안쪽 궤도로 당기기 (승격)"
                             >
                               <ChevronUp size={12} /> 승격
                             </button>
                             <button
                               onClick={() => {
-                                setNodeOverride(activeNode.id, { customOrbitIndex: activeNode.orbitIndex + 1, fixedX: undefined, fixedY: undefined });
-                                setTimeout(() => initEngine(), 30);
+                                if (activeNode.orbitIndex === 0 && activeNode.id !== 'root-HCHPS') {
+                                  if (confirm(`'${activeNode.label}' 노드를 중앙 태양 자리에서 내려놓고 일반 파벌로 되돌리시겠습니까?`)) {
+                                    setNodeOverride(activeNode.id, { customOrbitIndex: 1, customParent: 'root-HCHPS' });
+                                    setTimeout(() => initEngine(), 50);
+                                  }
+                                } else {
+                                  setNodeOverride(activeNode.id, { customOrbitIndex: activeNode.orbitIndex + 1, fixedX: undefined, fixedY: undefined });
+                                  setTimeout(() => initEngine(), 30);
+                                }
                               }}
                               className="flex items-center gap-1 px-2 py-1 hover:bg-indigo-100 transition-colors cursor-pointer"
-                              title="외곽 궤도로 밀어내기 (하락)"
+                              title="바깥 궤도로 밀어내기 (하락)"
                             >
                               하락 <ChevronDown size={12} />
                             </button>
