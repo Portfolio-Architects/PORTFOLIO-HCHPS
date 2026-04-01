@@ -21,7 +21,7 @@ export function buildSignalGraph(
   keywordMap: Record<string, number>,
   entries: SignalEntry[],
   customData?: {
-    overrides: Record<string, { fixedX?: number; fixedY?: number; customColor?: string; customLabel?: string; customGroup?: string; customParent?: string; customOrbitIndex?: number; hidden?: boolean }>;
+    overrides: Record<string, { fixedX?: number; fixedY?: number; customColor?: string; customLabel?: string; customGroup?: string; customParent?: string; customOrbitIndex?: number; customSortOrder?: number; hidden?: boolean }>;
     customNodes: OntologyNode[];
     customEdges: OntologyEdge[];
   }
@@ -219,6 +219,7 @@ export function buildSignalGraph(
         if (override.customLabel !== undefined) n.label = override.customLabel;
         if (override.customGroup !== undefined) n.group = override.customGroup as OntologyGroup;
         if (override.customOrbitIndex !== undefined) n.customOrbitIndex = override.customOrbitIndex;
+        if (override.customSortOrder !== undefined) n.customSortOrder = override.customSortOrder;
         if (override.customParent !== undefined) {
           n.parentId = override.customParent;
           
@@ -351,6 +352,19 @@ export function buildSignalGraph(
     const children = childMap.get(currentId) || [];
     queue.push(...children);
   }
+
+  // 7. Cleanup invalid topology: Nodes with a specific parent should not connect directly to the center
+  finalEdges = finalEdges.filter(e => {
+    const centerId = forcedCenterNode ? forcedCenterNode.id : 'root-HCHPS';
+    if (e.source === centerId || e.target === centerId) {
+      const otherId = e.source === centerId ? e.target : e.source;
+      const otherNode = finalNodes.find(n => n.id === otherId);
+      if (otherNode && otherNode.parentId && otherNode.parentId !== centerId) {
+        return false;
+      }
+    }
+    return true;
+  });
 
   return { nodes: finalNodes, edges: finalEdges };
 }

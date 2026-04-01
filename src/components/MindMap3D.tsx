@@ -398,6 +398,46 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
 
 
 
+
+  const handleSwapNodeOrder = useCallback((dir: -1 | 1) => {
+    if (!activeNode || !engineRef.current) return;
+    const parentId = activeNode.parentId;
+    if (!parentId) return;
+    const engine = engineRef.current;
+    
+    const siblings = engine.nodes.filter(n => n.parentId === parentId && n.orbitIndex === activeNode.orbitIndex)
+      .sort((a, b) => {
+        const orderA = overrides[a.id]?.customSortOrder ?? 0;
+        const orderB = overrides[b.id]?.customSortOrder ?? 0;
+        return orderA - orderB;
+      });
+      
+    const idx = siblings.findIndex(n => n.id === activeNode.id);
+    if (idx < 0) return;
+    
+    const targetIdx = idx + dir;
+    if (targetIdx < 0 || targetIdx >= siblings.length) return;
+    
+    const targetNode = siblings[targetIdx];
+    
+    const myOrder = overrides[activeNode.id]?.customSortOrder ?? idx;
+    const targetOrder = overrides[targetNode.id]?.customSortOrder ?? targetIdx;
+    
+    setNodeOverride(activeNode.id, { customSortOrder: targetOrder });
+    setNodeOverride(targetNode.id, { customSortOrder: myOrder });
+    
+    const tempAngle = activeNode.orbitAngle;
+    const activeEngineNode = engine.getNodeById(activeNode.id);
+    const targetEngineNode = engine.getNodeById(targetNode.id);
+    if (activeEngineNode && targetEngineNode) {
+      activeEngineNode.orbitAngle = targetNode.orbitAngle;
+      targetEngineNode.orbitAngle = tempAngle;
+    }
+    
+    setTimeout(() => initEngine(), 30);
+  }, [activeNode, overrides, setNodeOverride, initEngine]);
+
+
   // ── Loading / Error States ──
   if (loading) {
     return (
@@ -423,87 +463,179 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
     );
   }
 
-  return (
-    <div className="space-y-4">
 
+  const render5W1HPanel = (isSidebar: boolean) => {
+    if (!activeNode || !show5W1H) {
+      if (!isSidebar) return null;
+      
+      const topKeywords = Object.entries(signalKeywords)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5);
+        
+      const totalNodes = engineRef.current?.nodes?.length || 0;
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold flex items-center gap-2">
-          <Radio size={22} className="text-emerald-500" />
-          시그널
-        </h2>
-        <div className="flex items-center gap-2">
-          {usingSample && (
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 font-medium">
-              시그널을 입력해주세요
-            </span>
-          )}
-
-          <button
-            onClick={() => {
-              const label = prompt('추가할 노드 이름을 입력하세요:');
-              if (label) {
-                // 1번 궤도(기둥 카테고리) 목록 추출
-                const engine = engineRef.current;
-                const categories = engine ? engine.nodes.filter(n => n.orbitIndex === 1) : [];
-                
-                // 엔진 중앙에서 생성되도록 살짝 랜덤 좌표값 부여
-                const x = (Math.random() - 0.5) * 50;
-                const y = (Math.random() - 0.5) * 50;
-                const newNode = addCustomNode(label, x, y);
-
-                if (activeNode) {
-                  // 현재 클릭(선택)된 노드가 있다면, 새 노드를 그 노드의 직속 파생 자식으로 자동 배정
-                  setNodeOverride(newNode.id, { 
-                    customParent: activeNode.id,
-                    customOrbitIndex: activeNode.orbitIndex + 1,
-                    fixedX: undefined,
-                    fixedY: undefined
-                  });
-                } else if (categories.length > 0) {
-                  // 선택된 노드가 없으면 무작위 기둥 카테고리 하나를 골라 부모로 배정
-                  const randomCat = categories[Math.floor(Math.random() * categories.length)];
-                  setNodeOverride(newNode.id, { 
-                    customParent: randomCat.id,
-                    fixedX: undefined, 
-                    fixedY: undefined
-                  });
-                } else {
-                  // 등록된 카테고리가 아예 없다면 본인이 1번 궤도 기둥 카테고리로 승격
-                  setNodeOverride(newNode.id, { customGroup: 'MACRO_RESEARCH' });
-                }
-                setTimeout(() => initEngine(), 10);
-              }
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--color-primary)] text-white text-xs font-semibold hover:opacity-90 shadow-sm border border-emerald-600 cursor-pointer transition-colors"
+      return (
+        <div className="w-full bg-white rounded-xl p-5 shadow-sm border border-[var(--color-border-light)] flex flex-col gap-5 relative animate-in fade-in duration-300 h-full overflow-y-auto custom-scrollbar pointer-events-auto">
+          <div className="flex items-center gap-2.5 border-b border-gray-100 pb-3">
+            <div className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
+            <h3 className="text-[15px] font-bold text-slate-800">시그널 데이터 요약</h3>
+          </div>
+          
+          <div className="flex flex-col gap-3">
+            <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 flex flex-col gap-1">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">총 시그널 (데이터)</span>
+              <span className="text-xl font-black text-indigo-600">{signalEntries.length}건</span>
+            </div>
+            
+            <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 flex flex-col gap-1">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">활성 노드 (그래프)</span>
+              <span className="text-xl font-black text-emerald-600">{totalNodes}개</span>
+            </div>
+          </div>
+          
+          <div className="mt-2 flex flex-col gap-2">
+            <h4 className="text-xs font-bold text-slate-700 mb-1">🔥 Top 5 핵심 키워드</h4>
+            {topKeywords.length > 0 ? (
+              <div className="flex flex-col gap-2">
+                {topKeywords.map(([kw, count], idx) => (
+                  <div key={kw} className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2 truncate pr-2">
+                      <span className="text-[10px] font-bold text-slate-400 w-3">{idx + 1}</span>
+                      <span className="font-medium text-slate-700 truncate">{kw}</span>
+                    </div>
+                    <span className="text-xs font-bold px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded-md">
+                      {count}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-slate-400 py-2">추출된 키워드가 없습니다.</p>
+            )}
+          </div>
+          
+          <div className="mt-auto pt-4 border-t border-gray-100">
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              캔버스에서 노드를 클릭하면 해당 노드의 상세 5W1H 정보가 여기에 표시됩니다.
+            </p>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div
+        className={
+          isSidebar
+            ? "w-full bg-white rounded-xl p-5 shadow-sm border border-[var(--color-border-light)] flex flex-col gap-4 relative animate-in fade-in duration-300 h-full overflow-y-auto custom-scrollbar pointer-events-auto"
+            : "fixed top-4 left-4 z-[110] w-[320px] max-w-[90%] bg-white/95 backdrop-blur-xl rounded-xl p-5 shadow-2xl border border-emerald-100 flex flex-col gap-4 animate-in fade-in slide-in-from-left-4 duration-300 pointer-events-auto"
+        }
+        style={isSidebar ? {} : { maxHeight: 'calc(100vh - 32px)', overflowY: 'auto' }}
+      >
+        <div className="flex items-center justify-between border-b border-emerald-50/80 pb-3">
+          <div className="flex items-center gap-2.5">
+            <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: GROUP_COLORS[activeNode.group as OntologyGroup] }} />
+            <span className="text-[14px] font-bold text-slate-800 truncate pr-2">{activeNode.label} 5W1H 정보</span>
+          </div>
+          <button 
+            onClick={() => setShow5W1H(false)}
+            className="p-1.5 text-slate-400 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer shrink-0"
+            title="패널 닫기"
           >
-            <PlusSquare size={14} /> 노드 추가
+            <X size={16} />
           </button>
         </div>
+
+        {/* 5W1H Inputs (1 column grid for sidebar) */}
+        <div className="grid grid-cols-1 gap-y-3">
+          {[
+            { key: 'department', label: '소속' },
+            { key: 'title', label: '직함' },
+            { key: 'contact', label: '연락처' },
+            { key: 'when', label: '언제' },
+            { key: 'where', label: '어디서' },
+            { key: 'what', label: '무엇을' }
+          ].map(({ key, label }) => {
+            const typedKey = key as 'department' | 'title' | 'contact' | 'when' | 'where' | 'what';
+            const rawVal = overrides[activeNode.id]?.story5W1H?.[typedKey] || '';
+
+            let displayVal = rawVal;
+            if (key === 'when' && !rawVal) {
+              const d = new Date();
+              const pad = (n: number) => n.toString().padStart(2, '0');
+              displayVal = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T00:00`;
+            }
+
+            return (
+              <div key={key} className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-bold text-slate-500 tracking-wide pl-1">{label}</label>
+                <input
+                  type={key === 'when' ? 'datetime-local' : 'text'}
+                  value={key === 'when' ? displayVal : rawVal}
+                  onChange={(e) => {
+                    const current5W1H = overrides[activeNode.id]?.story5W1H || {};
+                    let inputVal = e.target.value;
+                    
+                    if (key === 'contact') {
+                      inputVal = inputVal.replace(/[^0-9]/g, '');
+                      if (inputVal.startsWith('02')) {
+                        if (inputVal.length >= 3 && inputVal.length <= 5) {
+                          inputVal = inputVal.replace(/(\d{2})(\d+)/, '$1-$2');
+                        } else if (inputVal.length > 5 && inputVal.length < 10) {
+                          inputVal = inputVal.replace(/(\d{2})(\d{3})(\d+)/, '$1-$2-$3');
+                        } else if (inputVal.length >= 10) {
+                          inputVal = inputVal.replace(/(\d{2})(\d{4})(\d{4}).*/, '$1-$2-$3');
+                        }
+                      } else {
+                        if (inputVal.length >= 4 && inputVal.length <= 6) {
+                          inputVal = inputVal.replace(/(\d{3})(\d+)/, '$1-$2');
+                        } else if (inputVal.length > 6 && inputVal.length === 10) {
+                          inputVal = inputVal.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3');
+                        } else if (inputVal.length > 10) {
+                          inputVal = inputVal.replace(/(\d{3})(\d{4})(\d{4}).*/, '$1-$2-$3');
+                        } else if (inputVal.length > 6) {
+                           inputVal = inputVal.replace(/(\d{3})(\d{3,4})/, '$1-$2-');
+                        }
+                      }
+                  }
+
+                  if (key === 'when' && !rawVal && inputVal) {
+                  }
+
+                  setNodeOverride(activeNode.id, { 
+                    story5W1H: { ...current5W1H, [typedKey]: inputVal } 
+                  });
+                }}
+                onFocus={(e) => e.stopPropagation()}
+                placeholder={key === 'when' ? '' : `${label} 입력...`}
+                className={`w-full bg-slate-50 text-sm px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 focus:bg-white transition-all shadow-sm ${key === 'when' ? 'text-slate-600' : ''}`}
+              />
+            </div>
+          );
+        })}
+        </div>
       </div>
+    );
+  };
 
-      {/* Main: Side Panel (left) + Canvas (right) */}
-      <div className={isFullscreen ? '' : 'grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4'}>
 
-        {/* ── Side Panel (left on desktop, below canvas on mobile) ── */}
-        <div 
-          className={
-            isFullscreen 
-              ? 'hidden md:block fixed top-4 right-auto bottom-4 left-4 z-[110] w-[280px] lg:w-[320px] shadow-2xl rounded-xl custom-scrollbar'
-              : 'order-2 lg:order-none lg:self-start w-full'
-          }
-          style={{ 
-            maxHeight: isFullscreen ? 'calc(100vh - 32px)' : 'min(600px, 70vh)', 
-            overflowY: 'auto' 
-          }}
-        >
-          {/* Node Detail */}
-            <div className="bg-white rounded-xl border border-[var(--color-border-light)] shadow-sm overflow-hidden h-full">
-              <div className="px-4 py-3 border-b border-[var(--color-border-light)] bg-gray-50/50">
-                <h3 className="text-sm font-semibold text-[var(--color-text-secondary)]">노드 상세</h3>
-              </div>
-              <div className="overflow-y-auto custom-scrollbar" style={{ maxHeight: 'calc(min(600px, 70vh) - 44px)' }}>
+  const renderNodeDetails = (isOverlay: boolean) => {
+    return (
+      <div 
+        className={
+          isOverlay 
+            ? "absolute bottom-6 left-1/2 -translate-x-1/2 z-[110] w-[95%] md:w-[90%] max-w-[800px] bg-white/95 backdrop-blur-xl rounded-xl border border-[var(--color-border-light)] shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300 pointer-events-auto"
+            : "w-full bg-white rounded-xl border border-[var(--color-border-light)] shadow-sm overflow-hidden mb-4 relative flex flex-col animate-in fade-in slide-in-from-bottom-2 duration-300 pointer-events-auto"
+        }
+      >
+        <div className="px-4 py-3 border-b border-[var(--color-border-light)] bg-gray-50/50 flex justify-between items-center">
+          <h3 className="text-sm font-semibold text-[var(--color-text-secondary)]">노드 상세</h3>
+          {isOverlay && (
+            <button onClick={() => setActiveNode(null)} className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer shrink-0">
+              <X size={16} />
+            </button>
+          )}
+        </div>
+        <div className="overflow-y-auto custom-scrollbar" style={{ maxHeight: isOverlay ? '40vh' : 'auto' }}>
                 {activeNode ? (
                   <div className="p-4">
                     {/* Group color + label */}
@@ -838,8 +970,78 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                     </div>
                   </div>
                 )}
-              </div>
-            </div>
+        </div>
+      </div>
+    );
+  };
+
+
+  return (
+    <div className="space-y-4">
+
+
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold flex items-center gap-2">
+          <Radio size={22} className="text-emerald-500" />
+          시그널
+        </h2>
+        <div className="flex items-center gap-2">
+          {usingSample && (
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 font-medium">
+              시그널을 입력해주세요
+            </span>
+          )}
+
+          <button
+            onClick={() => {
+              const label = prompt('추가할 노드 이름을 입력하세요:');
+              if (label) {
+                // 1번 궤도(기둥 카테고리) 목록 추출
+                const engine = engineRef.current;
+                const categories = engine ? engine.nodes.filter(n => n.orbitIndex === 1) : [];
+                
+                // 엔진 중앙에서 생성되도록 살짝 랜덤 좌표값 부여
+                const x = (Math.random() - 0.5) * 50;
+                const y = (Math.random() - 0.5) * 50;
+                const newNode = addCustomNode(label, x, y);
+
+                if (activeNode) {
+                  // 현재 클릭(선택)된 노드가 있다면, 새 노드를 그 노드의 직속 파생 자식으로 자동 배정
+                  setNodeOverride(newNode.id, { 
+                    customParent: activeNode.id,
+                    customOrbitIndex: activeNode.orbitIndex + 1,
+                    fixedX: undefined,
+                    fixedY: undefined
+                  });
+                } else if (categories.length > 0) {
+                  // 선택된 노드가 없으면 무작위 기둥 카테고리 하나를 골라 부모로 배정
+                  const randomCat = categories[Math.floor(Math.random() * categories.length)];
+                  setNodeOverride(newNode.id, { 
+                    customParent: randomCat.id,
+                    fixedX: undefined, 
+                    fixedY: undefined
+                  });
+                } else {
+                  // 등록된 카테고리가 아예 없다면 본인이 1번 궤도 기둥 카테고리로 승격
+                  setNodeOverride(newNode.id, { customGroup: 'MACRO_RESEARCH' });
+                }
+                setTimeout(() => initEngine(), 10);
+              }
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--color-primary)] text-white text-xs font-semibold hover:opacity-90 shadow-sm border border-emerald-600 cursor-pointer transition-colors"
+          >
+            <PlusSquare size={14} /> 노드 추가
+          </button>
+        </div>
+      </div>
+
+      {/* Main: Side Panel (left) + Canvas (right) */}
+      <div className={isFullscreen ? '' : 'grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4'}>
+
+        {/* ── Side Panel swapped to 5W1H ── */}
+        <div className={isFullscreen ? "hidden md:block fixed top-4 right-auto bottom-4 left-4 z-[110] w-[280px] lg:w-[320px] shadow-2xl rounded-xl custom-scrollbar pointer-events-auto" : "order-2 lg:order-none lg:self-start w-full pointer-events-auto"} style={{ maxHeight: isFullscreen ? "calc(100vh - 32px)" : "min(600px, 70vh)" }}>
+          {render5W1HPanel(true)}
         </div>
 
         {/* ── Canvas Container ── */}
@@ -925,103 +1127,8 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
           )}
 
           {/* 5W1H Active Node Bottom Panel */}
-          {activeNode && show5W1H && (
-            <div
-              className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 w-[95%] max-w-3xl bg-white/95 backdrop-blur-xl rounded-xl p-5 shadow-2xl border border-emerald-100 flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-4 duration-300"
-            >
-              <div className="flex items-center justify-between border-b border-emerald-50/80 pb-3">
-                <div className="flex items-center gap-2.5">
-                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: GROUP_COLORS[activeNode.group as OntologyGroup] }} />
-                  <span className="text-[15px] font-bold text-slate-800">{activeNode.label} 인적 자원 및 세부 내역</span>
-                </div>
-                <button 
-                  onClick={() => setShow5W1H(false)}
-                  className="p-1.5 text-slate-400 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                  title="패널 닫기"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-
-              {/* 5W1H Inputs (3 column grid) */}
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-x-5 gap-y-4">
-                {[
-                  { key: 'department', label: '소속' },
-                  { key: 'title', label: '직함' },
-                  { key: 'contact', label: '연락처' },
-                  { key: 'when', label: '언제' },
-                  { key: 'where', label: '어디서' },
-                  { key: 'what', label: '무엇을' }
-                ].map(({ key, label }) => {
-                  const typedKey = key as 'department' | 'title' | 'contact' | 'when' | 'where' | 'what';
-                  const rawVal = overrides[activeNode.id]?.story5W1H?.[typedKey] || '';
-
-                  let displayVal = rawVal;
-                  if (key === 'when' && !rawVal) {
-                    const d = new Date();
-                    const pad = (n: number) => n.toString().padStart(2, '0');
-                    displayVal = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T00:00`;
-                  }
-
-                  return (
-                    <div key={key} className="flex flex-col gap-1.5">
-                      <label className="text-[11px] font-bold text-slate-500 tracking-wide pl-1">{label}</label>
-                      <input
-                        type={key === 'when' ? 'datetime-local' : 'text'}
-                        value={key === 'when' ? displayVal : rawVal}
-                        onChange={(e) => {
-                          const current5W1H = overrides[activeNode.id]?.story5W1H || {};
-                          let inputVal = e.target.value;
-                          
-                          // 연락처 자동 하이픈 처리
-                          if (key === 'contact') {
-                            inputVal = inputVal.replace(/[^0-9]/g, ''); // 숫자만 남기기
-                            if (inputVal.startsWith('02')) {
-                              // 서울 (02)
-                              if (inputVal.length >= 3 && inputVal.length <= 5) {
-                                inputVal = inputVal.replace(/(\d{2})(\d+)/, '$1-$2');
-                              } else if (inputVal.length > 5 && inputVal.length < 10) {
-                                inputVal = inputVal.replace(/(\d{2})(\d{3})(\d+)/, '$1-$2-$3');
-                              } else if (inputVal.length >= 10) {
-                                inputVal = inputVal.replace(/(\d{2})(\d{4})(\d{4}).*/, '$1-$2-$3');
-                              }
-                            } else {
-                              // 일반 지역번호 및 휴대폰 (010 등)
-                              if (inputVal.length >= 4 && inputVal.length <= 6) {
-                                inputVal = inputVal.replace(/(\d{3})(\d+)/, '$1-$2');
-                              } else if (inputVal.length > 6 && inputVal.length === 10) {
-                                inputVal = inputVal.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3');
-                              } else if (inputVal.length > 10) {
-                                inputVal = inputVal.replace(/(\d{3})(\d{4})(\d{4}).*/, '$1-$2-$3');
-                              } else if (inputVal.length > 6) {
-                                 inputVal = inputVal.replace(/(\d{3})(\d{3,4})/, '$1-$2-');
-                              }
-                            }
-                            // 지울 때 끝에 하이픈이 오면 무시 
-                            if (e.target.value.length < rawVal.length && rawVal.endsWith('-')) {
-                               // 사용자 백스페이스 편의
-                            }
-                        }
-
-                        // 날짜 픽커에서 기본값인 상태에서 건드리면 그 값을 그대로 저장
-                        if (key === 'when' && !rawVal && inputVal) {
-                           // pass
-                        }
-
-                        setNodeOverride(activeNode.id, { 
-                          story5W1H: { ...current5W1H, [typedKey]: inputVal } 
-                        });
-                      }}
-                      onFocus={(e) => e.stopPropagation()}
-                      placeholder={key === 'when' ? '' : `${label} 입력...`}
-                      className={`w-full bg-slate-50 text-sm px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 focus:bg-white transition-all shadow-sm ${key === 'when' ? 'text-slate-600' : ''}`}
-                    />
-                  </div>
-                );
-              })}
-              </div>
-            </div>
-          )}
+          {/* 5W1H -> Node Details Fullscreen Overlay */}
+          {isFullscreen && renderNodeDetails(true)}
 
           {/* Instructions */}
           <div className="absolute top-4 right-4 z-10 bg-white/80 backdrop-blur rounded-lg px-3 py-1.5 text-[10px] text-slate-500 shadow-sm border border-slate-100 hidden md:block">
@@ -1033,150 +1140,8 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
         </div>
       </div>
 
-      {/* ── Signal Log Panel (full width, below canvas) ── */}
-      {!isFullscreen && (
-        <div className="bg-white rounded-xl border border-[var(--color-border-light)] shadow-sm overflow-hidden">
-          <div className="px-5 py-3 border-b border-[var(--color-border-light)] bg-gray-50/50 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-[var(--color-text-secondary)] flex items-center gap-1.5">
-              <FileText size={14} /> 시그널 로그 ({signalEntries.length}건)
-            </h3>
-          </div>
-          <div className="max-h-[350px] overflow-y-auto custom-scrollbar">
-            {signalEntries.length === 0 ? (
-              <div className="px-5 py-8 text-center text-xs text-[var(--color-text-tertiary)]">
-                아직 기록된 시그널이 없습니다. 위에서 상황을 입력해보세요.
-              </div>
-            ) : (
-              <div>
-                {signalEntries.map((entry) => {
-                  const isEditing = editingEntryId === entry.id;
-                  return (
-                    <div
-                      key={entry.id}
-                      className={`px-5 py-4 border-b border-[var(--color-border-light)] last:border-b-0 transition-colors group ${
-                        isEditing ? 'bg-emerald-50/40' : 'hover:bg-gray-50/50'
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm text-[var(--color-text-primary)] leading-relaxed flex items-center gap-2">
-                            {/* Source Badge */}
-                            <span className={`shrink-0 px-2 py-0.5 rounded text-[10px] font-bold ${
-                              entry.id.startsWith('sig-') ? 'bg-purple-100 text-purple-700' :
-                              entry.id.startsWith('task-') ? 'bg-blue-100 text-blue-700' :
-                              entry.id.startsWith('know-') ? 'bg-yellow-100 text-yellow-700' :
-                              entry.id.startsWith('proj-') ? 'bg-indigo-100 text-indigo-700' :
-                              entry.id.startsWith('meet-') ? 'bg-pink-100 text-pink-700' :
-                              entry.id.startsWith('budg-') ? 'bg-green-100 text-green-700' :
-                              'bg-gray-100 text-gray-700'
-                            }`}>
-                              {entry.id.startsWith('sig-') ? '🧠 생각' :
-                               entry.id.startsWith('task-') ? '📋 업무' :
-                               entry.id.startsWith('know-') ? '💡 지식' :
-                               entry.id.startsWith('proj-') ? '🚀 PJ' :
-                               entry.id.startsWith('meet-') ? '🤝 회의' :
-                               entry.id.startsWith('budg-') ? '💰 예산' :
-                               '📦 재고'}
-                            </span>
-                            {entry.text}
-                          </div>
-                          {/* Keywords — editable or static */}
-                          <div className="flex flex-wrap gap-1.5 mt-2">
-                            {entry.keywords.map((kw, i) => (
-                              <span
-                                key={`${kw}-${i}`}
-                                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium ${
-                                  isEditing
-                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                                    : 'bg-emerald-50 text-emerald-700'
-                                }`}
-                              >
-                                {kw}
-                                {isEditing && onUpdateKeywords && entry.id.startsWith('sig-') && (
-                                  <button
-                                    onClick={() => onUpdateKeywords(entry.id, entry.keywords.filter((_, idx) => idx !== i))}
-                                    className="hover:text-red-600 cursor-pointer"
-                                    title={`'${kw}' 삭제`}
-                                  >
-                                    <X size={10} />
-                                  </button>
-                                )}
-                              </span>
-                            ))}
-                            {/* Add keyword input — visible when editing */}
-                            {isEditing && onUpdateKeywords && entry.id.startsWith('sig-') && (
-                              <form
-                                className="inline-flex items-center"
-                                onSubmit={(e) => {
-                                  e.preventDefault();
-                                  const kw = newKeyword.trim();
-                                  if (kw && !entry.keywords.includes(kw)) {
-                                    onUpdateKeywords(entry.id, [...entry.keywords, kw]);
-                                    setNewKeyword('');
-                                  }
-                                }}
-                              >
-                                <input
-                                  type="text"
-                                  value={newKeyword}
-                                  onChange={(e) => setNewKeyword(e.target.value)}
-                                  className="w-24 px-2.5 py-1 rounded-md text-[11px] border border-emerald-300 bg-white outline-none focus:ring-1 focus:ring-emerald-400"
-                                  placeholder="+ 키워드 추가"
-                                />
-                                <button
-                                  type="submit"
-                                  className="p-1 ml-1 text-emerald-600 hover:text-emerald-800 cursor-pointer"
-                                >
-                                  <Plus size={12} />
-                                </button>
-                              </form>
-                            )}
-                          </div>
-                          <div className="text-[11px] text-[var(--color-text-tertiary)] mt-2">
-                            {new Date(entry.createdAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                          </div>
-                        </div>
-                        {/* Action buttons (Only for raw signals) */}
-                        {entry.id.startsWith('sig-') && (
-                          <div className={`flex items-center gap-1 shrink-0 ${
-                            isEditing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                          } transition-all`}>
-                            {onUpdateKeywords && (
-                              <button
-                                onClick={() => {
-                                  setEditingEntryId(isEditing ? null : entry.id);
-                                  setNewKeyword('');
-                                }}
-                                className={`p-2 rounded-lg cursor-pointer transition-colors ${
-                                  isEditing
-                                    ? 'text-emerald-600 bg-emerald-100'
-                                    : 'text-[var(--color-text-tertiary)] hover:text-emerald-600 hover:bg-emerald-50'
-                                }`}
-                                title={isEditing ? '편집 완료' : '키워드 편집'}
-                              >
-                                <Edit2 size={16} />
-                              </button>
-                            )}
-                            {onDeleteSignal && (
-                              <button
-                                onClick={() => onDeleteSignal(entry.id)}
-                                className="p-2 rounded-lg text-[var(--color-text-tertiary)] hover:text-red-500 hover:bg-red-50 cursor-pointer transition-colors"
-                                title="시그널 삭제"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Static Bottom swapped to Node Details */}
+      {!isFullscreen && renderNodeDetails(false)}
     </div>
   );
 }

@@ -14,6 +14,7 @@ export interface NodeOverride {
   customGroup?: string;
   customParent?: string;
   customOrbitIndex?: number;
+  customSortOrder?: number;
   hidden?: boolean;
   story5W1H?: {
     who?: string;
@@ -53,6 +54,7 @@ export function useGraphCustomization() {
 
   const [past, setPast] = useState<MapCustomizationData[]>([]);
   const [future, setFuture] = useState<MapCustomizationData[]>([]);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   // 1) 초기 클라우드 로딩
   const initialLoadDone = useRef(false);
@@ -82,9 +84,18 @@ export function useGraphCustomization() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     } catch { /* ignore */ }
 
+    setSaveStatus('saving');
     // 디바운스: 짧은 시간 안에 발생하는 드래그 이벤트 등 다중 쓰기를 묶어서 처리
     const timer = setTimeout(() => {
-      replaceAll('MAP_CUSTOMIZATION', [{ id: 'singleton', ...data }]).catch(console.warn);
+      replaceAll('MAP_CUSTOMIZATION', [{ id: 'singleton', ...data }])
+        .then(() => {
+          setSaveStatus('saved');
+          setTimeout(() => setSaveStatus('idle'), 2000);
+        })
+        .catch((err) => {
+          console.warn(err);
+          setSaveStatus('error');
+        });
     }, 1500);
 
     return () => clearTimeout(timer);
@@ -217,6 +228,7 @@ export function useGraphCustomization() {
 
   return {
     ...data,
+    saveStatus,
     undo,
     redo,
     setNodeOverride,

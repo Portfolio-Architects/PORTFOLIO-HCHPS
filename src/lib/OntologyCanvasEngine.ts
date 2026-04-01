@@ -14,7 +14,7 @@ const NUM_ORBITS = 8;
 const ELLIPSE_RATIO = 1.3;  // tilted 2D ellipse
 const MIN_NODE_R = 3;
 const MAX_NODE_R = 24;
-const ORBIT_SPEED_BASE = 0.0004;  // slow gentle orbit
+const ORBIT_SPEED_BASE = 0.00025; // 0.0004에서 속도 약간 감소
 const LERP_SPEED = 0.12;  // faster camera response
 const MIN_ZOOM = 0.3;
 const MAX_ZOOM = 3.0;
@@ -137,10 +137,15 @@ export class OntologyCanvasEngine {
       }
     }
 
-    // Non-center nodes sorted by connection to center
-    const otherNodes = sorted.slice(1).sort(
-      (a, b) => (connectionMap.get(b.id) ?? 0) - (connectionMap.get(a.id) ?? 0)
-    );
+    // Non-center nodes sorted by customSortOrder, falling back to connection weight
+    const otherNodes = sorted.slice(1).sort((a, b) => {
+      const orderA = a.customSortOrder ?? 99999;
+      const orderB = b.customSortOrder ?? 99999;
+      if (orderA !== 99999 || orderB !== 99999) {
+        return orderA - orderB;
+      }
+      return (connectionMap.get(b.id) ?? 0) - (connectionMap.get(a.id) ?? 0);
+    });
 
     const nodesPerOrbit = Math.max(1, Math.ceil(otherNodes.length / NUM_ORBITS));
 
@@ -228,10 +233,10 @@ export class OntologyCanvasEngine {
       // Spread each group in a fan (arc) around the parent's angle
       orbitGroups.forEach((groupNodes, oIndex) => {
         const N = groupNodes.length;
-        // 기둥 카테고리(1번 궤도)는 중앙 뿌리 주변 360도 전체에 균등하게 퍼뜨린 상태로 시작합니다 (우측 쏠림 후 펼쳐지는 애니메이션 방지)
+        // 기둥 카테고리(1번 궤도)는 중앙 뿌리 주변 360도 전체에 균등하게 퍼뜨린 상태로 시작합니다
         const isCenterParent = parent.orbitIndex === 0;
-        const totalSpreadAngle = isCenterParent ? (Math.PI * 2) : Math.min(Math.PI * 1.5, N * 0.22);
-        // 중앙 부모일 경우 한 바퀴를 완전히 도는 것이므로 시작 각도를 무작위로 틀어주어 특정 0도 우측 좌표에 과도하게 몰려 겹치는 현상을 원천 방지합니다.
+        // 깊은 궤도(2궤도 이상)일수록 자식들이 할당된 파이(각도) 영역을 넘지 않도록 좁은 부채꼴로 제한합니다.
+        const totalSpreadAngle = isCenterParent ? (Math.PI * 2) : Math.min(1.0, N * 0.15);
         const startAngle = isCenterParent ? (Math.random() * Math.PI * 2) : parent.orbitAngle - (totalSpreadAngle / 2);
         const angleStep = N <= 1 ? 0 : totalSpreadAngle / (isCenterParent ? N : (N - 1));
 
@@ -400,26 +405,28 @@ export class OntologyCanvasEngine {
         while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
 
         const absDiff = Math.abs(angleDiff);
-        
-        let repulsionThreshold = 0.6;
-        if (a.orbitIndex === 1) repulsionThreshold = Math.PI; // 360도 균등 분할
-        else if (a.orbitIndex === 2) repulsionThreshold = 0.6;
-        else if (a.orbitIndex === 3) repulsionThreshold = 0.35;
+
+        let repulsionThreshold = 0.4;
+        if (a.orbitIndex === 1) repulsionThreshold = Math.PI; // 기둥은 크게
+        else if (a.orbitIndex === 2) repulsionThreshold = 0.6; 
+        else if (a.orbitIndex === 3) repulsionThreshold = 0.3; 
+        else repulsionThreshold = 0.2; // 4궤도 이상은 거의 겹쳐야만 반응
 
         const isAlien = a.orbitIndex > 1 && b.orbitIndex > 1 && a.parentId !== b.parentId;
         if (isAlien) {
-          // 너무 거대한 척력(90도)은 물리계를 폭파시켜 선을 가로지르게 하므로, 적정 수준(약 50도)으로 제한하여 부드러운 파벌 경계만 만듭니다.
-          repulsionThreshold = 0.9;
+          // 타 파벌일 경우 다른 나뭇가지를 무리하게 휘어버리지 않도록 최소한의 반경만 유지
+          repulsionThreshold *= 0.8;
         }
 
         if (absDiff === 0) angleDiff = (Math.random() - 0.5) * 0.05;
 
         if (absDiff < repulsionThreshold) {
-          const strength = (0.12 * alpha) * (1 - absDiff / repulsionThreshold) * Math.sign(angleDiff);
+          // 진동(Shaking)을 막기 위해 척력 강도를 안정적인 수준으로 조정
+          const strength = (0.05 * alpha) * (1 - absDiff / repulsionThreshold) * Math.sign(angleDiff);
           
           let finalStrength = strength;
           if (isAlien) {
-            finalStrength *= 1.4; // 폭발을 막기 위해 2.5배에서 1.4배로 하향 조정
+            finalStrength *= 0.3; // 타 파벌 밀어내기 힘을 극도로 낮춤 (나뭇가지가 꺾이는 얽힘 현상 방지)
           }
 
           // 완벽한 동급 궤도간의 정상적인 척력
@@ -445,12 +452,12 @@ export class OntologyCanvasEngine {
       while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
       while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
 
-      // 부모 - 자식 간의 직접 연결 결속력(Angular Spring)을 극대화하여 척력에 의해 브랜치가 찢기거나 화면 반대편으로 날아가는 현상 방어
+      // 부모-자식간의 1자 형 정렬(Straight Line)을 위해 데드존을 삭제하고 항시 인력을 작용합니다.
+      // 가지가 휘어지지 않고 직진형으로 뻗어나오도록 인력을 대폭 강화합니다.
       let pullForce = 0.08; 
-      // 1번 궤도(기둥)와 2번 궤도(주요 자식) 간의 결속은 가장 단단하게 고정!
-      if (src.orbitIndex === 1 || tgt.orbitIndex === 1) pullForce = 0.25;
-
-      const pull = angleDiff * pullForce * alpha;
+      if (src.orbitIndex === 1 || tgt.orbitIndex === 1) pullForce = 0.15;
+      
+      let pull = angleDiff * pullForce * alpha;
       
       // 1차 카테고리(Orbit 1)는 자식의 무게(편향)에 끌려가지 않고 꿋꿋이 일정한 간격을 유지하도록 당기는 힘을 받지 않음
       if (src.orbitIndex !== 1) forceQ[srcIdx] += pull;
@@ -489,9 +496,9 @@ export class OntologyCanvasEngine {
         const node = this.nodes[i];
         if (node.orbitIndex === 0 || node.fixedX !== undefined) continue;
         
-        // 프레임당 최대 이동 각도를 0.025 라디안으로 소폭 늘려 정렬을 신속하게 만듦
+        // 프레임당 최대 이동 각도를 0.015 라디안으로 제한하여 셰이킹(진동) 현상을 완전히 제거
         let delta = forceQ[i];
-        const maxDelta = 0.025;
+        const maxDelta = 0.015;
         if (Math.abs(delta) > maxDelta) {
           delta = Math.sign(delta) * maxDelta;
         }
@@ -851,6 +858,49 @@ export class OntologyCanvasEngine {
     ctx.fill();
   }
 
+
+  private getNodeColors(node: OrbitalNode): string[] {
+    // 1. 커스텀 단일 색상이 지정된 노드는 그 색상 강제 유지
+    if (node.customColor) return [node.customColor];
+    
+    const colors = new Set<string>();
+    
+    // 2. 중심 노드(0)는 무조건 자신의 색상만 가짐
+    if (node.orbitIndex === 0) {
+      return [GROUP_COLORS[node.group as OntologyGroup] || GROUP_COLORS.OTHER];
+    }
+
+    // 3. 자신과 연결된 모든 노드를 순회하며 나와 동급(<=)이거나 중심부인 노드의 색상을 수집
+    for (const edge of this.edges) {
+      let neighborId: string | null = null;
+      const sourceId = typeof edge.source === 'object' ? (edge.source as any).id : edge.source;
+      const targetId = typeof edge.target === 'object' ? (edge.target as any).id : edge.target;
+      
+      if (sourceId === node.id) neighborId = targetId;
+      if (targetId === node.id) neighborId = sourceId;
+      
+      if (neighborId) {
+        const neighbor = this.nodes.find(n => n.id === neighborId);
+        // 자신보다 중심에 가깝거나, 같은 궤도(형제)인 노드의 색상을 상속받음 (측면 브릿징 허용)
+        if (neighbor && neighbor.orbitIndex <= node.orbitIndex) {
+          const c = neighbor.customColor || GROUP_COLORS[neighbor.group as OntologyGroup] || GROUP_COLORS.OTHER;
+          colors.add(c);
+        }
+      }
+    }
+    
+    // 4. 만약 수집된 상위/측면 노드가 없다면(혹은 단절되었다면) 태생 그룹의 색상으로 렌더링
+    if (colors.size === 0) {
+      return [GROUP_COLORS[node.group as OntologyGroup] || GROUP_COLORS.OTHER];
+    }
+    
+    // 5. 자기 자신의 오리지널 그룹 색상을 기본 포함 (만약 상위 연결선의 색상 세트에 본인 고유의 색상이 빠져있다면 추가)
+    // 브릿지 노드라면, 타 진영 색상(수집됨) + 본인 진영 색상을 반반씩 보여줘야 하므로!
+    colors.add(GROUP_COLORS[node.group as OntologyGroup] || GROUP_COLORS.OTHER);
+    
+    return Array.from(colors);
+  }
+
   private renderNodes(ctx: CanvasRenderingContext2D): void {
     // Reuse sorted buffer (avoid allocation)
     this.sortedNodes.length = 0;
@@ -880,7 +930,8 @@ export class OntologyCanvasEngine {
       const hasActiveSelection = !!activeId && activeId !== this.centerNode?.id;
 
       const depthAlpha = 0.4 + (node.renderZ + 1) * 0.3;
-      const baseColor = node.customColor || GROUP_COLORS[node.group as OntologyGroup] || GROUP_COLORS.OTHER;
+      const nodeColors = this.getNodeColors(node);
+      const baseColor = nodeColors[0];
 
       // Determine opacity
       let opacity = hasActiveSelection
@@ -901,128 +952,114 @@ export class OntologyCanvasEngine {
       // 1. 일반 개념(Concept) 노드의 경우 기존처럼 입체적인 글로우 서클(Circle) 렌더링
       if (!isMetaNode) {
         // ── Center Sun ──
+        const sliceAngle = (2 * Math.PI) / nodeColors.length;
+
         if (isCenter) {
-          // Large glow (softened)
-          const glow = ctx.createRadialGradient(
-            node.renderX, node.renderY, r * 0.5,
-            node.renderX, node.renderY, r * 6,
-          );
+          const glow = ctx.createRadialGradient(node.renderX, node.renderY, r * 0.5, node.renderX, node.renderY, r * 6);
           glow.addColorStop(0, this.colorWithAlpha(baseColor, 0.05));
           glow.addColorStop(0.5, this.colorWithAlpha(baseColor, 0.01));
           glow.addColorStop(1, 'rgba(0,0,0,0)');
           ctx.fillStyle = glow;
-          ctx.beginPath();
-          ctx.arc(node.renderX, node.renderY, r * 6, 0, 2 * Math.PI);
-          ctx.fill();
+          ctx.beginPath(); ctx.arc(node.renderX, node.renderY, r * 6, 0, 2 * Math.PI); ctx.fill();
 
-          // Corona (softened)
-          const corona = ctx.createRadialGradient(
-            node.renderX, node.renderY, r * 0.8,
-            node.renderX, node.renderY, r * 2.5,
-          );
+          const corona = ctx.createRadialGradient(node.renderX, node.renderY, r * 0.8, node.renderX, node.renderY, r * 2.5);
           corona.addColorStop(0, this.colorWithAlpha(baseColor, 0.08));
           corona.addColorStop(1, 'rgba(0,0,0,0)');
           ctx.fillStyle = corona;
-          ctx.beginPath();
-          ctx.arc(node.renderX, node.renderY, r * 2.5, 0, 2 * Math.PI);
-          ctx.fill();
+          ctx.beginPath(); ctx.arc(node.renderX, node.renderY, r * 2.5, 0, 2 * Math.PI); ctx.fill();
 
-          // 3D Highlight Layer (Muted, pastel tone)
           const baseR = node.nodeRadius * this.zoom;
-          const x = node.renderX;
-          const y = node.renderY;
           const sizeOverride = (this.activeNode && this.activeNode.id === node.id) ? baseR * 1.5 : (isHovered ? baseR * 1.2 : baseR);
 
-          const gradient = ctx.createRadialGradient(
-            x - sizeOverride * 0.3, y - sizeOverride * 0.3, 0,
-            x, y, sizeOverride
-          );
-          gradient.addColorStop(0, '#ffffff'); // bright spot
-          gradient.addColorStop(0.3, this.lightenColor(baseColor, 0.4)); // Faint/Pastel variant
-          gradient.addColorStop(1, this.lightenColor(baseColor, 0.1)); // Soft border instead of harsh black
-          ctx.fillStyle = gradient;
-          ctx.beginPath();
-          ctx.arc(node.renderX, node.renderY, r, 0, 2 * Math.PI);
-          ctx.fill();
-
-          // White border
-          ctx.strokeStyle = 'rgba(255,255,255,0.8)';
-          ctx.lineWidth = 2;
-          ctx.stroke();
-
-        // ── Active Node ──
-        } else if (isActive) {
-          // Glow
-          const glow = ctx.createRadialGradient(
-            node.renderX, node.renderY, r * 0.5,
-            node.renderX, node.renderY, r * 3,
-          );
-          glow.addColorStop(0, this.colorWithAlpha(baseColor, 0.15));
-          glow.addColorStop(1, 'rgba(0,0,0,0)');
-          ctx.fillStyle = glow;
-          ctx.beginPath();
-          ctx.arc(node.renderX, node.renderY, r * 3, 0, 2 * Math.PI);
-          ctx.fill();
-
-          // Core with gradient
-          const coreGrad = ctx.createRadialGradient(
-            node.renderX - r * 0.15, node.renderY - r * 0.15, 0,
-            node.renderX, node.renderY, r,
-          );
-          coreGrad.addColorStop(0, '#ffffff');
-          coreGrad.addColorStop(0.5, this.lightenColor(baseColor, 0.5));
-          coreGrad.addColorStop(1, baseColor);
-          ctx.fillStyle = coreGrad;
-          ctx.beginPath();
-          ctx.arc(node.renderX, node.renderY, r, 0, 2 * Math.PI);
-          ctx.fill();
-
-          // Border
-          ctx.strokeStyle = '#ffffff';
-          ctx.lineWidth = 2.5;
-          ctx.stroke();
-          ctx.strokeStyle = baseColor;
-          ctx.lineWidth = 1.2;
-          ctx.beginPath();
-          ctx.arc(node.renderX, node.renderY, r + 3, 0, 2 * Math.PI);
-          ctx.stroke();
-
-        // ── Normal / Hovered / Connected ──
-        } else {
-          // Hover glow
-          if (isHovered) {
-            const glow = ctx.createRadialGradient(
-              node.renderX, node.renderY, r * 0.5,
-              node.renderX, node.renderY, r * 2,
+          for (let i = 0; i < nodeColors.length; i++) {
+            const gradient = ctx.createRadialGradient(
+              node.renderX - sizeOverride * 0.3, node.renderY - sizeOverride * 0.3, 0,
+              node.renderX, node.renderY, sizeOverride
             );
-            glow.addColorStop(0, this.colorWithAlpha(baseColor, 0.12));
-            glow.addColorStop(1, 'rgba(0,0,0,0)');
-            ctx.fillStyle = glow;
+            gradient.addColorStop(0, '#ffffff');
+            gradient.addColorStop(0.3, this.lightenColor(nodeColors[i], 0.4));
+            gradient.addColorStop(1, this.lightenColor(nodeColors[i], 0.1));
+            
+            ctx.fillStyle = gradient;
             ctx.beginPath();
-            ctx.arc(node.renderX, node.renderY, r * 2, 0, 2 * Math.PI);
+            ctx.moveTo(node.renderX, node.renderY);
+            ctx.arc(node.renderX, node.renderY, sizeOverride, -Math.PI/2 + i * sliceAngle, -Math.PI/2 + (i + 1) * sliceAngle);
             ctx.fill();
           }
 
-          // Core
-          const coreGrad = ctx.createRadialGradient(
-            node.renderX - r * 0.15, node.renderY - r * 0.15, 0,
-            node.renderX, node.renderY, r,
-          );
-          coreGrad.addColorStop(0, this.lightenColor(baseColor, 0.4));
-          coreGrad.addColorStop(1, baseColor);
-          ctx.fillStyle = coreGrad;
-          ctx.beginPath();
-          ctx.arc(node.renderX, node.renderY, r, 0, 2 * Math.PI);
-          ctx.fill();
+          ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+          ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(node.renderX, node.renderY, sizeOverride, 0, 2 * Math.PI); ctx.stroke();
 
-          // Connected highlight ring
+        // ── Active Node ──
+        } else if (isActive) {
+          const glow = ctx.createRadialGradient(node.renderX, node.renderY, r * 0.5, node.renderX, node.renderY, r * 3);
+          glow.addColorStop(0, this.colorWithAlpha(baseColor, 0.15));
+          glow.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = glow;
+          ctx.beginPath(); ctx.arc(node.renderX, node.renderY, r * 3, 0, 2 * Math.PI); ctx.fill();
+
+          for (let i = 0; i < nodeColors.length; i++) {
+            const coreGrad = ctx.createRadialGradient(
+              node.renderX - r * 0.15, node.renderY - r * 0.15, 0,
+              node.renderX, node.renderY, r
+            );
+            coreGrad.addColorStop(0, '#ffffff');
+            coreGrad.addColorStop(0.5, this.lightenColor(nodeColors[i], 0.5));
+            coreGrad.addColorStop(1, nodeColors[i]);
+            
+            ctx.fillStyle = coreGrad;
+            ctx.beginPath();
+            ctx.moveTo(node.renderX, node.renderY);
+            ctx.arc(node.renderX, node.renderY, r, -Math.PI/2 + i * sliceAngle, -Math.PI/2 + (i + 1) * sliceAngle);
+            ctx.fill();
+          }
+
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2.5;
+          ctx.beginPath(); ctx.arc(node.renderX, node.renderY, r, 0, 2 * Math.PI); ctx.stroke();
+          
+          for (let i = 0; i < nodeColors.length; i++) {
+            ctx.strokeStyle = nodeColors[i];
+            ctx.lineWidth = 1.2;
+            ctx.beginPath();
+            ctx.moveTo(node.renderX, node.renderY); // Important so borders curve back to center if bridging, though stroke on arc usually handles arc length
+            ctx.arc(node.renderX, node.renderY, r + 3, -Math.PI/2 + i * sliceAngle, -Math.PI/2 + (i + 1) * sliceAngle);
+            ctx.stroke();
+          }
+
+        // ── Normal / Hovered / Connected ──
+        } else {
+          if (isHovered) {
+            const glow = ctx.createRadialGradient(node.renderX, node.renderY, r * 0.5, node.renderX, node.renderY, r * 2);
+            glow.addColorStop(0, this.colorWithAlpha(baseColor, 0.12));
+            glow.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = glow;
+            ctx.beginPath(); ctx.arc(node.renderX, node.renderY, r * 2, 0, 2 * Math.PI); ctx.fill();
+          }
+
+          for (let i = 0; i < nodeColors.length; i++) {
+            const coreGrad = ctx.createRadialGradient(
+              node.renderX - r * 0.15, node.renderY - r * 0.15, 0,
+              node.renderX, node.renderY, r
+            );
+            coreGrad.addColorStop(0, this.lightenColor(nodeColors[i], 0.4));
+            coreGrad.addColorStop(1, nodeColors[i]);
+            
+            ctx.fillStyle = coreGrad;
+            ctx.beginPath();
+            ctx.moveTo(node.renderX, node.renderY);
+            ctx.arc(node.renderX, node.renderY, r, -Math.PI/2 + i * sliceAngle, -Math.PI/2 + (i + 1) * sliceAngle);
+            ctx.fill();
+          }
+
           if (isConnectedToActive) {
             ctx.strokeStyle = '#ffffff';
             ctx.lineWidth = 1.5;
-            ctx.stroke();
+            ctx.beginPath(); ctx.arc(node.renderX, node.renderY, r, 0, 2 * Math.PI); ctx.stroke();
           }
         }
-
+        
         // ── Hedge dashed ring ──
         if (node.isHedge) {
           ctx.setLineDash([3, 3]);
@@ -1110,6 +1147,34 @@ export class OntologyCanvasEngine {
           : `rgba(30,41,59,${Math.max(0.7, opacity)})`;
           
         ctx.fillText(labelText, node.renderX, labelY);
+      }
+
+      // 3. 궤도 번호 시각화 - 명시적인 숫자 대신 메카닉/HUD 스타일의 '끊어진 테두리(Segmented Arc)' 개수로 표현
+      // 궤도가 1이면 1개의 긴 호, 2면 2개의 반원상 호, 3이면 3조각으로 분할되어 매우 직관적이고 깔끔함
+      if (!isCenter && typeof node.orbitIndex === 'number' && !isMetaNode && node.orbitIndex > 0) {
+        const orbitCount = node.orbitIndex;
+        // 기존 Hover/Active 하이라이트 링과 겹치지 않게 살짝 공간을 둡니다.
+        const arcRadius = r + (isActive ? 7 : 4) * this.zoom; 
+        
+        ctx.lineWidth = Math.max(1, 1.5 * this.zoom);
+        // 부드럽게 반투명 처리하여 본체보다 튀지 않게
+        ctx.strokeStyle = this.colorWithAlpha(baseColor, isActive ? 0.9 : 0.6);
+        ctx.lineCap = 'round';
+        
+        const gap = 0.4; // 호 사이의 간격 (라디안)
+        const totalAngle = Math.PI * 2;
+        // 궤도 수에 따라 N개의 파편 단위 호 각도 계산
+        const segmentAngle = (totalAngle - gap * orbitCount) / orbitCount;
+        
+        for (let i = 0; i < orbitCount; i++) {
+          const startAngle = i * (segmentAngle + gap) - Math.PI / 2;
+          const endAngle = startAngle + segmentAngle;
+          
+          ctx.beginPath();
+          ctx.arc(node.renderX, node.renderY, arcRadius, startAngle, endAngle);
+          ctx.stroke();
+        }
+        ctx.lineCap = 'butt'; // 복구
       }
 
       ctx.restore();

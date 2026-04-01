@@ -276,7 +276,7 @@ export default function Home() {
   if (!mounted) {
     return (
       <div className="flex flex-col min-h-screen overflow-x-hidden">
-        <header className="sticky top-0 z-40 bg-[var(--color-card)] border-b border-[var(--color-border-light)] shadow-[var(--shadow-sm)]">
+        <header className="sticky top-0 z-50 bg-[var(--color-card)] border-b border-[var(--color-border-light)] shadow-[var(--shadow-sm)]">
           <div className="max-w-[1800px] mx-auto px-4 sm:px-6">
             <div className="flex items-center h-14 gap-3">
               <div className="w-24 h-8 bg-gray-100 rounded-full animate-pulse" />
@@ -302,7 +302,7 @@ export default function Home() {
 
   return (
     <div 
-      className="flex flex-col min-h-screen overflow-x-hidden"
+      className="flex flex-col min-h-screen"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}

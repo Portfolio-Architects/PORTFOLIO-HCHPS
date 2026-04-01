@@ -75,6 +75,7 @@ export interface OntologyNode {
   customLabel?: string;        // User overridden text
   customGroup?: OntologyGroup; // User overridden group
   customOrbitIndex?: number;   // User overridden orbit index
+  customSortOrder?: number;    // User overridden sibling sort order
   // === Runtime computed ===
   centralityScore?: number;    // Eigenvector-weighted centrality (0-1)
   renderSize?: number;         // blended size (0-1)

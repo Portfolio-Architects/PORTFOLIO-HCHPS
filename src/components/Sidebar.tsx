@@ -19,7 +19,7 @@ const navItems: { id: ModuleType; label: string; icon: React.ElementType }[] = [
 
 export function Sidebar({ activeModule, onModuleChange, taskStats, quickInput }: TopNavProps) {
   return (
-    <header className="sm:sticky sm:top-0 left-0 right-0 z-40 bg-[var(--color-card)] border-b border-[var(--color-border-light)] sm:shadow-[var(--shadow-sm)]">
+    <header className="sticky top-0 left-0 right-0 z-50 bg-[var(--color-card)] border-b border-[var(--color-border-light)] shadow-sm">
       <div className="max-w-[1800px] mx-auto px-2 sm:px-6 py-2 sm:py-0">
         <div className="flex flex-col sm:flex-row items-center justify-between sm:justify-start h-auto sm:h-14 gap-3">
           {/* Navigation Items */}
