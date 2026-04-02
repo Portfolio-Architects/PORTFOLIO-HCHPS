@@ -33,6 +33,7 @@ export interface MapCustomizationData {
   overrides: Record<string, NodeOverride>;
   customNodes: OntologyNode[];
   customEdges: OntologyEdge[];
+  deletedEdges?: string[];
 }
 
 const DEFAULT_DATA: MapCustomizationData = {
@@ -214,6 +215,17 @@ export function useGraphCustomization() {
     });
   }, [updateData]);
 
+  const deleteCustomEdge = useCallback((source: string, target: string) => {
+    updateData(prev => {
+      const filteredCustom = prev.customEdges.filter(
+        e => !(e.source === source && e.target === target) && 
+             !(e.source === target && e.target === source)
+      );
+      const newDeleted = [...(prev.deletedEdges || []), `${source}|||${target}`, `${target}|||${source}`];
+      return { ...prev, customEdges: filteredCustom, deletedEdges: newDeleted };
+    });
+  }, [updateData]);
+
   const clearOverrides = useCallback(() => {
     if (confirm('모든 노드의 색상과 핀 고정 위치를 처음 상태로 되돌리겠습니까? (추가된 수동 노드는 유지됩니다)')) {
       updateData(prev => ({ ...prev, overrides: {} }));
@@ -237,7 +249,9 @@ export function useGraphCustomization() {
     deleteCustomNode,
     updateCustomNodeText,
     addCustomEdge,
+    deleteCustomEdge,
     clearOverrides,
     clearAll,
+    deletedEdges: data.deletedEdges || [],
   };
 }

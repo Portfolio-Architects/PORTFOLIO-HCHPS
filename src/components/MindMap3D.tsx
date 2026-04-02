@@ -32,11 +32,10 @@ interface MindMap3DProps {
 // ============ Component ============
 
 export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDeleteSignal, onUpdateKeywords, onRenameCategory, onDeleteCategory }: MindMap3DProps) {
+  const fgRef = useRef<any>();
+  const [graphData, setGraphData] = useState({ nodes: [], links: [] });
+  const nodeMapRef = useRef(new Map());
   const containerRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const engineRef = useRef<OntologyCanvasEngine | null>(null);
-  const animationRef = useRef<number>(0);
-  const dprRef = useRef(1);
 
   // Use refs for props to avoid re-creating initEngine on every data change
   const signalKeywordsRef = useRef(signalKeywords);
@@ -53,6 +52,36 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   const [stats, setStats] = useState({ nodes: 0, edges: 0 });
   const { overrides, customNodes, customEdges, undo, redo, setNodeOverride, clearNodeOverride, addCustomNode, deleteCustomNode, updateCustomNodeText, addCustomEdge, clearOverrides, clearAll } = useGraphCustomization();
   
+    // ── Helpers ──
+  const getConnectedEdges = useCallback((nodeId: string) => {
+    return graphData.links.filter((l: any) => 
+      (l.source.id === nodeId || l.source === nodeId) || 
+      (l.target.id === nodeId || l.target === nodeId)
+    ).map((l: any) => {
+      const otherNode = (l.source.id || l.source) === nodeId ? l.target : l.source;
+      return { edge: l, otherNode: typeof otherNode === 'object' ? otherNode : nodeMapRef.current.get(otherNode) };
+    });
+  }, [graphData]);
+
+  const getActiveTreeSet = useCallback(() => {
+    const set = new Set<string>();
+    if (!activeNode) return set;
+    set.add(activeNode.id);
+    
+    // 1-hop BFS
+    graphData.links.forEach((l: any) => {
+      const sid = l.source.id || l.source;
+      const tid = l.target.id || l.target;
+      if (sid === activeNode.id) set.add(tid);
+      if (tid === activeNode.id) set.add(sid);
+    });
+    return set;
+  }, [activeNode, graphData]);
+
+  useEffect(() => {
+    if (activeNode) setConnectedEdges(getConnectedEdges(activeNode.id));
+  }, [activeNode, graphData, getConnectedEdges]);
+
   // ── Keyboard Shortcuts (Undo/Redo) ──
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -99,11 +128,9 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   // 직관적이고 구분이 또렷한 원색(Vivid/Primary) 컬러 팔레트 배정
   const PRESET_COLORS = ['#FF2222', '#FF8800', '#FFDD00', '#00CC44', '#00BBDD', '#0055FF', '#8800FF', '#FF00AA', '#111111', '#FFFFFF'];
 
-  // ── Init Engine (stable — deferred callbacks) ──
+  // ── Init Engine ──
   const initEngine = useCallback(() => {
     setLoading(true);
-    setError(null);
-
     try {
       const graph = buildSignalGraph(signalKeywordsRef.current, signalEntriesRef.current, {
         overrides: overridesRef.current,
@@ -112,331 +139,90 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
       });
       setUsingSample(Object.keys(signalKeywordsRef.current).length === 0);
 
-      const engine = new OntologyCanvasEngine();
-      // Init WITHOUT callbacks to avoid triggering setState during init
-      // 기존 노드들의 현재 위치(orbitAngle)를 백업(전달)하여 색상 변경 시의 카메라 급발진/순간이동 현상을 막습니다.
-      engine.init(graph, undefined, engineRef.current ? engineRef.current.nodes : undefined);
-      engine.isOrbiting = true;
-
-      // ----- 카메라 및 선택 상태 유지 (깜빡임/리셋 방지) -----
-      if (engineRef.current) {
-        engine.cameraOffsetX = engineRef.current.cameraOffsetX;
-        engine.cameraOffsetY = engineRef.current.cameraOffsetY;
-        engine.targetOffsetX = engineRef.current.targetOffsetX;
-        engine.targetOffsetY = engineRef.current.targetOffsetY;
-        engine.zoom = engineRef.current.zoom;
-        
-        if (engineRef.current.activeNode) {
-          const stillExists = engine.nodes.find(n => n.id === engineRef.current!.activeNode!.id);
-          if (stillExists) {
-            engine.activeNode = stillExists;
-            engine.previousActiveNodeId = stillExists.id;
-          }
+      // Pre-calculate colors and pass them
+      const nodes = Array.from(graph.nodeMap.values()).map(n => {
+        let colors = new Set<string>();
+        if (n.orbitIndex === 0) {
+           colors.add(n.customColor || GROUP_COLORS[n.group] || GROUP_COLORS.OTHER);
+        } else {
+           colors.add(n.customColor || GROUP_COLORS[n.group] || GROUP_COLORS.OTHER);
+           graph.edges.forEach(e => {
+             const sid = typeof e.source === 'object' ? (e.source as any).id : e.source;
+             const tid = typeof e.target === 'object' ? (e.target as any).id : e.target;
+             if (sid === n.id || tid === n.id) {
+               const neighborId = sid === n.id ? tid : sid;
+               const neigh = graph.nodeMap.get(neighborId);
+               if (neigh && neigh.orbitIndex > 0 && neigh.orbitIndex <= n.orbitIndex) {
+                 colors.add(neigh.customColor || GROUP_COLORS[neigh.group] || GROUP_COLORS.OTHER);
+               }
+             }
+           });
         }
+        return { ...n, calculatedColors: Array.from(colors) };
+      });
+
+      const links = graph.edges.map(e => ({
+        ...e,
+        source: typeof e.source === 'object' ? (e.source as any).id : e.source,
+        target: typeof e.target === 'object' ? (e.target as any).id : e.target
+      }));
+
+      nodeMapRef.current = graph.nodeMap;
+      setStats({ nodes: nodes.length, edges: links.length });
+      setGraphData({ nodes, links });
+      
+      if (!activeNode) {
+        const center = nodes.find(n => n.orbitIndex === 0);
+        if (center) setActiveNode(center as any);
       }
-
-      engineRef.current = engine;
-
-      // Set state AFTER engine is fully initialized (no callbacks during init)
-      const initialNode = engine.activeNode || engine.centerNode;
-      const initialEdges = initialNode ? engine.getConnectedEdges(initialNode.id) : [];
-      const initialStats = { nodes: engine.nodeCount, edges: engine.edgeCount };
-
-      // Attach callbacks AFTER init for user interaction
-      engine.callbacks = {
-        onActiveNodeChange: (node) => {
-          // 대상 노드 찍기 (선분 연결 모드) 동작 처리
-          if (edgeModeSourceRef.current && node && node.id !== edgeModeSourceRef.current) {
-             const parentId = edgeModeSourceRef.current;
-             // 타겟 노드의 부모를 edgeModeSource로 설정 (의존성 생성)
-             setNodeOverride(node.id, { customParent: parentId, fixedX: undefined, fixedY: undefined });
-             setEdgeModeSource(null);
-             setTimeout(() => initEngine(), 30);
-             return;
-          }
-          if (node?.id === edgeModeSourceRef.current) {
-             setEdgeModeSource(null); // 자기자신을 한 번 더 누르면 취소
-          }
-
-          setActiveNode(node ?? null);
-          if (node) setShow5W1H(true);
-          if (node && engineRef.current) {
-            setConnectedEdges(engineRef.current.getConnectedEdges(node.id));
-          } else {
-            setConnectedEdges([]);
-          }
-        },
-        onHoveredNodeChange: (node) => setHoveredNode(node ?? null),
-        onNodeReparent: (id, newParentId, newOrbit) => {
-          // Changed categorical parent, set target orbit, and clean up any physical pins
-          setNodeOverride(id, { customParent: newParentId, customOrbitIndex: newOrbit, fixedX: undefined, fixedY: undefined });
-          // Defer initEngine so React state batching processes first
-          setTimeout(() => initEngine(), 30);
-        }
-      };
-
-      // Batch state updates
-      setStats(initialStats);
-      setActiveNode(initialNode);
-      setConnectedEdges(initialEdges);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : '초기화 실패');
+    } catch (e) {
+      setError(e.message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeNode]);
 
-  // ── Animation Loop ──
+  // ── D3 Force Configuration (Concentric Rings) ──
   useEffect(() => {
     initEngine();
-
-    return () => {
-      if (animationRef.current) cancelAnimationFrame(animationRef.current);
-    };
   }, [initEngine]);
 
   useEffect(() => {
-    if (loading || error) return;
-
-    const canvas = canvasRef.current;
-    const container = containerRef.current;
-    if (!canvas || !container) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // Resize handler
-    const resize = () => {
-      const rect = container.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      dprRef.current = dpr;
-      canvas.width = rect.width * dpr;
-      canvas.height = rect.height * dpr;
-      canvas.style.width = rect.width + 'px';
-      canvas.style.height = rect.height + 'px';
-    };
-
-    resize();
-    const ro = new ResizeObserver(resize);
-    ro.observe(container);
-
-    // Animation
-    const loop = () => {
-      const engine = engineRef.current;
-      if (!engine || !ctx) return;
-
-      const dpr = dprRef.current;
-      const w = canvas.width / dpr;
-      const h = canvas.height / dpr;
-
-      ctx.save();
-      ctx.scale(dpr, dpr);
-
-      engine.tick();
-      engine.render(ctx, w, h);
-
-      // 툴팁이 캔버스 하단에 고정되므로 동적 transform 로직 삭제
-
-      ctx.restore();
-      animationRef.current = requestAnimationFrame(loop);
-    };
-
-    animationRef.current = requestAnimationFrame(loop);
-
-    // Native wheel handler (non-passive to allow preventDefault)
-    const wheelHandler = (e: WheelEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const engine = engineRef.current;
-      if (engine) engine.handleWheel(e.deltaY);
-    };
-    canvas.addEventListener('wheel', wheelHandler, { passive: false });
-
-    return () => {
-      ro.disconnect();
-      canvas.removeEventListener('wheel', wheelHandler);
-      if (animationRef.current) cancelAnimationFrame(animationRef.current);
-    };
-  }, [loading, error]);
-
-  // ── Mouse/Touch Events ──
-  const getCanvasPos = useCallback((e: React.MouseEvent | MouseEvent | TouchEvent): { x: number; y: number } => {
-    const canvas = canvasRef.current;
-    if (!canvas) return { x: 0, y: 0 };
-    const rect = canvas.getBoundingClientRect();
-    const clientX = 'touches' in e ? e.touches[0]?.clientX ?? 0 : (e as MouseEvent).clientX;
-    const clientY = 'touches' in e ? e.touches[0]?.clientY ?? 0 : (e as MouseEvent).clientY;
-    return { x: clientX - rect.left, y: clientY - rect.top };
-  }, []);
-
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    const engine = engineRef.current;
-    const canvas = canvasRef.current;
-    if (!engine || !canvas) return;
-    const { x, y } = getCanvasPos(e.nativeEvent);
-    engine.handleHover(x, y);
-
-    // Drag
-    if (e.buttons === 1) {
-      const dpr = dprRef.current;
-      engine.handleDragMove(x, y, canvas.width / dpr, canvas.height / dpr);
+    if (fgRef.current && graphData.nodes.length > 0) {
+      const fg = fgRef.current;
+      fg.d3Force('charge', d3.forceManyBody().strength(-300));
+      fg.d3Force('collide', d3.forceCollide().radius(35).iterations(2));
+      fg.d3Force('link', d3.forceLink().distance(60).strength(0.3));
+      
+      fg.d3Force('radial', d3.forceRadial(
+        (node: any) => {
+          if (node.orbitIndex === 0) return 0;
+          if (node.orbitIndex === 1) return 300;
+          if (node.orbitIndex === 2) return 550;
+          if (node.orbitIndex === 3) return 800;
+          return 1000;
+        },
+        0, 0
+      ).strength((d: any) => d.orbitIndex === 0 ? 1.0 : 0.8));
+      
+      fg.d3ReheatSimulation();
     }
-  }, [getCanvasPos]);
-
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    const engine = engineRef.current;
-    if (!engine) return;
-    const { x, y } = getCanvasPos(e.nativeEvent);
-    engine.handleDragStart(x, y);
-  }, [getCanvasPos]);
-
-  const handleMouseUp = useCallback(() => {
-    const engine = engineRef.current;
-    if (!engine) return;
-    engine.handleDragEnd();
-  }, []);
-
-  const handleClick = useCallback((e: React.MouseEvent) => {
-    const engine = engineRef.current;
-    if (!engine) return;
-    const { x, y } = getCanvasPos(e.nativeEvent);
-    engine.handleClick(x, y);
-
-    // If edge connecting mode is active, handle it
-    if (edgeModeSource && engine.activeNode && engine.activeNode.id !== edgeModeSource) {
-      addCustomEdge(edgeModeSource, engine.activeNode.id);
-      setEdgeModeSource(null);
-      // Timeout needed to let React update state before re-initializing engine
-      setTimeout(() => initEngine(), 50);
-    }
-  }, [getCanvasPos, edgeModeSource, addCustomEdge, initEngine]);
-
-  // ── Touch Events for Mobile ──
-  const touchStartRef = useRef<{ x: number; y: number; time: number; pinchDist?: number }>({ x: 0, y: 0, time: 0 });
-  const isTouchDragging = useRef(false);
-
-  const getTouchDist = (e: React.TouchEvent) => {
-    if (e.touches.length < 2) return 0;
-    const dx = e.touches[0].clientX - e.touches[1].clientX;
-    const dy = e.touches[0].clientY - e.touches[1].clientY;
-    return Math.sqrt(dx * dx + dy * dy);
-  };
-
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    const engine = engineRef.current;
-    if (!engine) return;
-    e.preventDefault();
-
-    if (e.touches.length === 2) {
-      // Pinch start
-      touchStartRef.current.pinchDist = getTouchDist(e);
-      return;
-    }
-
-    const { x, y } = getCanvasPos(e.nativeEvent as unknown as TouchEvent);
-    touchStartRef.current = { x, y, time: Date.now() };
-    isTouchDragging.current = false;
-    engine.handleDragStart(x, y);
-  }, [getCanvasPos]);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    const engine = engineRef.current;
-    const canvas = canvasRef.current;
-    if (!engine || !canvas) return;
-    e.preventDefault();
-
-    // Pinch zoom
-    if (e.touches.length === 2 && touchStartRef.current.pinchDist) {
-      const newDist = getTouchDist(e);
-      const delta = touchStartRef.current.pinchDist - newDist;
-      engine.handleWheel(delta * 2);
-      touchStartRef.current.pinchDist = newDist;
-      return;
-    }
-
-    const { x, y } = getCanvasPos(e.nativeEvent as unknown as TouchEvent);
-    const dx = Math.abs(x - touchStartRef.current.x);
-    const dy = Math.abs(y - touchStartRef.current.y);
-    if (dx > 5 || dy > 5) isTouchDragging.current = true;
-
-    engine.handleHover(x, y);
-    const dpr = dprRef.current;
-    engine.handleDragMove(x, y, canvas.width / dpr, canvas.height / dpr);
-  }, [getCanvasPos]);
-
-  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
-    const engine = engineRef.current;
-    if (!engine) return;
-    e.preventDefault();
-
-    if (touchStartRef.current.pinchDist) {
-      touchStartRef.current.pinchDist = undefined;
-      return;
-    }
-
-    engine.handleDragEnd();
-
-    // Tap detection (short duration + small movement)
-    const elapsed = Date.now() - touchStartRef.current.time;
-    if (!isTouchDragging.current && elapsed < 300) {
-      engine.handleClick(touchStartRef.current.x, touchStartRef.current.y);
-    }
-  }, []);
-
-  // handleWheel is now native (see useEffect above)
+  }, [graphData]);
 
   const handleNodeClickInPanel = useCallback((nodeId: string) => {
-    const engine = engineRef.current;
-    if (!engine) return;
-    const node = engine.getNodeById(nodeId);
-    if (node) {
-      engine.activeNode = node;
-      // Camera follow
-      engine.handleClick(node.renderX, node.renderY);
+    const node = nodeMapRef.current?.get(nodeId);
+    if (!node) return;
+    setActiveNode(node);
+    setShow5W1H(true);
+    if (fgRef.current) {
+      fgRef.current.centerAt(node.x, node.y, 800);
+      fgRef.current.zoom(1.8, 800);
     }
   }, []);
 
-
-
-
   const handleSwapNodeOrder = useCallback((dir: -1 | 1) => {
-    if (!activeNode || !engineRef.current) return;
-    const parentId = activeNode.parentId;
-    if (!parentId) return;
-    const engine = engineRef.current;
-    
-    const siblings = engine.nodes.filter(n => n.parentId === parentId && n.orbitIndex === activeNode.orbitIndex)
-      .sort((a, b) => {
-        const orderA = overrides[a.id]?.customSortOrder ?? 0;
-        const orderB = overrides[b.id]?.customSortOrder ?? 0;
-        return orderA - orderB;
-      });
-      
-    const idx = siblings.findIndex(n => n.id === activeNode.id);
-    if (idx < 0) return;
-    
-    const targetIdx = idx + dir;
-    if (targetIdx < 0 || targetIdx >= siblings.length) return;
-    
-    const targetNode = siblings[targetIdx];
-    
-    const myOrder = overrides[activeNode.id]?.customSortOrder ?? idx;
-    const targetOrder = overrides[targetNode.id]?.customSortOrder ?? targetIdx;
-    
-    setNodeOverride(activeNode.id, { customSortOrder: targetOrder });
-    setNodeOverride(targetNode.id, { customSortOrder: myOrder });
-    
-    const tempAngle = activeNode.orbitAngle;
-    const activeEngineNode = engine.getNodeById(activeNode.id);
-    const targetEngineNode = engine.getNodeById(targetNode.id);
-    if (activeEngineNode && targetEngineNode) {
-      activeEngineNode.orbitAngle = targetNode.orbitAngle;
-      targetEngineNode.orbitAngle = tempAngle;
-    }
-    
-    setTimeout(() => initEngine(), 30);
-  }, [activeNode, overrides, setNodeOverride, initEngine]);
-
+    console.log('ForceGraph handles node positions natively.');
+  }, []);
 
   // ── Loading / Error States ──
   if (loading) {
@@ -448,7 +234,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
     );
   }
 
-  if (error && !engineRef.current) {
+  if (error && graphData.nodes.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-[600px] gap-4">
         <AlertTriangle size={32} className="text-[var(--color-danger)]" />
@@ -472,7 +258,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
         .sort((a, b) => b[1] - a[1])
         .slice(0, 5);
         
-      const totalNodes = engineRef.current?.nodes?.length || 0;
+      const totalNodes = graphData.nodes.length;
 
       return (
         <div className="w-full bg-white rounded-xl p-5 shadow-sm border border-[var(--color-border-light)] flex flex-col gap-5 relative animate-in fade-in duration-300 h-full overflow-y-auto custom-scrollbar pointer-events-auto">
@@ -675,17 +461,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                                 }
                                 
                                 // Mutate engine immediately for fluid UI
-                                if (engineRef.current) {
-                                  const engineNode = engineRef.current.nodes.find((n: OrbitalNode) => n.id === activeNode.id);
-                                  if (engineNode) {
-                                    engineNode.label = newName.trim();
-                                    // Make sure we update ID for category migration, BUT don't break custom or uncategorized nodes
-                                    if (activeNode.id.startsWith('tag-') && !isUncategorized) {
-                                      engineNode.id = targetId; 
-                                    }
-                                  }
-                                  setActiveNode({ ...activeNode, id: targetId, label: newName.trim() });
-                                }
+                                setActiveNode({ ...activeNode, id: targetId, label: newName.trim() }); setTimeout(() => initEngine(), 50); /* replaced manual UI mutation with D3 Rebuild */
 
                                 // Call global sync if it's a category node
                                 if ((activeNode.orbitIndex === 1 || activeNode.group === 'MACRO_RESEARCH') && onRenameCategory) {
@@ -747,11 +523,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                             key={c}
                             onClick={() => {
                               setNodeOverride(activeNode.id, { customColor: c });
-                              if (engineRef.current) {
-                                const engineNode = engineRef.current.nodes.find((n: OrbitalNode) => n.id === activeNode.id);
-                                if (engineNode) engineNode.customColor = c;
-                                setActiveNode({ ...activeNode, customColor: c });
-                              }
+                              setTimeout(() => initEngine(), 50); /* replaced manual UI mutation with D3 Rebuild */
                               // 전체 재계산을 통해 자식 노드들에게도 색상 동기화를 트리거합니다
                               setTimeout(() => initEngine(), 50);
                             }}
@@ -762,13 +534,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                         <button
                           onClick={() => {
                             setNodeOverride(activeNode.id, { customColor: undefined });
-                            if (engineRef.current) {
-                              const engineNode = engineRef.current.nodes.find((n: OrbitalNode) => n.id === activeNode.id);
-                              if (engineNode) delete engineNode.customColor;
-                              const newNode = { ...activeNode };
-                              delete newNode.customColor;
-                              setActiveNode(newNode);
-                            }
+                            setTimeout(() => initEngine(), 50); /* replaced manual UI mutation with D3 Rebuild */
                             // 전체 재계산을 통해 자식 노드 탈색(복구) 처리 동기화
                             setTimeout(() => initEngine(), 50);
                           }}
@@ -784,17 +550,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                           <button
                             onClick={() => {
                               setNodeOverride(activeNode.id, { fixedX: undefined, fixedY: undefined });
-                              if (engineRef.current) {
-                                const engineNode = engineRef.current.nodes.find((n: OrbitalNode) => n.id === activeNode.id);
-                                if (engineNode) {
-                                  delete engineNode.fixedX;
-                                  delete engineNode.fixedY;
-                                }
-                                const newNode = { ...activeNode };
-                                delete newNode.fixedX;
-                                delete newNode.fixedY;
-                                setActiveNode(newNode);
-                              }
+                              setTimeout(() => initEngine(), 50); /* replaced manual UI mutation with D3 Rebuild */
                             }}
                             className="flex items-center gap-1 px-2 py-1 bg-white border border-gray-200 rounded text-xs font-medium text-gray-600 hover:bg-gray-50 cursor-pointer"
                           >
@@ -869,11 +625,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                           onClick={() => {
                             if (confirm(`'${activeNode.label}' 처리를 완료하고 지도에서 숨기시겠습니까?`)) {
                               setNodeOverride(activeNode.id, { hidden: true });
-                              if (engineRef.current) {
-                                engineRef.current.nodes = engineRef.current.nodes.filter((n: OrbitalNode) => n.id !== activeNode.id);
-                                engineRef.current.edges = engineRef.current.edges.filter((e: OntologyEdge) => e.source !== activeNode.id && e.target !== activeNode.id);
-                                setActiveNode(null);
-                              }
+                              setActiveNode(null); setTimeout(() => initEngine(), 50); /* replaced manual UI mutation with D3 Rebuild */
                             }
                           }}
                           className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-bold text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 transition-colors shadow-sm cursor-pointer"
@@ -903,11 +655,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                               // 맵 화면에서는 항상 히든 처리합니다. (특히 '미분류' 같은 자동 생성 카테고리나, 서버 삭제 딜레이 시 빠른 UI 반영을 위함)
                               setNodeOverride(activeNode.id, { hidden: true });
                               
-                              if (engineRef.current) {
-                                engineRef.current.nodes = engineRef.current.nodes.filter(n => n.id !== activeNode.id);
-                                engineRef.current.edges = engineRef.current.edges.filter(e => e.source !== activeNode.id && e.target !== activeNode.id);
-                                setActiveNode(null);
-                              }
+                              setActiveNode(null); setTimeout(() => initEngine(), 50); /* replaced manual UI mutation with D3 Rebuild */
                             }
                           }}
                           className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 border border-red-200 rounded-lg text-xs font-bold text-red-600 hover:bg-red-100 hover:text-red-700 transition-colors shadow-sm cursor-pointer"
@@ -998,7 +746,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
               const label = prompt('추가할 노드 이름을 입력하세요:');
               if (label) {
                 // 1번 궤도(기둥 카테고리) 목록 추출
-                const engine = engineRef.current;
+                /* const engine removed */
                 const categories = engine ? engine.nodes.filter(n => n.orbitIndex === 1) : [];
                 
                 // 엔진 중앙에서 생성되도록 살짝 랜덤 좌표값 부여
@@ -1054,18 +802,41 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
           }
           style={{ height: isFullscreen ? '100vh' : 'min(600px, 70vh)', backgroundColor: '#f8f9fc' }}
         >
-          <canvas
-            ref={canvasRef}
-            className="absolute inset-0 w-full h-full"
-            style={{ cursor: hoveredNode ? 'pointer' : 'grab', touchAction: 'none' }}
-            onClick={handleClick}
-            onMouseMove={handleMouseMove}
-            onMouseDown={handleMouseDown}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
+          <DynamicForceGraph
+            ref={fgRef}
+            graphData={graphData}
+            nodeId="id"
+            nodeRelSize={16}
+            linkColor={() => 'rgba(0,0,0,0)'}
+            linkWidth={0}
+            nodeCanvasObject={(node: any, ctx: CanvasRenderingContext2D, globalScale: number) => 
+               drawNode(node, ctx, globalScale, getActiveTreeSet(), activeNode?.id || null, hoveredNode?.id || null)
+            }
+            linkCanvasObject={(link: any, ctx: CanvasRenderingContext2D, globalScale: number) => 
+               drawEdge(link, ctx, globalScale, getActiveTreeSet(), activeNode?.id || null)
+            }
+            onNodeClick={(node: any) => {
+               if (edgeModeSource) {
+                 setNodeOverride(node.id, { customParent: edgeModeSource });
+                 setEdgeModeSource(null);
+                 setTimeout(() => initEngine(), 50);
+                 return;
+               }
+               setActiveNode(node);
+               setShow5W1H(true);
+               if (fgRef.current) {
+                 fgRef.current.centerAt(node.x, node.y, 800);
+                 fgRef.current.zoom(1.8, 800);
+               }
+            }}
+            onNodeHover={(node: any) => setHoveredNode(node)}
+            cooldownTicks={150}
+            backgroundColor="#f8f9fc"
+            enableNodeDrag={true}
+            onNodeDragEnd={(node: any) => {
+               node.fx = node.x;
+               node.fy = node.y;
+            }}
           />
 
           {/* Whiteboard Toolbar (top-left) - Moved specific tools here if any, or remove */}

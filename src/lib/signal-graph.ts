@@ -215,7 +215,10 @@ export function buildSignalGraph(
           n.fixedY = undefined;
         }
 
-        if (override.customColor !== undefined) n.customColor = override.customColor;
+        if (override.customColor !== undefined) {
+          n.customColor = override.customColor;
+          (n as any).isExplicitColor = true;
+        }
         if (override.customLabel !== undefined) n.label = override.customLabel;
         if (override.customGroup !== undefined) n.group = override.customGroup as OntologyGroup;
         if (override.customOrbitIndex !== undefined) n.customOrbitIndex = override.customOrbitIndex;
@@ -355,6 +358,13 @@ export function buildSignalGraph(
 
   // 7. Cleanup invalid topology: Nodes with a specific parent should not connect directly to the center
   finalEdges = finalEdges.filter(e => {
+    // 사용자가 수동으로 연결한 선분(Custom Edge)은 허용
+    const isCustomEdge = customData?.customEdges.some(ce => 
+      (ce.source === e.source && ce.target === e.target) || 
+      (ce.source === e.target && ce.target === e.source)
+    );
+    if (isCustomEdge) return true;
+
     const centerId = forcedCenterNode ? forcedCenterNode.id : 'root-HCHPS';
     if (e.source === centerId || e.target === centerId) {
       const otherId = e.source === centerId ? e.target : e.source;
