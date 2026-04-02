@@ -13,7 +13,7 @@ import {
   Radio, Loader2, RefreshCw, AlertTriangle,
   Circle, Link2, X, ChevronRight, ChevronUp, ChevronDown, Zap, Maximize2, Minimize2,
   Trash2, FileText, Edit2, Plus, Palette, PinOff, PlusSquare, Waypoints, Eraser, Play, Pause,
-  CheckCircle
+  CheckCircle, Unlink
 } from 'lucide-react';
 import { useGraphCustomization } from '@/hooks/useGraphCustomization';
 
@@ -116,7 +116,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
       // Init WITHOUT callbacks to avoid triggering setState during init
       // 기존 노드들의 현재 위치(orbitAngle)를 백업(전달)하여 색상 변경 시의 카메라 급발진/순간이동 현상을 막습니다.
       engine.init(graph, undefined, engineRef.current ? engineRef.current.nodes : undefined);
-      engine.isOrbiting = true;
+      engine.isOrbiting = false;
 
       // ----- 카메라 및 선택 상태 유지 (깜빡임/리셋 방지) -----
       if (engineRef.current) {
@@ -172,6 +172,10 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
           setNodeOverride(id, { customParent: newParentId, customOrbitIndex: newOrbit, fixedX: undefined, fixedY: undefined });
           // Defer initEngine so React state batching processes first
           setTimeout(() => initEngine(), 30);
+        },
+        onNodePin: (id, fixedX, fixedY) => {
+          // User manually dropped node somewhere; lock it to the map
+          setNodeOverride(id, { fixedX, fixedY });
         }
       };
 
@@ -527,7 +531,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
         className={
           isSidebar
             ? "w-full bg-white rounded-xl p-5 shadow-sm border border-[var(--color-border-light)] flex flex-col gap-4 relative animate-in fade-in duration-300 h-full overflow-y-auto custom-scrollbar pointer-events-auto"
-            : "fixed top-4 left-4 z-[110] w-[320px] max-w-[90%] bg-white/95 backdrop-blur-xl rounded-xl p-5 shadow-2xl border border-emerald-100 flex flex-col gap-4 animate-in fade-in slide-in-from-left-4 duration-300 pointer-events-auto"
+            : "absolute top-4 right-4 z-[110] w-[280px] max-w-[90%] bg-white/95 backdrop-blur-xl rounded-xl p-5 shadow-2xl border border-emerald-100 flex flex-col gap-4 animate-in fade-in slide-in-from-right-4 duration-300 pointer-events-auto"
         }
         style={isSidebar ? {} : { maxHeight: 'calc(100vh - 32px)', overflowY: 'auto' }}
       >
@@ -624,7 +628,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
         className={
           isOverlay 
             ? "absolute bottom-6 left-1/2 -translate-x-1/2 z-[110] w-[95%] md:w-[90%] max-w-[800px] bg-white/95 backdrop-blur-xl rounded-xl border border-[var(--color-border-light)] shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300 pointer-events-auto"
-            : "w-full bg-white rounded-xl border border-[var(--color-border-light)] shadow-sm overflow-hidden mb-4 relative flex flex-col animate-in fade-in slide-in-from-bottom-2 duration-300 pointer-events-auto"
+            : "w-full h-full flex-1 bg-white rounded-xl border border-[var(--color-border-light)] shadow-sm overflow-hidden relative flex flex-col animate-in fade-in slide-in-from-bottom-2 duration-300 pointer-events-auto"
         }
       >
         <div className="px-4 py-3 border-b border-[var(--color-border-light)] bg-gray-50/50 flex justify-between items-center">
@@ -635,7 +639,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
             </button>
           )}
         </div>
-        <div className="overflow-y-auto custom-scrollbar" style={{ maxHeight: isOverlay ? '40vh' : 'auto' }}>
+        <div className="flex-1 overflow-y-auto custom-scrollbar" style={{ maxHeight: isOverlay ? '40vh' : 'auto' }}>
                 {activeNode ? (
                   <div className="p-4">
                     {/* Group color + label */}
@@ -809,8 +813,23 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                               : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
                           }`}
                         >
-                          <Waypoints size={12} /> {edgeModeSource === activeNode.id ? '대상 노드 찍기...' : '이 노드에서 선분 연결'}
+                          <Waypoints size={12} /> {edgeModeSource === activeNode.id ? '대상 노드 찍기...' : '선분 연결'}
                         </button>
+
+                        {activeNode.parentId && activeNode.parentId !== 'root-HCHPS' && (
+                          <button
+                            onClick={() => {
+                              if (confirm(`'${activeNode.label}' 노드를 현재 부모와의 연결을 끊고 독립시키겠습니까?`)) {
+                                setNodeOverride(activeNode.id, { customParent: 'root-HCHPS' });
+                                setTimeout(() => initEngine(), 30);
+                              }
+                            }}
+                            className="flex items-center gap-1 px-2 py-1 bg-white border border-gray-200 rounded text-xs font-medium text-red-500 hover:bg-red-50 hover:border-red-200 cursor-pointer transition-colors"
+                            title="부모 노드와의 선분 끊기"
+                          >
+                            <Unlink size={12} /> 선분 끊기
+                          </button>
+                        )}
                         
                         {activeNode.orbitIndex > 0 && (
                           <div className="flex bg-indigo-50 border border-indigo-200 rounded text-xs font-medium text-indigo-600 shadow-sm overflow-hidden shrink-0">
@@ -976,72 +995,67 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   };
 
 
+
   return (
     <div className="space-y-4">
 
-
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold flex items-center gap-2">
-          <Radio size={22} className="text-emerald-500" />
-          시그널
-        </h2>
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-xl font-bold flex items-center gap-2">
+            <Radio size={22} className="text-emerald-500" />
+            시그널
+          </h2>
+          <div className="mt-1 flex items-center gap-3 text-xs text-[var(--color-text-tertiary)]">
+            <span>노드 <strong className="text-[var(--color-primary)]">{stats.nodes}</strong>개</span>
+            <span>연결 <strong className="text-[var(--color-success)]">{stats.edges}</strong>개</span>
+          </div>
+        </div>
         <div className="flex items-center gap-2">
           {usingSample && (
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 font-medium">
               시그널을 입력해주세요
             </span>
           )}
-
-          <button
-            onClick={() => {
-              const label = prompt('추가할 노드 이름을 입력하세요:');
-              if (label) {
-                // 1번 궤도(기둥 카테고리) 목록 추출
-                const engine = engineRef.current;
-                const categories = engine ? engine.nodes.filter(n => n.orbitIndex === 1) : [];
-                
-                // 엔진 중앙에서 생성되도록 살짝 랜덤 좌표값 부여
-                const x = (Math.random() - 0.5) * 50;
-                const y = (Math.random() - 0.5) * 50;
-                const newNode = addCustomNode(label, x, y);
-
-                if (activeNode) {
-                  // 현재 클릭(선택)된 노드가 있다면, 새 노드를 그 노드의 직속 파생 자식으로 자동 배정
-                  setNodeOverride(newNode.id, { 
-                    customParent: activeNode.id,
-                    customOrbitIndex: activeNode.orbitIndex + 1,
-                    fixedX: undefined,
-                    fixedY: undefined
-                  });
-                } else if (categories.length > 0) {
-                  // 선택된 노드가 없으면 무작위 기둥 카테고리 하나를 골라 부모로 배정
-                  const randomCat = categories[Math.floor(Math.random() * categories.length)];
-                  setNodeOverride(newNode.id, { 
-                    customParent: randomCat.id,
-                    fixedX: undefined, 
-                    fixedY: undefined
-                  });
-                } else {
-                  // 등록된 카테고리가 아예 없다면 본인이 1번 궤도 기둥 카테고리로 승격
-                  setNodeOverride(newNode.id, { customGroup: 'MACRO_RESEARCH' });
-                }
-                setTimeout(() => initEngine(), 10);
-              }
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--color-primary)] text-white text-xs font-semibold hover:opacity-90 shadow-sm border border-emerald-600 cursor-pointer transition-colors"
-          >
-            <PlusSquare size={14} /> 노드 추가
-          </button>
         </div>
       </div>
 
       {/* Main: Side Panel (left) + Canvas (right) */}
       <div className={isFullscreen ? '' : 'grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4'}>
 
-        {/* ── Side Panel swapped to 5W1H ── */}
-        <div className={isFullscreen ? "hidden md:block fixed top-4 right-auto bottom-4 left-4 z-[110] w-[280px] lg:w-[320px] shadow-2xl rounded-xl custom-scrollbar pointer-events-auto" : "order-2 lg:order-none lg:self-start w-full pointer-events-auto"} style={{ maxHeight: isFullscreen ? "calc(100vh - 32px)" : "min(600px, 70vh)" }}>
-          {render5W1HPanel(true)}
+        {/* ── Side Panel: Node Details (노드 상세 패널) ── */}
+        <div className={isFullscreen ? "hidden md:flex flex-col fixed top-4 right-auto bottom-4 left-4 z-[110] w-[280px] lg:w-[320px] shadow-2xl rounded-xl custom-scrollbar pointer-events-auto bg-[#f8f9fc]" : "order-2 lg:order-none w-full pointer-events-auto flex flex-col gap-3"} style={{ height: isFullscreen ? "calc(100vh - 32px)" : "min(600px, 70vh)" }}>
+          <button
+            onClick={() => {
+              const label = prompt('추가할 노드 이름을 입력하세요:');
+              if (label) {
+                const engine = engineRef.current;
+                const categories = engine ? engine.nodes.filter(n => n.orbitIndex === 1) : [];
+                const x = (Math.random() - 0.5) * 50;
+                const y = (Math.random() - 0.5) * 50;
+                const newNode = addCustomNode(label, x, y);
+
+                if (activeNode) {
+                  setNodeOverride(newNode.id, { 
+                    customParent: activeNode.id, customOrbitIndex: activeNode.orbitIndex + 1, fixedX: undefined, fixedY: undefined 
+                  });
+                } else if (categories.length > 0) {
+                  const randomCat = categories[Math.floor(Math.random() * categories.length)];
+                  setNodeOverride(newNode.id, { customParent: randomCat.id, fixedX: undefined, fixedY: undefined });
+                } else {
+                  setNodeOverride(newNode.id, { customGroup: 'MACRO_RESEARCH' });
+                }
+                setTimeout(() => initEngine(), 10);
+              }
+            }}
+            className="w-full shrink-0 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-[var(--color-primary)] text-white text-sm font-semibold hover:opacity-90 shadow-sm border border-emerald-600 cursor-pointer transition-colors"
+          >
+            <PlusSquare size={16} /> 노드 추가
+          </button>
+          
+          <div className="flex-1 min-h-0 relative">
+            {renderNodeDetails(false)}
+          </div>
         </div>
 
         {/* ── Canvas Container ── */}
@@ -1050,7 +1064,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
           className={
             isFullscreen 
               ? 'fixed inset-0 z-[100] bg-[#f8f9fc]' 
-              : 'relative rounded-xl overflow-hidden border border-[var(--color-border-light)] order-1 lg:order-none'
+              : 'relative rounded-xl overflow-hidden border border-[var(--color-border-light)] order-1 lg:order-none flex-1'
           }
           style={{ height: isFullscreen ? '100vh' : 'min(600px, 70vh)', backgroundColor: '#f8f9fc' }}
         >
@@ -1068,9 +1082,9 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
             onTouchEnd={handleTouchEnd}
           />
 
-          {/* Whiteboard Toolbar (top-left) - Moved specific tools here if any, or remove */}
+          {/* Whiteboard Toolbar (top-left) */}
           {edgeModeSource && (
-            <div className="absolute top-16 left-3 z-10 flex flex-col gap-2">
+            <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
               <div className="bg-blue-50/90 backdrop-blur rounded-lg px-3 py-2 shadow-sm border border-blue-200 text-xs font-semibold text-blue-700 animate-pulse">
                 대상을 클릭해 선을 연결하세요...
                 <button 
@@ -1081,33 +1095,10 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
             </div>
           )}
 
-          {/* Stats overlay (top-right) */}
-          <div className="absolute top-3 right-3 z-10 flex items-center gap-2">
-            <button
-              onClick={() => setIsFullscreen(!isFullscreen)}
-              className="bg-white/90 backdrop-blur rounded-lg p-1.5 shadow-sm border border-[var(--color-border-light)] hover:bg-gray-100 transition-colors cursor-pointer"
-              title={isFullscreen ? '패널 보기' : '전체화면'}
-            >
-              {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-            </button>
-            <div className="bg-white/90 backdrop-blur rounded-lg px-3 py-1.5 shadow-sm border border-[var(--color-border-light)] inline-flex gap-4">
-              <div>
-                <div className="text-[10px] text-[var(--color-text-tertiary)]">노드</div>
-                <div className="text-sm font-bold text-[var(--color-primary)]">{stats.nodes}개</div>
-              </div>
-              <div>
-                <div className="text-[10px] text-[var(--color-text-tertiary)]">연결</div>
-                <div className="text-sm font-bold text-[var(--color-success)]">{stats.edges}개</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Edge Legend (Removed as requested by user) */}
-
-          {/* Hover tooltip */}
+          {/* Hover tooltip (for nodes that are NOT active) */}
           {hoveredNode && hoveredNode.id !== activeNode?.id && (
             <div
-              className="absolute z-20 pointer-events-none bg-white/95 backdrop-blur rounded-lg px-3 py-2 shadow-md border border-[var(--color-border-light)]"
+              className="absolute z-20 pointer-events-none bg-white/95 backdrop-blur rounded-lg px-3 py-2 shadow-md border border-[var(--color-border-light)] animate-in fade-in zoom-in duration-100"
               style={{
                 left: Math.min(
                   (containerRef.current?.getBoundingClientRect().width ?? 400) - 180,
@@ -1126,22 +1117,22 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
             </div>
           )}
 
-          {/* 5W1H Active Node Bottom Panel */}
-          {/* 5W1H -> Node Details Fullscreen Overlay */}
-          {isFullscreen && renderNodeDetails(true)}
+          {/* Fullscreen toggle - Bottom Right */}
+          <div className="absolute bottom-4 right-4 z-10 flex items-center gap-2">
+            <button
+              onClick={() => setIsFullscreen(!isFullscreen)}
+              className="bg-white/90 backdrop-blur rounded-lg p-2.5 shadow-md border border-[var(--color-border-light)] hover:bg-gray-100 transition-colors cursor-pointer text-gray-500 hover:text-gray-800"
+              title={isFullscreen ? '패널 보기' : '전체화면'}
+            >
+              {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+            </button>
+          </div>
 
-          {/* Instructions */}
-          <div className="absolute top-4 right-4 z-10 bg-white/80 backdrop-blur rounded-lg px-3 py-1.5 text-[10px] text-slate-500 shadow-sm border border-slate-100 hidden md:block">
-            🖱️ 선택: 클릭 · 이동: 드래그 · 줌: 휠스크롤
-          </div>
-          <div className="absolute bottom-3 left-3 z-10 bg-white/80 backdrop-blur rounded-lg px-3 py-1.5 text-[10px] text-[var(--color-text-tertiary)] md:hidden">
-            👆 탭: 선택 · 드래그: 이동 · 핀치: 줌
-          </div>
+          {/* 5W1H Tooltip Overlay (우측 상단 플로팅 툴팁) */}
+          {render5W1HPanel(false)}
+
         </div>
       </div>
-
-      {/* Static Bottom swapped to Node Details */}
-      {!isFullscreen && renderNodeDetails(false)}
     </div>
   );
 }

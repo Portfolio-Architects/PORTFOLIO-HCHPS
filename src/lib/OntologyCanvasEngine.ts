@@ -36,6 +36,7 @@ export interface EngineCallbacks {
   onActiveNodeChange?: (node: OrbitalNode | null) => void;
   onHoveredNodeChange?: (node: OrbitalNode | null) => void;
   onNodeReparent?: (nodeId: string, newParentId: string | undefined, newOrbitIndex: number) => void;
+  onNodePin?: (nodeId: string, fixedX: number, fixedY: number) => void;
 }
 
 // ============ Engine Class ============
@@ -85,13 +86,7 @@ export class OntologyCanvasEngine {
   private canvasW = 0;
   private canvasH = 0;
 
-  // Force relaxation state
-  private velocityX = new Map<string, number>();
-  private velocityY = new Map<string, number>();
-  private forceOffsetX = new Map<string, number>();
-  private forceOffsetY = new Map<string, number>();
-  private forceSettled = false;
-  private forceTickCount = 0;
+
 
     // ============ Init ============
   
@@ -299,19 +294,6 @@ export class OntologyCanvasEngine {
     }
     this.callbacks.onActiveNodeChange?.(this.activeNode);
 
-    // Initialize force state (disabled for radial tech tree mode)
-    this.velocityX.clear();
-    this.velocityY.clear();
-    this.forceOffsetX.clear();
-    this.forceOffsetY.clear();
-    this.forceSettled = false;
-    this.forceTickCount = 0;
-    for (const node of this.nodes) {
-      this.velocityX.set(node.id, 0);
-      this.velocityY.set(node.id, 0);
-      this.forceOffsetX.set(node.id, 0);
-      this.forceOffsetY.set(node.id, 0);
-    }
   }
 
   private makeOrbitalNode(
@@ -358,153 +340,12 @@ export class OntologyCanvasEngine {
         node.orbitAngle += node.orbitSpeed;
       }
     }
-
-    // ── Angular Radial Physics ──
-    // 노드들이 동일 궤도상에서 겹치지 않고 자연스럽게 밀어내며 부모-자식 간에는 방사형으로 정렬되도록 각도 물리엔진 적용
-    if (this.forceTickCount < 600 || this.isDragging) {
-      if (!this.isDragging) {
-        this.forceTickCount++;
-      }
-      
-      // 서서히 물리력을 줄여 완전히 안정화(Settled)되도록 합니다
-      let alpha = 0.005;
-      if (this.forceTickCount < 600) {
-        const progress = Math.min(1, this.forceTickCount / 600);
-        alpha = Math.max(0.005, 1 - Math.pow(progress, 0.5)); // 보다 일찍 안정화되지만 서서히 식게 만듦
-      }
-      
-      if (this.isDragging) alpha = Math.max(alpha, 0.1);
-
-      this.applyForces(alpha);
-    }
+    
+    // Physics engine (repulsion/attraction arrays) completely disabled 
+    // to allow pure manual pinning and to instantly eliminate the O(n^2) drag lag.
   }
 
-  private applyForces(alpha: number): void {
-    const n = this.nodes.length;
-    const forceQ = new Float64Array(n);
 
-    const idxMap = new Map<string, number>();
-    for (let i = 0; i < n; i++) idxMap.set(this.nodes[i].id, i);
-
-    // 1. Angular Repulsion (Avoid node text/bubble overlap on same or adjacent orbits)
-    for (let i = 0; i < n; i++) {
-      const a = this.nodes[i];
-      if (a.orbitIndex === 0 || a.fixedX !== undefined) continue;
-
-      for (let j = i + 1; j < n; j++) {
-        const b = this.nodes[j];
-        if (b.orbitIndex === 0 || b.fixedX !== undefined) continue;
-
-        const orbitDiff = Math.abs(a.orbitIndex - b.orbitIndex);
-        // 밀어내기(텍스트 겹침 방지)는 오직 완벽하게 같은 궤도(동일 반경)에 있는 노드끼리만 적용합니다!
-        // (부모가 자식을 밀어내거나, 다른 궤도 노드끼리 서로 간섭하여 진형을 붕괴시키는 현상을 원천 차단)
-        if (orbitDiff > 0) continue; 
-
-        let angleDiff = a.orbitAngle - b.orbitAngle;
-        while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
-        while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
-
-        const absDiff = Math.abs(angleDiff);
-
-        let repulsionThreshold = 0.4;
-        if (a.orbitIndex === 1) repulsionThreshold = Math.PI; // 기둥은 크게
-        else if (a.orbitIndex === 2) repulsionThreshold = 0.6; 
-        else if (a.orbitIndex === 3) repulsionThreshold = 0.3; 
-        else repulsionThreshold = 0.2; // 4궤도 이상은 거의 겹쳐야만 반응
-
-        const isAlien = a.orbitIndex > 1 && b.orbitIndex > 1 && a.parentId !== b.parentId;
-        if (isAlien) {
-          // 타 파벌일 경우 다른 나뭇가지를 무리하게 휘어버리지 않도록 최소한의 반경만 유지
-          repulsionThreshold *= 0.8;
-        }
-
-        if (absDiff === 0) angleDiff = (Math.random() - 0.5) * 0.05;
-
-        if (absDiff < repulsionThreshold) {
-          // 진동(Shaking)을 막기 위해 척력 강도를 안정적인 수준으로 조정
-          const strength = (0.05 * alpha) * (1 - absDiff / repulsionThreshold) * Math.sign(angleDiff);
-          
-          let finalStrength = strength;
-          if (isAlien) {
-            finalStrength *= 0.3; // 타 파벌 밀어내기 힘을 극도로 낮춤 (나뭇가지가 꺾이는 얽힘 현상 방지)
-          }
-
-          // 완벽한 동급 궤도간의 정상적인 척력
-          forceQ[i] += finalStrength;
-          forceQ[j] -= finalStrength;
-        }
-      }
-    }
-
-    // 2. Link Attraction (Edges act as angular springs pointing to same ray)
-    for (const edge of this.edges) {
-      const srcIdx = idxMap.get(edge.source) ?? -1;
-      const tgtIdx = idxMap.get(edge.target) ?? -1;
-      if (srcIdx < 0 || tgtIdx < 0) continue;
-
-      const src = this.nodes[srcIdx];
-      const tgt = this.nodes[tgtIdx];
-      
-      // 중심 노드(0)와의 엣지는 각도 정렬에서 무시
-      if (src.orbitIndex === 0 || tgt.orbitIndex === 0) continue;
-
-      let angleDiff = tgt.orbitAngle - src.orbitAngle;
-      while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
-      while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
-
-      // 부모-자식간의 1자 형 정렬(Straight Line)을 위해 데드존을 삭제하고 항시 인력을 작용합니다.
-      // 가지가 휘어지지 않고 직진형으로 뻗어나오도록 인력을 대폭 강화합니다.
-      let pullForce = 0.08; 
-      if (src.orbitIndex === 1 || tgt.orbitIndex === 1) pullForce = 0.15;
-      
-      let pull = angleDiff * pullForce * alpha;
-      
-      // 1차 카테고리(Orbit 1)는 자식의 무게(편향)에 끌려가지 않고 꿋꿋이 일정한 간격을 유지하도록 당기는 힘을 받지 않음
-      if (src.orbitIndex !== 1) forceQ[srcIdx] += pull;
-      if (tgt.orbitIndex !== 1) forceQ[tgtIdx] -= pull;
-    }
-
-    // 3. Category Attraction (같은 카테고리/색상 노드끼리 강하게 끌어당기는 군집화 인력)
-    for (let i = 0; i < n; i++) {
-      const a = this.nodes[i];
-      if (a.orbitIndex === 0 || a.fixedX !== undefined) continue;
-      const groupA = a.customGroup || a.group;
-
-      for (let j = i + 1; j < n; j++) {
-        const b = this.nodes[j];
-        if (b.orbitIndex === 0 || b.fixedX !== undefined) continue;
-        const groupB = b.customGroup || b.group;
-
-        if (groupA === groupB) {
-          let angleDiff = b.orbitAngle - a.orbitAngle;
-          while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
-          while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
-
-          // 선분(Edge)으로 이어진 것도 아닌데 오직 색상(카테고리)만 같다고 타 파벌 기둥(1궤도)으로 
-          // 강력하게 딸려가면 선이 엉키는 현상(Cross-tree tangling)이 발생합니다.
-          // 따라서 카테고리 자력은 최소한의 군집화만 유도하도록 아주 약하게(0.003) 고정시킵니다.
-          const pull = angleDiff * 0.003 * alpha;
-          
-          if (a.orbitIndex !== 1) forceQ[i] += pull;
-          if (b.orbitIndex !== 1) forceQ[j] -= pull;
-        }
-      }
-    }
-
-    // 3. Apply angular delta (No XY offset manipulation, strictly locks onto orbit rings!)
-    for (let i = 0; i < n; i++) {
-        const node = this.nodes[i];
-        if (node.orbitIndex === 0 || node.fixedX !== undefined) continue;
-        
-        // 프레임당 최대 이동 각도를 0.015 라디안으로 제한하여 셰이킹(진동) 현상을 완전히 제거
-        let delta = forceQ[i];
-        const maxDelta = 0.015;
-        if (Math.abs(delta) > maxDelta) {
-          delta = Math.sign(delta) * maxDelta;
-        }
-        node.orbitAngle += delta;
-    }
-  }
 
   // ============ Compute Positions ============
 
@@ -593,10 +434,7 @@ export class OntologyCanvasEngine {
     // 4. Nodes (depth-sorted, back-to-front)
     this.renderNodes(ctx);
 
-    // 5. Drag & Drop Live Preview Overlay
-    if (this.isDragging && this.hasDragged && this.draggedNode) {
-      this.renderDragPreview(ctx);
-    }
+
   }
 
   private renderBackground(ctx: CanvasRenderingContext2D, w: number, h: number): void {
@@ -676,87 +514,7 @@ export class OntologyCanvasEngine {
     return set;
   }
 
-  private renderDragPreview(ctx: CanvasRenderingContext2D): void {
-    if (!this.draggedNode) return;
-    
-    // 이전에 분리한 공통 로직 재사용
-    const { targetParentId, closestOrbit, isDirectDrop, closestCat } = this.getDropTarget(this.draggedNode);
-    const targetNode = targetParentId ? this.nodeMap.get(targetParentId) : null;
-    
-    // 1. 목표 타겟 부모와 연결되는 점선 및 하이라이트 표시
-    if (targetNode && targetNode.id !== 'root-HCHPS') {
-      ctx.save();
-      // 점선 연결
-      ctx.beginPath();
-      ctx.moveTo(this.draggedNode.renderX, this.draggedNode.renderY);
-      ctx.lineTo(targetNode.renderX, targetNode.renderY);
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.7)'; // 맑은 하늘색 (Tailwind light-blue)
-      ctx.lineWidth = 2 * this.zoom;
-      ctx.setLineDash([6 * this.zoom, 6 * this.zoom]);
-      ctx.stroke();
 
-      // 타겟 노드 글로우 링
-      ctx.beginPath();
-      const r = targetNode.nodeRadius * this.zoom + 8;
-      ctx.arc(targetNode.renderX, targetNode.renderY, r, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.9)';
-      ctx.lineWidth = 3 * this.zoom;
-      ctx.setLineDash([]);
-      ctx.stroke();
-      
-      // 타겟 배경 은은한 빛
-      ctx.fillStyle = 'rgba(56, 189, 248, 0.15)';
-      ctx.fill();
-      ctx.restore();
-    }
-
-    // 2. 마우스(현재 드래그 중인 노드) 상단에 헬퍼 텍스트(오버레이) 표시
-    ctx.save();
-    
-    // 문맥에 맞는 자연스러운 한국어 안내문 생성
-    let previewText = '';
-    
-    if (isDirectDrop && closestCat) {
-      previewText = `🎯 "${closestCat.label}"(올려둔 노드)의 하위 로 편입 (궤도 ${closestOrbit})`;
-    } else if (targetNode && targetNode.id !== 'root-HCHPS') {
-      previewText = `"${targetNode.label}" 중심의 ${closestOrbit}번 궤도 배치`;
-    } else if (closestOrbit === 1) {
-      previewText = `✨ 새로운 독립 카테고리로 1번 궤도 배치`;
-    } else if (closestOrbit === 0) {
-      previewText = `🌟 중앙 뿌리(태양) 노드로 초기화`;
-    } else {
-      previewText = `현재 구조 유지 (궤도 ${closestOrbit})`;
-    }
-         
-    const fontSize = Math.max(10, Math.min(13, 11 * this.zoom));
-    ctx.font = `600 ${fontSize}px 'Pretendard', sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    
-    const paddingX = 14;
-    const paddingY = 8;
-    const textWidth = ctx.measureText(previewText).width;
-    const bgWidth = textWidth + paddingX * 2;
-    const bgHeight = fontSize + paddingY * 2;
-    
-    // 노드 위에 띄울 Y 좌표 (노드 반지름 + 여백)
-    const tooltipY = this.draggedNode.renderY - (this.draggedNode.nodeRadius * this.zoom) - 24;
-    
-    // 반투명 프리미엄 다크 라벨 배경
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.85)'; // Slate-900
-    ctx.beginPath();
-    if (ctx.roundRect) {
-      ctx.roundRect(this.draggedNode.renderX - bgWidth/2, tooltipY - bgHeight/2, bgWidth, bgHeight, Math.min(8, bgHeight/2));
-    } else {
-      ctx.rect(this.draggedNode.renderX - bgWidth/2, tooltipY - bgHeight/2, bgWidth, bgHeight);
-    }
-    ctx.fill();
-    
-    // 눈에 띄는 하늘색 텍스트
-    ctx.fillStyle = '#38bdf8'; 
-    ctx.fillText(previewText, this.draggedNode.renderX, tooltipY);
-    ctx.restore();
-  }
 
   private renderEdges(ctx: CanvasRenderingContext2D): void {
     const activeId = this.activeNode?.id ?? null;
@@ -1309,66 +1067,14 @@ export class OntologyCanvasEngine {
     }
   }
 
-  private getDropTarget(draggedNode: OrbitalNode): { targetParentId: string | undefined; closestOrbit: number; isDirectDrop: boolean; closestCat: OrbitalNode | null } {
-    let closestCat: OrbitalNode | null = null;
-    let minSqDist = Infinity;
-    
-    for (const node of this.nodes) {
-      if (node.id !== draggedNode.id) {
-        const dx = node.renderX - draggedNode.renderX;
-        const dy = node.renderY - draggedNode.renderY;
-        const sqDist = dx * dx + dy * dy;
-        if (sqDist < 40000 && sqDist < minSqDist) {
-          minSqDist = sqDist;
-          closestCat = node;
-        }
-      }
-    }
-
-    let closestOrbit = draggedNode.orbitIndex;
-    let targetParentId: string | undefined = closestCat ? closestCat.id : undefined;
-
-    // 만약 정밀하게 다른 노드 위(반경 100px 이내, sqDist 10000)에 드롭했다면 "해당 노드에 흡수(자식으로 편입)" 요청으로 간주합니다.
-    const isDirectDrop = closestCat !== null && minSqDist < 10000;
-
-    if (draggedNode.fixedX !== undefined && draggedNode.fixedY !== undefined) {
-      const distFromCenter = Math.sqrt((draggedNode.fixedX * draggedNode.fixedX) / (ELLIPSE_RATIO * ELLIPSE_RATIO) + draggedNode.fixedY * draggedNode.fixedY);
-      
-      let minOrbitDiff = Infinity;
-      // 중앙 노드(Orbit 0) 강제 편입 로직을 삭제하고 최소 1번 궤도(독립 카테고리)부터 탐색하게 하여 루트 노드 탈취 버그를 원천 삭제합니다.
-      for (let i = 1; i < this.orbitRadii.length; i++) {
-        const diff = Math.abs(distFromCenter - this.orbitRadii[i]);
-        if (diff < minOrbitDiff) {
-          minOrbitDiff = diff;
-          closestOrbit = i;
-        }
-      }
-      
-      if (isDirectDrop && closestCat) {
-        // 다른 노드 위로 정확히 올렸을 때 -> 궤도를 떠나서 강제로 흡수(자식 노드로 편입)
-        targetParentId = closestCat.id;
-        closestOrbit = closestCat.orbitIndex === 0 ? 1 : closestCat.orbitIndex + 1;
-      } else if (closestOrbit === 1) {
-        // 빈 공간 1번 궤도 위에 놓았을 때 -> 독립 카테고리 승격 (명시적으로 중앙 태양 노드를 부모로 지정)
-        targetParentId = 'root-HCHPS';
-      } else if (closestOrbit >= 2 && !targetParentId) {
-        // 안쪽 궤도로 떨어뜨렸는데 주변에 마땅한 부모가 없으면 기존 부모 유지
-        targetParentId = draggedNode.parentId;
-      }
-    }
-
-    return { targetParentId, closestOrbit, isDirectDrop, closestCat };
-  }
-
   handleDragEnd(): void {
     if (this.draggedNode && this.hasDragged) {
-      const { targetParentId, closestOrbit } = this.getDropTarget(this.draggedNode);
-      
-      // 드래그된 궤도/부모 결과를 항상 저장 (fixedX/Y 해제 포함)
-      this.callbacks.onNodeReparent?.(this.draggedNode.id, targetParentId, closestOrbit);
-      
-      this.draggedNode.fixedX = undefined;
-      this.draggedNode.fixedY = undefined;
+      if (this.draggedNode.fixedX !== undefined && this.draggedNode.fixedY !== undefined) {
+         // Fire pin event so parent component permanently saves coordinate
+         this.callbacks.onNodePin?.(this.draggedNode.id, this.draggedNode.fixedX, this.draggedNode.fixedY);
+      }
+      // Mathematical reparenting and "drop target" logic has been disabled completely.
+      // NO getDropTarget logic. NO onNodeReparent. Only manual pinpointing.
     }
     this.isDragging = false;
     this.draggedNode = null;
