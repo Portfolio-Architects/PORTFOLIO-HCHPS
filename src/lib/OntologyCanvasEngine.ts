@@ -71,7 +71,7 @@ export class OntologyCanvasEngine {
   private draggedNode: OrbitalNode | null = null;
   private draggedSubTree: { node: OrbitalNode; dx0: number; dy0: number }[] = [];
   previousActiveNodeId: string | null = null;
-  private pendingCameraTargetId: string | null = null;
+  public pendingCameraTargetId: string | null = null;
 
   // Stats
   nodeCount = 0;
