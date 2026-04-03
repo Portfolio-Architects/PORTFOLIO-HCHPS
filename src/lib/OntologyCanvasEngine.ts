@@ -35,8 +35,10 @@ const FORCE_WARMUP_TICKS = 150; // freeze after this many ticks
 export interface EngineCallbacks {
   onActiveNodeChange?: (node: OrbitalNode | null) => void;
   onHoveredNodeChange?: (node: OrbitalNode | null) => void;
+  onEdgeClick?: (edge: OntologyEdge) => void;
   onNodeReparent?: (nodeId: string, newParentId: string | undefined, newOrbitIndex: number) => void;
   onNodePin?: (nodeId: string, fixedX: number, fixedY: number) => void;
+  onNodeBatchPin?: (pins: { id: string; fixedX: number; fixedY: number }[]) => void;
 }
 
 // ============ Engine Class ============
@@ -47,6 +49,7 @@ export class OntologyCanvasEngine {
   centerNode: OrbitalNode | null = null;
   activeNode: OrbitalNode | null = null;
   hoveredNode: OrbitalNode | null = null;
+  hoveredEdge: OntologyEdge | null = null;
 
   // Camera
   zoom = 1;
@@ -66,6 +69,7 @@ export class OntologyCanvasEngine {
   private lastDragY = 0;
   private dragStartTilt = 0;
   private draggedNode: OrbitalNode | null = null;
+  private draggedSubTree: { node: OrbitalNode; dx0: number; dy0: number }[] = [];
   previousActiveNodeId: string | null = null;
   private pendingCameraTargetId: string | null = null;
 
@@ -228,15 +232,12 @@ export class OntologyCanvasEngine {
       // Spread each group in a fan (arc) around the parent's angle
       orbitGroups.forEach((groupNodes, oIndex) => {
         const N = groupNodes.length;
-        // 기둥 카테고리(1번 궤도)는 중앙 뿌리 주변 360도 전체에 균등하게 퍼뜨린 상태로 시작합니다
-        const isCenterParent = parent.orbitIndex === 0;
-        // 깊은 궤도(2궤도 이상)일수록 자식들이 할당된 파이(각도) 영역을 넘지 않도록 좁은 부채꼴로 제한합니다.
-        const totalSpreadAngle = isCenterParent ? (Math.PI * 2) : Math.min(1.0, N * 0.15);
-        const startAngle = isCenterParent ? (Math.random() * Math.PI * 2) : parent.orbitAngle - (totalSpreadAngle / 2);
-        const angleStep = N <= 1 ? 0 : totalSpreadAngle / (isCenterParent ? N : (N - 1));
+        // 1차 카테고리 뿐만 아니라 모든 자식 노드들이 각자 부모를 기준으로 360도 방사형 배치되도록 수정
+        const startAngle = Math.random() * Math.PI * 2;
+        const angleStep = N === 0 ? 0 : (Math.PI * 2) / N;
 
         groupNodes.forEach((node, gIdx) => {
-          let angle = N === 1 ? parent.orbitAngle : startAngle + (gIdx * angleStep);
+          let angle = startAngle + (gIdx * angleStep);
           // 기존에 공전 중이던 위치(각도)가 있다면 그대로 유지시켜 화면 중심 재정렬로 인한 순간이동 애니메이션 차단 (NaN 오염 방지)
           const preData = previousNodeMap.get(node.id);
           if (preData && typeof preData.orbitAngle === 'number' && !isNaN(preData.orbitAngle)) {
@@ -372,20 +373,36 @@ export class OntologyCanvasEngine {
         worldX = node.fixedX;
         worldY = node.fixedY;
       } else {
-        let orbR = 0;
-        if (typeof node.orbitIndex === 'number' && !isNaN(node.orbitIndex) && node.orbitIndex <= NUM_ORBITS) {
-          orbR = this.orbitRadii[node.orbitIndex] || 0;
-        } else if (typeof node.orbitIndex === 'number' && !isNaN(node.orbitIndex)) {
-          // 지원하는 기본 궤도수(NUM_ORBITS)를 초과하는 깊은 자식 노드가 생성될 경우, 
-          // 멈추지 않고 선형적으로 궤도 반경을 무한히 확장하여 에러(NaN)를 원천 차단합니다.
-          const baseR = Math.min(canvasW, canvasH) * 0.65;
-          orbR = baseR * (0.18 + (node.orbitIndex / NUM_ORBITS) * 0.82);
-        }
-        
         const safeAngle = typeof node.orbitAngle === 'number' && !isNaN(node.orbitAngle) ? node.orbitAngle : 0;
-        worldX = Math.cos(safeAngle) * orbR * ELLIPSE_RATIO;
-        worldY = Math.sin(safeAngle) * orbR;
+        
+        // 부모 노드가 있고, 자신이 자식(orbitIndex > 1)이라면 '부모 중심 방사형(Radial)' 배치 채택
+        if (node.parentId && node.orbitIndex > 1) {
+           const parentNode = this.nodeMap.get(node.parentId);
+           // 부모 좌표 기준 계산
+           const px = parentNode?.worldX || 0;
+           const py = parentNode?.worldY || 0;
+           
+           // 부모 주변의 자식 궤도 반경 (부모를 감싸는 컴팩트한 클러스터 형태 유지)
+           const localRadius = 50 + (node.orbitIndex - 1) * 20; 
+           worldX = px + Math.cos(safeAngle) * localRadius * ELLIPSE_RATIO;
+           worldY = py + Math.sin(safeAngle) * localRadius;
+        } else {
+          // 중앙 수퍼 노드 혹은 1차 카테고리(orbitIndex 0~1)의 경우 기존 캔버스 중앙을 중심으로 공전
+          let orbR = 0;
+          if (typeof node.orbitIndex === 'number' && !isNaN(node.orbitIndex) && node.orbitIndex <= NUM_ORBITS) {
+            orbR = this.orbitRadii[node.orbitIndex] || 0;
+          } else if (typeof node.orbitIndex === 'number' && !isNaN(node.orbitIndex)) {
+            const baseR = Math.min(canvasW, canvasH) * 0.65;
+            orbR = baseR * (0.18 + (node.orbitIndex / NUM_ORBITS) * 0.82);
+          }
+          worldX = Math.cos(safeAngle) * orbR * ELLIPSE_RATIO;
+          worldY = Math.sin(safeAngle) * orbR;
+        }
       }
+
+      // 자식 노드가 체인 계산에서 활용할 수 있도록 월드 좌표 저장
+      node.worldX = worldX;
+      node.worldY = worldY;
 
       // Map to isometric/tilted 3D space
       // Apply camera tilt
@@ -477,34 +494,51 @@ export class OntologyCanvasEngine {
     
     set.add(rootId);
     
-    // BFS (전체 하위 트리 및 양방향 커스텀 연결망 탐색)
+    const rootNode = this.nodeMap.get(rootId);
+    const isCategoryLevel = rootNode ? rootNode.orbitIndex <= 1 || rootNode.id === 'root-HCHPS' : false;
+
+    // 1. Network Flow BFS
     const queue = [rootId];
     while (queue.length > 0) {
       const currentId = queue.shift()!;
       const current = this.nodeMap.get(currentId);
-      if (!current) continue;
-
+      const isImmediateHop = (currentId === rootId);
+      
       for (const edge of this.edges) {
-        // 중심 노드(root)를 관통하여 전체 맵이 활성화되는 것 방지
-        if (rootId !== 'root-HCHPS' && (edge.source === 'root-HCHPS' || edge.target === 'root-HCHPS')) {
-          continue;
-        }
-
+        // 중심 노드 관통 차단
+        if (rootId !== 'root-HCHPS' && edge.target === 'root-HCHPS') continue;
+        if (rootId !== 'root-HCHPS' && isImmediateHop && edge.source === 'root-HCHPS') continue;
+        
         let nextId: string | null = null;
-        if (edge.source === currentId) nextId = edge.target;
-        else if (edge.target === currentId) nextId = edge.source;
-
-        if (nextId && !set.has(nextId)) {
-          // 구조적 부모 방향으로의 탐색은 방지 (부모의 다른 자식들까지 하이라이트되는 것 방지)
-          if (nextId === current.parentId) continue;
+        
+        if (isCategoryLevel) {
+          // 카테고리는 하위 방향 우선 완전 전파. 
+          if (edge.source === currentId) nextId = edge.target;
+          else if (edge.target === currentId) nextId = edge.source; // 수평 커스텀 선분 등 포괄
           
+          // 하지만 1-hop 이후 다른 카테고리로 역주행(Upward)하는 것은 차단
+          if (!isImmediateHop && current && nextId === current.parentId) nextId = null;
+        } else {
+          // 하위(일반) 노드는 자신이 Source인 경우에만 큐를 타고 밑으로 번짐
+          if (edge.source === currentId) {
+            nextId = edge.target;
+          } else if (edge.target === currentId && isImmediateHop) {
+            // 내가 Target(수신자)인 역방향 1-hop 이웃은 시각적으로 불만 켜주고 큐 단절 -> 형제 오염 방지
+            nextId = edge.source;
+            if (!set.has(nextId)) set.add(nextId);
+            nextId = null; 
+          }
+        }
+        
+        if (nextId && !set.has(nextId)) {
           set.add(nextId);
           queue.push(nextId);
         }
       }
     }
     
-    // Upward parents (전체 상위 경로)
+    // 2. Upward Ancestors (Structural Lineage)
+    // 1줄기 뿌리만 추적
     let currNode = this.nodeMap.get(rootId);
     while (currNode && currNode.parentId) {
       set.add(currNode.parentId);
@@ -587,6 +621,35 @@ export class OntologyCanvasEngine {
       ctx.stroke(); // single draw call for all faint edges
     }
     ctx.setLineDash([]);
+    
+    // Draw '+' on active edges connected to activeNode
+    if (activeId) {
+      for (const edge of this.edges) {
+        if (edge.source === activeId || edge.target === activeId) {
+          const src = this.nodeMap.get(edge.source);
+          const tgt = this.nodeMap.get(edge.target);
+          if (!src || !tgt) continue;
+
+          const midX = (src.renderX + tgt.renderX) / 2;
+          const midY = (src.renderY + tgt.renderY) / 2;
+          const isHovered = this.hoveredEdge === edge;
+
+          ctx.fillStyle = isHovered ? '#3b82f6' : '#ffffff';
+          ctx.strokeStyle = isHovered ? '#ffffff' : '#cbd5e1';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(midX, midY, isHovered ? 8 : 6, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.fillStyle = isHovered ? '#ffffff' : '#94a3b8';
+          ctx.font = 'bold 12px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('+', midX, midY + 1);
+        }
+      }
+    }
   }
 
   private drawArrow(
@@ -618,43 +681,39 @@ export class OntologyCanvasEngine {
 
 
   private getNodeColors(node: OrbitalNode): string[] {
-    // 1. 커스텀 단일 색상이 지정된 노드는 그 색상 강제 유지
-    if (node.customColor) return [node.customColor];
-    
     const colors = new Set<string>();
+    const myBaseColor = node.customColor || GROUP_COLORS[node.group as OntologyGroup] || GROUP_COLORS.OTHER;
     
-    // 2. 중심 노드(0)는 무조건 자신의 색상만 가짐
-    if (node.orbitIndex === 0) {
-      return [GROUP_COLORS[node.group as OntologyGroup] || GROUP_COLORS.OTHER];
+    // 1. 중심 노드(0) 또는 색상 정체성이 확고한 상위 카테고리(사람, 핵심 부서 등)는 절대 파이차트가 되지 않고 고유 색상을 유지합니다.
+    const isPrimaryCategory = node.group === 'CORE_PROJECT' || node.group === 'MACRO_RESEARCH' || node.group === 'DCF_MODELING';
+    if (node.orbitIndex === 0 || isPrimaryCategory) {
+      return [myBaseColor];
     }
 
     // 3. 자신과 연결된 모든 노드를 순회하며 나와 동급(<=)이거나 중심부인 노드의 색상을 수집
     for (const edge of this.edges) {
-      let neighborId: string | null = null;
       const sourceId = typeof edge.source === 'object' ? (edge.source as any).id : edge.source;
       const targetId = typeof edge.target === 'object' ? (edge.target as any).id : edge.target;
       
-      if (sourceId === node.id) neighborId = targetId;
-      if (targetId === node.id) neighborId = sourceId;
-      
-      if (neighborId) {
-        const neighbor = this.nodes.find(n => n.id === neighborId);
-        // 자신보다 중심에 가깝거나, 같은 궤도(형제)인 노드의 색상을 상속받음 (측면 브릿징 허용)
-        if (neighbor && neighbor.orbitIndex <= node.orbitIndex) {
+      // 나와 연결된 선분 중, "내가 타겟(Target, 자식/의존자)"인 경우에만 소스(부모/원천)의 색상을 상속받습니다.
+      // 즉, 부모 -> 자식 방향으로 연결되어야 자식이 부모들의 색상을 흡수해 파이차트가 됩니다.
+      if (targetId === node.id) {
+        const neighbor = this.nodes.find(n => n.id === sourceId);
+        if (neighbor && neighbor.orbitIndex > 0) {
           const c = neighbor.customColor || GROUP_COLORS[neighbor.group as OntologyGroup] || GROUP_COLORS.OTHER;
           colors.add(c);
         }
       }
     }
     
-    // 4. 만약 수집된 상위/측면 노드가 없다면(혹은 단절되었다면) 태생 그룹의 색상으로 렌더링
+    // 만약 수집된 상위/측면 노드가 없다면(혹은 단절되었다면) 태생 그룹의 색상으로 렌더링
     if (colors.size === 0) {
-      return [GROUP_COLORS[node.group as OntologyGroup] || GROUP_COLORS.OTHER];
+      return [myBaseColor];
     }
     
-    // 5. 자기 자신의 오리지널 그룹 색상을 기본 포함 (만약 상위 연결선의 색상 세트에 본인 고유의 색상이 빠져있다면 추가)
-    // 브릿지 노드라면, 타 진영 색상(수집됨) + 본인 진영 색상을 반반씩 보여줘야 하므로!
-    colors.add(GROUP_COLORS[node.group as OntologyGroup] || GROUP_COLORS.OTHER);
+    // 자기 자신의 오리지널 그룹 색상을 기본 포함 (만약 상위 연결선의 색상 세트에 본인 고유의 색상이 빠져있다면 추가)
+    // 브릿지 노드라면, 타 진영 색상(수집됨) + 본인 진영 색상을 반반씩 섞어서 파이차트로 생성!
+    colors.add(myBaseColor);
     
     return Array.from(colors);
   }
@@ -964,6 +1023,11 @@ export class OntologyCanvasEngine {
       return;
     }
 
+    if (this.hoveredEdge) {
+      this.callbacks.onEdgeClick?.(this.hoveredEdge);
+      return;
+    }
+
     const hit = this.hitTest(mx, my);
     if (hit) {
       if (this.activeNode?.id === hit.id) {
@@ -993,6 +1057,26 @@ export class OntologyCanvasEngine {
       this.hoveredNode = hit;
       this.callbacks.onHoveredNodeChange?.(hit);
     }
+    
+    let hwEdge: OntologyEdge | null = null;
+    if (!hit && this.activeNode) {
+      const activeId = this.activeNode.id;
+      for (const edge of this.edges) {
+        if (edge.source === activeId || edge.target === activeId) {
+          const src = this.nodeMap.get(edge.source);
+          const tgt = this.nodeMap.get(edge.target);
+          if (!src || !tgt) continue;
+          
+          const midX = (src.renderX + tgt.renderX) / 2;
+          const midY = (src.renderY + tgt.renderY) / 2;
+          if (Math.hypot(mx - midX, my - midY) < 14) {
+            hwEdge = edge;
+            break;
+          }
+        }
+      }
+    }
+    this.hoveredEdge = hwEdge;
   }
 
   handleWheel(delta: number): void {
@@ -1002,7 +1086,7 @@ export class OntologyCanvasEngine {
 
   // ── Interaction ──
 
-  handleDragStart(nx: number, ny: number): void {
+  handleDragStart(nx: number, ny: number, isShiftKey: boolean = false): void {
     this.isDragging = true;
     this.hasDragged = false;
     this.dragStartX = nx;
@@ -1011,6 +1095,7 @@ export class OntologyCanvasEngine {
     this.lastDragY = ny;
     this.dragStartTilt = this.cameraTilt;
     this.draggedNode = null;
+    this.draggedSubTree = [];
 
     // Check hit test for node dragging
     let closestId = null;
@@ -1028,6 +1113,39 @@ export class OntologyCanvasEngine {
 
     if (closestId) {
       this.draggedNode = this.nodeMap.get(closestId)!;
+      
+      // Shift 키(카테고리 묶음 이동) 기능 작동 시 소속된 모든 트리를 이동합니다
+      if (isShiftKey) {
+        const descendants = new Set<string>();
+        const queue = [closestId];
+        
+        while (queue.length > 0) {
+          const currId = queue.shift()!;
+          for (const edge of this.edges) {
+            if (edge.source === currId) {
+              const tgtId = edge.target;
+              if (tgtId !== closestId && !descendants.has(tgtId) && tgtId !== 'root-HCHPS') {
+                descendants.add(tgtId);
+                queue.push(tgtId);
+              }
+            }
+          }
+        }
+        
+        const rootWX = (this.draggedNode.fixedX ?? this.draggedNode.worldX) ?? 0;
+        const rootWY = (this.draggedNode.fixedY ?? this.draggedNode.worldY) ?? 0;
+        
+        descendants.forEach(id => {
+          const dn = this.nodeMap.get(id);
+          if (dn) {
+            this.draggedSubTree.push({
+              node: dn,
+              dx0: ((dn.fixedX ?? dn.worldX) ?? 0) - rootWX,
+              dy0: ((dn.fixedY ?? dn.worldY) ?? 0) - rootWY,
+            });
+          }
+        });
+      }
     }
   }
 
@@ -1051,6 +1169,18 @@ export class OntologyCanvasEngine {
         // Temporarily track mouse visually without snapping to orbits
         this.draggedNode.fixedX = worldX;
         this.draggedNode.fixedY = worldY;
+        this.draggedNode.worldX = worldX;
+        this.draggedNode.worldY = worldY;
+        
+        // 하위 그룹 동반 이동 시각화
+        for (const item of this.draggedSubTree) {
+          const childWX = worldX + item.dx0;
+          const childWY = worldY + item.dy0;
+          item.node.fixedX = childWX;
+          item.node.fixedY = childWY;
+          item.node.worldX = childWX;
+          item.node.worldY = childWY;
+        }
       }
     } else {
       // Camera Panning
@@ -1068,16 +1198,26 @@ export class OntologyCanvasEngine {
   }
 
   handleDragEnd(): void {
-    if (this.draggedNode && this.hasDragged) {
-      if (this.draggedNode.fixedX !== undefined && this.draggedNode.fixedY !== undefined) {
-         // Fire pin event so parent component permanently saves coordinate
-         this.callbacks.onNodePin?.(this.draggedNode.id, this.draggedNode.fixedX, this.draggedNode.fixedY);
-      }
-      // Mathematical reparenting and "drop target" logic has been disabled completely.
-      // NO getDropTarget logic. NO onNodeReparent. Only manual pinpointing.
-    }
     this.isDragging = false;
+    
+    if (this.hasDragged && this.draggedNode && typeof this.draggedNode.fixedX === 'number' && typeof this.draggedNode.fixedY === 'number') {
+      if (this.draggedSubTree.length > 0) {
+        // 퍼포먼스(Undo 로깅 수 최소화)를 위한 일괄 배치 업데이트
+        const pins = [{ id: this.draggedNode.id, fixedX: this.draggedNode.fixedX, fixedY: this.draggedNode.fixedY }];
+        for (const item of this.draggedSubTree) {
+          if (typeof item.node.fixedX === 'number' && typeof item.node.fixedY === 'number') {
+            pins.push({ id: item.node.id, fixedX: item.node.fixedX, fixedY: item.node.fixedY });
+          }
+        }
+        this.callbacks.onNodeBatchPin?.(pins);
+      } else {
+        this.callbacks.onNodePin?.(this.draggedNode.id, this.draggedNode.fixedX, this.draggedNode.fixedY);
+      }
+    }
+    
     this.draggedNode = null;
+    this.draggedSubTree = [];
+    this.hasDragged = false;
   }
 
   // ============ Queries ============

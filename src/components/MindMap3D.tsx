@@ -13,7 +13,7 @@ import {
   Radio, Loader2, RefreshCw, AlertTriangle,
   Circle, Link2, X, ChevronRight, ChevronUp, ChevronDown, Zap, Maximize2, Minimize2,
   Trash2, FileText, Edit2, Plus, Palette, PinOff, PlusSquare, Waypoints, Eraser, Play, Pause,
-  CheckCircle, Unlink
+  CheckCircle, Unlink, Crosshair
 } from 'lucide-react';
 import { useGraphCustomization } from '@/hooks/useGraphCustomization';
 
@@ -51,7 +51,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   const [hoveredNode, setHoveredNode] = useState<OrbitalNode | null>(null);
   const [connectedEdges, setConnectedEdges] = useState<Array<{ edge: OntologyEdge; otherNode: OrbitalNode }>>([]);
   const [stats, setStats] = useState({ nodes: 0, edges: 0 });
-  const { overrides, customNodes, customEdges, undo, redo, setNodeOverride, clearNodeOverride, addCustomNode, deleteCustomNode, updateCustomNodeText, addCustomEdge, clearOverrides, clearAll } = useGraphCustomization();
+  const { overrides, customNodes, customEdges, undo, redo, setNodeOverride, batchSetNodeOverrides, clearNodeOverride, addCustomNode, deleteCustomNode, updateCustomNodeText, addCustomEdge, deleteCustomEdge, clearOverrides, clearAll } = useGraphCustomization();
   
   // ── Keyboard Shortcuts (Undo/Redo) ──
   useEffect(() => {
@@ -89,12 +89,15 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [newKeyword, setNewKeyword] = useState('');
   const [edgeModeSource, setEdgeModeSource] = useState<string | null>(null);
+  const [parentModeSource, setParentModeSource] = useState<string | null>(null);
   const [show5W1H, setShow5W1H] = useState(false);
   const show5W1HRef = useRef(false);
   useEffect(() => { show5W1HRef.current = show5W1H; }, [show5W1H]);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const edgeModeSourceRef = useRef(edgeModeSource);
   useEffect(() => { edgeModeSourceRef.current = edgeModeSource; }, [edgeModeSource]);
+  const parentModeSourceRef = useRef(parentModeSource);
+  useEffect(() => { parentModeSourceRef.current = parentModeSource; }, [parentModeSource]);
 
   // 직관적이고 구분이 또렷한 원색(Vivid/Primary) 컬러 팔레트 배정
   const PRESET_COLORS = ['#FF2222', '#FF8800', '#FFDD00', '#00CC44', '#00BBDD', '#0055FF', '#8800FF', '#FF00AA', '#111111', '#FFFFFF'];
@@ -125,12 +128,16 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
         engine.targetOffsetX = engineRef.current.targetOffsetX;
         engine.targetOffsetY = engineRef.current.targetOffsetY;
         engine.zoom = engineRef.current.zoom;
+        engine.cameraTilt = engineRef.current.cameraTilt;
         
         if (engineRef.current.activeNode) {
           const stillExists = engine.nodes.find(n => n.id === engineRef.current!.activeNode!.id);
           if (stillExists) {
             engine.activeNode = stillExists;
             engine.previousActiveNodeId = stillExists.id;
+            // 💡 데이터 변경/재초기화 후 카메라가 허공을 맴돌거나 중앙으로 초기화되지 않도록,
+            // 복원된 현재 노드로 애니메이션/카메라의 초점을 다시 맞춥니다.
+            engine.pendingCameraTargetId = stillExists.id;
           }
         }
       }
@@ -145,17 +152,11 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
       // Attach callbacks AFTER init for user interaction
       engine.callbacks = {
         onActiveNodeChange: (node) => {
-          // 대상 노드 찍기 (선분 연결 모드) 동작 처리
-          if (edgeModeSourceRef.current && node && node.id !== edgeModeSourceRef.current) {
-             const parentId = edgeModeSourceRef.current;
-             // 타겟 노드의 부모를 edgeModeSource로 설정 (의존성 생성)
-             setNodeOverride(node.id, { customParent: parentId, fixedX: undefined, fixedY: undefined });
-             setEdgeModeSource(null);
-             setTimeout(() => initEngine(), 30);
-             return;
-          }
           if (node?.id === edgeModeSourceRef.current) {
              setEdgeModeSource(null); // 자기자신을 한 번 더 누르면 취소
+          }
+          if (node?.id === parentModeSourceRef.current) {
+             setParentModeSource(null); // 자기자신을 한 번 더 누르면 취소
           }
 
           setActiveNode(node ?? null);
@@ -167,6 +168,52 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
           }
         },
         onHoveredNodeChange: (node) => setHoveredNode(node ?? null),
+        onEdgeClick: (edge) => {
+          const label = prompt('새로운 중간 연결 노드(진척 단계)의 이름을 입력하세요:\n(예: 기안 작성, 테스트 진행 등)');
+          if (!label) return;
+          
+          const srcId = typeof edge.source === 'object' ? (edge.source as any).id : edge.source;
+          const tgtId = typeof edge.target === 'object' ? (edge.target as any).id : edge.target;
+          const srcNode = engineRef.current?.nodes.find((n) => n.id === srcId);
+          const tgtNode = engineRef.current?.nodes.find((n) => n.id === tgtId);
+          
+          if (!srcNode || !tgtNode) return;
+          
+          const midX = ((srcNode.worldX ?? 0) + (tgtNode.worldX ?? 0)) / 2;
+          const midY = ((srcNode.worldY ?? 0) + (tgtNode.worldY ?? 0)) / 2;
+          
+          // 1. Create the new node exactly at the physical midpoint
+          const newNode = addCustomNode(label, midX, midY);
+          
+          // 2. Identify if the edge is Structural (parent-child) or Custom (drawn line)
+          // It is considered structural if tgtNode's internal parentId points to srcNode
+          const isStructural = tgtNode.parentId === srcNode.id;
+          
+          if (isStructural) {
+             // Split structural hierarchy: Src -> New -> Tgt
+             setNodeOverride(newNode.id, { 
+                customParent: srcNode.id, 
+                customOrbitIndex: srcNode.orbitIndex > 0 ? srcNode.orbitIndex + 1 : 1,
+                fixedX: undefined, fixedY: undefined 
+             });
+             setNodeOverride(tgtNode.id, { 
+                customParent: newNode.id, 
+                customOrbitIndex: srcNode.orbitIndex + 2 
+             });
+          } else {
+             // Split custom correlation: Delete A->B, Create A->New and New->B
+             deleteCustomEdge(srcId, tgtId);
+             addCustomEdge(srcId, newNode.id);
+             addCustomEdge(newNode.id, tgtId);
+             setNodeOverride(newNode.id, {
+                customOrbitIndex: Math.max(srcNode.orbitIndex, tgtNode.orbitIndex)
+                // 브릿지 노드는 물리엔진에 의해 공전하도록 날려보내지 않고,
+                // 최초 생성된 그 자리(정확하게 두 노드의 정중앙 좌표)에 영구적으로 핀 고정(Pin)시킵니다.
+             });
+          }
+          
+          setTimeout(() => initEngine(), 50);
+        },
         onNodeReparent: (id, newParentId, newOrbit) => {
           // Changed categorical parent, set target orbit, and clean up any physical pins
           setNodeOverride(id, { customParent: newParentId, customOrbitIndex: newOrbit, fixedX: undefined, fixedY: undefined });
@@ -176,6 +223,15 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
         onNodePin: (id, fixedX, fixedY) => {
           // User manually dropped node somewhere; lock it to the map
           setNodeOverride(id, { fixedX, fixedY });
+        },
+        onNodeBatchPin: (pins) => {
+          // Batched cluster drops (Shift+Drag to move Sub-graphs)
+          if (!batchSetNodeOverrides) return;
+          const updates: Record<string, any> = {};
+          for (const p of pins) {
+             updates[p.id] = { fixedX: p.fixedX, fixedY: p.fixedY };
+          }
+          batchSetNodeOverrides(updates);
         }
       };
 
@@ -291,7 +347,8 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
     const engine = engineRef.current;
     if (!engine) return;
     const { x, y } = getCanvasPos(e.nativeEvent);
-    engine.handleDragStart(x, y);
+    // Shift 클릭을 통한 카테고리 전체 그룹 드래그 지원
+    engine.handleDragStart(x, y, e.shiftKey);
   }, [getCanvasPos]);
 
   const handleMouseUp = useCallback(() => {
@@ -306,14 +363,37 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
     const { x, y } = getCanvasPos(e.nativeEvent);
     engine.handleClick(x, y);
 
+    // If parent mode is active
+    if (parentModeSource && engine.activeNode && engine.activeNode.id !== parentModeSource) {
+      const childId = parentModeSource;
+      const parentNode = engine.activeNode;
+      const newOrbit = parentNode.orbitIndex > 0 ? parentNode.orbitIndex + 1 : undefined;
+      setNodeOverride(childId, { customParent: parentNode.id, customOrbitIndex: newOrbit });
+      setParentModeSource(null);
+      setTimeout(() => initEngine(), 50);
+      return; 
+    }
+
     // If edge connecting mode is active, handle it
     if (edgeModeSource && engine.activeNode && engine.activeNode.id !== edgeModeSource) {
-      addCustomEdge(edgeModeSource, engine.activeNode.id);
+      const srcId = edgeModeSource;
+      const tgtId = engine.activeNode.id;
+      
+      const exists = engine.edges.some(e => 
+        (e.source === srcId && e.target === tgtId) ||
+        (e.source === tgtId && e.target === srcId)
+      );
+      
+      if (exists) {
+        deleteCustomEdge(srcId, tgtId);
+      } else {
+        addCustomEdge(srcId, tgtId);
+      }
+      
       setEdgeModeSource(null);
-      // Timeout needed to let React update state before re-initializing engine
       setTimeout(() => initEngine(), 50);
     }
-  }, [getCanvasPos, edgeModeSource, addCustomEdge, initEngine]);
+  }, [getCanvasPos, edgeModeSource, parentModeSource, addCustomEdge, initEngine, setNodeOverride]);
 
   // ── Touch Events for Mobile ──
   const touchStartRef = useRef<{ x: number; y: number; time: number; pinchDist?: number }>({ x: 0, y: 0, time: 0 });
@@ -384,8 +464,39 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
     const elapsed = Date.now() - touchStartRef.current.time;
     if (!isTouchDragging.current && elapsed < 300) {
       engine.handleClick(touchStartRef.current.x, touchStartRef.current.y);
+
+      // Parent mode logic
+      if (parentModeSource && engine.activeNode && engine.activeNode.id !== parentModeSource) {
+        const childId = parentModeSource;
+        const parentNode = engine.activeNode;
+        const newOrbit = parentNode.orbitIndex > 0 ? parentNode.orbitIndex + 1 : undefined;
+        setNodeOverride(childId, { customParent: parentNode.id, customOrbitIndex: newOrbit });
+        setParentModeSource(null);
+        setTimeout(() => initEngine(), 50);
+        return;
+      }
+
+      // If edge connecting mode is active, handle it (Mobile/Touch 대응)
+      if (edgeModeSource && engine.activeNode && engine.activeNode.id !== edgeModeSource) {
+        const srcId = edgeModeSource;
+        const tgtId = engine.activeNode.id;
+        
+        const exists = engine.edges.some(edge => 
+          (edge.source === srcId && edge.target === tgtId) ||
+          (edge.source === tgtId && edge.target === srcId)
+        );
+        
+        if (exists) {
+          deleteCustomEdge(srcId, tgtId);
+        } else {
+          addCustomEdge(srcId, tgtId);
+        }
+        
+        setEdgeModeSource(null);
+        setTimeout(() => initEngine(), 50);
+      }
     }
-  }, []);
+  }, [edgeModeSource, parentModeSource, addCustomEdge, initEngine, setNodeOverride]);
 
   // handleWheel is now native (see useEffect above)
 
@@ -741,11 +852,14 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                     </div>
 
                     {/* Node Controls (Whiteboard) */}
-                    <div className="mb-4 bg-gray-50 rounded-lg p-3 border border-gray-100">
-                      <div className="text-xs font-semibold text-[var(--color-text-tertiary)] mb-2 flex items-center gap-1">
-                        <Palette size={10} /> 색상 변경
+                    <div className="mb-5">
+                      <div className="text-[11px] font-bold text-slate-400 mb-1.5 flex items-center justify-between px-1">
+                        <div className="flex items-center gap-1.5"><Palette size={12} /> 색상 및 스타일</div>
+                        <button onClick={() => window.location.reload()} className="text-[10px] text-slate-400 hover:text-slate-600 underline cursor-pointer">
+                          새로고침(F5)
+                        </button>
                       </div>
-                      <div className="flex flex-wrap gap-1.5 mb-3">
+                      <div className="flex flex-wrap gap-1.5 bg-slate-50 border border-slate-200 p-2.5 rounded-lg shadow-sm">
                         {PRESET_COLORS.map(c => (
                           <button
                             key={c}
@@ -782,8 +896,82 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                           <X size={10} />
                         </button>
                       </div>
+                    </div>
 
-                      <div className="flex flex-wrap gap-2">
+                    <div className="mb-5">
+                      <div className="text-[11px] font-bold text-slate-400 mb-1.5 flex items-center px-1 gap-1.5">
+                        <Waypoints size={12} /> 관계 및 위계 설정
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        {/* 1. 카테고리 위계 선택 (새로운 기능) */}
+                        <div className="flex flex-col gap-1 bg-slate-50 p-2.5 border border-slate-200 rounded-lg shadow-sm">
+                          <div className="flex justify-between items-center mb-0.5">
+                            <label className="text-[10px] font-bold text-slate-500">상위 카테고리 (그룹) 소속 지정</label>
+                          </div>
+                          <div className="flex gap-1.5">
+                            <select
+                              value={activeNode.parentId && activeNode.parentId !== 'root-HCHPS' ? activeNode.parentId : 'NONE'}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === 'NONE') {
+                                  setNodeOverride(activeNode.id, { customParent: 'NONE', customOrbitIndex: undefined });
+                                } else {
+                                  const parentNode = engineRef.current?.nodes.find((n: OrbitalNode) => n.id === val);
+                                  const newOrbit = parentNode ? parentNode.orbitIndex + 1 : undefined;
+                                  setNodeOverride(activeNode.id, { customParent: val, customOrbitIndex: newOrbit });
+                                }
+                                setTimeout(() => initEngine(), 50);
+                              }}
+                              className="flex-1 bg-white text-xs px-2 py-1.5 rounded-md border border-slate-200 focus:outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] cursor-pointer min-w-0"
+                            >
+                              <option value="NONE">소속 없음 (메인/독립 노드)</option>
+                              {engineRef.current?.nodes
+                                 .filter((n: OrbitalNode) => n.id !== activeNode.id && !n.id.startsWith('root-') && n.orbitIndex > 0)
+                                 .sort((a, b) => {
+                                   if (a.orbitIndex !== b.orbitIndex) return a.orbitIndex - b.orbitIndex;
+                                   return a.label.localeCompare(b.label);
+                                 })
+                                 .map((c: OrbitalNode) => {
+                                   const prefix = c.orbitIndex === 1 ? '📁 1차:' : c.orbitIndex === 2 ? '📄 2차:' : `📄 ${c.orbitIndex}차:`;
+                                   return <option key={c.id} value={c.id}>{prefix} {c.label}</option>;
+                                 })
+                              }
+                            </select>
+                            
+                            <button
+                              onClick={() => setParentModeSource(parentModeSource === activeNode.id ? null : activeNode.id)}
+                              className={`px-2.5 py-1.5 rounded-md border text-xs shadow-sm cursor-pointer transition-colors flex items-center justify-center shrink-0 ${
+                                parentModeSource === activeNode.id
+                                  ? 'bg-purple-100 border-purple-300 text-purple-700'
+                                  : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+                              }`}
+                              title={parentModeSource === activeNode.id ? "맵에서 지정할 부모 노드를 클릭하세요..." : "맵에서 대상 노드 직접 클릭하기"}
+                            >
+                              <Crosshair size={14} />
+                            </button>
+                          </div>
+                          <p className="text-[9px] text-slate-400 leading-tight mt-1">지정된 부모의 위계, 색상, 동기화 망에 종속됩니다.</p>
+                        </div>
+
+                        {/* 2. 일반 횡적 선분 연결 */}
+                        <button
+                          onClick={() => setEdgeModeSource(activeNode.id)}
+                          className={`w-full flex items-center justify-center px-3 py-2 border rounded-lg text-xs font-semibold cursor-pointer transition-colors shadow-sm ${
+                            edgeModeSource === activeNode.id
+                              ? 'bg-blue-50 border-blue-200 text-blue-600'
+                              : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          <Link2 size={14} className="mr-1.5" /> {edgeModeSource === activeNode.id ? '선으로 이을 대상 노드 찍기...' : '다른 노드와 자유롭게 선 긋기...'}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="mb-3">
+                      <div className="text-[11px] font-bold text-slate-400 mb-1.5 flex items-center px-1 gap-1.5">
+                        <Trash2 size={12} /> 관리 속성
+                      </div>
+                      <div className="flex flex-col gap-1.5">
                         {activeNode.fixedX !== undefined && (
                           <button
                             onClick={() => {
@@ -800,140 +988,61 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                                 setActiveNode(newNode);
                               }
                             }}
-                            className="flex items-center gap-1 px-2 py-1 bg-white border border-gray-200 rounded text-xs font-medium text-gray-600 hover:bg-gray-50 cursor-pointer"
+                            className="w-full flex items-center px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer shadow-sm transition-colors"
                           >
-                            <PinOff size={12} /> 궤도 고정 해제
+                            <PinOff size={14} className="mr-2" /> 맵 고정 위치 해제 (초기화)
                           </button>
                         )}
-                        <button
-                          onClick={() => setEdgeModeSource(activeNode.id)}
-                          className={`flex items-center gap-1 px-2 py-1 border rounded text-xs font-medium cursor-pointer transition-colors ${
-                            edgeModeSource === activeNode.id
-                              ? 'bg-blue-50 border-blue-200 text-blue-600'
-                              : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-                          }`}
-                        >
-                          <Waypoints size={12} /> {edgeModeSource === activeNode.id ? '대상 노드 찍기...' : '선분 연결'}
-                        </button>
-
-                        {activeNode.parentId && activeNode.parentId !== 'root-HCHPS' && (
+                        
+                        <div className="flex gap-1.5 mt-0.5">
                           <button
                             onClick={() => {
-                              if (confirm(`'${activeNode.label}' 노드를 현재 부모와의 연결을 끊고 독립시키겠습니까?`)) {
-                                setNodeOverride(activeNode.id, { customParent: 'root-HCHPS' });
-                                setTimeout(() => initEngine(), 30);
+                              if (confirm(`'${activeNode.label}' 처리를 완료하고 지도에서 숨기시겠습니까?`)) {
+                                setNodeOverride(activeNode.id, { hidden: true });
+                                if (engineRef.current) {
+                                  engineRef.current.nodes = engineRef.current.nodes.filter((n: OrbitalNode) => n.id !== activeNode.id);
+                                  engineRef.current.edges = engineRef.current.edges.filter((e: OntologyEdge) => e.source !== activeNode.id && e.target !== activeNode.id);
+                                  setActiveNode(null);
+                                }
                               }
                             }}
-                            className="flex items-center gap-1 px-2 py-1 bg-white border border-gray-200 rounded text-xs font-medium text-red-500 hover:bg-red-50 hover:border-red-200 cursor-pointer transition-colors"
-                            title="부모 노드와의 선분 끊기"
+                            className="flex-1 flex justify-center items-center gap-1.5 py-2 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-bold text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 transition-colors shadow-sm cursor-pointer"
                           >
-                            <Unlink size={12} /> 선분 끊기
+                            <CheckCircle size={14} /> 완료 처리
                           </button>
-                        )}
-                        
-                        {activeNode.orbitIndex > 0 && (
-                          <div className="flex bg-indigo-50 border border-indigo-200 rounded text-xs font-medium text-indigo-600 shadow-sm overflow-hidden shrink-0">
-                            <button
-                              onClick={() => {
-                                if (activeNode.orbitIndex === 1) {
-                                  if (confirm(`'${activeNode.label}' 노드를 시스템 전체의 중앙 뿌리(태양) 노드로 승격시킬까요?\n\n기존 중앙 노드가 있다면 1번 궤도로 밀려납니다.`)) {
-                                    // 기존에 중앙 노드(Orbit 0) 권한을 가진 노드들을 모두 1번 궤도로 강등
-                                    Object.entries(overrides).forEach(([nodeId, override]) => {
-                                      if (override?.customOrbitIndex === 0) {
-                                        setNodeOverride(nodeId, { customOrbitIndex: 1, customParent: 'root-HCHPS' });
-                                      }
-                                    });
-                                    setNodeOverride(activeNode.id, { customParent: undefined, customOrbitIndex: 0, fixedX: undefined, fixedY: undefined });
-                                    setTimeout(() => initEngine(), 50);
-                                  }
-                                } else if (activeNode.orbitIndex === 2) {
-                                  if (confirm(`'${activeNode.label}' 노드를 1차 카테고리로 승격시킬까요?\n\n이 노드는 현재 부모에게서 분리되어 독립적인 중심축(방사형 뿌리)을 형성합니다.`)) {
-                                    setNodeOverride(activeNode.id, { customParent: 'root-HCHPS', customOrbitIndex: 1, fixedX: undefined, fixedY: undefined });
-                                    setTimeout(() => initEngine(), 30);
-                                  }
-                                } else if (activeNode.orbitIndex > 2) {
-                                  setNodeOverride(activeNode.id, { customOrbitIndex: activeNode.orbitIndex - 1, fixedX: undefined, fixedY: undefined });
-                                  setTimeout(() => initEngine(), 30);
-                                }
-                              }}
-                              disabled={activeNode.orbitIndex <= 0}
-                              className="flex items-center gap-1 px-2 py-1 hover:bg-indigo-100 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed border-r border-indigo-200"
-                              title="안쪽 궤도로 당기기 (승격)"
-                            >
-                              <ChevronUp size={12} /> 승격
-                            </button>
-                            <button
-                              onClick={() => {
-                                if (activeNode.orbitIndex === 0 && activeNode.id !== 'root-HCHPS') {
-                                  if (confirm(`'${activeNode.label}' 노드를 중앙 태양 자리에서 내려놓고 일반 파벌로 되돌리시겠습니까?`)) {
-                                    setNodeOverride(activeNode.id, { customOrbitIndex: 1, customParent: 'root-HCHPS' });
-                                    setTimeout(() => initEngine(), 50);
-                                  }
-                                } else {
-                                  setNodeOverride(activeNode.id, { customOrbitIndex: activeNode.orbitIndex + 1, fixedX: undefined, fixedY: undefined });
-                                  setTimeout(() => initEngine(), 30);
-                                }
-                              }}
-                              className="flex items-center gap-1 px-2 py-1 hover:bg-indigo-100 transition-colors cursor-pointer"
-                              title="바깥 궤도로 밀어내기 (하락)"
-                            >
-                              하락 <ChevronDown size={12} />
-                            </button>
-                          </div>
-                        )}
-
-                        <div className="flex-1 min-w-[20px]" /> {/* Spacer to push actions entirely right */}
-                        
-                        <button
-                          onClick={() => {
-                            if (confirm(`'${activeNode.label}' 처리를 완료하고 지도에서 숨기시겠습니까?`)) {
-                              setNodeOverride(activeNode.id, { hidden: true });
-                              if (engineRef.current) {
-                                engineRef.current.nodes = engineRef.current.nodes.filter((n: OrbitalNode) => n.id !== activeNode.id);
-                                engineRef.current.edges = engineRef.current.edges.filter((e: OntologyEdge) => e.source !== activeNode.id && e.target !== activeNode.id);
-                                setActiveNode(null);
-                              }
-                            }
-                          }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-bold text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 transition-colors shadow-sm cursor-pointer"
-                          title="일정/업무 완료 처리 및 맵에서 숨기기"
-                        >
-                          <CheckCircle size={14} /> 완료 (숨기기)
-                        </button>
-
-                        <button
-                          onClick={() => {
-                            const isDeepDelete = activeNode.id.startsWith('custom-') || activeNode.orbitIndex === 1;
-                            const msg = isDeepDelete 
-                              ? '이 카테고리(또는 노드)를 완전히 삭제할까요?\n\n※ 연관된 태그나 데이터 연동이 해제될 수 있습니다.'
-                              : '이 노드를 맵에서 삭제할까요?\n\n※ 원본 데이터(업무/지식 등)는 보존되며 맵 화면에서만 지워집니다.';
-                            
-                            if (confirm(msg)) {
-                              if (isDeepDelete) {
-                                // Global sync for category deletion
-                                if ((activeNode.orbitIndex === 1 || activeNode.group === 'MACRO_RESEARCH') && onDeleteCategory) {
-                                  onDeleteCategory(activeNode.label);
-                                }
-                                if (activeNode.id.startsWith('custom-')) {
-                                  deleteCustomNode(activeNode.id);
-                                }
-                              }
+                          <button
+                            onClick={() => {
+                              const isDeepDelete = activeNode.id.startsWith('custom-') || activeNode.orbitIndex === 1;
+                              const msg = isDeepDelete 
+                                ? '이 카테고리(또는 노드)를 완전히 삭제할까요?\n\n※ 연관된 태그나 데이터 연동이 해제될 수 있습니다.'
+                                : '이 노드를 맵에서 삭제할까요?\n\n※ 원본 데이터(업무/지식 등)는 보존되며 맵 화면에서만 지워집니다.';
                               
-                              // 맵 화면에서는 항상 히든 처리합니다. (특히 '미분류' 같은 자동 생성 카테고리나, 서버 삭제 딜레이 시 빠른 UI 반영을 위함)
-                              setNodeOverride(activeNode.id, { hidden: true });
-                              
-                              if (engineRef.current) {
-                                engineRef.current.nodes = engineRef.current.nodes.filter(n => n.id !== activeNode.id);
-                                engineRef.current.edges = engineRef.current.edges.filter(e => e.source !== activeNode.id && e.target !== activeNode.id);
-                                setActiveNode(null);
+                              if (confirm(msg)) {
+                                if (isDeepDelete) {
+                                  // Global sync for category deletion
+                                  if ((activeNode.orbitIndex === 1 || activeNode.group === 'MACRO_RESEARCH') && onDeleteCategory) {
+                                    onDeleteCategory(activeNode.label);
+                                  }
+                                  if (activeNode.id.startsWith('custom-')) {
+                                    deleteCustomNode(activeNode.id);
+                                  }
+                                }
+                                
+                                // 맵 화면에서는 항상 히든 처리합니다. (특히 '미분류' 같은 자동 생성 카테고리나, 서버 삭제 딜레이 시 빠른 UI 반영을 위함)
+                                setNodeOverride(activeNode.id, { hidden: true });
+                                
+                                if (engineRef.current) {
+                                  engineRef.current.nodes = engineRef.current.nodes.filter((n: OrbitalNode) => n.id !== activeNode.id);
+                                  engineRef.current.edges = engineRef.current.edges.filter((e: OntologyEdge) => e.source !== activeNode.id && e.target !== activeNode.id);
+                                  setActiveNode(null);
+                                }
                               }
-                            }
-                          }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 border border-red-200 rounded-lg text-xs font-bold text-red-600 hover:bg-red-100 hover:text-red-700 transition-colors shadow-sm cursor-pointer"
-                          title="삭제하기"
-                        >
-                          <Trash2 size={14} /> 삭제
-                        </button>
+                            }}
+                            className="flex-1 flex justify-center items-center gap-1.5 py-2 bg-rose-50 border border-rose-200 rounded-lg text-xs font-bold text-rose-600 hover:bg-rose-100 hover:text-rose-700 transition-colors shadow-sm cursor-pointer"
+                          >
+                            <Trash2 size={14} /> 노드 삭제
+                          </button>
+                        </div>
                       </div>
                     </div>
 
@@ -946,34 +1055,54 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                         </div>
                         <div className="space-y-1 max-h-[280px] overflow-y-auto custom-scrollbar">
                           {connectedEdges.map(({ edge, otherNode }, idx) => (
-                            <button
-                              key={`${otherNode.id}-${idx}`}
-                              onClick={() => handleNodeClickInPanel(otherNode.id)}
-                              className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors text-left"
-                            >
-                              <span
-                                className="w-3 h-3 rounded-full shrink-0"
-                                style={{ backgroundColor: GROUP_COLORS[otherNode.group as OntologyGroup] }}
-                              />
-                              <div className="flex-1 min-w-0">
-                                <div className="text-sm font-medium text-[var(--color-text-primary)] truncate">
-                                  {otherNode.label}
+                            <div key={`${otherNode.id}-${idx}`} className="w-full flex items-stretch gap-1">
+                              <button
+                                onClick={() => handleNodeClickInPanel(otherNode.id)}
+                                className="flex-1 flex items-center gap-2 px-2.5 py-2 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors text-left min-w-0"
+                              >
+                                <span
+                                  className="w-3 h-3 rounded-full shrink-0"
+                                  style={{ backgroundColor: GROUP_COLORS[otherNode.group as OntologyGroup] }}
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm font-medium text-[var(--color-text-primary)] truncate">
+                                    {otherNode.label}
+                                  </div>
+                                  <div className="text-xs text-[var(--color-text-tertiary)]">
+                                    {EDGE_TYPE_LABELS[edge.type as EdgeType] || edge.type}
+                                  </div>
                                 </div>
-                                <div className="text-xs text-[var(--color-text-tertiary)]">
-                                  {EDGE_TYPE_LABELS[edge.type as EdgeType] || edge.type}
-                                </div>
-                              </div>
-                              <span className={`px-1.5 py-0.5 rounded text-xs font-bold shrink-0 ${
-                                edge.weight < 0
-                                  ? 'bg-red-50 text-red-500'
-                                  : edge.weight >= 0.7
-                                    ? 'bg-blue-50 text-blue-600'
-                                    : 'bg-gray-100 text-[var(--color-text-secondary)]'
-                              }`}>
-                                {edge.weight > 0 ? '+' : ''}{edge.weight.toFixed(2)}
-                              </span>
-                              <ChevronRight size={10} className="text-[var(--color-text-tertiary)] shrink-0" />
-                            </button>
+                                <span className={`px-1.5 py-0.5 rounded text-xs font-bold shrink-0 ${
+                                  edge.weight < 0
+                                    ? 'bg-red-50 text-red-500'
+                                    : edge.weight >= 0.7
+                                      ? 'bg-blue-50 text-blue-600'
+                                      : 'bg-gray-100 text-[var(--color-text-secondary)]'
+                                }`}>
+                                  {edge.weight > 0 ? '+' : ''}{edge.weight.toFixed(2)}
+                                </span>
+                              </button>
+                              
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (confirm(`'${activeNode.label}'과 '${otherNode.label}' 사이의 연결을 끊으시겠습니까?`)) {
+                                    if (activeNode.parentId === otherNode.id) {
+                                      setNodeOverride(activeNode.id, { customParent: 'NONE' });
+                                    } else if (otherNode.parentId === activeNode.id) {
+                                      setNodeOverride(otherNode.id, { customParent: 'NONE' });
+                                    } else {
+                                      deleteCustomEdge(activeNode.id, otherNode.id);
+                                    }
+                                    setTimeout(() => initEngine(), 50);
+                                  }
+                                }}
+                                className="px-2.5 flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg cursor-pointer transition-colors"
+                                title="연결 끊기"
+                              >
+                                <Unlink size={14} />
+                              </button>
+                            </div>
                           ))}
                         </div>
                       </div>
@@ -1117,8 +1246,29 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
             </div>
           )}
 
-          {/* Fullscreen toggle - Bottom Right */}
+          {/* Controls - Bottom Right */}
           <div className="absolute bottom-4 right-4 z-10 flex items-center gap-2">
+            
+            {/* Tilt Slider */}
+            <div className="bg-white/90 backdrop-blur rounded-lg px-2.5 py-2 shadow-md border border-[var(--color-border-light)] flex items-center gap-2">
+              <span className="text-[10px] font-bold text-slate-500 whitespace-nowrap">Y축 앵글</span>
+              <input
+                type="range"
+                min="0.1"
+                max="1.57"
+                step="0.01"
+                defaultValue={0.6}
+                onChange={(e) => {
+                  if (engineRef.current) {
+                    engineRef.current.cameraTilt = parseFloat(e.target.value);
+                  }
+                }}
+                className="w-20 sm:w-28 accent-[var(--color-primary)] cursor-pointer"
+                title="3D 기울기 앵글 조절"
+              />
+            </div>
+
+            {/* Fullscreen toggle */}
             <button
               onClick={() => setIsFullscreen(!isFullscreen)}
               className="bg-white/90 backdrop-blur rounded-lg p-2.5 shadow-md border border-[var(--color-border-light)] hover:bg-gray-100 transition-colors cursor-pointer text-gray-500 hover:text-gray-800"

@@ -149,6 +149,16 @@ export function useGraphCustomization() {
     });
   }, [updateData]);
 
+  const batchSetNodeOverrides = useCallback((updates: Record<string, Partial<NodeOverride>>) => {
+    updateData(prev => {
+      const newOverrides = { ...prev.overrides };
+      for (const [id, override] of Object.entries(updates)) {
+        newOverrides[id] = { ...(newOverrides[id] || {}), ...override };
+      }
+      return { ...prev, overrides: newOverrides };
+    });
+  }, [updateData]);
+
   const clearNodeOverride = useCallback((id: string) => {
     updateData(prev => {
       const newOverrides = { ...prev.overrides };
@@ -244,6 +254,7 @@ export function useGraphCustomization() {
     undo,
     redo,
     setNodeOverride,
+    batchSetNodeOverrides,
     clearNodeOverride,
     addCustomNode,
     deleteCustomNode,

@@ -102,7 +102,7 @@ export function buildSignalGraph(
 
     nodes.push({
       id,
-      label: tag === '💭 미분류' ? tag : `#${tag}`,
+      label: tag,
       group: groupAssign,
       customColor: stableColor,
       baseValue: 80,
@@ -198,22 +198,19 @@ export function buildSignalGraph(
       nodes.push(cn);
     });
 
-    customData.customEdges.forEach(ce => edges.push(ce));
+    customData.customEdges.forEach(ce => {
+      edges.push({ ...ce, isCustom: true } as OntologyEdge & { isCustom?: boolean });
+    });
 
     // Apply Overrides (Pins, Colors, Labels, Groups)
     nodes.forEach(n => {
       const override = customData.overrides[n.id];
       if (override) {
-        // --- X,Y 고정 좌표 무시 로직 ---
-        // 시스템 노드이거나, 사용자가 궤도로 끌어들인 커스텀 노드는 
-        // 물리 엔진(공전)에 무조건 편입되도록 과거의 강제 고정 좌표(fixed)를 무시합니다.
-        if (n.id.startsWith('custom-') && override.customParent === undefined && override.customOrbitIndex === undefined) {
-          if (override.fixedX !== undefined) n.fixedX = override.fixedX;
-          if (override.fixedY !== undefined) n.fixedY = override.fixedY;
-        } else {
-          n.fixedX = undefined;
-          n.fixedY = undefined;
-        }
+        // --- 지정 좌표(fixed X,Y) 강제 반영 ---
+        // 사용자가 명시적으로 드래그하여 고정한 좌표가 있다면, 궤도 구속을 무시하고 해당 위치로 갱신합니다.
+        // override 값에 undefined 가 설정될 수 있으므로(고정 해제 시), 명시적으로 키가 존재하는지 판단하여 덮어씁니다.
+        if ('fixedX' in override) n.fixedX = override.fixedX;
+        if ('fixedY' in override) n.fixedY = override.fixedY;
 
         if (override.customColor !== undefined) {
           n.customColor = override.customColor;
@@ -224,29 +221,35 @@ export function buildSignalGraph(
         if (override.customOrbitIndex !== undefined) n.customOrbitIndex = override.customOrbitIndex;
         if (override.customSortOrder !== undefined) n.customSortOrder = override.customSortOrder;
         if (override.customParent !== undefined) {
-          n.parentId = override.customParent;
-          
-          // Re-route the structural edge (target === n.id)
-          const edge = edges.find(e => e.target === n.id);
-          if (edge) {
-            edge.source = override.customParent;
+          if (override.customParent === 'NONE') {
+            n.parentId = undefined;
+            const edgeIndex = edges.findIndex(e => e.target === n.id && !(e as any).isCustom);
+            if (edgeIndex !== -1) edges.splice(edgeIndex, 1);
           } else {
-            edges.push({
-              source: override.customParent,
-              target: n.id,
-              weight: 0.7,
-              type: 'DEPENDENCY'
-            });
-          }
-          
-          // Sync colour with new parent if custom group/color are not explicitly overridden
-          const newParent = nodes.find(pn => pn.id === override.customParent);
-          if (newParent && override.customGroup === undefined && override.customColor === undefined) {
-            n.group = newParent.group;
-            if (newParent.customColor) {
-              n.customColor = newParent.customColor;
+            n.parentId = override.customParent;
+            
+            // Re-route the structural edge (target === n.id)
+            const edge = edges.find(e => e.target === n.id && !(e as any).isCustom);
+            if (edge) {
+              edge.source = override.customParent;
             } else {
-              n.customColor = undefined;
+              edges.push({
+                source: override.customParent,
+                target: n.id,
+                weight: 0.7,
+                type: 'DEPENDENCY'
+              });
+            }
+            
+            // Sync colour with new parent if custom group/color are not explicitly overridden
+            const newParent = nodes.find(pn => pn.id === override.customParent);
+            if (newParent && override.customGroup === undefined && override.customColor === undefined) {
+              n.group = newParent.group;
+              if (newParent.customColor) {
+                n.customColor = newParent.customColor;
+              } else {
+                n.customColor = undefined;
+              }
             }
           }
         }
