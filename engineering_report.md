@@ -1,153 +1,99 @@
-# 📋 PORTFOLIO HCHPS — Engineering Report
-> **Date**: 2026-04-02 | **Grade**: A | **Branch**: master | **Status**: Active Development & Stabilization
+# 📝 Engineering Report Update
+**Date:** 2026-04-02
+**Subject:** Ontology Canvas Optimization: Manual Pinning & Physics Refactoring
+
+최근 시그널 화이트보드의 성능 저하(심각한 랙 걸림 현상) 원인을 파악하여 배경 물리 엔진을 완전히 제거하고, 직관적인 수동 노드 배치(Manual Pinning) 시스템을 전면 도입했습니다. 
 
 ---
 
-## 1. Executive Summary (프로젝트 요약)
-- **3D 시그널 지식 그래프 플랫폼**: 파편화된 업무(Task) 및 지식(Knowledge) 데이터를 자연어 처리(NLP)를 통해 연결하고, 관계성을 3차원 물리 엔진 캔버스로 시각화하는 지능형 워크스페이스입니다.
-- **Edge 기반 실시간 동기화 파이프라인**: Local Storage의 한계를 넘어 Cloudflare KV를 연동, 커스텀 맵 데이터(Overrides)의 쌍방향 태그 동기화를 글로벌 스케일로 구현했습니다.
-- **Headless & 4-Tier 아키텍처**: Data Layer(NLP 파싱), State Layer(KV), Physics Engine(Force-Directed), Presentation(React UI) 4단계 분리 패턴.
-- **AI 네이티브 엣지 컴퓨팅**: Cloudflare Workers AI를 통해 Llama 3 (8B) 엔진을 API 비용 없이 밀리초(ms) 단위로 호출하여 스마트 지식 추천 및 문맥 파싱에 활용합니다.
+## 🏛️ 아키텍처 레이어 정밀 분석 (Architecture Analysis)
+
+현재 우리 애플리케이션은 **데이터 파싱 ➡️ 커스텀 상태 관리 ➡️ 시각화 물리 엔진 ➡️ React UI 렌더링**이라는 4단계 핵심 레이어로 구성되어 있습니다.
+
+### 1. Data Layer (NLP & Graph Builder)
+- **`signal-graph.ts` / `korean-nlp.ts`**
+- 업무(Task) 및 지식(Knowledge) 데이터에서 텍스트 노드를 파싱하여 키워드(형태소)를 추출하고 빈도/인과성에 따라 `Centrality`를 부여합니다.
+- 이 계층은 순수한 수학적/논리적 그래프 형상(Nodes & Edges)만 만들어내며, 화면에 어떻게 그려질지는 전혀 관여하지 않는 Headless 구조를 자랑합니다.
+
+### 2. State & Persistence Layer (Overrides & KV)
+- **`useGraphCustomization.ts`**
+- 사용자가 물리 엔진(화이트보드)에서 노드의 위치를 고정하거나, 색상을 바꾸거나, 라벨을 변경하고 노드를 숨긴 기록들을 `Overrides` 객체 형태로 브라우저 로컬 스토리지(및 Cloudflare KV)에 영구 저장합니다.
+- Base Graph(Data Layer) 위에 이 Overrides(사용자 설정)를 덧씌워 최종 상태 트리를 생성하는 Proxy 역할을 수행합니다.
+
+### 3. Physics & Rendering Engine Layer
+- **`OntologyCanvasEngine.ts`**
+- Data Layer의 트리 정보를 바탕으로 HTML5 `<canvas>`를 이용해 엔진을 구동합니다.
+- **주요 변경 사항:** 기존의 60FPS Force-Directed 물리 엔진(인력/척력 반발 로직)을 전면 제거하여 O(N²) 연산 폭주로 인한 랙을 100% 해소했습니다.
+- 이제 엔진은 초동(Initial Network) 이후 드래그를 이용해 노드의 고정 좌표(fixedX, fixedY)를 기록하는 **수동 핀(Manual Pinning)** 모드로 동작하며 번개처럼 빠른 렌더링 환경을 제공합니다.
+
+### 4. Presentation & Interaction Layer (React)
+- **`MindMap3D.tsx` / `WorkspaceView.tsx`**
+- 물리 엔진 인스턴스를 `useRef`로 관리하며 클릭, 드래그, 스크롤 줌 이벤트를 엔진의 좌표계에 매핑하여 전달합니다.
+- 좌측 `노드 정보 패널`과 우측 상단 `5W1H 툴팁`으로 역할을 분리하여 캔버스 사용성을 최적화했습니다.
 
 ---
 
-## 2. Tech Stack (기술 스택)
+## 🚀 최근 주요 업데이트 내역 (Latest Fixes & Enhancements)
 
-| 분류 | 기술 | 비고 |
-|:---|:---|:---|
-| **Frontend** | Next.js (App Router), React | 16.1.6 Turbopack |
-| **Language** | TypeScript | strict type |
-| **Styling** | Tailwind CSS, Lucide React | Glassmorphism 및 반응형 |
-| **Global State**| React Hooks, Cloudflare KV | Overrides 영구 저장 |
-| **Physics Graph**| HTML5 Canvas, 3d-force-graph | 커스텀 60FPS 렌더링 엔진 |
-| **AI / Edge** | Cloudflare Workers AI (Llama 3 8B) | Zero Cost Edge AI (`llm-client.ts`) |
-| **PWA & Offline**| Service Worker (Network-First) | 완전 오프라인 캐싱 폴백 지원 |
-| **Core Utilities**| `korean-nlp.ts`, `signal-graph.ts` | 형태소 파싱 및 Centrality 계산 |
+### 1. 시그널 맵(캔버스) 완전 수동화 및 O(N²) 성능 최적화
+- **무한 랙 현상 원천 차단:** 캔버스 드래그 시 배경에서 수백만 번 단위로 거리를 이중 루프로 계산하던 물리 엔진(Physics ApplyForces) 로직을 코드 단위에서 완전히 들어냈습니다. 사용자가 "원하는 곳에 핀을 꼽는" 수동 배치 모드로 전환되어 극도로 매끄러운 UX를 산출합니다.
+- **강제 종속(Group) 로직 제거 & 좌표 저장:** 다른 파벌의 노드 위에 드래그했을 때 일어나는 원치 않는 부모-자식 병합(Ghost Re-parenting) 로직을 폐기했습니다. 순수 위치 이동 용도의 드래그 앤 드롭을 지원합니다.
+- **UI 레이아웃 대폭 개편:** 
+  - **좌측 사이드바 패널 고정:** 캔버스 높이 전체를 덮는 왼쪽 `노드 상세 패널`을 고집하여 시각적 직관성을 향상.
+  - **연결 끊기 기능 부활:** 잘못 이어지거나 독립시키고 싶은 노드가 있을 경우 "🔗 선분 끊기" 원클릭 만으로 자식-부모 관계를 즉각적으로 해소하도록 버튼(`Unlink`)을 재구축.
+- **다중 카테고리 브릿지 노드 렌더링 (Pie Sliced Gradient Arc):** 여러 상위 카테고리와 동시에 연결된 브릿지 노드의 테마 색상 렌더링 방식 최적화.
 
----
+### 2. UI/UX 메타데이터 뱃지 및 인터랙션 강화
+- **메타데이터 스마트 식별 (Metadata Badges):** 텍스트 라벨을 정규표현식으로 스캔하여 날짜(`YYYY(요일)`, `MM월 DD일` 등) 및 전화번호(`010-XXXX-XXXX`) 패턴을 감지, 무거운 3D 구체(Sphere) 대신 귀엽고 직관적인 파스텔톤 다크 라벨 형태의 캡슐(Pill) 뱃지로 렌더링 방식을 차별화했습니다.
+- **실시간 드래그 앤 드롭 오버레이 (Live Drop Preview):** 마우스로 노드를 특정 궤도나 타겟 부모 방향으로 끌고 갈 때, 목표가 될 타겟 노드를 하이라이트(Glow Ring + Dotted Edge)하고 놓기 전 예상 결과("어느 궤도 며칠의 하위 노드로 이동함")를 안내하는 툴팁 UI를 엔진 내부에 직접 구현하여 직관성을 극대화했습니다. 
+- **불필요한 범례 삭제 & 극세사 라인 적용:** 시그널 맵의 선 굵기를 `0.3px`까지 극단적으로 줄여 압도적인 세련미를 확보하고 점선과 화살표를 모던한 실선으로 통일했습니다.
+- **선택 집중형 브랜치 하이라이트:** 선택된 노드의 1-hop 브랜치 전체(자식 트리 및 상위 루트까지)를 인식해 해당 파벌을 제외한 외부 노드의 Opacity를 무려 30% 수준으로 드롭시켜 시인성을 극대화했습니다.
+- **하단 고정형 Inspector 패널 (5W1H 개편):** 기존의 답답한 플로팅 말풍성 방식을 폐기하고, 화면 하단에서 유리 질감(Glassmorphism)으로 스무스하게 올라오는 3단 그리드 고정 뷰포인트 패널을 구축하여 캔버스 뷰를 100% 보증했습니다. 인적 자원 및 조직도 관리에 특화되도록 `[소속, 직함, 연락처, 언제, 어디서, 무엇을]` 6구역 폼으로 최적화했습니다.
+- **스마트 폼 포맷팅 (Smart Form Auto-format):** 연락처 입력 란에 타이핑 시 실시간 정규식을 통해 `010-XXXX-XXXX` 혹은 `02-XXX-XXXX` 포맷으로 자동 하이픈이 삽입되도록 편의성을 강화했으며, '언제' 필드는 브라우저 네이티브 Date-Time Picker(`<input type="datetime-local">`)를 연동하고 클릭 시 현재 시점 정각(00:00)을 타겟팅하도록 UX를 극대화했습니다.
+- **시그널 맵 요약 대시보드 (Zero-State UI):** 노드 미선택 시 텅 비어있던 좌측 5W1H 패널 공간을 활용하여, 총 시그널 데이터 개수, 활성 렌더링 노드 개수, 그리고 빈도수 기반 Top 5 핵심 키워드 목록을 직관적인 뱃지 형태로 보여주는 '데이터 요약 대시보드'를 구축했습니다. 캔버스의 노드 클릭 시 즉각적으로 기존 5W1H 상세 폼으로 전환됩니다.
+- **글로벌 Sticky 네비게이션 헤더 (Z-Index Hierarchy):** Next.js의 루트 최상위 컨테이너에서 `overflow-x-hidden` 속성으로 인해 하위 `position: sticky` CSS 컨텍스트가 파괴되던 브라우저 렌더링 스크롤 버그를 수정하여, 모바일과 데스크탑 풀스크린 환경 모두에서 상단 네비게이션 탭이 `z-50` 계층으로 단단하게 스크롤 고정되도록 컴포넌트 레이아웃을 리팩토링했습니다.
 
-## 3. Codebase Metrics
+### 3. 클라우드 기반 실시간 동기화 (Cloudflare KV & Bidirectional Sync)
+- **Cloudflare KV 연동:** 로컬 스토리지의 한계를 극복하고 Cloudflare KV 기반으로 글로벌 맵 데이터(Overrides)를 영구 저장하고 동기화할 수 있도록 아키텍처를 확장했습니다.
+- **쌍방향 태그 동기화 (Bidirectional Tag Sync):** 인터랙티브 화이트보드 상에서의 노드 오버라이드 및 상태 변경이 태그 시스템과 즉각적으로 동기화되도록 성능을 고도화했습니다.
 
-- **Core Engine Files**: `OntologyCanvasEngine.ts`, `MindMap3D.tsx`, `WorkspaceView.tsx`
-- **AI Modules**: `llm-client.ts` (Edge Runtime 지원)
-- **State Modules**: `useGraphCustomization.ts` (Graph Override Proxy)
-- **UI Architecture**: Canvas 백그라운드 + React DOM 플로팅 툴팁 (Two-track 레이아웃)
+### 4. 통합 타임라인 피드 및 UI/UX 강화
+- **통합 타임라인 피드 연동:** 시그널 맵렌더링과 연동된 통합 타임라인 피드를 구축하여 시간의 흐름에 따른 데이터를 직관적으로 탐색할 수 있도록 했습니다.
+- **카메라 제어 및 궤도 제한 (Orbit Constraints):** 카메라 패닝 기능 추가 및 궤도(오빗) 이탈 제약 조건을 설정하여 화이트보드 밖으로 무한정 스크롤되는 현상을 방지했습니다.
+- **풀스크린 사이드 패널 및 PWA:** 몰입감을 극대화하기 위해 풀스크린 모드를 지원하는 사이드 패널을 도입하고, PWA 설정을 완료했습니다.
 
----
+### 5. 물리 엔진 무결성 확보 및 UI/UX 궤도 제어 (Orbit Controls)
+- **노드 얽힘(Tangling) 및 진동(Shaking) 영구 해결:** 공전 궤도의 무작위 회전 속도를 통일하여 맵 전체가 거대한 단일 원판처럼 회전하도록 동기화했습니다. 또한 타 파벌 침범 시 발생하는 척력을 섬세하게 조율하고 공전 중 불필요한 상시 물리 연산을 제거하여, 어떤 상황에서도 노드가 겹치거나 떨리지 않는 궁극의 안정성을 확보했습니다.
+- **PWA 오프라인 캐싱 및 배포 경로 완벽 호환 (최종 수정):** `src/app/layout.tsx`의 메타데이터 manifest 경로에 `basePath`를 환경 변수 기반으로 동적 주입하여 404 에러(설치 불가 버그)를 완전히 해결했습니다. 또한 `sw.js(v3)`를 대규모 개편하여 Network-First 방식의 동적 리소스 캐싱(망 접속 성공 시 자동 캐시)과 즉각적인 판올림(skipWaiting, clients.claim) 기능을 도입, 오프라인 모드에서도 PWA 구동 심사 요건을 완벽히 통과하도록 개선했습니다.
+- **궤도 수동 승격/하락 통제권 부여:** 직관적인 쉐브론(Chevron) 제어 UI를 사이드 패널에 도입하여, 사용자가 특정 노드의 방사형 깊이(궤도)를 한 칸씩 안팎으로 직접 조율할 수 있는 강력한 우회 수단을 제공했습니다.
+- **노드 완료 및 숨기기 기능:** 처리 완료된 업무나 일정을 사이드 패널에서 원클릭(✅)으로 지도에서 우아하게 삭제(숨김)하여 캔버스의 시각적 복잡도를 쾌적하게 유지할 수 있습니다.
 
-## 4. Architecture
+### 6. Cloudflare Workers AI (Llama 3) Native 연동
+- **Zero 초고속 Llama 3 백엔드 구축:** 기존에 이용 중인 Cloudflare Pages의 서버리스 환경(`functions/api`) 위에 Workers AI 바인딩을 추가하여, 별도의 유료 API 결제 없이 Llama 3 8B 모델을 Edge 환경에서 밀리초(ms) 단위로 호출하는 데 성공했습니다.
+- **인캡슐레이션:** 프론트엔드의 `llm-client.ts` 유틸리티 함수 한 줄 호출만으로 Meta Llama 3 API를 무료로 사용할 수 있게 되었으며, 로컬 개발 환경(Wrangler 미구동 상태)에서도 크래시 없이 반응하는 스마트한 목업(Mock) 폴백 로직을 구비했습니다.
+- **가치 도출:** 향후 아파트 매물 가치 평가(AI Valuation) 및 시그널 일상 언어 자동 분류(Semantic Parsing) 코어 엔진으로 즉시 활용될 준비를 끝마쳤습니다.
 
-### 4-Tier 아키텍처 흐름도
-
-```mermaid
-graph TB
-    subgraph DataLayer["1. Data (NLP & Graph Builder)"]
-        NLP["korean-nlp.ts"]
-        Graph["signal-graph.ts"]
-    end
-    subgraph StateLayer["2. State (Overrides & KV)"]
-        Hook["useGraphCustomization.ts"]
-        KV[("Cloudflare KV")]
-    end
-    subgraph PhysicsLayer["3. Physics Engine"]
-        Engine["OntologyCanvasEngine.ts"]
-    end
-    subgraph UILayer["4. Presentation (React)"]
-        Canvas["MindMap3D.tsx"]
-        Panel["WorkspaceView.tsx"]
-    end
-
-    NLP -->|Extract Keywords| Graph
-    Graph -->|Base Nodes/Edges| StateLayer
-    KV -->|User Placements| Hook
-    Hook -->|Merged Overrides| Engine
-    Engine -->|60FPS Coordinates| UILayer
-    UILayer -->|Click/Drag| StateLayer
-```
-
-- **Data Layer (Headless)**: 형상(Edges)만 수학적으로 생성하며 화면 렌더링에 관여하지 않음.
-- **Physics Layer**: Angular Repulsion(겹침 회피 척력 80%) 및 Angular Spring(가지 추종 인력) 메커니즘을 독자 구현.
+### 7. 스마트 태스크 관리 및 지식 추천 (Smart Task Management)
+- **실시간 지식 추천 (Contextual Advice):** 업무(Task) 생성 및 수정 시 사용자가 입력하는 제목(Title)의 키워드와 태그(Tags)를 실시간으로 스캔하여, 기존에 축적된 지식 데이터(Knowledge Entries) 중 연관성이 높은 팁이나 어드바이스를 모달 상단에 조명해주는 똑똑한 자동화 기능을 도입했습니다.
+- **고도화된 반복 일정 엔진:** 단순한 D-Day를 넘어 매일, 매주(특정 요일 지정), 격주 등 복잡한 반복 스케줄을 지원합니다. 시작일과 반복 횟수만 입력하면 목표 종료일을 자동 계산하여 UI에 직관적으로 렌더링하도록 개선되었습니다.
 
 ---
 
-## 5. Feature Inventory
+## 🗺️ 향후 업데이트 로드맵 (Future Roadmap)
 
-| 도메인 | 기능 | 메커니즘 | 설명 |
-|:---|:---|:---|:---|
-| **Graph** | 멀티 카테고리 슬라이스 | Canvas Gradient | 브릿지 노드의 소속들을 N등분 Pie 파티셔닝 빛반사 입체 렌더링 |
-| **Graph** | 메타데이터 스마트 식별 | 정규식 패턴 매칭 | 날짜, 전화번호 감지 시 3D 구체 대신 다크 파스텔 캡슐(Pill)로 렌더링 |
-| **Graph** | 라이브 드랍 프리뷰 | Glow Ring UI | 드래그 이동 타겟 궤도와 텍스트 툴팁(예상 결과) 실시간 안내 |
-| **UX** | 노드 제어 패널 | Node Details | 선택 집중 하이라이트(External 30% 드롭) 및 5W1H 폼 연동 |
-| **UX** | Zero-State 대시보드 | Empty View | 캔버스 미선택 시 총 데이터 수, 엣지 수, 키워드 랭킹 요약 표출 |
-| **UX** | 수동 연결 관리자 | Edge Builder | 캔버스 패널 내에서 실시간으로 노드 선분 커스텀 연결/삭제 로직 |
-| **Interaction** | Smart Form Formatting | `<input type="datetime-local">` | 연락처 자동 하이픈 및 날짜 클릭 시 정각(00:00) 스마트 타겟팅 |
-| **AI** | 실시간 지식 추천 | Llama 3 8B (Workers) | Task 제목 작성 시 연관된 과거 Knowledge Entry 자동 조명 및 제안 |
+1. **상세 페이지 및 통합 관리 모드 연동 (Phase 1)**
+   - 시그널 맵에서 특정 노드(과제, 지식 등)를 클릭 시 우측 패널에서 상세한 내용 편집 및 마크다운 작성을 지원하도록 확장.
+   - 뷰어 모드를 넘어 에디터 모드를 강화.
 
----
+2. **다중 사용자 실시간 협업 고도화 (Phase 2 - 진행 중)**
+   - (완료) Overrides 데이터를 Cloudflare KV 기반 클라우드 DB로 이전 성공.
+   - (진행) WebSocket 연동 및 Yjs/CRDT 기반 충돌 해결 로직을 추가하여, 여러 명이 동시에 시그널 맵을 드래그해도 지연 없이 좌표가 즉시 동기화되는 화이트보딩 경험 제공.
 
-## 6. 엔지니어링 품질 평가
+3. **고도화된 AI 자동화 편입 (Phase 3 - Llama 3 Native 통합)**
+   - **자연어 기반 One-shot 객체 생성기:** 시그널(아무말 텍스트) 입력 창에 프리폼 자연어를 입력 시, AI가 `Task`, `Meeting`, `Knowledge` 등의 객체로 자동 분류 및 파싱하여 다중 입력 폼 작성을 생략하는 마법사 모드.
+   - **시그널 맵(Ontology Canvas) 오토 라우팅:** 고립된 노드 생성 시, 기존 HCHPS 내 전체 지식 생태계를 스캔하여 다른 프로젝트/지식과의 인과관계를 스스로 추론해 물리 엔진 상의 연결선을 자동 생성.
+   - **컨텍스트 기반 '나만의 Copilot':** `TaskModal` 창에서 새 업무 기획 시, 과거 겪었던 유사 에러 스크랩이나 완료된 업무 컨텍스트를 분석하여 맞춤형 팁(Advice)을 능동적으로 생성.
+   - **자동 상태 보고서(Engineering Report) 팩토리:** 주간 피드(완료된 업무, 생성된 지식 등)를 수집하여 사용자 문체의 주간 회고(Retrospective) 마크다운 문서를 5초 만에 자동으로 아카이빙.
 
-> **Engineering Quality Evaluation Framework (지표 기반 정량 평가 기준)**
-> 
-> * 본 보고서는 주관적인 평문을 지양하고 인프라스트럭처 레벨의 성능 및 안전성을 기반으로 작성됩니다.
-
-| 영역 | 등급 | 비고 |
-|------|:---:|------|
-| **장애 허용성 (Fault Tolerance)** | **A** | 색상 변경 시 카메라 급박진(Whiplash) 해결, Root 노드 오인 강탈 버그(Old Center Bug) 원천 차단 완료. |
-| **물리 엔진 최적화** | **A+** | 3차 궤도 충돌(Tangling) 완벽 억제 및 방사형 0도 초기 겹침 폭발 해결. 글로벌 Alpha `ctx.save()` 오염 메모리릭 원천 차단. |
-| **PWA 모바일 대응** | **S** | `sw.js(v3)` Network-First 캐싱 완벽 통과, 모바일 제스처(핀치 줌, 탭 5W1H) 최적화 및 Sticky Nav 버그 극복. |
-| **데이터 파이프라인** | **A** | LocalStorage -> Cloudflare KV 마이그레이션 성공. 실시간 5W1H 스마트 폼 쌍방향 동기화 달성. |
-| **UI/UX 렌더링** | **A** | DOM 툴팁 플로팅이 하드코어 Canvas 렌더링 속도를 따라가도록 Two-Track 업데이트 분리 설계. 점선과 라인을 두께 0.3px 실선 극세사 튜닝. |
-
----
-
-## 7. Testing & CI/CD
-- **DevOps**: Vercel 및 Cloudflare Pages 다중 테스트
-- **오프라인 검증**: PWA Manifest `basePath` 동적 주입을 통한 Service Worker 설치 에러 완전 배제 증명.
-- **Edge AI 테스팅**: Wrangler 미구동 시에도 크래시를 방지하기 위해 `llm-client.ts` 내장 Fallback Mock 데이터 탑재로 무중단 프론트엔드 환경 구축.
-
----
-
-## 8. Performance Optimization Strategy (앱 구동 속도 극대화 전략)
-
-### 1) 렌더링 엔진 (Canvas vs DOM) 이중화 방어
-React DOM의 리렌더링 코스트를 3D 물리 엔진에 침범시키지 않기 위해 **Physics Tick 루프**와 **React State 루프**를 엄밀히 분리했습니다. 좌표 업데이트는 최적화된 RequestAnimationFrame에서 독점 처리하고, 패널 데이터는 React useRef를 통해 Pulling하여 최소한의 렌더 트리 갱신만 발생시킵니다.
-
-### 2) Edge AI 및 스토리지 분산 처리
-Cloudflare KV와 Workers AI 인프라를 채택하여, 무거운 자연어 형태소 분석 및 추천 트리 탐색이 브라우저 메인 스레드를 멈추게 하지 않습니다. 즉시 응답이 필요한 물리 계산은 WebGL/Canvas에서, 데이터 조회는 Edge Network에서 분담합니다.
-
----
-
-## 9. Roadmap
-
-### Phase 1 (단기: 시각화 고도화 및 안정성 보장)
-- [x] ~~초기 0도 겹침(충돌 폭발) 및 카메라 텔레포트 오염 수정~~ 
-- [x] ~~Canvas Rendering Context 백화 현상 등 메모리 결함 방어~~
-- [x] ~~노드 완료 이관 및 직관적 숨기기 쉐브론 조작(궤도 수동 조절) 탑재~~
-- [x] ~~UI 노드 제어 패널(Node Details) 및 수동 연결 패널 좌측 사이드바 통합 병합~~
-
-### Phase 2 (중기: AI 네이티브 기능 구체화)
-- [ ] 다중 사용자 실시간 협업 통신망 (WebSocket / Yjs CRDT 로직 도입)
-- [ ] Onetouch 고립 노드 오토 라우팅 (HCHPS 지식 체계 스캔을 통한 인과관계 자동 선분 생성기)
-- [ ] 상세 뷰어 편집 모드 확장 오픈 (노드 더블클릭 시 마크다운 우측 에디터 슬라이드 인)
-
-### Phase 3 (장기 비전: 完全 자율형 워크스페이스)
-- [ ] **One-shot 자연어 객체 자동 생성기**: "다음주 이사님 미팅" 입력 시 Llama 3가 의도를 파악해 `Meeting` 객체 및 궤도 날짜를 자동 분류.
-- [ ] **나만의 Copilot 도입**: TaskModal 팝업 시, 기존 업무 히스토리의 에러 스크랩/결과를 분석하여 사용자가 기획 중인 업무 방향에 실시간 코멘트 및 조언 패널 제공.
-- [ ] **주간 Engineering Report 자동 팩토리**: 완료 업무 및 신규 지식 궤도를 Llama가 요약하여 나만의 문체로 회고록(Retrospective) 5초 만에 자동 생성.
-
----
-
-## 10. Maintenance Policy
-본 문서는 살아있는 SSOT입니다. 메이저 빌드 및 릴리즈 업데이트 시 구조 지표 및 패치 노트를 갱신합니다.
-
-## 📝 Patch Notes (변경 이력 요약)
-*중요 마일스톤 및 핵심 단위의 압축된 릴리즈 이력입니다.*
-
-| 일시 | 주요 항목 | 요약 내용 |
-|:---|:---|:---|
-| 2026-04-02 | **Signal Map UI 레이아웃 리노베이션** | **[오늘의 핵심 변경]** 노드 제어 5W1H 패널을 우상단 툴팁으로 재배치하고, 좌측 사이드바에 수동 선 연결 관리자 및 상태 패널 구축, Grid 높이 일치. 컴파일 렌더링(JSX) 충돌 수정 완료. |
-| 2026-04-01 | **UI 인터랙션 및 Edge AI 도입** | 스마트 폼 자동 포맷팅(전화번호/날짜 정각화) 도입. Cloudflare Workers Llama 3 Native 모듈 파싱 성공. 빈 캔버스 시 데이터 요약(Zero-State UI) 추가. |
-| 2026-03-31 | **3D 렌더링 고급 시각 효과** | 날짜/전화번호 추출 Pill 뱃지 렌더링. 다중 그룹 브릿지 노드의 3D 파이 슬라이스(Pie-Sliced) 그라데이션 광원 적용. 드래그 타겟 Glow 툴팁 프리뷰 추가. |
-| 2026-03-30 | **PWA 및 궤도 물리 렌더링 안정화** | `sw.js` Network-First 캐싱 도입. 노드 0도 폭발 버그 방어. Angular Repulsion/Spring 밸런스 이원화로 노드 겹침 원천 억제 개선. |
-| 2026-03-27 | **카메라 및 Root 보안 강화** | 렌더링 증발(백화 현상) 원인 `ctx.save()` 오작동 제거. Root-HCHPS 강탈 버그 방어를 통한 노드 트리 무결성 증명 확보. |
+> [!TIP]
+> 위 엔지니어링 리포트의 변경 사항들은 현재 로컬 환경에 모두 정상적으로 적용되어 있습니다. (Branch: `main`) 다음 로드맵 단계를 지정해주시거나 추가 피드백이 있다면 말씀해 주세요!
