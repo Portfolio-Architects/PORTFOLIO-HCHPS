@@ -7,35 +7,29 @@ import {
   OntologyNode, OntologyEdge, OntologyGraph, OrbitalNode,
   GROUP_COLORS, OntologyGroup, EdgeType,
 } from './ontology.types';
+import { OntologyNetwork } from './engine/OntologyNetwork';
+import { OntologyRenderer } from './engine/OntologyRenderer';
 
-// ============ Constants ============
-
-const NUM_ORBITS = 8;
-const ELLIPSE_RATIO = 1.3;  // tilted 2D ellipse
-const MIN_NODE_R = 3;
-const MAX_NODE_R = 24;
-const ORBIT_SPEED_BASE = 0.00025; // 0.0004에서 속도 약간 감소
-const LERP_SPEED = 0.12;  // faster camera response
-const MIN_ZOOM = 0.3;
-const MAX_ZOOM = 3.0;
-const MIN_TILT = 0.3;
-const MAX_TILT = 1.0;
-const CULL_MARGIN = 80;  // px margin for frustum culling
-
-// Force relaxation constants
-const CHARGE_STRENGTH = -80;    // repulsion (milder to stay on orbit)
-const LINK_STRENGTH = 0.01;     // edge spring (gentle)
-const DAMPING = 0.80;           // velocity damping per tick
-const FORCE_ALPHA = 0.2;        // force intensity
-const MAX_VELOCITY = 2.0;       // max velocity cap
-const FORCE_WARMUP_TICKS = 150; // freeze after this many ticks
+import {
+  OntologyLayout,
+  NUM_ORBITS,
+  ELLIPSE_RATIO,
+  MIN_NODE_R,
+  MAX_NODE_R,
+  ORBIT_SPEED_BASE,
+  LERP_SPEED,
+  MIN_ZOOM,
+  MAX_ZOOM,
+  MIN_TILT,
+  MAX_TILT,
+  CULL_MARGIN,
+} from './engine/OntologyLayout';
 
 // ============ Callbacks ============
 
 export interface EngineCallbacks {
   onActiveNodeChange?: (node: OrbitalNode | null) => void;
   onHoveredNodeChange?: (node: OrbitalNode | null) => void;
-  onEdgeClick?: (edge: OntologyEdge) => void;
   onNodeReparent?: (nodeId: string, newParentId: string | undefined, newOrbitIndex: number) => void;
   onNodePin?: (nodeId: string, fixedX: number, fixedY: number) => void;
   onNodeBatchPin?: (pins: { id: string; fixedX: number; fixedY: number }[]) => void;
@@ -49,15 +43,18 @@ export class OntologyCanvasEngine {
   centerNode: OrbitalNode | null = null;
   activeNode: OrbitalNode | null = null;
   hoveredNode: OrbitalNode | null = null;
-  hoveredEdge: OntologyEdge | null = null;
 
   // Camera
   zoom = 1;
-  cameraTilt = 0.6;  // tilted 2D
-  cameraOffsetX = 0;
+  targetZoom = 1;
+  public needsRedraw: boolean = true;
+  public cameraOffsetX = 0;
   cameraOffsetY = 0;
   targetOffsetX = 0;
   targetOffsetY = 0;
+  private autoFitPending = false;
+  public collapsedNodeIds: Set<string> = new Set();
+  public hasInitializedCollapse: boolean = false;
 
   // Physics / Interaction
   isOrbiting = false;
@@ -67,7 +64,6 @@ export class OntologyCanvasEngine {
   private dragStartY = 0;
   private lastDragX = 0;
   private lastDragY = 0;
-  private dragStartTilt = 0;
   private draggedNode: OrbitalNode | null = null;
   private draggedSubTree: { node: OrbitalNode; dx0: number; dy0: number }[] = [];
   previousActiveNodeId: string | null = null;
@@ -163,6 +159,7 @@ export class OntologyCanvasEngine {
     // Build orbital nodes
     this.nodes = [];
     this.nodeMap.clear();
+    this.needsRedraw = true;
 
     // Center node
     const centerPre = previousNodeMap.get(sorted[0].id);
@@ -301,6 +298,16 @@ export class OntologyCanvasEngine {
     }
     this.callbacks.onActiveNodeChange?.(this.activeNode);
 
+    // Default to NotebookLM style: collapse everything starting from 1차 카테고리 (orbitIndex >= 1) 
+    // so only the center and 1st level nodes are visible initially.
+    if (!this.hasInitializedCollapse && this.nodes.length > 0) {
+      this.hasInitializedCollapse = true;
+      for (const node of this.nodes) {
+        if (node.orbitIndex >= 1) {
+          this.collapsedNodeIds.add(node.id);
+        }
+      }
+    }
   }
 
   private makeOrbitalNode(
@@ -335,10 +342,18 @@ export class OntologyCanvasEngine {
 
   // ============ Tick (per frame) ============
 
-  tick(): void {
+  tick(): boolean {
+    let isDirty = false;
+
     // Camera interpolation
-    this.cameraOffsetX += (this.targetOffsetX - this.cameraOffsetX) * LERP_SPEED;
-    this.cameraOffsetY += (this.targetOffsetY - this.cameraOffsetY) * LERP_SPEED;
+    if (Math.abs(this.targetOffsetX - this.cameraOffsetX) > 0.5 || 
+        Math.abs(this.targetOffsetY - this.cameraOffsetY) > 0.5 || 
+        Math.abs(this.targetZoom - this.zoom) > 0.005) {
+      this.cameraOffsetX += (this.targetOffsetX - this.cameraOffsetX) * LERP_SPEED;
+      this.cameraOffsetY += (this.targetOffsetY - this.cameraOffsetY) * LERP_SPEED;
+      this.zoom += (this.targetZoom - this.zoom) * LERP_SPEED;
+      isDirty = true;
+    }
 
     // Update orbital angles if enabled
     if (this.isOrbiting) {
@@ -346,79 +361,33 @@ export class OntologyCanvasEngine {
         if (node.orbitIndex === 0) continue;
         node.orbitAngle += node.orbitSpeed;
       }
+      isDirty = true;
     }
     
-    // Physics engine (repulsion/attraction arrays) completely disabled 
-    // to allow pure manual pinning and to instantly eliminate the O(n^2) drag lag.
+    if (this.needsRedraw) {
+      isDirty = true;
+      this.needsRedraw = false;
+    }
+
+    return isDirty;
   }
 
 
 
   // ============ Compute Positions ============
 
-  private computePositions(canvasW: number, canvasH: number): void {
-    const cx = canvasW / 2 + this.cameraOffsetX;
-    const cy = canvasH / 2 + this.cameraOffsetY;
-    const cosTilt = Math.cos(this.cameraTilt);
-    const sinTilt = Math.sin(this.cameraTilt);
-
-    // Orbit radii — wide spread for 100-node readability (궤도 간격을 넓혀 시각적 쾌적함 확보)
-    const baseRadius = Math.min(canvasW, canvasH) * 0.65;
-    this.orbitRadii = Array.from({ length: NUM_ORBITS + 1 }, (_, i) =>
-      i === 0 ? 0 : baseRadius * (0.18 + (i / NUM_ORBITS) * 0.82)
+    private computePositions(canvasW: number, canvasH: number): void {
+    OntologyLayout.computePositions(
+      this.nodes,
+      this.nodeMap,
+      this.edges,
+      canvasW,
+      canvasH,
+      this.cameraOffsetX,
+      this.cameraOffsetY,
+      this.zoom,
+      this.collapsedNodeIds
     );
-
-    for (const node of this.nodes) {
-      // 1. Orbital position
-      let worldX = 0;
-      let worldY = 0;
-
-      // LocalStorage 혹은 이전 연산 오류로 인해 NaN이 들어왔을 경우 방어
-      if (typeof node.fixedX === 'number' && !isNaN(node.fixedX) && 
-          typeof node.fixedY === 'number' && !isNaN(node.fixedY)) {
-        worldX = node.fixedX;
-        worldY = node.fixedY;
-      } else {
-        const safeAngle = typeof node.orbitAngle === 'number' && !isNaN(node.orbitAngle) ? node.orbitAngle : 0;
-        
-        // 부모 노드가 있고, 자신이 자식(orbitIndex > 1)이라면 '부모 중심 방사형(Radial)' 배치 채택
-        if (node.parentId && node.orbitIndex > 1) {
-           const parentNode = this.nodeMap.get(node.parentId);
-           // 부모 좌표 기준 계산
-           const px = parentNode?.worldX || 0;
-           const py = parentNode?.worldY || 0;
-           
-           // 부모 주변의 자식 궤도 반경 (부모를 감싸는 컴팩트한 클러스터 형태 유지)
-           const localRadius = 50 + (node.orbitIndex - 1) * 20; 
-           worldX = px + Math.cos(safeAngle) * localRadius * ELLIPSE_RATIO;
-           worldY = py + Math.sin(safeAngle) * localRadius;
-        } else {
-          // 중앙 수퍼 노드 혹은 1차 카테고리(orbitIndex 0~1)의 경우 기존 캔버스 중앙을 중심으로 공전
-          let orbR = 0;
-          if (typeof node.orbitIndex === 'number' && !isNaN(node.orbitIndex) && node.orbitIndex <= NUM_ORBITS) {
-            orbR = this.orbitRadii[node.orbitIndex] || 0;
-          } else if (typeof node.orbitIndex === 'number' && !isNaN(node.orbitIndex)) {
-            const baseR = Math.min(canvasW, canvasH) * 0.65;
-            orbR = baseR * (0.18 + (node.orbitIndex / NUM_ORBITS) * 0.82);
-          }
-          worldX = Math.cos(safeAngle) * orbR * ELLIPSE_RATIO;
-          worldY = Math.sin(safeAngle) * orbR;
-        }
-      }
-
-      // 자식 노드가 체인 계산에서 활용할 수 있도록 월드 좌표 저장
-      node.worldX = worldX;
-      node.worldY = worldY;
-
-      // Map to isometric/tilted 3D space
-      // Apply camera tilt
-      const tiltedY = worldY * Math.cos(this.cameraTilt);
-      const renderZ = worldY * Math.sin(this.cameraTilt) / 500; 
-
-      node.renderX = cx + worldX * this.zoom;
-      node.renderY = cy + tiltedY * this.zoom;
-      node.renderZ = renderZ;
-    }
 
     // Apply pending camera tracking instantly (after positions are known)
     if (this.pendingCameraTargetId) {
@@ -436,6 +405,44 @@ export class OntologyCanvasEngine {
       }
       this.pendingCameraTargetId = null;
     }
+
+    if (this.autoFitPending) {
+      this.autoFitPending = false;
+      let minX = Infinity, maxX = -Infinity;
+      let minY = Infinity, maxY = -Infinity;
+      for (const node of this.nodes) {
+        if (node.layoutHidden) continue;
+        minX = Math.min(minX, node.worldX || 0);
+        maxX = Math.max(maxX, node.worldX || 0);
+        minY = Math.min(minY, node.worldY || 0);
+        maxY = Math.max(maxY, node.worldY || 0);
+      }
+      if (minX !== Infinity) {
+        const treeW = maxX - minX;
+        const treeH = maxY - minY;
+        const sidePanelWidth = 320; // compensate for left UI panel
+        const padding = 100;
+        const availW = canvasW - sidePanelWidth - padding;
+        const availH = canvasH - padding;
+        
+        let scaleX = availW / (treeW || 1);
+        let scaleY = availH / (treeH || 1);
+        
+        // 1.1(원본 크기보다 아주 약간 큼)를 초과하지 않으며, 최소 MIN_ZOOM 까지만 축소 허용
+        let newTargetZoom = Math.min(scaleX, scaleY, 1.1);
+        newTargetZoom = Math.max(MIN_ZOOM, newTargetZoom);
+        this.targetZoom = newTargetZoom;
+        
+        const treeCenterX = (maxX + minX) / 2;
+        const treeCenterY = (maxY + minY) / 2;
+        
+        const desiredScreenCenterX = sidePanelWidth + availW / 2;
+        const desiredScreenCenterY = canvasH / 2;
+        
+        this.targetOffsetX = desiredScreenCenterX - (canvasW / 2) - (treeCenterX * newTargetZoom);
+        this.targetOffsetY = desiredScreenCenterY - (canvasH / 2) - (treeCenterY * newTargetZoom);
+      }
+    }
   }
 
   // ============ Render ============
@@ -445,569 +452,29 @@ export class OntologyCanvasEngine {
     this.canvasH = height;
     this.computePositions(width, height);
 
-    // 1. Background
-    this.renderBackground(ctx, width, height);
-
-    // 2. Orbit tracks
-    this.renderOrbitTracks(ctx, width, height);
-
-    // 3. Edges
-    this.renderEdges(ctx);
-
-    // 4. Nodes (depth-sorted, back-to-front)
-    this.renderNodes(ctx);
-
-
+    OntologyRenderer.render({
+      ctx,
+      canvasW: width,
+      canvasH: height,
+      zoom: this.zoom,
+      orbitRadii: this.orbitRadii,
+      nodes: this.nodes,
+      edges: this.edges,
+      nodeMap: this.nodeMap,
+      activeNodeId: this.activeNode?.id || null,
+      hoveredNodeId: this.hoveredNode?.id || null,
+      activeTreeSet: this.getActiveTreeSet(),
+      centerNode: this.centerNode,
+      sortedNodesBuffer: this.sortedNodes,
+      collapsedNodeIds: this.collapsedNodeIds,
+    });
   }
 
-  private renderBackground(ctx: CanvasRenderingContext2D, w: number, h: number): void {
-    const grad = ctx.createLinearGradient(0, 0, w, h);
-    grad.addColorStop(0, '#f8f9fc');
-    grad.addColorStop(1, '#ebeef4');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, w, h);
-
-    // Subtle nebula tint
-    const cx = w / 2, cy = h / 2;
-    const nebula = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(w, h) * 0.5);
-    nebula.addColorStop(0, 'rgba(49,130,246,0.03)');
-    nebula.addColorStop(1, 'rgba(49,130,246,0)');
-    ctx.fillStyle = nebula;
-    ctx.fillRect(0, 0, w, h);
-  }
-
-  private renderOrbitTracks(ctx: CanvasRenderingContext2D, w: number, h: number): void {
-    const centerX = w / 2 + this.cameraOffsetX;
-    const centerY = h / 2 + this.cameraOffsetY;
-    const cosTilt = Math.cos(this.cameraTilt);
-
-    ctx.strokeStyle = 'rgba(170,180,200,0.35)';
-    ctx.lineWidth = 1;
-
-    for (let i = 1; i <= NUM_ORBITS; i++) {
-      const rx = this.orbitRadii[i] * ELLIPSE_RATIO * this.zoom;
-      const ry = this.orbitRadii[i] * cosTilt * this.zoom;
-      ctx.beginPath();
-      ctx.ellipse(centerX, centerY, rx, ry, 0, 0, 2 * Math.PI);
-      ctx.stroke();
-    }
-  }
-
-  private getActiveTreeSet(): Set<string> {
-    const set = new Set<string>();
+  public getActiveTreeSet(): Set<string> {
     const rootId = this.activeNode?.id;
-    if (!rootId) return set;
-    
-    set.add(rootId);
-    
-    const rootNode = this.nodeMap.get(rootId);
-    const isCategoryLevel = rootNode ? rootNode.orbitIndex <= 1 || rootNode.id === 'root-HCHPS' : false;
-
-    // 1. Network Flow BFS
-    const queue = [rootId];
-    while (queue.length > 0) {
-      const currentId = queue.shift()!;
-      const current = this.nodeMap.get(currentId);
-      const isImmediateHop = (currentId === rootId);
-      
-      for (const edge of this.edges) {
-        // 중심 노드 관통 차단
-        if (rootId !== 'root-HCHPS' && edge.target === 'root-HCHPS') continue;
-        if (rootId !== 'root-HCHPS' && isImmediateHop && edge.source === 'root-HCHPS') continue;
-        
-        let nextId: string | null = null;
-        
-        if (isCategoryLevel) {
-          // 카테고리는 하위 방향 우선 완전 전파. 
-          if (edge.source === currentId) nextId = edge.target;
-          else if (edge.target === currentId) nextId = edge.source; // 수평 커스텀 선분 등 포괄
-          
-          // 하지만 1-hop 이후 다른 카테고리로 역주행(Upward)하는 것은 차단
-          if (!isImmediateHop && current && nextId === current.parentId) nextId = null;
-        } else {
-          // 하위(일반) 노드는 자신이 Source인 경우에만 큐를 타고 밑으로 번짐
-          if (edge.source === currentId) {
-            nextId = edge.target;
-          } else if (edge.target === currentId && isImmediateHop) {
-            // 내가 Target(수신자)인 역방향 1-hop 이웃은 시각적으로 불만 켜주고 큐 단절 -> 형제 오염 방지
-            nextId = edge.source;
-            if (!set.has(nextId)) set.add(nextId);
-            nextId = null; 
-          }
-        }
-        
-        if (nextId && !set.has(nextId)) {
-          set.add(nextId);
-          queue.push(nextId);
-        }
-      }
-    }
-    
-    // 2. Upward Ancestors (Structural Lineage)
-    // 1줄기 뿌리만 추적
-    let currNode = this.nodeMap.get(rootId);
-    const seenAncestors = new Set<string>();
-    while (currNode && currNode.parentId) {
-      if (seenAncestors.has(currNode.parentId)) break; // Prevent cycle freezes
-      seenAncestors.add(currNode.parentId);
-      
-      set.add(currNode.parentId);
-      currNode = this.nodeMap.get(currNode.parentId);
-    }
-    
-    return set;
+    if (!rootId) return new Set();
+    return OntologyNetwork.getActiveTreeSet(rootId, this.nodeMap, this.edges);
   }
-
-
-
-  private renderEdges(ctx: CanvasRenderingContext2D): void {
-    const activeId = this.activeNode?.id ?? null;
-    const activeTreeSet = this.getActiveTreeSet();
-    const w = this.canvasW;
-    const h = this.canvasH;
-
-    // When a node is selected, only draw connected edges + faint others
-    // This dramatically reduces draw calls from 200 to ~20
-    for (const edge of this.edges) {
-      const src = this.nodeMap.get(edge.source);
-      const tgt = this.nodeMap.get(edge.target);
-      if (!src || !tgt) continue;
-
-      const isConnected = activeId && activeTreeSet.has(src.id) && activeTreeSet.has(tgt.id);
-
-      // PERF: Skip non-connected edges when a node is selected (draw only faint batch below)
-      if (activeId && !isConnected) continue;
-
-      // Frustum cull
-      if (src.renderX < -CULL_MARGIN && tgt.renderX < -CULL_MARGIN) continue;
-      if (src.renderX > w + CULL_MARGIN && tgt.renderX > w + CULL_MARGIN) continue;
-      if (src.renderY < -CULL_MARGIN && tgt.renderY < -CULL_MARGIN) continue;
-      if (src.renderY > h + CULL_MARGIN && tgt.renderY > h + CULL_MARGIN) continue;
-
-      const isNegative = edge.weight < 0;
-      const absWeight = Math.abs(edge.weight);
-      const avgZ = (src.renderZ + tgt.renderZ) / 2;
-      const depthBrightness = 0.3 + (avgZ + 1) * 0.35;
-
-      // 선 굵기를 시각적으로 얇고 세련되게 줄입니다 (absWeight * 2 -> absWeight * 1.0)
-      let lineWidth = 0.3 + absWeight * 1.0;
-      if (isNegative) lineWidth *= 1.3;
-      if (isConnected) lineWidth *= 1.2;
-
-      const alpha = isConnected
-        ? Math.max(0.4, depthBrightness * 0.8)
-        : depthBrightness * 0.25;
-
-      if (isNegative) {
-        ctx.strokeStyle = `rgba(229,56,59,${alpha})`;
-      } else if (isConnected) {
-        ctx.strokeStyle = `rgba(59,130,246,${Math.min(1, alpha * 1.5)})`;
-      } else {
-        ctx.strokeStyle = `rgba(204,204,204,${alpha})`;
-      }
-
-      ctx.lineWidth = lineWidth;
-      ctx.setLineDash(isNegative ? [4, 3] : []);
-      ctx.beginPath();
-      ctx.moveTo(src.renderX, src.renderY);
-      ctx.lineTo(tgt.renderX, tgt.renderY);
-      ctx.stroke();
-    }
-
-    // If active node selected, draw remaining edges as ultra-faint batch
-    if (activeId) {
-      ctx.strokeStyle = 'rgba(200,200,210,0.15)';
-      ctx.lineWidth = 0.3; // 배경으로 물러나는 얇은 선
-      ctx.setLineDash([]);
-      ctx.beginPath();
-      for (const edge of this.edges) {
-        if (edge.source === activeId || edge.target === activeId) continue;
-        const src = this.nodeMap.get(edge.source);
-        const tgt = this.nodeMap.get(edge.target);
-        if (!src || !tgt) continue;
-        ctx.moveTo(src.renderX, src.renderY);
-        ctx.lineTo(tgt.renderX, tgt.renderY);
-      }
-      ctx.stroke(); // single draw call for all faint edges
-    }
-    ctx.setLineDash([]);
-    
-    // Draw '+' on active edges connected to activeNode
-    if (activeId) {
-      for (const edge of this.edges) {
-        if (edge.source === activeId || edge.target === activeId) {
-          const src = this.nodeMap.get(edge.source);
-          const tgt = this.nodeMap.get(edge.target);
-          if (!src || !tgt) continue;
-
-          const midX = (src.renderX + tgt.renderX) / 2;
-          const midY = (src.renderY + tgt.renderY) / 2;
-          const isHovered = this.hoveredEdge === edge;
-
-          ctx.fillStyle = isHovered ? '#3b82f6' : '#ffffff';
-          ctx.strokeStyle = isHovered ? '#ffffff' : '#cbd5e1';
-          ctx.lineWidth = 1.5;
-          ctx.beginPath();
-          ctx.arc(midX, midY, isHovered ? 8 : 6, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.stroke();
-
-          ctx.fillStyle = isHovered ? '#ffffff' : '#94a3b8';
-          ctx.font = 'bold 12px sans-serif';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText('+', midX, midY + 1);
-        }
-      }
-    }
-  }
-
-  private drawArrow(
-    ctx: CanvasRenderingContext2D,
-    src: OrbitalNode, tgt: OrbitalNode,
-    lineWidth: number, color: string,
-  ): void {
-    const t = 0.7;
-    const ax = src.renderX + (tgt.renderX - src.renderX) * t;
-    const ay = src.renderY + (tgt.renderY - src.renderY) * t;
-    const angle = Math.atan2(tgt.renderY - src.renderY, tgt.renderX - src.renderX);
-    const arrowLen = 6 + lineWidth * 2;
-    const arrowAngle = 0.4;
-
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.moveTo(ax, ay);
-    ctx.lineTo(
-      ax - arrowLen * Math.cos(angle - arrowAngle),
-      ay - arrowLen * Math.sin(angle - arrowAngle),
-    );
-    ctx.lineTo(
-      ax - arrowLen * Math.cos(angle + arrowAngle),
-      ay - arrowLen * Math.sin(angle + arrowAngle),
-    );
-    ctx.closePath();
-    ctx.fill();
-  }
-
-
-  private getNodeColors(node: OrbitalNode): string[] {
-    const colors = new Set<string>();
-    const myBaseColor = node.customColor || GROUP_COLORS[node.group as OntologyGroup] || GROUP_COLORS.OTHER;
-    
-    // 1. 중심 노드(0) 또는 색상 정체성이 확고한 상위 카테고리(사람, 핵심 부서 등)는 절대 파이차트가 되지 않고 고유 색상을 유지합니다.
-    const isPrimaryCategory = node.group === 'CORE_PROJECT' || node.group === 'MACRO_RESEARCH' || node.group === 'DCF_MODELING';
-    if (node.orbitIndex === 0 || isPrimaryCategory) {
-      return [myBaseColor];
-    }
-
-    // 3. 자신과 연결된 모든 노드를 순회하며 나와 동급(<=)이거나 중심부인 노드의 색상을 수집
-    for (const edge of this.edges) {
-      const sourceId = typeof edge.source === 'object' ? (edge.source as any).id : edge.source;
-      const targetId = typeof edge.target === 'object' ? (edge.target as any).id : edge.target;
-      
-      // 나와 연결된 선분 중, "내가 타겟(Target, 자식/의존자)"인 경우에만 소스(부모/원천)의 색상을 상속받습니다.
-      // 즉, 부모 -> 자식 방향으로 연결되어야 자식이 부모들의 색상을 흡수해 파이차트가 됩니다.
-      if (targetId === node.id) {
-        const neighbor = this.nodes.find(n => n.id === sourceId);
-        if (neighbor && neighbor.orbitIndex > 0) {
-          const c = neighbor.customColor || GROUP_COLORS[neighbor.group as OntologyGroup] || GROUP_COLORS.OTHER;
-          colors.add(c);
-        }
-      }
-    }
-    
-    // 만약 수집된 상위/측면 노드가 없다면(혹은 단절되었다면) 태생 그룹의 색상으로 렌더링
-    if (colors.size === 0) {
-      return [myBaseColor];
-    }
-    
-    // 자기 자신의 오리지널 그룹 색상을 기본 포함 (만약 상위 연결선의 색상 세트에 본인 고유의 색상이 빠져있다면 추가)
-    // 브릿지 노드라면, 타 진영 색상(수집됨) + 본인 진영 색상을 반반씩 섞어서 파이차트로 생성!
-    colors.add(myBaseColor);
-    
-    return Array.from(colors);
-  }
-
-  private renderNodes(ctx: CanvasRenderingContext2D): void {
-    // Reuse sorted buffer (avoid allocation)
-    this.sortedNodes.length = 0;
-    for (const n of this.nodes) this.sortedNodes.push(n);
-    this.sortedNodes.sort((a, b) => a.renderZ - b.renderZ);
-    const sorted = this.sortedNodes;
-    const activeId = this.activeNode?.id;
-    const hoveredId = this.hoveredNode?.id;
-    const activeTreeSet = this.getActiveTreeSet();
-    const w = this.canvasW;
-    const h = this.canvasH;
-
-    // Label occlusion tracking: array of placed label bounding boxes
-    const placedLabels: Array<{x: number; y: number; w: number; h: number}> = [];
-
-    for (const node of sorted) {
-      // Frustum cull
-      const r = node.nodeRadius * this.zoom;
-      if (node.renderX + r * 3 < -CULL_MARGIN || node.renderX - r * 3 > w + CULL_MARGIN) continue;
-      if (node.renderY + r * 3 < -CULL_MARGIN || node.renderY - r * 3 > h + CULL_MARGIN) continue;
-
-      const isCenter = node.orbitIndex === 0;
-      const isActive = node.id === activeId;
-      const isHovered = node.id === hoveredId;
-      // 노드 자신 또는 1-hop, 하위, 상위 경로가 선택된 트리에 포함되는지 확인
-      const isConnectedToActive = activeTreeSet.has(node.id);
-      const hasActiveSelection = !!activeId && activeId !== this.centerNode?.id;
-
-      const depthAlpha = 0.4 + (node.renderZ + 1) * 0.3;
-      const nodeColors = this.getNodeColors(node);
-      const baseColor = nodeColors[0];
-
-      // Determine opacity
-      let opacity = hasActiveSelection
-        ? (isActive || isConnectedToActive ? 1 : 0.28)
-        : depthAlpha;
-
-      if (isHovered && !isActive) opacity = Math.max(opacity, 0.9);
-
-      ctx.save();
-      ctx.globalAlpha = opacity;
-
-      const labelText = node.label || '';
-      // 직관적이고 세련된 메타데이터 노드 분리 처리를 위한 정규식 패턴 판별
-      const isDateMeta = /^\d{4}\([가-힣]\)|^\d{2,4}[\.\-\/\s월]*\d{1,2}[\.\-\/\s일]*\d{0,2}|^\d{1,2}월\s*\d{1,2}일|\d{2}:\d{2}|^\d{1,2}시(?:\s*\d{1,2}분)?$|^\d{4}년/.test(labelText) || labelText.includes('요일');
-      const isPhoneMeta = /^0\d{1,2}-\d{3,4}-\d{4}/.test(labelText);
-      const isMetaNode = isDateMeta || isPhoneMeta;
-
-      // 1. 일반 개념(Concept) 노드의 경우 기존처럼 입체적인 글로우 서클(Circle) 렌더링
-      if (!isMetaNode) {
-        // ── Center Sun ──
-        const sliceAngle = (2 * Math.PI) / nodeColors.length;
-
-        if (isCenter) {
-          const glow = ctx.createRadialGradient(node.renderX, node.renderY, r * 0.5, node.renderX, node.renderY, r * 6);
-          glow.addColorStop(0, this.colorWithAlpha(baseColor, 0.05));
-          glow.addColorStop(0.5, this.colorWithAlpha(baseColor, 0.01));
-          glow.addColorStop(1, 'rgba(0,0,0,0)');
-          ctx.fillStyle = glow;
-          ctx.beginPath(); ctx.arc(node.renderX, node.renderY, r * 6, 0, 2 * Math.PI); ctx.fill();
-
-          const corona = ctx.createRadialGradient(node.renderX, node.renderY, r * 0.8, node.renderX, node.renderY, r * 2.5);
-          corona.addColorStop(0, this.colorWithAlpha(baseColor, 0.08));
-          corona.addColorStop(1, 'rgba(0,0,0,0)');
-          ctx.fillStyle = corona;
-          ctx.beginPath(); ctx.arc(node.renderX, node.renderY, r * 2.5, 0, 2 * Math.PI); ctx.fill();
-
-          const baseR = node.nodeRadius * this.zoom;
-          const sizeOverride = (this.activeNode && this.activeNode.id === node.id) ? baseR * 1.5 : (isHovered ? baseR * 1.2 : baseR);
-
-          for (let i = 0; i < nodeColors.length; i++) {
-            const gradient = ctx.createRadialGradient(
-              node.renderX - sizeOverride * 0.3, node.renderY - sizeOverride * 0.3, 0,
-              node.renderX, node.renderY, sizeOverride
-            );
-            gradient.addColorStop(0, '#ffffff');
-            gradient.addColorStop(0.3, this.lightenColor(nodeColors[i], 0.4));
-            gradient.addColorStop(1, this.lightenColor(nodeColors[i], 0.1));
-            
-            ctx.fillStyle = gradient;
-            ctx.beginPath();
-            ctx.moveTo(node.renderX, node.renderY);
-            ctx.arc(node.renderX, node.renderY, sizeOverride, -Math.PI/2 + i * sliceAngle, -Math.PI/2 + (i + 1) * sliceAngle);
-            ctx.fill();
-          }
-
-          ctx.strokeStyle = 'rgba(255,255,255,0.8)';
-          ctx.lineWidth = 2;
-          ctx.beginPath(); ctx.arc(node.renderX, node.renderY, sizeOverride, 0, 2 * Math.PI); ctx.stroke();
-
-        // ── Active Node ──
-        } else if (isActive) {
-          const glow = ctx.createRadialGradient(node.renderX, node.renderY, r * 0.5, node.renderX, node.renderY, r * 3);
-          glow.addColorStop(0, this.colorWithAlpha(baseColor, 0.15));
-          glow.addColorStop(1, 'rgba(0,0,0,0)');
-          ctx.fillStyle = glow;
-          ctx.beginPath(); ctx.arc(node.renderX, node.renderY, r * 3, 0, 2 * Math.PI); ctx.fill();
-
-          for (let i = 0; i < nodeColors.length; i++) {
-            const coreGrad = ctx.createRadialGradient(
-              node.renderX - r * 0.15, node.renderY - r * 0.15, 0,
-              node.renderX, node.renderY, r
-            );
-            coreGrad.addColorStop(0, '#ffffff');
-            coreGrad.addColorStop(0.5, this.lightenColor(nodeColors[i], 0.5));
-            coreGrad.addColorStop(1, nodeColors[i]);
-            
-            ctx.fillStyle = coreGrad;
-            ctx.beginPath();
-            ctx.moveTo(node.renderX, node.renderY);
-            ctx.arc(node.renderX, node.renderY, r, -Math.PI/2 + i * sliceAngle, -Math.PI/2 + (i + 1) * sliceAngle);
-            ctx.fill();
-          }
-
-          ctx.strokeStyle = '#ffffff';
-          ctx.lineWidth = 2.5;
-          ctx.beginPath(); ctx.arc(node.renderX, node.renderY, r, 0, 2 * Math.PI); ctx.stroke();
-          
-          for (let i = 0; i < nodeColors.length; i++) {
-            ctx.strokeStyle = nodeColors[i];
-            ctx.lineWidth = 1.2;
-            ctx.beginPath();
-            ctx.moveTo(node.renderX, node.renderY); // Important so borders curve back to center if bridging, though stroke on arc usually handles arc length
-            ctx.arc(node.renderX, node.renderY, r + 3, -Math.PI/2 + i * sliceAngle, -Math.PI/2 + (i + 1) * sliceAngle);
-            ctx.stroke();
-          }
-
-        // ── Normal / Hovered / Connected ──
-        } else {
-          if (isHovered) {
-            const glow = ctx.createRadialGradient(node.renderX, node.renderY, r * 0.5, node.renderX, node.renderY, r * 2);
-            glow.addColorStop(0, this.colorWithAlpha(baseColor, 0.12));
-            glow.addColorStop(1, 'rgba(0,0,0,0)');
-            ctx.fillStyle = glow;
-            ctx.beginPath(); ctx.arc(node.renderX, node.renderY, r * 2, 0, 2 * Math.PI); ctx.fill();
-          }
-
-          for (let i = 0; i < nodeColors.length; i++) {
-            const coreGrad = ctx.createRadialGradient(
-              node.renderX - r * 0.15, node.renderY - r * 0.15, 0,
-              node.renderX, node.renderY, r
-            );
-            coreGrad.addColorStop(0, this.lightenColor(nodeColors[i], 0.4));
-            coreGrad.addColorStop(1, nodeColors[i]);
-            
-            ctx.fillStyle = coreGrad;
-            ctx.beginPath();
-            ctx.moveTo(node.renderX, node.renderY);
-            ctx.arc(node.renderX, node.renderY, r, -Math.PI/2 + i * sliceAngle, -Math.PI/2 + (i + 1) * sliceAngle);
-            ctx.fill();
-          }
-
-          if (isConnectedToActive) {
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 1.5;
-            ctx.beginPath(); ctx.arc(node.renderX, node.renderY, r, 0, 2 * Math.PI); ctx.stroke();
-          }
-        }
-        
-        // ── Hedge dashed ring ──
-        if (node.isHedge) {
-          ctx.setLineDash([3, 3]);
-          ctx.strokeStyle = GROUP_COLORS.SYSTEM_RISK;
-          ctx.lineWidth = 1.5;
-          ctx.beginPath();
-          ctx.arc(node.renderX, node.renderY, r + 5, 0, 2 * Math.PI);
-          ctx.stroke();
-          ctx.setLineDash([]);
-        }
-      }
-
-      // 2. 렌더링 타입에 따른 텍스트/뱃지 라벨 드로잉
-      if (isMetaNode) {
-        // 날짜/전화번호 등 메타데이터는 공 형태가 아닌 '플로팅 태그 뱃지(Pill Badge)'로 렌더링
-        const icon = isDateMeta ? '🗓️' : '📞';
-        const fullLabel = `${icon} ${labelText}`;
-        
-        const fontSize = Math.max(9, Math.min(11, 10 * this.zoom));
-        ctx.font = `600 ${fontSize}px 'Pretendard', sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        
-        const textWidth = ctx.measureText(fullLabel).width;
-        const paddingX = 8;
-        const paddingY = 4;
-        const bgWidth = textWidth + paddingX * 2;
-        const bgHeight = fontSize + paddingY * 2;
-        
-        // 아이콘 종류에 따라 파스텔 톤 메타 태그 색상 지정
-        ctx.fillStyle = isDateMeta ? 'rgba(56, 189, 248, 0.85)' : 'rgba(129, 142, 248, 0.85)';
-        ctx.strokeStyle = isDateMeta ? '#0284c7' : '#4f46e5';
-        ctx.lineWidth = 1.2;
-        
-        // 둥근 캡슐 (Pill) 테두리 그리기
-        ctx.beginPath();
-        if (ctx.roundRect) {
-          ctx.roundRect(node.renderX - bgWidth/2, node.renderY - bgHeight/2, bgWidth, bgHeight, bgHeight/2);
-        } else {
-          ctx.rect(node.renderX - bgWidth/2, node.renderY - bgHeight/2, bgWidth, bgHeight);
-        }
-        ctx.fill();
-        ctx.stroke();
-        
-        ctx.fillStyle = '#ffffff'; // 텍스트는 깔끔한 흰색
-        ctx.fillText(fullLabel, node.renderX, node.renderY);
-
-      } else {
-        // 일반 개념 노드의 라벨 렌더링
-        const isActiveOrHovered = isActive || isHovered;
-        const fontSize = Math.max(8, Math.min(12, 9 * this.zoom));
-        const fontWeight = (isCenter || isActive) ? 'bold' : 'normal';
-        
-        ctx.font = `${fontWeight} ${fontSize}px 'Pretendard', 'Inter', system-ui, sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
-
-        const labelY = node.renderY + r + 3;
-        const textWidth = ctx.measureText(labelText).width;
-
-        // Draw premium pill background behind text to prevent overlap clutter
-        ctx.fillStyle = `rgba(255, 255, 255, ${Math.min(0.85, opacity * 1.5)})`;
-        const paddingX = 4;
-        const paddingY = 2;
-        const bgWidth = textWidth + paddingX * 2;
-        const bgHeight = fontSize + paddingY * 2;
-        
-        ctx.beginPath();
-        if (ctx.roundRect) {
-          ctx.roundRect(node.renderX - bgWidth / 2, labelY - paddingY, bgWidth, bgHeight, 6);
-        } else {
-          ctx.rect(node.renderX - bgWidth / 2, labelY - paddingY, bgWidth, bgHeight);
-        }
-        ctx.fill();
-
-        // Text stroke for extra crispness
-        ctx.strokeStyle = `rgba(255, 255, 255, ${opacity})`;
-        ctx.lineWidth = 2;
-        ctx.lineJoin = 'round';
-        ctx.strokeText(labelText, node.renderX, labelY);
-
-        // Main Text
-        ctx.fillStyle = isCenter || isActiveOrHovered
-          ? '#1e293b'
-          : `rgba(30,41,59,${Math.max(0.7, opacity)})`;
-          
-        ctx.fillText(labelText, node.renderX, labelY);
-      }
-
-      // 3. 궤도 번호 시각화 - 명시적인 숫자 대신 메카닉/HUD 스타일의 '끊어진 테두리(Segmented Arc)' 개수로 표현
-      // 궤도가 1이면 1개의 긴 호, 2면 2개의 반원상 호, 3이면 3조각으로 분할되어 매우 직관적이고 깔끔함
-      if (!isCenter && typeof node.orbitIndex === 'number' && !isMetaNode && node.orbitIndex > 0) {
-        const orbitCount = node.orbitIndex;
-        // 기존 Hover/Active 하이라이트 링과 겹치지 않게 살짝 공간을 둡니다.
-        const arcRadius = r + (isActive ? 7 : 4) * this.zoom; 
-        
-        ctx.lineWidth = Math.max(1, 1.5 * this.zoom);
-        // 부드럽게 반투명 처리하여 본체보다 튀지 않게
-        ctx.strokeStyle = this.colorWithAlpha(baseColor, isActive ? 0.9 : 0.6);
-        ctx.lineCap = 'round';
-        
-        const gap = 0.4; // 호 사이의 간격 (라디안)
-        const totalAngle = Math.PI * 2;
-        // 궤도 수에 따라 N개의 파편 단위 호 각도 계산
-        const segmentAngle = (totalAngle - gap * orbitCount) / orbitCount;
-        
-        for (let i = 0; i < orbitCount; i++) {
-          const startAngle = i * (segmentAngle + gap) - Math.PI / 2;
-          const endAngle = startAngle + segmentAngle;
-          
-          ctx.beginPath();
-          ctx.arc(node.renderX, node.renderY, arcRadius, startAngle, endAngle);
-          ctx.stroke();
-        }
-        ctx.lineCap = 'butt'; // 복구
-      }
-
-      ctx.restore();
-    }
-  }
-
   // ============ Interaction ============
 
   hitTest(mx: number, my: number): OrbitalNode | null {
@@ -1033,31 +500,48 @@ export class OntologyCanvasEngine {
       return;
     }
 
-    if (this.hoveredEdge) {
-      this.callbacks.onEdgeClick?.(this.hoveredEdge);
-      return;
-    }
-
     const hit = this.hitTest(mx, my);
     if (hit) {
+      // 1. 접기/펼치기 토글(Chevron) 영역 클릭 감지
+      // 노드의 우측 영역(x > renderX + 20) 클릭 시 토글 처리
+      const isRightSide = mx > hit.renderX + 20;
+      let hasChildren = false;
+      for (const edge of this.edges) {
+        if (edge.source === hit.id) {
+          hasChildren = true;
+          break;
+        }
+      }
+
+      if (hasChildren && isRightSide) {
+         if (this.collapsedNodeIds.has(hit.id)) {
+             this.collapsedNodeIds.delete(hit.id);
+             this.autoFitPending = true;
+         } else {
+             this.collapsedNodeIds.add(hit.id);
+             this.autoFitPending = true;
+         }
+         this.needsRedraw = true;
+         return; // 토글만 수행하고 선택 상태는 변경하지 않음
+      }
+
+      // 2. 일반적인 노드 선택
       if (this.activeNode?.id === hit.id) {
-        // Toggle off → just deselect, maintain camera pos
         this.activeNode = this.centerNode;
         this.previousActiveNodeId = this.centerNode?.id || null;
       } else {
         this.activeNode = hit;
         this.previousActiveNodeId = hit.id;
-        // Center clicked node on screen
         const screenCenterX = this.canvasW / 2;
         const screenCenterY = this.canvasH / 2;
         this.targetOffsetX = screenCenterX - (hit.renderX - this.cameraOffsetX);
         this.targetOffsetY = screenCenterY - (hit.renderY - this.cameraOffsetY);
       }
     } else {
-      // Click empty space → deselect, maintain camera pos
       this.activeNode = this.centerNode;
       this.previousActiveNodeId = this.centerNode?.id || null;
     }
+    this.needsRedraw = true;
     this.callbacks.onActiveNodeChange?.(this.activeNode);
   }
 
@@ -1065,33 +549,16 @@ export class OntologyCanvasEngine {
     const hit = this.hitTest(mx, my);
     if (hit?.id !== this.hoveredNode?.id) {
       this.hoveredNode = hit;
+      this.needsRedraw = true;
       this.callbacks.onHoveredNodeChange?.(hit);
     }
-    
-    let hwEdge: OntologyEdge | null = null;
-    if (!hit && this.activeNode) {
-      const activeId = this.activeNode.id;
-      for (const edge of this.edges) {
-        if (edge.source === activeId || edge.target === activeId) {
-          const src = this.nodeMap.get(edge.source);
-          const tgt = this.nodeMap.get(edge.target);
-          if (!src || !tgt) continue;
-          
-          const midX = (src.renderX + tgt.renderX) / 2;
-          const midY = (src.renderY + tgt.renderY) / 2;
-          if (Math.hypot(mx - midX, my - midY) < 14) {
-            hwEdge = edge;
-            break;
-          }
-        }
-      }
-    }
-    this.hoveredEdge = hwEdge;
   }
 
   handleWheel(delta: number): void {
     const zoomFactor = delta > 0 ? 0.92 : 1.08;
     this.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, this.zoom * zoomFactor));
+    this.targetZoom = this.zoom; // 유저가 수동 줌 할 경우 타겟을 덮어써서 물리 애니메이션 방해 차단
+    this.needsRedraw = true;
   }
 
   // ── Interaction ──
@@ -1103,19 +570,16 @@ export class OntologyCanvasEngine {
     this.dragStartY = ny;
     this.lastDragX = nx;
     this.lastDragY = ny;
-    this.dragStartTilt = this.cameraTilt;
     this.draggedNode = null;
     this.draggedSubTree = [];
 
-    // Check hit test for node dragging
     let closestId = null;
     let minDist = Infinity;
     for (const node of this.nodes) {
-      if (node.id === 'root-HCHPS') continue; // Don't drag the main sun
       const dx = nx - node.renderX;
       const dy = ny - node.renderY;
       const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < minDist && dist <= node.nodeRadius + 15) {
+      if (dist < minDist && dist <= node.nodeRadius * this.zoom + 15) {
         minDist = dist;
         closestId = node.id;
       }
@@ -1123,39 +587,6 @@ export class OntologyCanvasEngine {
 
     if (closestId) {
       this.draggedNode = this.nodeMap.get(closestId)!;
-      
-      // Shift 키(카테고리 묶음 이동) 기능 작동 시 소속된 모든 트리를 이동합니다
-      if (isShiftKey) {
-        const descendants = new Set<string>();
-        const queue = [closestId];
-        
-        while (queue.length > 0) {
-          const currId = queue.shift()!;
-          for (const edge of this.edges) {
-            if (edge.source === currId) {
-              const tgtId = edge.target;
-              if (tgtId !== closestId && !descendants.has(tgtId) && tgtId !== 'root-HCHPS') {
-                descendants.add(tgtId);
-                queue.push(tgtId);
-              }
-            }
-          }
-        }
-        
-        const rootWX = (this.draggedNode.fixedX ?? this.draggedNode.worldX) ?? 0;
-        const rootWY = (this.draggedNode.fixedY ?? this.draggedNode.worldY) ?? 0;
-        
-        descendants.forEach(id => {
-          const dn = this.nodeMap.get(id);
-          if (dn) {
-            this.draggedSubTree.push({
-              node: dn,
-              dx0: ((dn.fixedX ?? dn.worldX) ?? 0) - rootWX,
-              dy0: ((dn.fixedY ?? dn.worldY) ?? 0) - rootWY,
-            });
-          }
-        });
-      }
     }
   }
 
@@ -1164,33 +595,16 @@ export class OntologyCanvasEngine {
 
     if (Math.abs(nx - this.dragStartX) > 5 || Math.abs(ny - this.dragStartY) > 5) {
       this.hasDragged = true;
+      this.needsRedraw = true;
     }
 
     if (this.draggedNode) {
-      // 클릭만 한 상태(미세한 떨림)에서는 좌표를 고정(fixedX)시키지 않습니다. 
-      // 고정시킬 경우 공전(Orbit)이 영구적으로 멈추는 버그가 발생하기 때문입니다.
+      // 선택지 1: 드래그 앤 드롭 시 자동 정렬 트리를 망가뜨리는 fixedX/fixedY 위치 고정을 비활성화.
+      // (TODO: 향후 Reparenting UI로 확장 가능하도록 뼈대만 유지)
       if (this.hasDragged) {
-        // Inverse projection to find World X, Y
-        const cx = w / 2 + this.cameraOffsetX;
-        const cy = h / 2 + this.cameraOffsetY;
-        const worldX = (nx - cx) / this.zoom;
-        const worldY = (ny - cy) / this.zoom / Math.cos(this.cameraTilt);
-        
-        // Temporarily track mouse visually without snapping to orbits
-        this.draggedNode.fixedX = worldX;
-        this.draggedNode.fixedY = worldY;
-        this.draggedNode.worldX = worldX;
-        this.draggedNode.worldY = worldY;
-        
-        // 하위 그룹 동반 이동 시각화
-        for (const item of this.draggedSubTree) {
-          const childWX = worldX + item.dx0;
-          const childWY = worldY + item.dy0;
-          item.node.fixedX = childWX;
-          item.node.fixedY = childWY;
-          item.node.worldX = childWX;
-          item.node.worldY = childWY;
-        }
+        // 드래그 중인 임시 시각화 정도만 하거나 그대로 둡니다.
+        // 현재는 수동 핀 기능을 꺼버렸으므로 Drag 시 카메라 패닝이 되거나 무시되게 합니다.
+        // 아무것도 하지 않아서 트리 구조가 견고하게 고정되게 유지합니다.
       }
     } else {
       // Camera Panning
@@ -1199,35 +613,27 @@ export class OntologyCanvasEngine {
       
       this.cameraOffsetX += dx;
       this.cameraOffsetY += dy;
-      this.targetOffsetX = this.cameraOffsetX;
-      this.targetOffsetY = this.cameraOffsetY;
+      this.targetOffsetX = this.cameraOffsetX; // 수동 드래그 시 카메라 타겟 덮어쓰기
+      this.targetOffsetY = this.cameraOffsetY; 
       
-      this.lastDragX = nx;
-      this.lastDragY = ny;
+      this.needsRedraw = true;
     }
+    this.lastDragX = nx;
+    this.lastDragY = ny;
   }
 
   handleDragEnd(): void {
     this.isDragging = false;
     
-    if (this.hasDragged && this.draggedNode && typeof this.draggedNode.fixedX === 'number' && typeof this.draggedNode.fixedY === 'number') {
-      if (this.draggedSubTree.length > 0) {
-        // 퍼포먼스(Undo 로깅 수 최소화)를 위한 일괄 배치 업데이트
-        const pins = [{ id: this.draggedNode.id, fixedX: this.draggedNode.fixedX, fixedY: this.draggedNode.fixedY }];
-        for (const item of this.draggedSubTree) {
-          if (typeof item.node.fixedX === 'number' && typeof item.node.fixedY === 'number') {
-            pins.push({ id: item.node.id, fixedX: item.node.fixedX, fixedY: item.node.fixedY });
-          }
-        }
-        this.callbacks.onNodeBatchPin?.(pins);
-      } else {
-        this.callbacks.onNodePin?.(this.draggedNode.id, this.draggedNode.fixedX, this.draggedNode.fixedY);
-      }
+    if (this.hasDragged && this.draggedNode) {
+      // 기존 드래그 종료 시 Yjs에 fixedX/Y를 동기화하던 로직(NodePin)을 비활성화 (선택지 1 정책 반영)
+      // 향후 여기에 drop 대상 노드를 찾아 Reparenting 이벤트(onNodeReparent)를 날리는 로직을 넣을 수 있습니다.
     }
     
     this.draggedNode = null;
     this.draggedSubTree = [];
     this.hasDragged = false;
+    this.needsRedraw = true;
   }
 
   // ============ Queries ============

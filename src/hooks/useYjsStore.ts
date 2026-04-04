@@ -7,8 +7,14 @@ import YPartyKitProvider from 'y-partykit/provider';
 // PartyKit 기본 개발 데브서버 포트 또는 배포 환경 도메인
 const PARTYKIT_HOST = process.env.NEXT_PUBLIC_PARTYKIT_HOST || '127.0.0.1:1999';
 
-// 싱글톤 패턴: 앱 전역에서 Y.Doc을 하나만 씁니다
-const globalYDoc = new Y.Doc();
+// 싱글톤 패턴: 앱 전역에서 Y.Doc을 하나만 씁니다 (HMR 환경에서 초기화되는 것 방지)
+const globalYDoc = (typeof window !== 'undefined' && (window as any).__globalYDoc) 
+  ? (window as any).__globalYDoc 
+  : new Y.Doc();
+
+if (typeof window !== 'undefined') {
+  (window as any).__globalYDoc = globalYDoc;
+}
 
 export function useYjsStore(roomId: string = 'hchps-global') {
   const [provider, setProvider] = useState<YPartyKitProvider | null>(null);

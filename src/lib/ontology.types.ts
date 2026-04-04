@@ -96,6 +96,7 @@ export interface OrbitalNode extends OntologyNode {
   renderZ: number;             // depth (-1 to 1)
   connectionToCenter: number;  // connection weight to center node
   nodeRadius: number;          // pixel radius
+  layoutHidden?: boolean;      // true if hidden by parent collapse
 }
 
 // ============ Edge ============

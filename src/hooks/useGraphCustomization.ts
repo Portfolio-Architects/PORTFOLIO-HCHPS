@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useEffect, useCallback, useMemo, useSyncExternalStore } from 'react';
 import { OntologyNode, OntologyEdge, OntologyGroup } from '@/lib/ontology.types';
 import { useYjsStore } from './useYjsStore';
 import * as Y from 'yjs';
@@ -38,13 +38,6 @@ export interface MapCustomizationData {
 export function useGraphCustomization() {
   const { ydoc } = useYjsStore();
 
-  const [data, setData] = useState<MapCustomizationData>({
-    overrides: {},
-    customNodes: [],
-    customEdges: [],
-    deletedEdges: []
-  });
-
   const undoManager = useMemo(() => {
     return new Y.UndoManager([
       ydoc.getMap('overrides'),
@@ -54,16 +47,11 @@ export function useGraphCustomization() {
     ]);
   }, [ydoc]);
 
+  // 이관(Migration) 로직
   useEffect(() => {
-    const overridesMap = ydoc.getMap<NodeOverride>('overrides');
-    const customNodesMap = ydoc.getMap<OntologyNode>('customNodesMap');
-    const customEdgesMap = ydoc.getMap<OntologyEdge>('customEdgesMap');
-    const deletedEdgesMap = ydoc.getMap<boolean>('deletedEdgesMap');
-
-    // [마이그레이션 로직] 기존 로컬 스토리지에 데이터가 있으면 Yjs로 병합(복구)합니다.
     if (typeof window !== 'undefined') {
       try {
-        const localRaw = localStorage.getItem('hchps-map-customization'); // <-- CORRECTED KEY
+        const localRaw = localStorage.getItem('hchps-map-customization');
         const hasMigrated = localStorage.getItem('hchps-yjs-migrated');
         
         if (localRaw && !hasMigrated) {
@@ -71,6 +59,11 @@ export function useGraphCustomization() {
           console.log('[Yjs Migration] 기존 로컬 스토리지 데이터 발견. Yjs로 복구합니다...');
           
           ydoc.transact(() => {
+            const overridesMap = ydoc.getMap('overrides');
+            const customNodesMap = ydoc.getMap('customNodesMap');
+            const customEdgesMap = ydoc.getMap('customEdgesMap');
+            const deletedEdgesMap = ydoc.getMap('deletedEdgesMap');
+
             if (localData.overrides) {
               Object.entries(localData.overrides).forEach(([k, v]) => {
                 if (!overridesMap.has(k)) overridesMap.set(k, v);
@@ -100,37 +93,72 @@ export function useGraphCustomization() {
         console.error('Yjs migration failed:', e);
       }
     }
+  }, [ydoc]);
 
-    const updateReactState = () => {
-      setData({
-        overrides: overridesMap.toJSON() as Record<string, NodeOverride>,
-        customNodes: Array.from(customNodesMap.values()),
-        customEdges: Array.from(customEdgesMap.values()),
-        deletedEdges: Array.from(deletedEdgesMap.keys()),
-      });
+  // Phase 3: useSyncExternalStore & Debounce 패턴 접목
+  // Yjs 상태 변경 시 곧바로 React 렌더링을 큐에 넣지 않고, 프레임 최적화(Debounce)하여 CPU 점유율을 대폭 낮춥니다.
+  const store = useMemo(() => {
+    const overridesMap = ydoc.getMap('overrides') as Y.Map<NodeOverride>;
+    const customNodesMap = ydoc.getMap('customNodesMap') as Y.Map<OntologyNode>;
+    const customEdgesMap = ydoc.getMap('customEdgesMap') as Y.Map<OntologyEdge>;
+    const deletedEdgesMap = ydoc.getMap('deletedEdgesMap') as Y.Map<boolean>;
+
+    let snapshot: MapCustomizationData = {
+      overrides: overridesMap.toJSON() as Record<string, NodeOverride>,
+      customNodes: Array.from(customNodesMap.values()),
+      customEdges: Array.from(customEdgesMap.values()),
+      deletedEdges: Array.from(deletedEdgesMap.keys()),
     };
 
-    overridesMap.observe(updateReactState);
-    customNodesMap.observe(updateReactState);
-    customEdgesMap.observe(updateReactState);
-    deletedEdgesMap.observe(updateReactState);
+    const listeners = new Set<() => void>();
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
-    updateReactState();
+    const onUpdate = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      // 16ms (약 60FPS) 이하의 초고속 이벤트를 병합(Batch) 처리 
+      timeoutId = setTimeout(() => {
+        snapshot = {
+          overrides: overridesMap.toJSON() as Record<string, NodeOverride>,
+          customNodes: Array.from(customNodesMap.values()),
+          customEdges: Array.from(customEdgesMap.values()),
+          deletedEdges: Array.from(deletedEdgesMap.keys()),
+        };
+        listeners.forEach(l => l());
+      }, 16);
+    };
 
-    return () => {
-      overridesMap.unobserve(updateReactState);
-      customNodesMap.unobserve(updateReactState);
-      customEdgesMap.unobserve(updateReactState);
-      deletedEdgesMap.unobserve(updateReactState);
+    return {
+      subscribe: (listener: () => void) => {
+        listeners.add(listener);
+        if (listeners.size === 1) {
+          overridesMap.observe(onUpdate);
+          customNodesMap.observe(onUpdate);
+          customEdgesMap.observe(onUpdate);
+          deletedEdgesMap.observe(onUpdate);
+        }
+        return () => {
+          listeners.delete(listener);
+          if (listeners.size === 0) {
+            overridesMap.unobserve(onUpdate);
+            customNodesMap.unobserve(onUpdate);
+            customEdgesMap.unobserve(onUpdate);
+            deletedEdgesMap.unobserve(onUpdate);
+            if (timeoutId) clearTimeout(timeoutId);
+          }
+        };
+      },
+      getSnapshot: () => snapshot
     };
   }, [ydoc]);
+
+  const data = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
 
   const undo = useCallback(() => undoManager.undo(), [undoManager]);
   const redo = useCallback(() => undoManager.redo(), [undoManager]);
 
   const setNodeOverride = useCallback((id: string, override: Partial<NodeOverride>) => {
     ydoc.transact(() => {
-      const map = ydoc.getMap<NodeOverride>('overrides');
+      const map = ydoc.getMap('overrides') as Y.Map<NodeOverride>;
       const current = map.get(id) || {};
       const next = { ...current };
       
@@ -148,7 +176,7 @@ export function useGraphCustomization() {
 
   const batchSetNodeOverrides = useCallback((updates: Record<string, Partial<NodeOverride>>) => {
     ydoc.transact(() => {
-      const map = ydoc.getMap<NodeOverride>('overrides');
+      const map = ydoc.getMap('overrides') as Y.Map<NodeOverride>;
       for (const [id, override] of Object.entries(updates)) {
         const current = map.get(id) || {};
         const next = { ...current };
@@ -179,15 +207,30 @@ export function useGraphCustomization() {
       customColor: color,
       centralityScore: 100,
     };
-    ydoc.getMap<OntologyNode>('customNodesMap').set(newNode.id, newNode);
+    (ydoc.getMap('customNodesMap') as Y.Map<OntologyNode>).set(newNode.id, newNode);
     return newNode;
+  }, [ydoc]);
+
+  const submitCustomNode = useCallback((node: OntologyNode) => {
+    ydoc.transact(() => {
+      const map = ydoc.getMap('customNodesMap') as Y.Map<OntologyNode>;
+      map.set(node.id, node);
+    });
+  }, [ydoc]);
+
+  const submitCustomEdge = useCallback((edge: OntologyEdge) => {
+    ydoc.transact(() => {
+      const map = ydoc.getMap('customEdgesMap') as Y.Map<OntologyEdge>;
+      const edgeId = `${edge.source}|||${edge.target}`;
+      map.set(edgeId, edge);
+    });
   }, [ydoc]);
 
   const deleteCustomNode = useCallback((id: string) => {
     ydoc.transact(() => {
-      ydoc.getMap<OntologyNode>('customNodesMap').delete(id);
+      (ydoc.getMap('customNodesMap') as Y.Map<OntologyNode>).delete(id);
       
-      const edgesMap = ydoc.getMap<OntologyEdge>('customEdgesMap');
+      const edgesMap = ydoc.getMap('customEdgesMap') as Y.Map<OntologyEdge>;
       const keysToDelete: string[] = [];
       edgesMap.forEach((edge, key) => {
         if (edge.source === id || edge.target === id) {
@@ -200,7 +243,7 @@ export function useGraphCustomization() {
 
   const updateCustomNodeText = useCallback((id: string, newLabel: string) => {
     ydoc.transact(() => {
-      const map = ydoc.getMap<OntologyNode>('customNodesMap');
+      const map = ydoc.getMap('customNodesMap') as Y.Map<OntologyNode>;
       const node = map.get(id);
       if (node) {
         map.set(id, { ...node, label: newLabel });
@@ -213,8 +256,8 @@ export function useGraphCustomization() {
     const reverseId = `${target}|||${source}`;
     
     ydoc.transact(() => {
-      const map = ydoc.getMap<OntologyEdge>('customEdgesMap');
-      const deletedMap = ydoc.getMap<boolean>('deletedEdgesMap');
+      const map = ydoc.getMap('customEdgesMap') as Y.Map<OntologyEdge>;
+      const deletedMap = ydoc.getMap('deletedEdgesMap') as Y.Map<boolean>;
       
       // Remove any tombstone if it exists so the edge can be resurrected
       if (deletedMap.has(edgeId)) deletedMap.delete(edgeId);
@@ -231,11 +274,11 @@ export function useGraphCustomization() {
     const reverseId = `${target}|||${source}`;
     
     ydoc.transact(() => {
-      const map = ydoc.getMap<OntologyEdge>('customEdgesMap');
+      const map = ydoc.getMap('customEdgesMap') as Y.Map<OntologyEdge>;
       if (map.has(edgeId)) map.delete(edgeId);
       if (map.has(reverseId)) map.delete(reverseId);
       
-      ydoc.getMap<boolean>('deletedEdgesMap').set(edgeId, true);
+      (ydoc.getMap('deletedEdgesMap') as Y.Map<boolean>).set(edgeId, true);
     });
   }, [ydoc]);
 
@@ -244,7 +287,7 @@ export function useGraphCustomization() {
     const reverseId = `${target}|||${source}`;
     
     ydoc.transact(() => {
-      const deletedMap = ydoc.getMap<boolean>('deletedEdgesMap');
+      const deletedMap = ydoc.getMap('deletedEdgesMap') as Y.Map<boolean>;
       if (deletedMap.has(edgeId)) deletedMap.delete(edgeId);
       if (deletedMap.has(reverseId)) deletedMap.delete(reverseId);
     });
@@ -262,7 +305,7 @@ export function useGraphCustomization() {
   const resetLayoutOverrides = useCallback(() => {
     if (confirm('모든 노드의 "배치 위치(좌표)"와 "소속 관계"를 초기화하시겠습니까? (색상 및 이름 변경 내역은 유지됩니다)')) {
       ydoc.transact(() => {
-        const map = ydoc.getMap<NodeOverride>('overrides');
+        const map = ydoc.getMap('overrides') as Y.Map<NodeOverride>;
         for (const key of Array.from(map.keys())) {
           const current = map.get(key);
           if (current) {
