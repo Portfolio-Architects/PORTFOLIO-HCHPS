@@ -9,3 +9,7 @@ id = "37c88bf84da244cfbdad062d00ec6da8"
 
 [ai]
 binding = "AI"
+
+[[vectorize]]
+binding = "WIKI_VECTORS"
+index_name = "portfolio-hchps-wiki"

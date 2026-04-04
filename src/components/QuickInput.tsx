@@ -8,6 +8,7 @@ interface QuickInputProps {
   onCreateTask: (data: { title: string; dueDate?: string; priority: 'low' | 'medium' | 'high'; tags: string[]; category: string; recurrence?: string; recurrenceEndDate?: string }) => void;
   onCreateKnowledge?: (data: { title: string; content: string; tags: string[]; category: string }) => void;
   onAddSignal?: (text: string) => void;
+  onSearch?: (query: string) => void;
   onNavigate: (module: string) => void;
 }
 
@@ -16,7 +17,7 @@ function formatAmount(n: number): string {
   return `${n.toLocaleString()}원`;
 }
 
-export function QuickInput({ onCreateTask, onCreateKnowledge, onAddSignal, onNavigate }: QuickInputProps) {
+export function QuickInput({ onCreateTask, onCreateKnowledge, onAddSignal, onSearch, onNavigate }: QuickInputProps) {
   const [text, setText] = useState('');
   const [justCreated, setJustCreated] = useState(false);
   const [createdLabel, setCreatedLabel] = useState('업무 생성 완료!');
@@ -40,7 +41,10 @@ export function QuickInput({ onCreateTask, onCreateKnowledge, onAddSignal, onNav
       dueDate = `${dueDate}T${parsed.time}`;
     }
 
-    if (parsed.type === 'signal' && onAddSignal) {
+    if (parsed.type === 'query' && onSearch) {
+      onSearch(parsed.rawText);
+      setCreatedLabel('🔍 데이터를 검색중입니다...');
+    } else if (parsed.type === 'signal' && onAddSignal) {
       onAddSignal(parsed.rawText);
       setCreatedLabel('📡 시그널 기록 완료!');
       onNavigate('knowledge');
@@ -94,13 +98,15 @@ export function QuickInput({ onCreateTask, onCreateKnowledge, onAddSignal, onNav
 
         {parsed && (
           <span className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold ${
-            parsed.type === 'signal'
-              ? 'bg-emerald-50 text-emerald-600'
-              : parsed.type === 'knowledge' 
-                ? 'bg-[rgba(234,179,8,0.1)] text-yellow-600'
-                : 'bg-[rgba(74,108,247,0.08)] text-[var(--color-primary)]'
+            parsed.type === 'query'
+              ? 'bg-purple-50 text-purple-600'
+              : parsed.type === 'signal'
+                ? 'bg-emerald-50 text-emerald-600'
+                : parsed.type === 'knowledge' 
+                  ? 'bg-[rgba(234,179,8,0.1)] text-yellow-600'
+                  : 'bg-[rgba(74,108,247,0.08)] text-[var(--color-primary)]'
           }`}>
-            {parsed.type === 'signal' ? '📡 시그널' : parsed.type === 'knowledge' ? '💡 지식' : '📋 업무'}
+            {parsed.type === 'query' ? '🔍 정보 검색' : parsed.type === 'signal' ? '📡 시그널' : parsed.type === 'knowledge' ? '💡 지식' : '📋 업무'}
           </span>
         )}
 

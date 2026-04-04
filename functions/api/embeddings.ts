@@ -1,6 +1,7 @@
 interface Env {
-  API_KEY?: string; // Cloudflare Pages 환경변수
-  AI: any; // Cloudflare AI Binding
+  WIKI_VECTORS: any;
+  AI: any;
+  API_KEY?: string;
 }
 
 function jsonResponse(data: unknown, status = 200): Response {
@@ -10,7 +11,6 @@ function jsonResponse(data: unknown, status = 200): Response {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, X-API-Key',
     },
   });
 }
@@ -18,12 +18,8 @@ function jsonResponse(data: unknown, status = 200): Response {
 function authenticate(request: Request, env: Env): boolean {
   const configuredKey = env.API_KEY;
   if (!configuredKey) return true;
-
   const headerKey = request.headers.get('X-API-Key');
-  const url = new URL(request.url);
-  const queryKey = url.searchParams.get('key');
-
-  return headerKey === configuredKey || queryKey === configuredKey;
+  return headerKey === configuredKey;
 }
 
 export const onRequestOptions: PagesFunction<Env> = async () => {
@@ -42,20 +38,26 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   }
 
   try {
-    const body = await context.request.json() as {
-      messages: { role: string; content: string }[];
-    };
-
-    if (!body || !Array.isArray(body.messages)) {
-      return jsonResponse({ success: false, error: 'Missing or invalid messages array' }, 400);
+    const body = await context.request.json() as { id: string; text: string; metadata?: any };
+    if (!body || !body.id || !body.text) {
+      return jsonResponse({ success: false, error: 'id and text are required' }, 400);
     }
 
-    // Cloudflare Workers AI - Switch to highly stable llama-3-8b-instruct to prevent 1031 endpoint proxy errors
-    const response = await context.env.AI.run('@cf/meta/llama-3-8b-instruct', {
-      messages: body.messages,
+    // Embed the text
+    const embeddingResponse = await context.env.AI.run('@cf/baai/bge-m3', {
+      text: [body.text]
     });
+    
+    const vector = embeddingResponse.data[0];
 
-    return jsonResponse({ success: true, response: response.response });
+    // Upsert into Vectorize
+    const results = await context.env.WIKI_VECTORS.upsert([{
+      id: body.id,
+      values: vector,
+      metadata: body.metadata || { text: body.text } // optionally store the raw text in metadata for RAG retrieval
+    }]);
+
+    return jsonResponse({ success: true, count: results.count });
   } catch (error: any) {
     return jsonResponse({ success: false, error: error.message || 'Internal AI Error' }, 500);
   }

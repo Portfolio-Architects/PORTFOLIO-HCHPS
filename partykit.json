@@ -1,0 +1,7 @@
+{
+  "name": "hchps-party",
+  "main": "src/party/index.ts",
+  "vars": {
+    "APP_ENV": "development"
+  }
+}

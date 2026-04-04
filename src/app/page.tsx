@@ -14,6 +14,7 @@ import { QuickInput } from '@/components/QuickInput';
 import { WorkspaceView } from '@/components/WorkspaceView';
 import { MindMap3D } from '@/components/MindMap3D';
 import { TaskKnowledgeView } from '@/components/TaskKnowledgeView';
+import { SearchResultModal, SearchResultItem } from '@/components/SearchResultModal';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 
 // Error Boundary for MindMap3D — prevents signal map crash from breaking entire app
@@ -53,6 +54,9 @@ class MindMapErrorBoundary extends React.Component<
 export default function Home() {
   const [activeModule, setActiveModule] = useState<ModuleType>('workspace');
   const [mounted, setMounted] = useState(false);
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
 
   // Hooks
   const { tasks, addTask, updateTask, deleteTask, moveTask, stats: taskStats } = useTasks();
@@ -119,6 +123,16 @@ export default function Home() {
     touchEndX.current = null;
   };
 
+  useEffect(() => {
+    const handleOpenWiki = (e: CustomEvent) => {
+      if (activeModule !== 'mindmap') {
+        setActiveModule('mindmap');
+      }
+    };
+    window.addEventListener('wiki:openNode', handleOpenWiki as EventListener);
+    return () => window.removeEventListener('wiki:openNode', handleOpenWiki as EventListener);
+  }, [activeModule]);
+
   const handleRenameCategory = (oldName: string, newName: string) => {
     const rawOld = oldName.startsWith('#') ? oldName.slice(1) : oldName;
     const rawNew = newName.startsWith('#') ? newName.slice(1) : newName;
@@ -149,6 +163,121 @@ export default function Home() {
         updateKnowledge(k.id, { tags: k.tags.filter(tag => tag !== rawName) });
       }
     });
+  };
+
+  const handleGlobalSearch = (query: string) => {
+    setSearchQuery(query);
+    const results: SearchResultItem[] = [];
+    
+    // 제거할 특수문자들 (?, /) 을 지우고 실제 검색할 단어만 추출
+    const cleanQuery = query.replace(/^[/?]+|[/?]+$/g, '').trim().toLowerCase();
+    if (!cleanQuery) return;
+    
+    const terms = cleanQuery.split(/\s+/);
+
+    const matchesTerms = (text: string) => {
+      const lower = text.toLowerCase();
+      return terms.every(t => lower.includes(t));
+    };
+
+    const extractTextFromBlocks = (blocks: any[]): string => {
+      if (!Array.isArray(blocks)) return '';
+      let text = '';
+      for (const b of blocks || []) {
+        if (b.content && Array.isArray(b.content)) {
+          text += b.content.map((c: any) => c.text || '').join('') + '\n';
+        } else if (typeof b.content === 'string') {
+          text += b.content + '\n';
+        }
+        if (b.children) text += extractTextFromBlocks(b.children) + '\n';
+      }
+      return text;
+    };
+
+    // Deleted duplicate matchesTerms
+
+    const getContext = (text: string): string => {
+      const firstTerm = terms[0] || '';
+      const matchIndex = firstTerm ? text.toLowerCase().indexOf(firstTerm) : 0;
+      const start = Math.max(0, matchIndex - 200);
+      return (start > 0 ? '... ' : '') + text.slice(start, start + 1000) + (text.length > start + 1000 ? '...' : '');
+    };
+
+    let mapData: any = null;
+    try {
+      mapData = JSON.parse(localStorage.getItem('hchps-map-customization') || '{}');
+    } catch(e) {}
+
+    // 1. Search Wiki Storage
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('HCHPS-Wiki-')) {
+        try {
+          const blocks = JSON.parse(localStorage.getItem(key) || '[]');
+          const text = extractTextFromBlocks(blocks);
+          const nodeId = key.replace('HCHPS-Wiki-', '');
+          
+          let nodeLabel = nodeId;
+          if (mapData) {
+            // 1. 커스텀 노드인지 확인
+            const cNode = mapData.customNodes?.find((n: any) => n.id === nodeId);
+            if (cNode && cNode.label) nodeLabel = cNode.label;
+            
+            // 2. 오버라이드된 이름이 있다면 최우선
+            const overrideLabel = mapData.overrides?.[nodeId]?.customLabel;
+            if (overrideLabel) nodeLabel = overrideLabel;
+          }
+
+          // fallback for auto-generated signal nodes (leaf-tag-XX-LABEL or tag-LABEL)
+          if (nodeLabel === nodeId) {
+            const parts = nodeId.split('-');
+            nodeLabel = parts[parts.length - 1]; // fallback to the last part
+          }
+          
+          const searchableText = `${nodeLabel}\n${text}`;
+          console.log(`[Search Debug] wiki node: ${nodeId}, label: ${nodeLabel}, text: ${text}, matched: ${matchesTerms(searchableText)}`);
+          if (matchesTerms(searchableText)) {
+            results.push({
+              id: key,
+              title: `온톨로지 문서 (${nodeLabel})`,
+              source: '위키 저장소',
+              context: getContext(searchableText)
+            });
+          }
+        } catch (e) {
+          console.error('[Search Debug] error parsing wiki blocks', e);
+        }
+      }
+    }
+
+    // 2. Search Knowledge
+    (knowledgeEntries || []).forEach(k => {
+      const text = k.title + '\n' + k.content;
+      if (matchesTerms(text)) {
+        results.push({
+          id: k.id,
+          title: k.title,
+          source: '지식창고',
+          context: getContext(text)
+        });
+      }
+    });
+
+    // 3. Search Tasks
+    tasks.forEach(t => {
+      const text = t.title + '\n' + (t.description || '');
+      if (matchesTerms(text)) {
+        results.push({
+          id: t.id,
+          title: t.title,
+          source: '업무',
+          context: getContext(text)
+        });
+      }
+    });
+
+    setSearchResults(results);
+    setSearchModalOpen(true);
   };
 
   // ── Merge keywords from ALL Modules into Signal Map (Brain Dump) ──
@@ -325,6 +454,7 @@ export default function Home() {
               addSignal(text);
               if (activeModule !== 'mindmap') setActiveModule('mindmap');
             }}
+            onSearch={handleGlobalSearch}
             onNavigate={(m) => handleModuleChange(m as ModuleType)}
           />
         }
@@ -337,6 +467,13 @@ export default function Home() {
           {renderContent()}
         </div>
       </main>
+
+      <SearchResultModal 
+        isOpen={searchModalOpen}
+        onClose={() => setSearchModalOpen(false)}
+        query={searchQuery}
+        results={searchResults}
+      />
     </div>
   );
 }
