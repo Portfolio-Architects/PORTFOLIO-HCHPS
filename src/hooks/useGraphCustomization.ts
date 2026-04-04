@@ -132,12 +132,14 @@ export function useGraphCustomization() {
     ydoc.transact(() => {
       const map = ydoc.getMap<NodeOverride>('overrides');
       const current = map.get(id) || {};
-      const next = { ...current, ...override };
+      const next = { ...current };
       
-      // Allow clearing specific fields explicitly
+      // Allow clearing specific fields explicitly by setting them to `null` to retain intent
       Object.keys(override).forEach(k => {
         if (override[k as keyof NodeOverride] === undefined) {
-          delete next[k as keyof NodeOverride];
+          (next as any)[k] = null;
+        } else {
+          (next as any)[k] = override[k as keyof NodeOverride];
         }
       });
       map.set(id, next);
@@ -149,7 +151,15 @@ export function useGraphCustomization() {
       const map = ydoc.getMap<NodeOverride>('overrides');
       for (const [id, override] of Object.entries(updates)) {
         const current = map.get(id) || {};
-        map.set(id, { ...current, ...override });
+        const next = { ...current };
+        Object.keys(override).forEach(k => {
+          if (override[k as keyof NodeOverride] === undefined) {
+            (next as any)[k] = null;
+          } else {
+            (next as any)[k] = override[k as keyof NodeOverride];
+          }
+        });
+        map.set(id, next);
       }
     });
   }, [ydoc]);

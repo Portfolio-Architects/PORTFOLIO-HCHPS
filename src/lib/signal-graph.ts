@@ -187,14 +187,25 @@ export function buildSignalGraph(
         const dataNodeId = dataLabels.get(actualLabel)!;
         if (override) {
           const targetOverride = customData.overrides[dataNodeId] || {};
+          
+          const resolveProp = (key: keyof typeof targetOverride) => {
+            if ((targetOverride as any)[key] !== undefined) {
+              return (targetOverride as any)[key] === null ? undefined : (targetOverride as any)[key];
+            }
+            return (override as any)[key] === null ? undefined : (override as any)[key];
+          };
+
           customData.overrides[dataNodeId] = {
             ...targetOverride,
-            fixedX: targetOverride.fixedX ?? override.fixedX,
-            fixedY: targetOverride.fixedY ?? override.fixedY,
-            customColor: targetOverride.customColor ?? override.customColor,
-            customGroup: targetOverride.customGroup ?? override.customGroup,
-            customParent: targetOverride.customParent ?? override.customParent,
-            customOrbitIndex: targetOverride.customOrbitIndex ?? override.customOrbitIndex,
+            fixedX: resolveProp('fixedX'),
+            fixedY: resolveProp('fixedY'),
+            customColor: resolveProp('customColor'),
+            customGroup: resolveProp('customGroup'),
+            customParent: resolveProp('customParent'),
+            customOrbitIndex: resolveProp('customOrbitIndex'),
+            customLabel: resolveProp('customLabel'),
+            customSortOrder: resolveProp('customSortOrder'),
+            hidden: resolveProp('hidden'),
           };
         }
         return; // Skip adding `cn`
@@ -213,34 +224,34 @@ export function buildSignalGraph(
       const override = customData.overrides[n.id];
       if (override) {
         // --- 지정 좌표(fixed X,Y) 강제 반영 ---
-        // 사용자가 명시적으로 드래그하여 고정한 좌표가 있다면, 궤도 구속을 무시하고 해당 위치로 갱신합니다.
-        // override 값에 undefined 가 설정될 수 있으므로(고정 해제 시), 명시적으로 키가 존재하는지 판단하여 덮어씁니다.
-        if ('fixedX' in override) n.fixedX = override.fixedX;
-        if ('fixedY' in override) n.fixedY = override.fixedY;
+        if ('fixedX' in override) n.fixedX = override.fixedX === null ? undefined : override.fixedX;
+        if ('fixedY' in override) n.fixedY = override.fixedY === null ? undefined : override.fixedY;
 
         if (override.customColor !== undefined) {
-          n.customColor = override.customColor;
-          (n as any).isExplicitColor = true;
+          n.customColor = override.customColor === null ? undefined : override.customColor;
+          if (n.customColor) (n as any).isExplicitColor = true;
         }
-        if (override.customLabel !== undefined) n.label = override.customLabel;
-        if (override.customGroup !== undefined) n.group = override.customGroup as OntologyGroup;
-        if (override.customOrbitIndex !== undefined) n.customOrbitIndex = override.customOrbitIndex;
-        if (override.customSortOrder !== undefined) n.customSortOrder = override.customSortOrder;
+        if (override.customLabel !== undefined) n.label = override.customLabel === null ? n.label : (override.customLabel as string);
+        if (override.customGroup !== undefined) n.group = override.customGroup === null ? n.group : (override.customGroup as OntologyGroup);
+        if (override.customOrbitIndex !== undefined) n.customOrbitIndex = override.customOrbitIndex === null ? undefined : override.customOrbitIndex;
+        if (override.customSortOrder !== undefined) n.customSortOrder = override.customSortOrder === null ? undefined : override.customSortOrder;
+        
+        const safeParent = override.customParent === null ? undefined : override.customParent;
         if (override.customParent !== undefined) {
-          if (override.customParent === 'NONE') {
+          if (safeParent === 'NONE') {
             n.parentId = undefined;
             const edgeIndex = edges.findIndex(e => e.target === n.id && !(e as any).isCustom);
             if (edgeIndex !== -1) edges.splice(edgeIndex, 1);
-          } else {
-            n.parentId = override.customParent;
+          } else if (safeParent) {
+            n.parentId = safeParent;
             
             // Re-route the structural edge (target === n.id)
             const edge = edges.find(e => e.target === n.id && !(e as any).isCustom);
             if (edge) {
-              edge.source = override.customParent;
+              edge.source = safeParent;
             } else {
               edges.push({
-                source: override.customParent,
+                source: safeParent,
                 target: n.id,
                 weight: 0.7,
                 type: 'DEPENDENCY'
@@ -248,14 +259,10 @@ export function buildSignalGraph(
             }
             
             // Sync colour with new parent if custom group/color are not explicitly overridden
-            const newParent = nodes.find(pn => pn.id === override.customParent);
-            if (newParent && override.customGroup === undefined && override.customColor === undefined) {
+            const newParent = nodes.find(pn => pn.id === safeParent);
+            if (newParent && (override.customGroup === undefined || override.customGroup === null) && (override.customColor === undefined || override.customColor === null)) {
               n.group = newParent.group;
-              if (newParent.customColor) {
-                n.customColor = newParent.customColor;
-              } else {
-                n.customColor = undefined;
-              }
+              n.customColor = newParent.customColor || undefined;
             }
           }
         }
