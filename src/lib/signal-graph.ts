@@ -24,6 +24,7 @@ export function buildSignalGraph(
     overrides: Record<string, { fixedX?: number; fixedY?: number; customColor?: string; customLabel?: string; customGroup?: string; customParent?: string; customOrbitIndex?: number; customSortOrder?: number; hidden?: boolean }>;
     customNodes: OntologyNode[];
     customEdges: OntologyEdge[];
+    deletedEdges?: string[];
   }
 ): OntologyGraph {
   const nodes: OntologyNode[] = [];
@@ -185,12 +186,15 @@ export function buildSignalGraph(
         // A data node with this label exists. Transfer overrides and skip rendering the duplicate.
         const dataNodeId = dataLabels.get(actualLabel)!;
         if (override) {
+          const targetOverride = customData.overrides[dataNodeId] || {};
           customData.overrides[dataNodeId] = {
-            ...customData.overrides[dataNodeId],
-            fixedX: override.fixedX ?? customData.overrides[dataNodeId]?.fixedX,
-            fixedY: override.fixedY ?? customData.overrides[dataNodeId]?.fixedY,
-            customColor: override.customColor ?? customData.overrides[dataNodeId]?.customColor,
-            customGroup: override.customGroup ?? customData.overrides[dataNodeId]?.customGroup,
+            ...targetOverride,
+            fixedX: targetOverride.fixedX ?? override.fixedX,
+            fixedY: targetOverride.fixedY ?? override.fixedY,
+            customColor: targetOverride.customColor ?? override.customColor,
+            customGroup: targetOverride.customGroup ?? override.customGroup,
+            customParent: targetOverride.customParent ?? override.customParent,
+            customOrbitIndex: targetOverride.customOrbitIndex ?? override.customOrbitIndex,
           };
         }
         return; // Skip adding `cn`
@@ -201,6 +205,8 @@ export function buildSignalGraph(
     customData.customEdges.forEach(ce => {
       edges.push({ ...ce, isCustom: true } as OntologyEdge & { isCustom?: boolean });
     });
+
+    // (DeletedEdges processing moved to the end of custom mapping to catch customParent generated edges)
 
     // Apply Overrides (Pins, Colors, Labels, Groups)
     nodes.forEach(n => {
@@ -262,6 +268,18 @@ export function buildSignalGraph(
         }
       }
     });
+    
+    // Remove deleted edges (tombstones for structural, custom, and customParent rerouted edges)
+    // Placed *after* all edge creation phases so tombstones unilaterally override anything.
+    if (customData.deletedEdges && customData.deletedEdges.length > 0) {
+      const deletedSet = new Set(customData.deletedEdges);
+      for (let i = edges.length - 1; i >= 0; i--) {
+        const e = edges[i];
+        if (deletedSet.has(`${e.source}|||${e.target}`) || deletedSet.has(`${e.target}|||${e.source}`)) {
+          edges.splice(i, 1);
+        }
+      }
+    }
   }
 
   let finalNodes = nodes;

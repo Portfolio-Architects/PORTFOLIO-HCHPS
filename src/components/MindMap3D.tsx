@@ -9,13 +9,16 @@ import {
   GROUP_COLORS, GROUP_LABELS, OntologyGroup,
   EDGE_TYPE_LABELS, EdgeType,
 } from '@/lib/ontology.types';
+import { useGraphCustomization } from '@/hooks/useGraphCustomization';
+import { WikiEditor } from './WikiEditor';
+import { useWikiStorage } from '@/hooks/useWikiStorage';
 import {
-  Radio, Loader2, RefreshCw, AlertTriangle,
+  Radio, Loader2, RefreshCw, AlertTriangle, BookOpen,
   Circle, Link2, X, ChevronRight, ChevronUp, ChevronDown, Zap, Maximize2, Minimize2,
   Trash2, FileText, Edit2, Plus, Palette, PinOff, PlusSquare, Waypoints, Eraser, Play, Pause,
   CheckCircle, Unlink, Crosshair
 } from 'lucide-react';
-import { useGraphCustomization } from '@/hooks/useGraphCustomization';
+
 
 // ============ Props ============
 
@@ -51,8 +54,37 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   const [hoveredNode, setHoveredNode] = useState<OrbitalNode | null>(null);
   const [connectedEdges, setConnectedEdges] = useState<Array<{ edge: OntologyEdge; otherNode: OrbitalNode }>>([]);
   const [stats, setStats] = useState({ nodes: 0, edges: 0 });
-  const { overrides, customNodes, customEdges, undo, redo, setNodeOverride, batchSetNodeOverrides, clearNodeOverride, addCustomNode, deleteCustomNode, updateCustomNodeText, addCustomEdge, deleteCustomEdge, clearOverrides, clearAll } = useGraphCustomization();
-  
+  const [isAddingNode, setIsAddingNode] = useState(false);
+  const [newNodeName, setNewNodeName] = useState("");
+  const [bridgePrompt, setBridgePrompt] = useState<{ edge: any, x: number, y: number } | null>(null);
+  const [bridgeName, setBridgeName] = useState("");
+  const { overrides = {}, customNodes = [], customEdges = [], deletedEdges = [], undo, redo, setNodeOverride, batchSetNodeOverrides, clearNodeOverride, addCustomNode, deleteCustomNode, updateCustomNodeText, addCustomEdge, deleteCustomEdge, removeCustomTombstone, clearOverrides, clearAll } = useGraphCustomization();
+  useEffect(() => {
+    const handleOpenWiki = (e: CustomEvent<{ id: string; label: string }>) => {
+      // Find the actual node if it exists in the engine, otherwise mock enough properties for WikiEditor to work
+      const existingNode = engineRef.current?.nodes.find(n => n.id === e.detail.id);
+      setActiveNode((existingNode || {
+        id: e.detail.id,
+        label: e.detail.label,
+        type: 'core',
+        radius: 20,
+        x: 0, y: 0, vx: 0, vy: 0
+      }) as unknown as OrbitalNode);
+    };
+    
+    const handleCloseWiki = () => {
+      setActiveNode(null);
+    };
+
+    window.addEventListener('wiki:openNode', handleOpenWiki as EventListener);
+    window.addEventListener('wiki:closeNode', handleCloseWiki as EventListener);
+    
+    return () => {
+      window.removeEventListener('wiki:openNode', handleOpenWiki as EventListener);
+      window.removeEventListener('wiki:closeNode', handleCloseWiki as EventListener);
+    };
+  }, []);
+
   // ── Keyboard Shortcuts (Undo/Redo) ──
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -81,18 +113,22 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   const overridesRef = useRef(overrides);
   const customNodesRef = useRef(customNodes);
   const customEdgesRef = useRef(customEdges);
+  const deletedEdgesRef = useRef(deletedEdges);
   overridesRef.current = overrides;
   customNodesRef.current = customNodes;
   customEdgesRef.current = customEdges;
+  deletedEdgesRef.current = deletedEdges;
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [newKeyword, setNewKeyword] = useState('');
   const [edgeModeSource, setEdgeModeSource] = useState<string | null>(null);
   const [parentModeSource, setParentModeSource] = useState<string | null>(null);
-  const [show5W1H, setShow5W1H] = useState(false);
-  const show5W1HRef = useRef(false);
-  useEffect(() => { show5W1HRef.current = show5W1H; }, [show5W1H]);
+
+  
+  const [isWikiOpen, setIsWikiOpen] = useState(false);
+  const { blocks: wikiBlocks, isLoaded: wikiLoaded, saveBlocks: saveWikiBlocks } = useWikiStorage(isWikiOpen && activeNode ? activeNode.id : null, setNodeOverride);
+  
   const tooltipRef = useRef<HTMLDivElement>(null);
   const edgeModeSourceRef = useRef(edgeModeSource);
   useEffect(() => { edgeModeSourceRef.current = edgeModeSource; }, [edgeModeSource]);
@@ -112,6 +148,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
         overrides: overridesRef.current,
         customNodes: customNodesRef.current,
         customEdges: customEdgesRef.current,
+        deletedEdges: deletedEdgesRef.current // Fix stale closure issue
       });
       setUsingSample(Object.keys(signalKeywordsRef.current).length === 0);
 
@@ -160,7 +197,6 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
           }
 
           setActiveNode(node ?? null);
-          if (node) setShow5W1H(true);
           if (node && engineRef.current) {
             setConnectedEdges(engineRef.current.getConnectedEdges(node.id));
           } else {
@@ -168,57 +204,14 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
           }
         },
         onHoveredNodeChange: (node) => setHoveredNode(node ?? null),
-        onEdgeClick: (edge) => {
-          const label = prompt('새로운 중간 연결 노드(진척 단계)의 이름을 입력하세요:\n(예: 기안 작성, 테스트 진행 등)');
-          if (!label) return;
-          
-          const srcId = typeof edge.source === 'object' ? (edge.source as any).id : edge.source;
-          const tgtId = typeof edge.target === 'object' ? (edge.target as any).id : edge.target;
-          const srcNode = engineRef.current?.nodes.find((n) => n.id === srcId);
-          const tgtNode = engineRef.current?.nodes.find((n) => n.id === tgtId);
-          
-          if (!srcNode || !tgtNode) return;
-          
-          const midX = ((srcNode.worldX ?? 0) + (tgtNode.worldX ?? 0)) / 2;
-          const midY = ((srcNode.worldY ?? 0) + (tgtNode.worldY ?? 0)) / 2;
-          
-          // 1. Create the new node exactly at the physical midpoint
-          const newNode = addCustomNode(label, midX, midY);
-          
-          // 2. Identify if the edge is Structural (parent-child) or Custom (drawn line)
-          // It is considered structural if tgtNode's internal parentId points to srcNode
-          const isStructural = tgtNode.parentId === srcNode.id;
-          
-          if (isStructural) {
-             // Split structural hierarchy: Src -> New -> Tgt
-             setNodeOverride(newNode.id, { 
-                customParent: srcNode.id, 
-                customOrbitIndex: srcNode.orbitIndex > 0 ? srcNode.orbitIndex + 1 : 1,
-                fixedX: undefined, fixedY: undefined 
-             });
-             setNodeOverride(tgtNode.id, { 
-                customParent: newNode.id, 
-                customOrbitIndex: srcNode.orbitIndex + 2 
-             });
-          } else {
-             // Split custom correlation: Delete A->B, Create A->New and New->B
-             deleteCustomEdge(srcId, tgtId);
-             addCustomEdge(srcId, newNode.id);
-             addCustomEdge(newNode.id, tgtId);
-             setNodeOverride(newNode.id, {
-                customOrbitIndex: Math.max(srcNode.orbitIndex, tgtNode.orbitIndex)
-                // 브릿지 노드는 물리엔진에 의해 공전하도록 날려보내지 않고,
-                // 최초 생성된 그 자리(정확하게 두 노드의 정중앙 좌표)에 영구적으로 핀 고정(Pin)시킵니다.
-             });
-          }
-          
-          setTimeout(() => initEngine(), 50);
+        onEdgeClick: (edge: any) => {
+          setBridgePrompt({ edge, x: window.innerWidth / 2, y: window.innerHeight / 2 });
+          setBridgeName("");
         },
         onNodeReparent: (id, newParentId, newOrbit) => {
           // Changed categorical parent, set target orbit, and clean up any physical pins
           setNodeOverride(id, { customParent: newParentId, customOrbitIndex: newOrbit, fixedX: undefined, fixedY: undefined });
-          // Defer initEngine so React state batching processes first
-          setTimeout(() => initEngine(), 30);
+          // setTimeout 제거: useEffect의 topologicOverridesHash 추적에 의해 자동 리렌더링됨
         },
         onNodePin: (id, fixedX, fixedY) => {
           // User manually dropped node somewhere; lock it to the map
@@ -254,6 +247,37 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
   }, [initEngine]);
+
+  // ── Async Data Hydration ──
+  // 최초 렌더링 시에는 Yjs 네트워크 지연으로 overrides가 빈 통({}) 상태입니다.
+  // 찰나의 순간 뒤 서버에서 데이터가 넘어오거나 마이그레이션이 발동하면, 한 번 엔진을 덮어씌워서 복구(초기화)합니다.
+  const didInitialAsyncLoad = useRef(false);
+  const prevDataLengths = useRef({ nodes: 0, edges: 0, deletedEdges: 0, topoHash: '' });
+  
+  // customParent, customOrbitIndex 등 토폴로지에 영향을 주는 속성 변경사항만 추적 (좌표이동 fixedX/Y 제외)
+  const topologicOverridesHash = Object.entries(overrides)
+    .filter(([_, ov]) => ov.customParent !== undefined || ov.customOrbitIndex !== undefined)
+    .map(([id, ov]) => `${id}:${ov.customParent}:${ov.customOrbitIndex}`)
+    .sort()
+    .join('|');
+
+  useEffect(() => {
+    // 하나라도 복구된(존재하는) 데이터가 들어왔고, 방금 막 다운로드 받은 상태라면
+    if (!didInitialAsyncLoad.current && (Object.keys(overrides).length > 0 || customNodes.length > 0 || customEdges.length > 0 || deletedEdges.length > 0)) {
+      didInitialAsyncLoad.current = true;
+      prevDataLengths.current = { nodes: customNodes.length, edges: customEdges.length, deletedEdges: deletedEdges.length, topoHash: topologicOverridesHash };
+      initEngine();
+    } else if (didInitialAsyncLoad.current) {
+      // 그 이후에 노드 생성/삭제 또는 토폴로지(부모/궤도/연결끊기)가 변동했다면 엔진 재초기화 (수동 setTimeout 타이밍 이슈 해결)
+      if (customNodes.length !== prevDataLengths.current.nodes || 
+          customEdges.length !== prevDataLengths.current.edges ||
+          deletedEdges.length !== prevDataLengths.current.deletedEdges ||
+          topologicOverridesHash !== prevDataLengths.current.topoHash) {
+        prevDataLengths.current = { nodes: customNodes.length, edges: customEdges.length, deletedEdges: deletedEdges.length, topoHash: topologicOverridesHash };
+        initEngine();
+      }
+    }
+  }, [overrides, customNodes.length, customEdges.length, deletedEdges.length, topologicOverridesHash, initEngine]);
 
   useEffect(() => {
     if (loading || error) return;
@@ -368,6 +392,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
       const childId = parentModeSource;
       const parentNode = engine.activeNode;
       const newOrbit = parentNode.orbitIndex > 0 ? parentNode.orbitIndex + 1 : undefined;
+      removeCustomTombstone(childId, parentNode.id); // 부모 지정 시 기존 Tombstone 삭제
       setNodeOverride(childId, { customParent: parentNode.id, customOrbitIndex: newOrbit });
       setParentModeSource(null);
       setTimeout(() => initEngine(), 50);
@@ -391,9 +416,9 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
       }
       
       setEdgeModeSource(null);
-      setTimeout(() => initEngine(), 50);
+      // setTimeout 제거: customEdges.length 변화 감지로 자동 엔진 재시작됨
     }
-  }, [getCanvasPos, edgeModeSource, parentModeSource, addCustomEdge, initEngine, setNodeOverride]);
+  }, [getCanvasPos, edgeModeSource, parentModeSource, addCustomEdge, deleteCustomEdge, initEngine, setNodeOverride]);
 
   // ── Touch Events for Mobile ──
   const touchStartRef = useRef<{ x: number; y: number; time: number; pinchDist?: number }>({ x: 0, y: 0, time: 0 });
@@ -579,159 +604,6 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   }
 
 
-  const render5W1HPanel = (isSidebar: boolean) => {
-    if (!activeNode || !show5W1H) {
-      if (!isSidebar) return null;
-      
-      const topKeywords = Object.entries(signalKeywords)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5);
-        
-      const totalNodes = engineRef.current?.nodes?.length || 0;
-
-      return (
-        <div className="w-full bg-white rounded-xl p-5 shadow-sm border border-[var(--color-border-light)] flex flex-col gap-5 relative animate-in fade-in duration-300 h-full overflow-y-auto custom-scrollbar pointer-events-auto">
-          <div className="flex items-center gap-2.5 border-b border-gray-100 pb-3">
-            <div className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
-            <h3 className="text-[15px] font-bold text-slate-800">시그널 데이터 요약</h3>
-          </div>
-          
-          <div className="flex flex-col gap-3">
-            <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 flex flex-col gap-1">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">총 시그널 (데이터)</span>
-              <span className="text-xl font-black text-indigo-600">{signalEntries.length}건</span>
-            </div>
-            
-            <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 flex flex-col gap-1">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">활성 노드 (그래프)</span>
-              <span className="text-xl font-black text-emerald-600">{totalNodes}개</span>
-            </div>
-          </div>
-          
-          <div className="mt-2 flex flex-col gap-2">
-            <h4 className="text-xs font-bold text-slate-700 mb-1">🔥 Top 5 핵심 키워드</h4>
-            {topKeywords.length > 0 ? (
-              <div className="flex flex-col gap-2">
-                {topKeywords.map(([kw, count], idx) => (
-                  <div key={kw} className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2 truncate pr-2">
-                      <span className="text-[10px] font-bold text-slate-400 w-3">{idx + 1}</span>
-                      <span className="font-medium text-slate-700 truncate">{kw}</span>
-                    </div>
-                    <span className="text-xs font-bold px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded-md">
-                      {count}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-slate-400 py-2">추출된 키워드가 없습니다.</p>
-            )}
-          </div>
-          
-          <div className="mt-auto pt-4 border-t border-gray-100">
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              캔버스에서 노드를 클릭하면 해당 노드의 상세 5W1H 정보가 여기에 표시됩니다.
-            </p>
-          </div>
-        </div>
-      );
-    }
-    return (
-      <div
-        className={
-          isSidebar
-            ? "w-full bg-white rounded-xl p-5 shadow-sm border border-[var(--color-border-light)] flex flex-col gap-4 relative animate-in fade-in duration-300 h-full overflow-y-auto custom-scrollbar pointer-events-auto"
-            : "absolute top-4 right-4 z-[110] w-[280px] max-w-[90%] bg-white/95 backdrop-blur-xl rounded-xl p-5 shadow-2xl border border-emerald-100 flex flex-col gap-4 animate-in fade-in slide-in-from-right-4 duration-300 pointer-events-auto"
-        }
-        style={isSidebar ? {} : { maxHeight: 'calc(100vh - 32px)', overflowY: 'auto' }}
-      >
-        <div className="flex items-center justify-between border-b border-emerald-50/80 pb-3">
-          <div className="flex items-center gap-2.5">
-            <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: GROUP_COLORS[activeNode.group as OntologyGroup] }} />
-            <span className="text-[14px] font-bold text-slate-800 truncate pr-2">{activeNode.label} 5W1H 정보</span>
-          </div>
-          <button 
-            onClick={() => setShow5W1H(false)}
-            className="p-1.5 text-slate-400 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer shrink-0"
-            title="패널 닫기"
-          >
-            <X size={16} />
-          </button>
-        </div>
-
-        {/* 5W1H Inputs (1 column grid for sidebar) */}
-        <div className="grid grid-cols-1 gap-y-3">
-          {[
-            { key: 'department', label: '소속' },
-            { key: 'title', label: '직함' },
-            { key: 'contact', label: '연락처' },
-            { key: 'when', label: '언제' },
-            { key: 'where', label: '어디서' },
-            { key: 'what', label: '무엇을' }
-          ].map(({ key, label }) => {
-            const typedKey = key as 'department' | 'title' | 'contact' | 'when' | 'where' | 'what';
-            const rawVal = overrides[activeNode.id]?.story5W1H?.[typedKey] || '';
-
-            let displayVal = rawVal;
-            if (key === 'when' && !rawVal) {
-              const d = new Date();
-              const pad = (n: number) => n.toString().padStart(2, '0');
-              displayVal = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T00:00`;
-            }
-
-            return (
-              <div key={key} className="flex flex-col gap-1.5">
-                <label className="text-[11px] font-bold text-slate-500 tracking-wide pl-1">{label}</label>
-                <input
-                  type={key === 'when' ? 'datetime-local' : 'text'}
-                  value={key === 'when' ? displayVal : rawVal}
-                  onChange={(e) => {
-                    const current5W1H = overrides[activeNode.id]?.story5W1H || {};
-                    let inputVal = e.target.value;
-                    
-                    if (key === 'contact') {
-                      inputVal = inputVal.replace(/[^0-9]/g, '');
-                      if (inputVal.startsWith('02')) {
-                        if (inputVal.length >= 3 && inputVal.length <= 5) {
-                          inputVal = inputVal.replace(/(\d{2})(\d+)/, '$1-$2');
-                        } else if (inputVal.length > 5 && inputVal.length < 10) {
-                          inputVal = inputVal.replace(/(\d{2})(\d{3})(\d+)/, '$1-$2-$3');
-                        } else if (inputVal.length >= 10) {
-                          inputVal = inputVal.replace(/(\d{2})(\d{4})(\d{4}).*/, '$1-$2-$3');
-                        }
-                      } else {
-                        if (inputVal.length >= 4 && inputVal.length <= 6) {
-                          inputVal = inputVal.replace(/(\d{3})(\d+)/, '$1-$2');
-                        } else if (inputVal.length > 6 && inputVal.length === 10) {
-                          inputVal = inputVal.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3');
-                        } else if (inputVal.length > 10) {
-                          inputVal = inputVal.replace(/(\d{3})(\d{4})(\d{4}).*/, '$1-$2-$3');
-                        } else if (inputVal.length > 6) {
-                           inputVal = inputVal.replace(/(\d{3})(\d{3,4})/, '$1-$2-');
-                        }
-                      }
-                  }
-
-                  if (key === 'when' && !rawVal && inputVal) {
-                  }
-
-                  setNodeOverride(activeNode.id, { 
-                    story5W1H: { ...current5W1H, [typedKey]: inputVal } 
-                  });
-                }}
-                onFocus={(e) => e.stopPropagation()}
-                placeholder={key === 'when' ? '' : `${label} 입력...`}
-                className={`w-full bg-slate-50 text-sm px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 focus:bg-white transition-all shadow-sm ${key === 'when' ? 'text-slate-600' : ''}`}
-              />
-            </div>
-          );
-        })}
-        </div>
-      </div>
-    );
-  };
-
 
   const renderNodeDetails = (isOverlay: boolean) => {
     return (
@@ -763,7 +635,12 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="font-semibold text-base text-[var(--color-text-primary)] leading-snug flex items-center justify-between">
-                          <span className="truncate pr-2">{activeNode.label}</span>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="truncate">{activeNode.label}</span>
+                            <span className="shrink-0 px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded text-[10px] font-bold">
+                              {activeNode.orbitIndex === 0 ? '중심' : `${activeNode.orbitIndex}궤도`}
+                            </span>
+                          </div>
                           <button
                             onClick={() => {
                               const newName = prompt('새 이름을 입력하세요:', activeNode.label);
@@ -808,26 +685,26 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                                 }
                               }
                             }}
-                            className="p-1.5 bg-gray-100 text-gray-500 rounded-lg hover:bg-gray-200 hover:text-gray-700 transition-colors cursor-pointer shrink-0"
+                            className="p-1.5 bg-gray-100 text-gray-500 rounded-lg hover:bg-gray-200 hover:text-gray-700 transition-colors cursor-pointer shrink-0 ml-2"
                             title="이름 수정"
                           >
                             <Edit2 size={12} />
                           </button>
                         </div>
-                        <span className="text-xs text-[var(--color-text-tertiary)]">
-                          {GROUP_LABELS[activeNode.group as OntologyGroup]}
-                        </span>
+                        <div className="flex items-center gap-1.5 text-xs text-[var(--color-text-tertiary)] mt-0.5">
+                          {(activeNode.orbitIndex === 1 || (activeNode.parentId && activeNode.parentId !== 'root-HCHPS')) && (
+                            <>
+                              <span className="text-emerald-600 font-medium truncate">
+                                📁 카테고리: {activeNode.orbitIndex === 1 ? '메인' : (engineRef.current?.nodes.find((n: OrbitalNode) => n.id === activeNode.parentId)?.label || (activeNode.parentId?.startsWith('tag-') ? activeNode.parentId.replace('tag-', '') : '지정됨'))}
+                              </span>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
 
                     {/* Tags */}
                     <div className="flex flex-wrap gap-1.5 mb-3">
-                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-600">
-                        중요도 {activeNode.baseValue}
-                      </span>
-                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-600">
-                        연결 {connectedEdges.length}개
-                      </span>
                       {activeNode.isHedge && (
                         <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600">
                           🚧 병목 노드
@@ -835,21 +712,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                       )}
                     </div>
 
-                    {/* Metrics bar */}
-                    <div className="flex gap-2 mb-4">
-                      <div className="flex-1 bg-gray-50 rounded-lg px-2.5 py-1.5 text-center">
-                        <div className="text-xs text-[var(--color-text-tertiary)]">순가중치</div>
-                        <div className={`text-sm font-bold ${(activeNode.netWeight ?? 0) < 0 ? 'text-red-500' : 'text-blue-500'}`}>
-                          {(activeNode.netWeight ?? 0) >= 0 ? '+' : ''}{(activeNode.netWeight ?? 0).toFixed(2)}
-                        </div>
-                      </div>
-                      <div className="flex-1 bg-gray-50 rounded-lg px-2.5 py-1.5 text-center">
-                        <div className="text-xs text-[var(--color-text-tertiary)]">궤도</div>
-                        <div className="text-sm font-bold text-[var(--color-text-primary)]">
-                          {activeNode.orbitIndex === 0 ? '중심' : `${activeNode.orbitIndex}궤도`}
-                        </div>
-                      </div>
-                    </div>
+
 
                     {/* Node Controls (Whiteboard) */}
                     <div className="mb-5">
@@ -918,6 +781,8 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                                 } else {
                                   const parentNode = engineRef.current?.nodes.find((n: OrbitalNode) => n.id === val);
                                   const newOrbit = parentNode ? parentNode.orbitIndex + 1 : undefined;
+                                  // 과거에 이 대상과의 '끊기'를 수행한 적이 있다면 (Tombstone 존재), 부모 지정을 위해 Tombstone을 영구히 파기
+                                  removeCustomTombstone(activeNode.id, val);
                                   setNodeOverride(activeNode.id, { customParent: val, customOrbitIndex: newOrbit });
                                 }
                                 setTimeout(() => initEngine(), 50);
@@ -972,28 +837,8 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                         <Trash2 size={12} /> 관리 속성
                       </div>
                       <div className="flex flex-col gap-1.5">
-                        {activeNode.fixedX !== undefined && (
-                          <button
-                            onClick={() => {
-                              setNodeOverride(activeNode.id, { fixedX: undefined, fixedY: undefined });
-                              if (engineRef.current) {
-                                const engineNode = engineRef.current.nodes.find((n: OrbitalNode) => n.id === activeNode.id);
-                                if (engineNode) {
-                                  delete engineNode.fixedX;
-                                  delete engineNode.fixedY;
-                                }
-                                const newNode = { ...activeNode };
-                                delete newNode.fixedX;
-                                delete newNode.fixedY;
-                                setActiveNode(newNode);
-                              }
-                            }}
-                            className="w-full flex items-center px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer shadow-sm transition-colors"
-                          >
-                            <PinOff size={14} className="mr-2" /> 맵 고정 위치 해제 (초기화)
-                          </button>
-                        )}
                         
+
                         <div className="flex gap-1.5 mt-0.5">
                           <button
                             onClick={() => {
@@ -1087,14 +932,18 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   if (confirm(`'${activeNode.label}'과 '${otherNode.label}' 사이의 연결을 끊으시겠습니까?`)) {
-                                    if (activeNode.parentId === otherNode.id) {
-                                      setNodeOverride(activeNode.id, { customParent: 'NONE' });
-                                    } else if (otherNode.parentId === activeNode.id) {
-                                      setNodeOverride(otherNode.id, { customParent: 'NONE' });
-                                    } else {
-                                      deleteCustomEdge(activeNode.id, otherNode.id);
+                                    console.log('[Unlink] clicked. activeNode:', activeNode.id, activeNode.parentId, 'otherNode:', otherNode.id, otherNode.parentId);
+                                    let handled = false;
+                                    if (activeNode.parentId === otherNode.id || otherNode.id.startsWith('tag-')) {
+                                      setNodeOverride(activeNode.id, { customParent: 'NONE', customOrbitIndex: undefined });
                                     }
-                                    setTimeout(() => initEngine(), 50);
+                                    if (otherNode.parentId === activeNode.id || activeNode.id.startsWith('tag-')) {
+                                      setNodeOverride(otherNode.id, { customParent: 'NONE', customOrbitIndex: undefined });
+                                    }
+                                    
+                                    // Always trigger deleteCustomEdge to generate a tombstone just in case it was a structural/co-oc edge that 'isCustom' missed
+                                    console.log('[Unlink] generating tombstone.');
+                                    deleteCustomEdge(activeNode.id, otherNode.id);
                                   }
                                 }}
                                 className="px-2.5 flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg cursor-pointer transition-colors"
@@ -1107,6 +956,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                         </div>
                       </div>
                     )}
+
                   </div>
                 ) : (
                   <div className="text-center py-8">
@@ -1141,6 +991,14 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {activeNode && !isWikiOpen && (
+            <button
+              onClick={() => setIsWikiOpen(true)}
+              className="flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 text-xs font-bold hover:bg-indigo-100 shadow-sm border border-indigo-200 cursor-pointer transition-colors"
+            >
+              <BookOpen size={15} /> 위키 문서 편집
+            </button>
+          )}
           {usingSample && (
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 font-medium">
               시그널을 입력해주세요
@@ -1154,33 +1012,87 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
 
         {/* ── Side Panel: Node Details (노드 상세 패널) ── */}
         <div className={isFullscreen ? "hidden md:flex flex-col fixed top-4 right-auto bottom-4 left-4 z-[110] w-[280px] lg:w-[320px] shadow-2xl rounded-xl custom-scrollbar pointer-events-auto bg-[#f8f9fc]" : "order-2 lg:order-none w-full pointer-events-auto flex flex-col gap-3"} style={{ height: isFullscreen ? "calc(100vh - 32px)" : "min(600px, 70vh)" }}>
-          <button
-            onClick={() => {
-              const label = prompt('추가할 노드 이름을 입력하세요:');
-              if (label) {
-                const engine = engineRef.current;
-                const categories = engine ? engine.nodes.filter(n => n.orbitIndex === 1) : [];
-                const x = (Math.random() - 0.5) * 50;
-                const y = (Math.random() - 0.5) * 50;
-                const newNode = addCustomNode(label, x, y);
+          {isAddingNode ? (
+            <div className="w-full shrink-0 flex flex-col gap-2 p-3 rounded-xl bg-white shadow-sm border border-[var(--color-primary)] animate-in fade-in zoom-in-95 duration-200">
+              <input
+                autoFocus
+                type="text"
+                value={newNodeName}
+                onChange={e => setNewNodeName(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Escape') setIsAddingNode(false);
+                  if (e.key === 'Enter') {
+                    if (newNodeName.trim()) {
+                      const engine = engineRef.current;
+                      const categories = engine ? engine.nodes.filter(n => n.orbitIndex === 1) : [];
+                      const x = (Math.random() - 0.5) * 50;
+                      const y = (Math.random() - 0.5) * 50;
+                      const newNode = addCustomNode(newNodeName.trim(), x, y);
 
-                if (activeNode) {
-                  setNodeOverride(newNode.id, { 
-                    customParent: activeNode.id, customOrbitIndex: activeNode.orbitIndex + 1, fixedX: undefined, fixedY: undefined 
-                  });
-                } else if (categories.length > 0) {
-                  const randomCat = categories[Math.floor(Math.random() * categories.length)];
-                  setNodeOverride(newNode.id, { customParent: randomCat.id, fixedX: undefined, fixedY: undefined });
-                } else {
-                  setNodeOverride(newNode.id, { customGroup: 'MACRO_RESEARCH' });
-                }
-                setTimeout(() => initEngine(), 10);
-              }
-            }}
-            className="w-full shrink-0 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-[var(--color-primary)] text-white text-sm font-semibold hover:opacity-90 shadow-sm border border-emerald-600 cursor-pointer transition-colors"
-          >
-            <PlusSquare size={16} /> 노드 추가
-          </button>
+                      if (activeNode) {
+                        setNodeOverride(newNode.id, { 
+                          customParent: activeNode.id, customOrbitIndex: activeNode.orbitIndex + 1, fixedX: undefined, fixedY: undefined 
+                        });
+                      } else if (categories.length > 0) {
+                        const randomCat = categories[Math.floor(Math.random() * categories.length)];
+                        setNodeOverride(newNode.id, { customParent: randomCat.id, fixedX: undefined, fixedY: undefined });
+                      } else {
+                        setNodeOverride(newNode.id, { customGroup: 'MACRO_RESEARCH' });
+                      }
+                      
+                      setIsAddingNode(false);
+                      setNewNodeName("");
+                    }
+                  }
+                }}
+                placeholder="노드 이름 (Enter로 생성)"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)]"
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setIsAddingNode(false)}
+                  className="flex-1 py-1.5 px-2 bg-gray-100 text-gray-600 rounded-lg text-xs font-semibold hover:bg-gray-200 transition-colors"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={() => {
+                    if (newNodeName.trim()) {
+                      const engine = engineRef.current;
+                      const categories = engine ? engine.nodes.filter(n => n.orbitIndex === 1) : [];
+                      const x = (Math.random() - 0.5) * 50;
+                      const y = (Math.random() - 0.5) * 50;
+                      const newNode = addCustomNode(newNodeName.trim(), x, y);
+
+                      if (activeNode) {
+                        setNodeOverride(newNode.id, { 
+                          customParent: activeNode.id, customOrbitIndex: activeNode.orbitIndex + 1, fixedX: undefined, fixedY: undefined 
+                        });
+                      } else if (categories.length > 0) {
+                        const randomCat = categories[Math.floor(Math.random() * categories.length)];
+                        setNodeOverride(newNode.id, { customParent: randomCat.id, fixedX: undefined, fixedY: undefined });
+                      } else {
+                        setNodeOverride(newNode.id, { customGroup: 'MACRO_RESEARCH' });
+                      }
+                      setTimeout(() => initEngine(), 10);
+                      setIsAddingNode(false);
+                      setNewNodeName("");
+                    }
+                  }}
+                  className="flex-1 py-1.5 px-2 bg-[var(--color-primary)] text-white rounded-lg text-xs font-semibold hover:opacity-90 transition-colors"
+                >
+                  생성
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => { setIsAddingNode(true); setNewNodeName(""); }}
+              className="w-full shrink-0 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-[var(--color-primary)] text-white text-sm font-semibold hover:opacity-90 shadow-sm border border-[var(--color-primary)] cursor-pointer transition-colors"
+            >
+              <PlusSquare size={16} /> 노드 추가
+            </button>
+          )}
           
           <div className="flex-1 min-h-0 relative">
             {renderNodeDetails(false)}
@@ -1278,8 +1190,98 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
             </button>
           </div>
 
-          {/* 5W1H Tooltip Overlay (우측 상단 플로팅 툴팁) */}
-          {render5W1HPanel(false)}
+
+          {/* Sliding Wiki Panel Overlay */}
+          {isWikiOpen && activeNode && wikiLoaded && (
+            <div className="absolute top-0 right-0 h-full bg-white z-[120] shadow-2xl border-l border-slate-200 w-full md:w-[450px] lg:w-[500px] animate-in slide-in-from-right-8 duration-300">
+              <WikiEditor 
+                key={activeNode.id}
+                nodeId={activeNode.id} 
+                nodeTitle={activeNode.label} 
+                initialBlocks={wikiBlocks ?? undefined} 
+                onChange={(blocks) => saveWikiBlocks(activeNode.id, blocks)} 
+                onClose={() => setIsWikiOpen(false)} 
+                addCustomEdge={addCustomEdge}
+              />
+            </div>
+          )}
+
+          {/* Bridge Modal */}
+          {bridgePrompt && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
+              <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100 max-w-sm w-full animate-in fade-in zoom-in duration-200 pointer-events-auto">
+                <h3 className="text-sm font-bold text-gray-800 mb-2">중간 연결 노드 추가</h3>
+                <p className="text-xs text-gray-500 mb-4">선택하신 두 노드 사이에 새로운 진척 단계(예: 기안 작성, 테스트 진행 등) 노드를 추가합니다.</p>
+                <input
+                  autoFocus
+                  type="text"
+                  value={bridgeName}
+                  onChange={e => setBridgeName(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Escape') setBridgePrompt(null);
+                    if (e.key === 'Enter') {
+                      const label = bridgeName.trim();
+                      if (!label) return;
+                      const edge = bridgePrompt.edge;
+                      const srcId = typeof edge.source === 'object' ? (edge.source as any).id : edge.source;
+                      const tgtId = typeof edge.target === 'object' ? (edge.target as any).id : edge.target;
+                      const srcNode = engineRef.current?.nodes.find((n) => n.id === srcId);
+                      const tgtNode = engineRef.current?.nodes.find((n) => n.id === tgtId);
+                      if (srcNode && tgtNode) {
+                        const midX = ((srcNode.worldX ?? 0) + (tgtNode.worldX ?? 0)) / 2;
+                        const midY = ((srcNode.worldY ?? 0) + (tgtNode.worldY ?? 0)) / 2;
+                        const newNode = addCustomNode(label, midX, midY);
+                        if (tgtNode.parentId === srcNode.id) {
+                           setNodeOverride(newNode.id, { customParent: srcNode.id, customOrbitIndex: srcNode.orbitIndex > 0 ? srcNode.orbitIndex + 1 : 1, fixedX: undefined, fixedY: undefined });
+                           setNodeOverride(tgtNode.id, { customParent: newNode.id, customOrbitIndex: srcNode.orbitIndex + 2 });
+                        } else {
+                           deleteCustomEdge(srcId, tgtId);
+                           addCustomEdge(srcId, newNode.id);
+                           addCustomEdge(newNode.id, tgtId);
+                           setNodeOverride(newNode.id, { customOrbitIndex: Math.max(srcNode.orbitIndex, tgtNode.orbitIndex) });
+                        }
+                      }
+                      setBridgePrompt(null);
+                    }
+                  }}
+                  placeholder="중간 노드 이름..."
+                  className="w-full px-3 py-2 mb-4 text-sm border border-gray-200 rounded-lg outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)]"
+                />
+                <div className="flex gap-2 justify-end">
+                  <button onClick={() => setBridgePrompt(null)} className="px-4 py-2 bg-gray-100 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-200 transition-colors">취소</button>
+                  <button 
+                    onClick={() => {
+                      const label = bridgeName.trim();
+                      if (!label) return;
+                      const edge = bridgePrompt.edge;
+                      const srcId = typeof edge.source === 'object' ? (edge.source as any).id : edge.source;
+                      const tgtId = typeof edge.target === 'object' ? (edge.target as any).id : edge.target;
+                      const srcNode = engineRef.current?.nodes.find((n) => n.id === srcId);
+                      const tgtNode = engineRef.current?.nodes.find((n) => n.id === tgtId);
+                      if (srcNode && tgtNode) {
+                        const midX = ((srcNode.worldX ?? 0) + (tgtNode.worldX ?? 0)) / 2;
+                        const midY = ((srcNode.worldY ?? 0) + (tgtNode.worldY ?? 0)) / 2;
+                        const newNode = addCustomNode(label, midX, midY);
+                        if (tgtNode.parentId === srcNode.id) {
+                           setNodeOverride(newNode.id, { customParent: srcNode.id, customOrbitIndex: srcNode.orbitIndex > 0 ? srcNode.orbitIndex + 1 : 1, fixedX: undefined, fixedY: undefined });
+                           setNodeOverride(tgtNode.id, { customParent: newNode.id, customOrbitIndex: srcNode.orbitIndex + 2 });
+                        } else {
+                           deleteCustomEdge(srcId, tgtId);
+                           addCustomEdge(srcId, newNode.id);
+                           addCustomEdge(newNode.id, tgtId);
+                           setNodeOverride(newNode.id, { customOrbitIndex: Math.max(srcNode.orbitIndex, tgtNode.orbitIndex) });
+                        }
+                      }
+                      setBridgePrompt(null);
+                    }}
+                    className="px-4 py-2 bg-[var(--color-primary)] text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-opacity"
+                  >
+                    추가
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
         </div>
       </div>

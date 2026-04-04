@@ -1,10 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { OntologyNode, OntologyEdge, OntologyGroup } from '@/lib/ontology.types';
-import { readSheet, replaceAll } from '@/lib/sheets-api';
-
-const STORAGE_KEY = 'hchps-map-customization';
+import { useYjsStore } from './useYjsStore';
+import * as Y from 'yjs';
 
 export interface NodeOverride {
   fixedX?: number;
@@ -36,221 +35,234 @@ export interface MapCustomizationData {
   deletedEdges?: string[];
 }
 
-const DEFAULT_DATA: MapCustomizationData = {
-  overrides: {},
-  customNodes: [],
-  customEdges: [],
-};
-
 export function useGraphCustomization() {
-  const [data, setData] = useState<MapCustomizationData>(() => {
-    if (typeof window === 'undefined') return DEFAULT_DATA;
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      return stored ? JSON.parse(stored) : DEFAULT_DATA;
-    } catch {
-      return DEFAULT_DATA;
-    }
+  const { ydoc } = useYjsStore();
+
+  const [data, setData] = useState<MapCustomizationData>({
+    overrides: {},
+    customNodes: [],
+    customEdges: [],
+    deletedEdges: []
   });
 
-  const [past, setPast] = useState<MapCustomizationData[]>([]);
-  const [future, setFuture] = useState<MapCustomizationData[]>([]);
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const undoManager = useMemo(() => {
+    return new Y.UndoManager([
+      ydoc.getMap('overrides'),
+      ydoc.getMap('customNodesMap'),
+      ydoc.getMap('customEdgesMap'),
+      ydoc.getMap('deletedEdgesMap')
+    ]);
+  }, [ydoc]);
 
-  // 1) 초기 클라우드 로딩
-  const initialLoadDone = useRef(false);
   useEffect(() => {
-    if (initialLoadDone.current) return;
-    initialLoadDone.current = true;
+    const overridesMap = ydoc.getMap<NodeOverride>('overrides');
+    const customNodesMap = ydoc.getMap<OntologyNode>('customNodesMap');
+    const customEdgesMap = ydoc.getMap<OntologyEdge>('customEdgesMap');
+    const deletedEdgesMap = ydoc.getMap<boolean>('deletedEdgesMap');
 
-    readSheet<MapCustomizationData & { id: string }>('MAP_CUSTOMIZATION')
-      .then(rows => {
-        if (rows.length > 0 && rows[0].overrides) {
-          setData(rows[0]);
-          try { localStorage.setItem(STORAGE_KEY, JSON.stringify(rows[0])); } catch { /* ignore */ }
+    // [마이그레이션 로직] 기존 로컬 스토리지에 데이터가 있으면 Yjs로 병합(복구)합니다.
+    if (typeof window !== 'undefined') {
+      try {
+        const localRaw = localStorage.getItem('hchps-map-customization'); // <-- CORRECTED KEY
+        const hasMigrated = localStorage.getItem('hchps-yjs-migrated');
+        
+        if (localRaw && !hasMigrated) {
+          const localData = JSON.parse(localRaw) as MapCustomizationData;
+          console.log('[Yjs Migration] 기존 로컬 스토리지 데이터 발견. Yjs로 복구합니다...');
+          
+          ydoc.transact(() => {
+            if (localData.overrides) {
+              Object.entries(localData.overrides).forEach(([k, v]) => {
+                if (!overridesMap.has(k)) overridesMap.set(k, v);
+              });
+            }
+            if (localData.customNodes) {
+              localData.customNodes.forEach(n => {
+                if (!customNodesMap.has(n.id)) customNodesMap.set(n.id, n);
+              });
+            }
+            if (localData.customEdges) {
+              localData.customEdges.forEach(e => {
+                const k = `${e.source}|||${e.target}`;
+                if (!customEdgesMap.has(k)) customEdgesMap.set(k, e);
+              });
+            }
+            if (localData.deletedEdges) {
+              localData.deletedEdges.forEach(e => {
+                if (!deletedEdgesMap.has(e)) deletedEdgesMap.set(e, true);
+              });
+            }
+          });
+          
+          localStorage.setItem('hchps-yjs-migrated', 'true');
         }
-      })
-      .catch(console.warn);
-  }, []);
-
-  // 2) 데이터 변경 시 로컬 캐싱 및 클라우드 동기화 (간단한 디바운스 적용)
-  const isFirstDataSave = useRef(true);
-  useEffect(() => {
-    if (isFirstDataSave.current) {
-      isFirstDataSave.current = false;
-      return; // 초기 마운트 시 불필요한 클라우드 쓰기 방지
+      } catch (e) {
+        console.error('Yjs migration failed:', e);
+      }
     }
 
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    } catch { /* ignore */ }
-
-    setSaveStatus('saving');
-    // 디바운스: 짧은 시간 안에 발생하는 드래그 이벤트 등 다중 쓰기를 묶어서 처리
-    const timer = setTimeout(() => {
-      replaceAll('MAP_CUSTOMIZATION', [{ id: 'singleton', ...data }])
-        .then(() => {
-          setSaveStatus('saved');
-          setTimeout(() => setSaveStatus('idle'), 2000);
-        })
-        .catch((err) => {
-          console.warn(err);
-          setSaveStatus('error');
-        });
-    }, 1500);
-
-    return () => clearTimeout(timer);
-  }, [data]);
-
-  const updateData = useCallback((updater: (prev: MapCustomizationData) => MapCustomizationData) => {
-    setData(prev => {
-      const next = updater(prev);
-      if (next === prev) return prev; // No change
-      setPast(p => [...p, prev].slice(-50));
-      setFuture([]);
-      return next;
-    });
-  }, []);
-
-  const undo = useCallback(() => {
-    setPast(p => {
-      if (p.length === 0) return p;
-      const previous = p[p.length - 1];
-      setData(current => {
-        setFuture(f => [current, ...f]);
-        return previous;
+    const updateReactState = () => {
+      setData({
+        overrides: overridesMap.toJSON() as Record<string, NodeOverride>,
+        customNodes: Array.from(customNodesMap.values()),
+        customEdges: Array.from(customEdgesMap.values()),
+        deletedEdges: Array.from(deletedEdgesMap.keys()),
       });
-      return p.slice(0, -1);
-    });
-  }, []);
+    };
 
-  const redo = useCallback(() => {
-    setFuture(f => {
-      if (f.length === 0) return f;
-      const next = f[0];
-      setData(current => {
-        setPast(p => [...p, current]);
-        return next;
-      });
-      return f.slice(1);
-    });
-  }, []);
+    overridesMap.observe(updateReactState);
+    customNodesMap.observe(updateReactState);
+    customEdgesMap.observe(updateReactState);
+    deletedEdgesMap.observe(updateReactState);
+
+    updateReactState();
+
+    return () => {
+      overridesMap.unobserve(updateReactState);
+      customNodesMap.unobserve(updateReactState);
+      customEdgesMap.unobserve(updateReactState);
+      deletedEdgesMap.unobserve(updateReactState);
+    };
+  }, [ydoc]);
+
+  const undo = useCallback(() => undoManager.undo(), [undoManager]);
+  const redo = useCallback(() => undoManager.redo(), [undoManager]);
 
   const setNodeOverride = useCallback((id: string, override: Partial<NodeOverride>) => {
-    updateData(prev => {
-      const existing = prev.overrides[id] || {};
-      return {
-        ...prev,
-        overrides: {
-          ...prev.overrides,
-          [id]: { ...existing, ...override },
-        },
-      };
+    ydoc.transact(() => {
+      const map = ydoc.getMap<NodeOverride>('overrides');
+      const current = map.get(id) || {};
+      const next = { ...current, ...override };
+      
+      // Allow clearing specific fields explicitly
+      Object.keys(override).forEach(k => {
+        if (override[k as keyof NodeOverride] === undefined) {
+          delete next[k as keyof NodeOverride];
+        }
+      });
+      map.set(id, next);
     });
-  }, [updateData]);
+  }, [ydoc]);
 
   const batchSetNodeOverrides = useCallback((updates: Record<string, Partial<NodeOverride>>) => {
-    updateData(prev => {
-      const newOverrides = { ...prev.overrides };
+    ydoc.transact(() => {
+      const map = ydoc.getMap<NodeOverride>('overrides');
       for (const [id, override] of Object.entries(updates)) {
-        newOverrides[id] = { ...(newOverrides[id] || {}), ...override };
+        const current = map.get(id) || {};
+        map.set(id, { ...current, ...override });
       }
-      return { ...prev, overrides: newOverrides };
     });
-  }, [updateData]);
+  }, [ydoc]);
 
   const clearNodeOverride = useCallback((id: string) => {
-    updateData(prev => {
-      const newOverrides = { ...prev.overrides };
-      delete newOverrides[id];
-      return { ...prev, overrides: newOverrides };
-    });
-  }, [updateData]);
+    ydoc.getMap('overrides').delete(id);
+  }, [ydoc]);
 
   const addCustomNode = useCallback((label: string, x: number, y: number, color?: string) => {
     const newNode: OntologyNode = {
       id: `custom-${Date.now()}`,
       label,
-      group: 'OTHER', // Default custom group
+      group: 'OTHER',
       baseValue: 80,
       fixedX: x,
       fixedY: y,
       customColor: color,
-      centralityScore: 100, // Make them orbit 2+ but wait, they are fixed anyway
+      centralityScore: 100,
     };
-    updateData(prev => ({
-      ...prev,
-      customNodes: [...prev.customNodes, newNode],
-    }));
+    ydoc.getMap<OntologyNode>('customNodesMap').set(newNode.id, newNode);
     return newNode;
-  }, [updateData]);
+  }, [ydoc]);
 
   const deleteCustomNode = useCallback((id: string) => {
-    updateData(prev => {
-      // Also remove any edges connected to this node
-      const newEdges = prev.customEdges.filter(e => e.source !== id && e.target !== id);
-      return {
-        ...prev,
-        customNodes: prev.customNodes.filter(n => n.id !== id),
-        customEdges: newEdges,
-      };
+    ydoc.transact(() => {
+      ydoc.getMap<OntologyNode>('customNodesMap').delete(id);
+      
+      const edgesMap = ydoc.getMap<OntologyEdge>('customEdgesMap');
+      const keysToDelete: string[] = [];
+      edgesMap.forEach((edge, key) => {
+        if (edge.source === id || edge.target === id) {
+          keysToDelete.push(key);
+        }
+      });
+      keysToDelete.forEach(k => edgesMap.delete(k));
     });
-  }, [updateData]);
+  }, [ydoc]);
 
   const updateCustomNodeText = useCallback((id: string, newLabel: string) => {
-    updateData(prev => ({
-      ...prev,
-      customNodes: prev.customNodes.map(n => n.id === id ? { ...n, label: newLabel } : n)
-    }));
-  }, [updateData]);
+    ydoc.transact(() => {
+      const map = ydoc.getMap<OntologyNode>('customNodesMap');
+      const node = map.get(id);
+      if (node) {
+        map.set(id, { ...node, label: newLabel });
+      }
+    });
+  }, [ydoc]);
 
   const addCustomEdge = useCallback((source: string, target: string) => {
-    updateData(prev => {
-      // Check if already exists
-      const exists = prev.customEdges.find(
-        e => (e.source === source && e.target === target) || (e.source === target && e.target === source)
-      );
-      if (exists) return prev;
+    const edgeId = `${source}|||${target}`;
+    const reverseId = `${target}|||${source}`;
+    
+    ydoc.transact(() => {
+      const map = ydoc.getMap<OntologyEdge>('customEdgesMap');
+      const deletedMap = ydoc.getMap<boolean>('deletedEdgesMap');
+      
+      // Remove any tombstone if it exists so the edge can be resurrected
+      if (deletedMap.has(edgeId)) deletedMap.delete(edgeId);
+      if (deletedMap.has(reverseId)) deletedMap.delete(reverseId);
 
-      const newEdge: OntologyEdge = {
-        source,
-        target,
-        weight: 1.0,
-        type: 'DEPENDENCY',
-      };
-      return {
-        ...prev,
-        customEdges: [...prev.customEdges, newEdge],
-      };
+      if (!map.has(edgeId) && !map.has(reverseId)) {
+        map.set(edgeId, { source, target, weight: 1.0, type: 'DEPENDENCY' });
+      }
     });
-  }, [updateData]);
+  }, [ydoc]);
 
   const deleteCustomEdge = useCallback((source: string, target: string) => {
-    updateData(prev => {
-      const filteredCustom = prev.customEdges.filter(
-        e => !(e.source === source && e.target === target) && 
-             !(e.source === target && e.target === source)
-      );
-      const newDeleted = [...(prev.deletedEdges || []), `${source}|||${target}`, `${target}|||${source}`];
-      return { ...prev, customEdges: filteredCustom, deletedEdges: newDeleted };
+    const edgeId = `${source}|||${target}`;
+    const reverseId = `${target}|||${source}`;
+    
+    ydoc.transact(() => {
+      const map = ydoc.getMap<OntologyEdge>('customEdgesMap');
+      if (map.has(edgeId)) map.delete(edgeId);
+      if (map.has(reverseId)) map.delete(reverseId);
+      
+      ydoc.getMap<boolean>('deletedEdgesMap').set(edgeId, true);
     });
-  }, [updateData]);
+  }, [ydoc]);
+
+  const removeCustomTombstone = useCallback((source: string, target: string) => {
+    const edgeId = `${source}|||${target}`;
+    const reverseId = `${target}|||${source}`;
+    
+    ydoc.transact(() => {
+      const deletedMap = ydoc.getMap<boolean>('deletedEdgesMap');
+      if (deletedMap.has(edgeId)) deletedMap.delete(edgeId);
+      if (deletedMap.has(reverseId)) deletedMap.delete(reverseId);
+    });
+  }, [ydoc]);
 
   const clearOverrides = useCallback(() => {
-    if (confirm('모든 노드의 색상과 핀 고정 위치를 처음 상태로 되돌리겠습니까? (추가된 수동 노드는 유지됩니다)')) {
-      updateData(prev => ({ ...prev, overrides: {} }));
+    if (confirm('모든 노드의 색상과 핀 고정 위치를 처음 상태로 되돌리겠습니까?')) {
+      ydoc.transact(() => {
+        const map = ydoc.getMap('overrides');
+        Array.from(map.keys()).forEach(k => map.delete(k));
+      });
     }
-  }, [updateData]);
+  }, [ydoc]);
 
   const clearAll = useCallback(() => {
-    if (confirm('수동으로 추가한 노드를 포함하여 화이트보드의 모든 편집 내용을 지우겠습니까?')) {
-      updateData(() => DEFAULT_DATA);
+    if (confirm('화이트보드의 모든 편집 내용을 지우겠습니까?')) {
+      ydoc.transact(() => {
+        ['overrides', 'customNodesMap', 'customEdgesMap', 'deletedEdgesMap'].forEach(name => {
+          const m = ydoc.getMap(name);
+          Array.from(m.keys()).forEach(k => m.delete(k));
+        });
+      });
     }
-  }, [updateData]);
+  }, [ydoc]);
 
   return {
     ...data,
-    saveStatus,
+    saveStatus: 'saved', // Mock saveStatus since Yjs persists automatically
     undo,
     redo,
     setNodeOverride,
@@ -261,8 +273,8 @@ export function useGraphCustomization() {
     updateCustomNodeText,
     addCustomEdge,
     deleteCustomEdge,
+    removeCustomTombstone,
     clearOverrides,
     clearAll,
-    deletedEdges: data.deletedEdges || [],
   };
 }
