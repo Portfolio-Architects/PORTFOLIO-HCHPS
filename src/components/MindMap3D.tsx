@@ -825,8 +825,34 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                           </div>
                           <p className="text-[9px] text-slate-400 leading-tight mt-1">지정된 부모의 위계, 색상, 동기화 망에 종속됩니다.</p>
                         </div>
+                        
+                        {/* 2. 궤도 차수 강제 지정 */}
+                        <div className="flex flex-col gap-1 bg-slate-50 p-2.5 border border-slate-200 rounded-lg shadow-sm">
+                          <label className="text-[10px] font-bold text-slate-500 mb-0.5">궤도(차수) 수동 강제 지정</label>
+                          <select
+                            className="bg-white border border-slate-200 text-xs px-2 py-1.5 rounded-md focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)] cursor-pointer"
+                            value={activeNode.customOrbitIndex ?? activeNode.orbitIndex ?? 1}
+                            onChange={(e) => {
+                              const newOrbit = Number(e.target.value);
+                              setNodeOverride(activeNode.id, { customOrbitIndex: newOrbit });
+                              if (engineRef.current) {
+                                const engineNode = engineRef.current.nodes.find((n: OrbitalNode) => n.id === activeNode.id);
+                                if (engineNode) engineNode.customOrbitIndex = newOrbit;
+                                setActiveNode({ ...activeNode, customOrbitIndex: newOrbit, orbitIndex: newOrbit });
+                              }
+                              setTimeout(() => initEngine(), 50);
+                            }}
+                          >
+                            <option value="1">1차 카테고리 (메인)</option>
+                            <option value="2">2차 궤도 파생</option>
+                            <option value="3">3차 궤도 파생</option>
+                            <option value="4">4차 궤도 파생</option>
+                            <option value="5">5차 궤도 파생</option>
+                            <option value="6">6차 궤도 파생</option>
+                          </select>
+                        </div>
 
-                        {/* 2. 일반 횡적 선분 연결 */}
+                        {/* 3. 일반 횡적 선분 연결 */}
                         <button
                           onClick={() => setEdgeModeSource(activeNode.id)}
                           className={`w-full flex items-center justify-center px-3 py-2 border rounded-lg text-xs font-semibold cursor-pointer transition-colors shadow-sm ${

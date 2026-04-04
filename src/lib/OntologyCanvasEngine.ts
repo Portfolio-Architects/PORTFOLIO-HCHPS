@@ -211,9 +211,15 @@ export class OntologyCanvasEngine {
     });
 
     const queue: string[] = Array.from(this.nodeMap.keys());
+    const processedParents = new Set<string>();
     
     while(queue.length > 0) {
       const parentId = queue.shift()!;
+      
+      // Prevent infinite loops if parentId has a cycle!
+      if (processedParents.has(parentId)) continue;
+      processedParents.add(parentId);
+
       const leaves = leavesByParent.get(parentId);
       if (!leaves) continue;
 
@@ -540,7 +546,11 @@ export class OntologyCanvasEngine {
     // 2. Upward Ancestors (Structural Lineage)
     // 1줄기 뿌리만 추적
     let currNode = this.nodeMap.get(rootId);
+    const seenAncestors = new Set<string>();
     while (currNode && currNode.parentId) {
+      if (seenAncestors.has(currNode.parentId)) break; // Prevent cycle freezes
+      seenAncestors.add(currNode.parentId);
+      
       set.add(currNode.parentId);
       currNode = this.nodeMap.get(currNode.parentId);
     }
