@@ -259,6 +259,20 @@ export function useGraphCustomization() {
     }
   }, [ydoc]);
 
+  const resetLayoutOverrides = useCallback(() => {
+    if (confirm('모든 노드의 "배치 위치(좌표)"와 "소속 관계"를 초기화하시겠습니까? (색상 및 이름 변경 내역은 유지됩니다)')) {
+      ydoc.transact(() => {
+        const map = ydoc.getMap<NodeOverride>('overrides');
+        for (const key of Array.from(map.keys())) {
+          const current = map.get(key);
+          if (current) {
+            map.set(key, { ...current, fixedX: null as any, fixedY: null as any, customParent: null as any, customOrbitIndex: null as any, customSortOrder: null as any });
+          }
+        }
+      });
+    }
+  }, [ydoc]);
+
   const clearAll = useCallback(() => {
     if (confirm('화이트보드의 모든 편집 내용을 지우겠습니까?')) {
       ydoc.transact(() => {
@@ -285,6 +299,7 @@ export function useGraphCustomization() {
     deleteCustomEdge,
     removeCustomTombstone,
     clearOverrides,
+    resetLayoutOverrides,
     clearAll,
   };
 }

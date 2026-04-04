@@ -58,7 +58,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   const [newNodeName, setNewNodeName] = useState("");
   const [bridgePrompt, setBridgePrompt] = useState<{ edge: any, x: number, y: number } | null>(null);
   const [bridgeName, setBridgeName] = useState("");
-  const { overrides = {}, customNodes = [], customEdges = [], deletedEdges = [], undo, redo, setNodeOverride, batchSetNodeOverrides, clearNodeOverride, addCustomNode, deleteCustomNode, updateCustomNodeText, addCustomEdge, deleteCustomEdge, removeCustomTombstone, clearOverrides, clearAll } = useGraphCustomization();
+  const { overrides = {}, customNodes = [], customEdges = [], deletedEdges = [], undo, redo, setNodeOverride, batchSetNodeOverrides, clearNodeOverride, addCustomNode, deleteCustomNode, updateCustomNodeText, addCustomEdge, deleteCustomEdge, removeCustomTombstone, clearOverrides, resetLayoutOverrides, clearAll } = useGraphCustomization();
   useEffect(() => {
     const handleOpenWiki = (e: CustomEvent<{ id: string; label: string }>) => {
       // Find the actual node if it exists in the engine, otherwise mock enough properties for WikiEditor to work
@@ -718,9 +718,17 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                     <div className="mb-5">
                       <div className="text-[11px] font-bold text-slate-400 mb-1.5 flex items-center justify-between px-1">
                         <div className="flex items-center gap-1.5"><Palette size={12} /> 색상 및 스타일</div>
-                        <button onClick={() => window.location.reload()} className="text-[10px] text-slate-400 hover:text-slate-600 underline cursor-pointer">
-                          새로고침(F5)
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => {
+                            resetLayoutOverrides();
+                            setTimeout(() => window.location.reload(), 100);
+                          }} className="text-[10px] text-red-400 hover:text-red-500 underline cursor-pointer">
+                            배열 초기화(오류해결)
+                          </button>
+                          <button onClick={() => window.location.reload()} className="text-[10px] text-slate-400 hover:text-slate-600 underline cursor-pointer">
+                            새로고침(F5)
+                          </button>
+                        </div>
                       </div>
                       <div className="flex flex-wrap gap-1.5 bg-slate-50 border border-slate-200 p-2.5 rounded-lg shadow-sm">
                         {PRESET_COLORS.map(c => (
