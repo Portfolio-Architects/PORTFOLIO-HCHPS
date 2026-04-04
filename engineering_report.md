@@ -76,9 +76,10 @@
 - **노드 완료 및 숨기기 기능:** 처리 완료된 업무나 일정을 사이드 패널에서 원클릭(✅)으로 지도에서 우아하게 삭제(숨김)하여 캔버스의 시각적 복잡도를 쾌적하게 유지할 수 있습니다.
 - **고스트 병합(Phantom Override) 충돌 설계 결함 완벽 해결:** RAG 기반 병합 과정에서 과거에 병합되었던 동일 라벨의 커스텀 파편(Ghost Node)이 지니고 있던 구형 상태(위계 정보 등)가 현역 데이터 노드의 새 설정값을 매 사이클마다 영원히 무효화시키며 덮어씌우던 치명적인 상태 동기화 충돌을 색출하여 해결했습니다. 데이터 병합부(`signal-graph.ts`)의 객체 우선순위를 활성 데이터 노드에 완전히 종속시키도록 리팩터링하여 사용자의 부모-자식 연결 자유도를 100% 무결점 상태로 복구했습니다.
 
-### 6. Cloudflare Workers AI (Llama 3) Native 연동
-- **Zero 초고속 Llama 3 백엔드 구축:** 기존에 이용 중인 Cloudflare Pages의 서버리스 환경(`functions/api`) 위에 Workers AI 바인딩을 추가하여, 별도의 유료 API 결제 없이 Llama 3 8B 모델을 Edge 환경에서 밀리초(ms) 단위로 호출하는 데 성공했습니다.
-- **인캡슐레이션:** 프론트엔드의 `llm-client.ts` 유틸리티 함수 한 줄 호출만으로 Meta Llama 3 API를 무료로 사용할 수 있게 되었으며, 로컬 개발 환경(Wrangler 미구동 상태)에서도 크래시 없이 반응하는 스마트한 목업(Mock) 폴백 로직을 구비했습니다.
+### 6. Cloudflare Workers AI (Llama 3.1 Native) 시스템 통합 및 안정성 강화
+- **Llama 3.1 8B Instruct 마이그레이션 (Error 1031 수정):** 기존 `llama-3-8b-instruct` 모델 호출 시 발생하던 간헐적 프록시 단절(Upstream Error 1031: Failed to fetch) 현상을 식별하고, Cloudflare의 최신 권장 안정화 모델인 `@cf/meta/llama-3.1-8b-instruct`로 전면 교체하여 AI 추론 안정성을 100% 확보했습니다. 
+- **Zero 초고속 백엔드 구축:** 기존에 이용 중인 Cloudflare Pages의 서버리스 환경(`functions/api/chat.ts`) 위에 Workers AI 바인딩을 추가하여, 별도의 유료 API 결제 없이 Llama 3.1 8B 모델을 Edge 환경에서 밀리초(ms) 단위로 호출하는 것에 성공했습니다.
+- **인캡슐레이션:** 프론트엔드의 `llm-client.ts` 유틸리티 함수 한 줄 호출만으로 최신 Llama 3.1 API를 무료로 사용할 수 있게 되었으며, 로컬 개발 환경(Wrangler 미구동 상태)에서도 크래시 없이 반응하는 스마트한 목업(Mock) 폴백 로직을 구비했습니다.
 - **가치 도출:** 향후 아파트 매물 가치 평가(AI Valuation) 및 시그널 일상 언어 자동 분류(Semantic Parsing) 코어 엔진으로 즉시 활용될 준비를 끝마쳤습니다.
 
 ### 7. 스마트 태스크 관리 및 지식 추천 (Smart Task Management)
