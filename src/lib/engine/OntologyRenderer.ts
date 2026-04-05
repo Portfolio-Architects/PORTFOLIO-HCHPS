@@ -1,5 +1,5 @@
 import { OrbitalNode, OntologyEdge, OntologyGroup, GROUP_COLORS } from '../ontology.types';
-import { CULL_MARGIN } from './OntologyLayout';
+import { CULL_MARGIN, OntologyLayout } from './OntologyLayout';
 
 export interface RenderContext {
   ctx: CanvasRenderingContext2D;
@@ -27,19 +27,8 @@ export class OntologyRenderer {
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
 
-    // 자식 보유 여부 맵 계산 (토글 렌더링 용도) - 렌더링 X축 기준 좌에서 우로 계산하여 백엔드 데이터에 독립적
-    const childrenCount = new Map<string, number>();
-    for (const edge of context.edges) {
-      const src = context.nodeMap.get(edge.source);
-      const tgt = context.nodeMap.get(edge.target);
-      if (src && tgt) {
-        const parentId = src.renderX < tgt.renderX ? src.id : tgt.id;
-        childrenCount.set(parentId, (childrenCount.get(parentId) || 0) + 1);
-      }
-    }
-
     this.renderEdges(context);
-    this.renderNodes(context, childrenCount);
+    this.renderNodes(context);
   }
 
   private static renderBackground(ctx: CanvasRenderingContext2D, width: number, height: number): void {
@@ -89,10 +78,10 @@ export class OntologyRenderer {
       
       const cpDist = Math.max(20, Math.abs(rightLeftX - leftRightX) / 2);
       
-      const alpha = isConnected ? 0.8 : 0.3;
-      
-      ctx.strokeStyle = isConnected ? `rgba(59,130,246,${alpha})` : `rgba(148, 163, 184, ${alpha})`;
-      ctx.lineWidth = isConnected ? 2.5 * rc.zoom : 1.5 * rc.zoom;
+      // 엣지 색상 조절 (연결된 선명도와 채도 낮춤)
+      const alpha = isConnected ? 0.5 : 0.2;
+      ctx.strokeStyle = isConnected ? `rgba(96, 165, 250, ${alpha})` : `rgba(148, 163, 184, ${alpha})`;
+      ctx.lineWidth = isConnected ? 1.5 * rc.zoom : 1 * rc.zoom;
       if (edge.weight < 0) ctx.setLineDash([4, 4]);
       else ctx.setLineDash([]);
 
@@ -125,7 +114,7 @@ export class OntologyRenderer {
     }
   }
 
-  private static renderNodes(rc: RenderContext, childrenCount: Map<string, number>): void {
+  private static renderNodes(rc: RenderContext): void {
     const { ctx, sortedNodesBuffer, nodes, activeNodeId, hoveredNodeId, activeTreeSet, canvasW, canvasH, zoom } = rc;
 
     sortedNodesBuffer.length = 0;
@@ -144,26 +133,29 @@ export class OntologyRenderer {
       if (node.renderY < -CULL_MARGIN || node.renderY > canvasH + CULL_MARGIN) continue;
 
       const isActive = node.id === activeNodeId;
+      const isTreeActive = activeNodeId && activeTreeSet.has(node.id);
       const isHovered = node.id === hoveredNodeId;
-      const opacity = (!activeNodeId || activeTreeSet.has(node.id) || isActive) ? 1 : 0.3;
+      const opacity = (!activeNodeId || isTreeActive || isActive) ? 1 : 0.3;
 
       ctx.save();
       ctx.globalAlpha = opacity;
 
       const labelText = node.label || '';
       
-      const fontSize = Math.max(10, Math.min(14, 12 * zoom));
-      ctx.font = `${isActive ? '600' : '500'} ${fontSize}px 'Pretendard', sans-serif`;
+      // NotebookLM 스타일: 텍스트가 시원하게 보이도록 폰트 크기 확대 및 상한선 해제
+      const fontSize = 15 * zoom;
+      // 트리에 속해있으면(활성 상태면) 폰트 굵기도 올려줌
+      ctx.font = `${(isActive || isTreeActive) ? '600' : '500'} ${fontSize}px 'Pretendard', sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
-      const paddingX = 16 * zoom;
-      const paddingY = 12 * zoom;
+      const paddingX = 24 * zoom; // 좌우 여백 대폭 추가
+      const paddingY = 16 * zoom; // 상하 여백 추가
       const textWidth = ctx.measureText(labelText).width;
       
       // Node Dimensions
-      const boxW = Math.max(80 * zoom, textWidth + paddingX * 2);
-      const boxH = Math.max(30 * zoom, fontSize + paddingY * 2);
+      const boxW = Math.max(100 * zoom, textWidth + paddingX * 2);
+      const boxH = Math.max(40 * zoom, fontSize + paddingY * 2);
       
       const colors = this.getDepthColor(node.orbitIndex);
 
@@ -185,41 +177,42 @@ export class OntologyRenderer {
 
       // Border
       ctx.shadowColor = 'transparent';
-      ctx.lineWidth = (isActive || isHovered) ? 2 * zoom : 1.5 * zoom;
-      ctx.strokeStyle = isActive ? '#3B82F6' : (isHovered ? '#94A3B8' : colors.border);
+      ctx.lineWidth = (isActive || isTreeActive || isHovered) ? 2 * zoom : 1.5 * zoom;
+      // 테두리 채도/명도 완화: 3B82F6 -> 60A5FA
+      ctx.strokeStyle = (isActive || isTreeActive) ? '#60A5FA' : (isHovered ? '#94A3B8' : colors.border);
       ctx.stroke();
 
       // Text
-      ctx.fillStyle = colors.text;
+      // 텍스트 활성 색상 완화: 1D4ED8 -> 3B82F6
+      ctx.fillStyle = (isActive || isTreeActive) ? '#3B82F6' : colors.text;
       ctx.fillText(labelText, node.renderX, node.renderY);
 
-      // 접기/펼치기 토글 (Chevron) 그리기
-      const count = childrenCount.get(node.id) || 0;
-      if (count > 0) {
+      // NotebookLM Style: Expand/Collapse Arrow Badge
+      const children = OntologyLayout.lastTreeChildrenMap.get(node.id) || [];
+      const hasChildren = children.length > 0;
+      if (hasChildren) {
         const isCollapsed = rc.collapsedNodeIds.has(node.id);
-        const chevronRadius = 10 * zoom;
-        const cx = node.renderX + boxW / 2 + chevronRadius; // 박스 우측에 배치
+        const badgeRadius = 11 * zoom;
+        // Position it entirely outside the right edge of the box (with gap)
+        const badgeX = node.renderX + boxW / 2 + badgeRadius + (8 * zoom);
+        const badgeY = node.renderY;
         
         ctx.beginPath();
-        // 원형 배경
-        ctx.arc(cx, node.renderY, chevronRadius, 0, Math.PI * 2);
-        ctx.fillStyle = isHovered ? '#E2E8F0' : '#F1F5F9';
+        ctx.arc(badgeX, badgeY, badgeRadius, 0, Math.PI * 2);
+        ctx.fillStyle = isCollapsed ? colors.bg : '#ffffff'; 
         ctx.fill();
+        ctx.lineWidth = 1.5 * zoom;
         ctx.strokeStyle = colors.border;
-        ctx.lineWidth = 1 * zoom;
         ctx.stroke();
 
-        ctx.fillStyle = '#64748B';
-        ctx.font = `bold ${10 * zoom}px sans-serif`;
-        // + / - 로 간단히 렌더링
-        ctx.fillText(isCollapsed ? '+' : '-', cx, node.renderY + 1);
-
-        // 상호작용 감지를 위해 node_radius/크기에 chevron 영역을 임시로 포함시켜주는 것이 엔진 히트박스에서 유리
-        // 엔진이 hit test할 때 x오프셋을 확인해야 하지만, 기본적으로 nodeRadius를 박스 절반 길이로 올려주면 드래그/클릭 범주에 포함됨
-        node.nodeRadius = (boxW / 2 + chevronRadius * 2) / zoom;
-      } else {
-        node.nodeRadius = (boxW / 2) / zoom;
+        ctx.fillStyle = colors.text;
+        // Use a sans-serif font for arrows to match standard NotebookLM aesthetic
+        ctx.font = `bold ${12 * zoom}px sans-serif`;
+        // Draw > if collapsed (can expand), < if expanded (can collapse)
+        ctx.fillText(isCollapsed ? '>' : '<', badgeX, badgeY + Math.max(1, 1 * zoom));
       }
+
+      node.nodeRadius = (boxW / 2) / zoom;
 
       ctx.restore();
     }

@@ -21,6 +21,8 @@ const NODE_HEIGHT = 48; // estimated rendering height for math
 const NODE_WIDTH_ESTIMATE = 140;
 
 export class OntologyLayout {
+  public static lastTreeChildrenMap = new Map<string, string[]>();
+
   /**
    * 캔버스와 카메라 상태에 따른 각 노드의 렌더링 좌표를 계산합니다.
    * NotebookLM 스타일의 계층형 가로 트리(Horizontal Tidy Tree) 구조로 배치합니다.
@@ -52,6 +54,7 @@ export class OntologyLayout {
 
     // 2. BFS를 통해 중앙 노드(Orbit 0)를 루트로 하는 진정한 트리 구조(Directed Tree) 생성
     const treeChildrenMap = new Map<string, string[]>();
+    OntologyLayout.lastTreeChildrenMap = treeChildrenMap;
     nodes.forEach(n => treeChildrenMap.set(n.id, []));
     
     const roots: OrbitalNode[] = [];
@@ -65,8 +68,13 @@ export class OntologyLayout {
     while (queue.length > 0) {
        const curr = queue.shift()!;
        const neighbors = adjList.get(curr) || [];
-       // 일관된 렌더링을 위해 이웃들을 ID순 혹은 라벨순으로 정렬
-       neighbors.sort((a, b) => a.localeCompare(b));
+       // 사용자 지정 정렬 순서(customSortOrder) 최우선, 동일하면 라벨순 정렬
+       neighbors.sort((a, b) => {
+         const orderA = nodeMap.get(a)?.customSortOrder ?? 0;
+         const orderB = nodeMap.get(b)?.customSortOrder ?? 0;
+         if (orderA !== orderB) return orderA - orderB;
+         return a.localeCompare(b);
+       });
        
        for (const nxt of neighbors) {
            if (!visitedBfs.has(nxt)) {
@@ -86,7 +94,12 @@ export class OntologyLayout {
            while (queue.length > 0) {
               const curr = queue.shift()!;
               const neighbors = adjList.get(curr) || [];
-              neighbors.sort((a, b) => a.localeCompare(b));
+              neighbors.sort((a, b) => {
+                 const orderA = nodeMap.get(a)?.customSortOrder ?? 0;
+                 const orderB = nodeMap.get(b)?.customSortOrder ?? 0;
+                 if (orderA !== orderB) return orderA - orderB;
+                 return a.localeCompare(b);
+              });
               
               for (const nxt of neighbors) {
                   if (!visitedBfs.has(nxt)) {
@@ -101,9 +114,9 @@ export class OntologyLayout {
 
     // 3. 각 서브트리의 세로 높이(Height) 계산 (Post-order traversal)
     const subTreeHeight = new Map<string, number>();
-    const X_SPACING = 270; // 렌더링 텍스트가 겹치지 않게 간격 증가
-    const Y_SPACING = 30;  // 자식 노드 간의 세로 간격
-    const NODE_HEIGHT = 48;
+    const X_SPACING = 280; // 노드 사이 가로 간격 축소
+    const Y_SPACING = 20;  // 자식 노드 간의 세로 간격 축소
+    const NODE_HEIGHT = 56; // 노드 기본 높이 유지
     
     function measureHeight(nodeId: string): number {
       // 접힌 노드는 자신의 기본 높이만 차지 (자식 노드를 숨김)

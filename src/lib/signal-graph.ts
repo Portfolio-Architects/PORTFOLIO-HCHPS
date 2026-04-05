@@ -6,6 +6,10 @@
 
 import { OntologyGraph, OntologyNode, OntologyEdge, OntologyGroup } from './ontology.types';
 import { SignalEntry } from '@/hooks/useSignal';
+import { NodeOverride } from '@/hooks/useGraphCustomization';
+
+export type PartialOntologyEdge = OntologyEdge & { isCustom?: boolean };
+export type PartialOntologyNode = OntologyNode & { isExplicitColor?: boolean };
 
 // Assign color groups based on keyword frequency
 function assignGroup(frequency: number, maxFreq: number): OntologyGroup {
@@ -21,7 +25,7 @@ export function buildSignalGraph(
   keywordMap: Record<string, number>,
   entries: SignalEntry[],
   customData?: {
-    overrides: Record<string, { fixedX?: number; fixedY?: number; customColor?: string; customLabel?: string; customGroup?: string; customParent?: string; customOrbitIndex?: number; customSortOrder?: number; hidden?: boolean }>;
+    overrides: Record<string, NodeOverride>;
     customNodes: OntologyNode[];
     customEdges: OntologyEdge[];
     deletedEdges?: string[];
@@ -188,11 +192,11 @@ export function buildSignalGraph(
         if (override) {
           const targetOverride = customData.overrides[dataNodeId] || {};
           
-          const resolveProp = (key: keyof typeof targetOverride) => {
-            if ((targetOverride as any)[key] !== undefined) {
-              return (targetOverride as any)[key] === null ? undefined : (targetOverride as any)[key];
+          const resolveProp = <K extends keyof NodeOverride>(key: K) => {
+            if (targetOverride[key] !== undefined) {
+              return targetOverride[key] === null ? undefined : targetOverride[key];
             }
-            return (override as any)[key] === null ? undefined : (override as any)[key];
+            return override[key] === null ? undefined : override[key];
           };
 
           customData.overrides[dataNodeId] = {
@@ -214,7 +218,7 @@ export function buildSignalGraph(
     });
 
     customData.customEdges.forEach(ce => {
-      edges.push({ ...ce, isCustom: true } as OntologyEdge & { isCustom?: boolean });
+      edges.push({ ...ce, isCustom: true } as PartialOntologyEdge);
     });
 
     // (DeletedEdges processing moved to the end of custom mapping to catch customParent generated edges)
@@ -229,7 +233,7 @@ export function buildSignalGraph(
 
         if (override.customColor !== undefined) {
           n.customColor = override.customColor === null ? undefined : override.customColor;
-          if (n.customColor) (n as any).isExplicitColor = true;
+          if (n.customColor) (n as PartialOntologyNode).isExplicitColor = true;
         }
         if (override.customLabel !== undefined) n.label = override.customLabel === null ? n.label : (override.customLabel as string);
         if (override.customGroup !== undefined) n.group = override.customGroup === null ? n.group : (override.customGroup as OntologyGroup);
@@ -240,13 +244,13 @@ export function buildSignalGraph(
         if (override.customParent !== undefined) {
           if (safeParent === 'NONE') {
             n.parentId = undefined;
-            const edgeIndex = edges.findIndex(e => e.target === n.id && !(e as any).isCustom);
+            const edgeIndex = edges.findIndex(e => e.target === n.id && !(e as PartialOntologyEdge).isCustom);
             if (edgeIndex !== -1) edges.splice(edgeIndex, 1);
           } else if (safeParent) {
             n.parentId = safeParent;
             
             // Re-route the structural edge (target === n.id)
-            const edge = edges.find(e => e.target === n.id && !(e as any).isCustom);
+            const edge = edges.find(e => e.target === n.id && !(e as PartialOntologyEdge).isCustom);
             if (edge) {
               edge.source = safeParent;
             } else {

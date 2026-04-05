@@ -1,11 +1,12 @@
 import { useState, useCallback, useEffect } from 'react';
 import type { PartialBlock } from '@blocknote/core';
+import type { NodeOverride } from './useGraphCustomization';
 
 /**
  * 특정 노드(nodeId)에 해당하는 위키(에디터 블록 구조)를
  * localStorage에 저장 및 로드하는 훅
  */
-export function useWikiStorage(nodeId: string | null, setNodeOverride?: (id: string, override: any) => void) {
+export function useWikiStorage(nodeId: string | null, setNodeOverride?: (id: string, override: Partial<NodeOverride>) => void) {
   const [blocks, setBlocks] = useState<PartialBlock[] | undefined>(undefined);
   const [isLoaded, setIsLoaded] = useState(false);
 
@@ -39,7 +40,7 @@ export function useWikiStorage(nodeId: string | null, setNodeOverride?: (id: str
            if (!hasMigration) {
               const { who, department, title, contact, when, where, what, how, why } = override.story5W1H;
               if (who || department || title || contact || when || where || what || how || why) {
-                const migrationBlocks: any[] = [
+                const migrationBlocks: PartialBlock[] = [
                   { type: "heading", props: { level: 2 }, content: "5W1H 정보 (마이그레이션)" }
                 ];
                 if (who) migrationBlocks.push({ type: "paragraph", content: `**누구(Who):** ${who}` });
@@ -52,7 +53,7 @@ export function useWikiStorage(nodeId: string | null, setNodeOverride?: (id: str
                 if (how) migrationBlocks.push({ type: "paragraph", content: `**어떻게(How):** ${how}` });
                 if (why) migrationBlocks.push({ type: "paragraph", content: `**왜(Why):** ${why}` });
 
-                if (!initialBlocks || (initialBlocks.length === 1 && (!initialBlocks[0].content || (initialBlocks[0].content as any[]).length === 0))) {
+                if (!initialBlocks || (initialBlocks.length === 1 && (!initialBlocks[0].content || (initialBlocks[0].content as unknown[]).length === 0))) {
                   initialBlocks = migrationBlocks;
                 } else {
                   initialBlocks = [...migrationBlocks, {type: "paragraph", content: ""}, ...initialBlocks];

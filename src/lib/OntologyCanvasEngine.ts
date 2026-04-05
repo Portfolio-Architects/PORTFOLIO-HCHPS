@@ -392,56 +392,22 @@ export class OntologyCanvasEngine {
     // Apply pending camera tracking instantly (after positions are known)
     if (this.pendingCameraTargetId) {
       const target = this.nodeMap.get(this.pendingCameraTargetId);
-      if (target && typeof target.renderX === 'number' && !isNaN(target.renderX) && 
-          typeof target.renderY === 'number' && !isNaN(target.renderY)) {
-        const snapX = this.cameraOffsetX - (target.renderX - canvasW / 2);
-        const snapY = this.cameraOffsetY - (target.renderY - canvasH / 2);
+      if (target && typeof target.worldX === 'number' && !isNaN(target.worldX) && 
+          typeof target.worldY === 'number' && !isNaN(target.worldY)) {
         
-        // 확실한 숫자일 때만 갱신 (NaN 오염 방지)
+        const sidePanelWidth = 360; 
+        const screenCenterX = sidePanelWidth + (canvasW - sidePanelWidth) * 0.4;
+        const screenCenterY = canvasH / 2;
+        
+        const snapX = screenCenterX - (target.worldX * this.zoom);
+        const snapY = screenCenterY - (target.worldY * this.zoom);
+        
         if (!isNaN(snapX) && !isNaN(snapY)) {
           this.targetOffsetX = snapX;
           this.targetOffsetY = snapY;
         }
       }
       this.pendingCameraTargetId = null;
-    }
-
-    if (this.autoFitPending) {
-      this.autoFitPending = false;
-      let minX = Infinity, maxX = -Infinity;
-      let minY = Infinity, maxY = -Infinity;
-      for (const node of this.nodes) {
-        if (node.layoutHidden) continue;
-        minX = Math.min(minX, node.worldX || 0);
-        maxX = Math.max(maxX, node.worldX || 0);
-        minY = Math.min(minY, node.worldY || 0);
-        maxY = Math.max(maxY, node.worldY || 0);
-      }
-      if (minX !== Infinity) {
-        const treeW = maxX - minX;
-        const treeH = maxY - minY;
-        const sidePanelWidth = 320; // compensate for left UI panel
-        const padding = 100;
-        const availW = canvasW - sidePanelWidth - padding;
-        const availH = canvasH - padding;
-        
-        let scaleX = availW / (treeW || 1);
-        let scaleY = availH / (treeH || 1);
-        
-        // 1.1(원본 크기보다 아주 약간 큼)를 초과하지 않으며, 최소 MIN_ZOOM 까지만 축소 허용
-        let newTargetZoom = Math.min(scaleX, scaleY, 1.1);
-        newTargetZoom = Math.max(MIN_ZOOM, newTargetZoom);
-        this.targetZoom = newTargetZoom;
-        
-        const treeCenterX = (maxX + minX) / 2;
-        const treeCenterY = (maxY + minY) / 2;
-        
-        const desiredScreenCenterX = sidePanelWidth + availW / 2;
-        const desiredScreenCenterY = canvasH / 2;
-        
-        this.targetOffsetX = desiredScreenCenterX - (canvasW / 2) - (treeCenterX * newTargetZoom);
-        this.targetOffsetY = desiredScreenCenterY - (canvasH / 2) - (treeCenterY * newTargetZoom);
-      }
     }
   }
 
@@ -502,44 +468,57 @@ export class OntologyCanvasEngine {
 
     const hit = this.hitTest(mx, my);
     if (hit) {
-      // 1. 접기/펼치기 토글(Chevron) 영역 클릭 감지
-      // 노드의 우측 영역(x > renderX + 20) 클릭 시 토글 처리
-      const isRightSide = mx > hit.renderX + 20;
-      let hasChildren = false;
-      for (const edge of this.edges) {
-        if (edge.source === hit.id) {
-          hasChildren = true;
-          break;
-        }
-      }
+      // 1. 트리 계층 구조 가져오기 (레이아웃 엔진이 캐싱한 정확한 부모-자식 관계 파악)
+      const treeChildrenMap = OntologyLayout.lastTreeChildrenMap;
 
-      if (hasChildren && isRightSide) {
+      // 자식 노드가 있는지 확인
+      const children = treeChildrenMap.get(hit.id) || [];
+      const hasChildren = children.length > 0;
+
+      // 자식이 있을 경우 토글 실행
+      if (hasChildren) {
+         const getDescendants = (nodeId: string): string[] => {
+            const desc: string[] = [];
+            const q = [nodeId];
+            while (q.length > 0) {
+               const curr = q.shift()!;
+               const kids = treeChildrenMap.get(curr) || [];
+               for (const kid of kids) {
+                  desc.push(kid);
+                  q.push(kid);
+               }
+            }
+            return desc;
+         };
+
+         const descendants = getDescendants(hit.id);
+
          if (this.collapsedNodeIds.has(hit.id)) {
+             // 펼치기: 클릭한 노드만 삭제하여 직속 1계층 자식만 표시.
              this.collapsedNodeIds.delete(hit.id);
-             this.autoFitPending = true;
          } else {
+             // 접기: 클릭한 노드와 하위 모든 노드를 통째로 접어둠 (다음에 다른 경로로 열리거나 강제 전개될 때 항상 접힌 상태로 보장)
              this.collapsedNodeIds.add(hit.id);
-             this.autoFitPending = true;
+             descendants.forEach(d => this.collapsedNodeIds.add(d));
          }
-         this.needsRedraw = true;
-         return; // 토글만 수행하고 선택 상태는 변경하지 않음
       }
 
-      // 2. 일반적인 노드 선택
-      if (this.activeNode?.id === hit.id) {
-        this.activeNode = this.centerNode;
-        this.previousActiveNodeId = this.centerNode?.id || null;
-      } else {
+      // 2. 일반적인 노드 선택 (카메라 포커스 지정)
+      if (this.activeNode?.id !== hit.id) {
         this.activeNode = hit;
         this.previousActiveNodeId = hit.id;
-        const screenCenterX = this.canvasW / 2;
-        const screenCenterY = this.canvasH / 2;
-        this.targetOffsetX = screenCenterX - (hit.renderX - this.cameraOffsetX);
-        this.targetOffsetY = screenCenterY - (hit.renderY - this.cameraOffsetY);
+      } else if (!hasChildren) {
+        // 이미 선택된 노드를 다시 클릭했을 때, 자식이 없는 리프 노드만 선택 해제
+        this.activeNode = this.centerNode;
+        this.previousActiveNodeId = this.centerNode?.id || null;
       }
+      
+      // 항상 클릭한 노드로 부드럽게 카메라 패닝 (줌은 변동 없음)
+      this.pendingCameraTargetId = hit.id;
     } else {
-      this.activeNode = this.centerNode;
-      this.previousActiveNodeId = this.centerNode?.id || null;
+      // 바탕 배경 클릭 시 활성 상태 유지 (선택이 풀리지 않도록 함)
+      // this.activeNode = this.centerNode;
+      // this.previousActiveNodeId = this.centerNode?.id || null;
     }
     this.needsRedraw = true;
     this.callbacks.onActiveNodeChange?.(this.activeNode);

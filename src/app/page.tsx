@@ -15,6 +15,7 @@ import { WorkspaceView } from '@/components/WorkspaceView';
 import { MindMap3D } from '@/components/MindMap3D';
 import { TaskKnowledgeView } from '@/components/TaskKnowledgeView';
 import { SearchResultModal, SearchResultItem } from '@/components/SearchResultModal';
+import { MapCustomizationData } from '@/hooks/useGraphCustomization';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 
 // Error Boundary for MindMap3D — prevents signal map crash from breaking entire app
@@ -180,16 +181,17 @@ export default function Home() {
       return terms.every(t => lower.includes(t));
     };
 
-    const extractTextFromBlocks = (blocks: any[]): string => {
+    const extractTextFromBlocks = (blocks: unknown[]): string => {
       if (!Array.isArray(blocks)) return '';
       let text = '';
       for (const b of blocks || []) {
-        if (b.content && Array.isArray(b.content)) {
-          text += b.content.map((c: any) => c.text || '').join('') + '\n';
-        } else if (typeof b.content === 'string') {
-          text += b.content + '\n';
+        const block = b as { content?: unknown, children?: unknown[] };
+        if (block.content && Array.isArray(block.content)) {
+          text += block.content.map((c: { text?: string }) => c.text || '').join('') + '\n';
+        } else if (typeof block.content === 'string') {
+          text += block.content + '\n';
         }
-        if (b.children) text += extractTextFromBlocks(b.children) + '\n';
+        if (block.children) text += extractTextFromBlocks(block.children) + '\n';
       }
       return text;
     };
@@ -203,9 +205,9 @@ export default function Home() {
       return (start > 0 ? '... ' : '') + text.slice(start, start + 1000) + (text.length > start + 1000 ? '...' : '');
     };
 
-    let mapData: any = null;
+    let mapData: MapCustomizationData | null = null;
     try {
-      mapData = JSON.parse(localStorage.getItem('hchps-map-customization') || '{}');
+      mapData = JSON.parse(localStorage.getItem('hchps-map-customization') || '{}') as MapCustomizationData;
     } catch(e) {}
 
     // 1. Search Wiki Storage
@@ -220,7 +222,7 @@ export default function Home() {
           let nodeLabel = nodeId;
           if (mapData) {
             // 1. 커스텀 노드인지 확인
-            const cNode = mapData.customNodes?.find((n: any) => n.id === nodeId);
+            const cNode = mapData.customNodes?.find((n) => n.id === nodeId);
             if (cNode && cNode.label) nodeLabel = cNode.label;
             
             // 2. 오버라이드된 이름이 있다면 최우선

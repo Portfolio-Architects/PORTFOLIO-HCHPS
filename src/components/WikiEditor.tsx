@@ -6,6 +6,8 @@ import { useCreateBlockNote, SuggestionMenuController, getDefaultReactSlashMenuI
 import { BlockNoteView } from '@blocknote/mantine';
 import { askLlama } from '@/lib/llm-client';
 import { useYjsStore } from '@/hooks/useYjsStore';
+import * as Y from 'yjs';
+import YPartyKitProvider from 'y-partykit/provider';
 
 import '@blocknote/core/fonts/inter.css';
 import '@blocknote/mantine/style.css';
@@ -37,7 +39,7 @@ export function WikiEditor(props: WikiEditorProps) {
   return <WikiEditorCore {...props} provider={provider} ydoc={ydoc} />;
 }
 
-function WikiEditorCore({ nodeId, nodeTitle, initialBlocks, onChange, onClose, addCustomEdge, provider, ydoc }: WikiEditorProps & { provider: any, ydoc: any }) {
+function WikiEditorCore({ nodeId, nodeTitle, initialBlocks, onChange, onClose, addCustomEdge, provider, ydoc }: WikiEditorProps & { provider: YPartyKitProvider, ydoc: Y.Doc }) {
   const [isLlamaThinking, setIsLlamaThinking] = useState(false);
 
   // 에디터 인스턴스 생성 (Yjs 실시간 협업 속성 부여)

@@ -9,6 +9,14 @@ export interface SearchResultItem {
   source: string;  
 }
 
+export interface VectorResult {
+  id: string;
+  score?: number;
+  metadata?: {
+    text?: string;
+  };
+}
+
 interface SearchResultModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -17,7 +25,7 @@ interface SearchResultModalProps {
 }
 
 export function SearchResultModal({ isOpen, onClose, query, results: localResults }: SearchResultModalProps) {
-  const [semanticResults, setSemanticResults] = useState<any[]>([]);
+  const [semanticResults, setSemanticResults] = useState<VectorResult[]>([]);
   const [messages, setMessages] = useState<{ role: 'user' | 'assistant', content: string }[]>([]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -52,7 +60,7 @@ export function SearchResultModal({ isOpen, onClose, query, results: localResult
           : '';
 
         // 1. Vectorize Semantic Search
-        let retrievedDocs: any[] = [];
+        let retrievedDocs: VectorResult[] = [];
         try {
           const searchRes = await fetch(`${basePath}/api/semantic-search`, {
             method: 'POST',
@@ -76,7 +84,7 @@ export function SearchResultModal({ isOpen, onClose, query, results: localResult
           text && text.length > maxLen ? text.substring(0, maxLen) + '...' : (text || '');
 
         let contextText = retrievedDocs.slice(0, 3).map(doc => 
-          `[Source: ${doc.id}]\n${truncateText(doc.metadata?.text, 1500)}`
+          `[Source: ${doc.id}]\n${truncateText(doc.metadata?.text || '', 1500)}`
         ).join('\n\n');
 
         // Fallback to local exact match results if Vectorize is empty (e.g. dev mode without Wrangler)
@@ -111,7 +119,8 @@ ${contextText || '(관련 문서가 없습니다.)'}
           ]);
           setPhase('done');
         }
-      } catch (err: any) {
+      } catch (error) {
+        const err = error as Error;
         console.error("RAG pipeline failed", err);
         if (isMounted) {
           setMessages([
@@ -318,12 +327,13 @@ ${contextText || '(관련 문서가 없습니다.)'}
                   { role: 'system', content: systemPrompt },
                   ...messages,
                   { role: 'user', content: newText }
-                ] as any;
+                ] as Parameters<typeof askLlama>[0];
 
                 const answer = await askLlama(chatParams);
                 setMessages(prev => [...prev, { role: 'assistant', content: answer }]);
                 setPhase('done');
-              } catch (err: any) {
+              } catch (error) {
+                const err = error as Error;
                 setMessages(prev => [...prev, { role: 'assistant', content: `[오류 발생] ${err.message}` }]);
                 setPhase('done');
               } finally {

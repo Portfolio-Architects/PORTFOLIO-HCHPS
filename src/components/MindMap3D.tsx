@@ -2,6 +2,7 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { OntologyCanvasEngine } from '@/lib/OntologyCanvasEngine';
+import { OntologyLayout } from '@/lib/engine/OntologyLayout';
 import { buildSignalGraph } from '@/lib/signal-graph';
 import { SignalEntry } from '@/hooks/useSignal';
 import {
@@ -151,8 +152,13 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
       setUsingSample(Object.keys(signalKeywordsRef.current).length === 0);
 
       const engine = new OntologyCanvasEngine();
+      // 기존 노드들의 현재 위치(orbitAngle) 및 접힘 상태 백업(전달)하여 카메라 급발진/순간이동 및 백화 현상을 막습니다.
+      if (engineRef.current) {
+         engine.hasInitializedCollapse = engineRef.current.hasInitializedCollapse;
+         engine.collapsedNodeIds = new Set(engineRef.current.collapsedNodeIds);
+      }
+      
       // Init WITHOUT callbacks to avoid triggering setState during init
-      // 기존 노드들의 현재 위치(orbitAngle)를 백업(전달)하여 색상 변경 시의 카메라 급발진/순간이동 현상을 막습니다.
       engine.init(graph, undefined, engineRef.current ? engineRef.current.nodes : undefined);
       engine.isOrbiting = false;
 
@@ -536,40 +542,63 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
 
   const handleSwapNodeOrder = useCallback((dir: -1 | 1) => {
     if (!activeNode || !engineRef.current) return;
-    const parentId = activeNode.parentId;
-    if (!parentId) return;
     const engine = engineRef.current;
     
-    const siblings = engine.nodes.filter(n => n.parentId === parentId && n.orbitIndex === activeNode.orbitIndex)
-      .sort((a, b) => {
-        const orderA = overrides[a.id]?.customSortOrder ?? 0;
-        const orderB = overrides[b.id]?.customSortOrder ?? 0;
-        return orderA - orderB;
-      });
-      
-    const idx = siblings.findIndex(n => n.id === activeNode.id);
+    // Find parent in treeChildrenMap
+    let parentId: string | null = null;
+    let siblingsIds: string[] = [];
+    
+    for (const [pId, children] of OntologyLayout.lastTreeChildrenMap.entries()) {
+      if (children.includes(activeNode.id)) {
+         parentId = pId;
+         siblingsIds = [...children];
+         break;
+      }
+    }
+    
+    // Root 노드일 경우 (부모가 없음)
+    if (!parentId) {
+      const allChildren = new Set<string>();
+      for (const children of OntologyLayout.lastTreeChildrenMap.values()) {
+        children.forEach(c => allChildren.add(c));
+      }
+      // 루트 노드들의 형제 배열을 구성
+      siblingsIds = engine.nodes
+        .filter(n => !allChildren.has(n.id))
+        .sort((a, b) => {
+           const orderA = overrides[a.id]?.customSortOrder ?? 0;
+           const orderB = overrides[b.id]?.customSortOrder ?? 0;
+           if (orderA !== orderB) return orderA - orderB;
+           return a.label.localeCompare(b.label);
+        })
+        .map(n => n.id);
+    }
+    
+    const idx = siblingsIds.indexOf(activeNode.id);
     if (idx < 0) return;
     
     const targetIdx = idx + dir;
-    if (targetIdx < 0 || targetIdx >= siblings.length) return;
+    if (targetIdx < 0 || targetIdx >= siblingsIds.length) return;
     
-    const targetNode = siblings[targetIdx];
+    // 형제들의 순서를 명시적으로 0, 1, 2, ... 로 덮어씌움 (단, active와 target은 서로의 인덱스 가짐)
+    siblingsIds.forEach((id, i) => {
+      let finalIndex = i;
+      if (i === idx) finalIndex = targetIdx;
+      else if (i === targetIdx) finalIndex = idx;
+      
+      setNodeOverride(id, { customSortOrder: finalIndex });
+      
+      // 엔진 내 객체에도 즉시 반영
+      const engineNode = engine.getNodeById(id);
+      if (engineNode) {
+          engineNode.customSortOrder = finalIndex;
+      }
+    });
     
-    const myOrder = overrides[activeNode.id]?.customSortOrder ?? idx;
-    const targetOrder = overrides[targetNode.id]?.customSortOrder ?? targetIdx;
+    // Active Node 상태에도 즉시 반영 (리렌더링 후 선택 유지 목적)
+    setActiveNode(prev => prev && prev.id === activeNode.id ? { ...prev, customSortOrder: targetIdx } : prev);
     
-    setNodeOverride(activeNode.id, { customSortOrder: targetOrder });
-    setNodeOverride(targetNode.id, { customSortOrder: myOrder });
-    
-    const tempAngle = activeNode.orbitAngle;
-    const activeEngineNode = engine.getNodeById(activeNode.id);
-    const targetEngineNode = engine.getNodeById(targetNode.id);
-    if (activeEngineNode && targetEngineNode) {
-      activeEngineNode.orbitAngle = targetNode.orbitAngle;
-      targetEngineNode.orbitAngle = tempAngle;
-    }
-    
-    setTimeout(() => initEngine(), 30);
+    setTimeout(() => initEngine(), 50);
   }, [activeNode, overrides, setNodeOverride, initEngine]);
 
 
@@ -803,7 +832,29 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                           </select>
                         </div>
 
-                        {/* 3. 일반 횡적 선분 연결 */}
+                        {/* 3. 형제 노드 간 정렬 순서 조정 */}
+                        <div className="flex flex-col gap-1 bg-slate-50 p-2.5 border border-slate-200 rounded-lg shadow-sm">
+                          <label className="text-[10px] font-bold text-slate-500 mb-0.5">배치 순서 위/아래 이동</label>
+                          <div className="flex gap-1.5">
+                            <button
+                              onClick={() => handleSwapNodeOrder(-1)}
+                              className="flex-1 px-2.5 py-1.5 rounded-md border text-xs font-semibold shadow-sm cursor-pointer transition-colors flex items-center justify-center shrink-0 bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+                              title="위로 올리기"
+                            >
+                              ⬆ 위로 이동
+                            </button>
+                            <button
+                              onClick={() => handleSwapNodeOrder(1)}
+                              className="flex-1 px-2.5 py-1.5 rounded-md border text-xs font-semibold shadow-sm cursor-pointer transition-colors flex items-center justify-center shrink-0 bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+                              title="아래로 내리기"
+                            >
+                              ⬇ 아래로 이동
+                            </button>
+                          </div>
+                            <p className="text-[9px] text-slate-400 leading-tight mt-1">같은 부모를 가진 동급 노드들 사이의 표시 순서를 변경합니다.</p>
+                        </div>
+
+                        {/* 4. 일반 횡적 선분 연결 */}
                         <button
                           onClick={() => setEdgeModeSource(activeNode.id)}
                           className={`w-full flex items-center justify-center px-3 py-2 border rounded-lg text-xs font-semibold cursor-pointer transition-colors shadow-sm ${

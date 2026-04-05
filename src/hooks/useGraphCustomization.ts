@@ -6,15 +6,15 @@ import { useYjsStore } from './useYjsStore';
 import * as Y from 'yjs';
 
 export interface NodeOverride {
-  fixedX?: number;
-  fixedY?: number;
-  customColor?: string;
-  customLabel?: string;
-  customGroup?: string;
-  customParent?: string;
-  customOrbitIndex?: number;
-  customSortOrder?: number;
-  hidden?: boolean;
+  fixedX?: number | null;
+  fixedY?: number | null;
+  customColor?: string | null;
+  customLabel?: string | null;
+  customGroup?: string | null;
+  customParent?: string | null;
+  customOrbitIndex?: number | null;
+  customSortOrder?: number | null;
+  hidden?: boolean | null;
   story5W1H?: {
     who?: string;
     when?: string;
@@ -25,7 +25,7 @@ export interface NodeOverride {
     contact?: string;
     department?: string;
     title?: string;
-  };
+  } | null;
 }
 
 export interface MapCustomizationData {
@@ -160,14 +160,15 @@ export function useGraphCustomization() {
     ydoc.transact(() => {
       const map = ydoc.getMap('overrides') as Y.Map<NodeOverride>;
       const current = map.get(id) || {};
-      const next = { ...current };
+      const next: NodeOverride = { ...current };
       
       // Allow clearing specific fields explicitly by setting them to `null` to retain intent
-      Object.keys(override).forEach(k => {
-        if (override[k as keyof NodeOverride] === undefined) {
-          (next as any)[k] = null;
+      (Object.keys(override) as Array<keyof NodeOverride>).forEach(k => {
+        if (override[k] === undefined) {
+          next[k] = null as any; // Type-safe omission is handled by map, null acts as explicit tombstone
         } else {
-          (next as any)[k] = override[k as keyof NodeOverride];
+          // Temporarily bypass strict index typing with a cast, safe due to key extraction
+          (next as Record<string, unknown>)[k] = override[k];
         }
       });
       map.set(id, next);
@@ -179,12 +180,12 @@ export function useGraphCustomization() {
       const map = ydoc.getMap('overrides') as Y.Map<NodeOverride>;
       for (const [id, override] of Object.entries(updates)) {
         const current = map.get(id) || {};
-        const next = { ...current };
-        Object.keys(override).forEach(k => {
-          if (override[k as keyof NodeOverride] === undefined) {
-            (next as any)[k] = null;
+        const next: NodeOverride = { ...current };
+        (Object.keys(override) as Array<keyof NodeOverride>).forEach(k => {
+          if (override[k] === undefined) {
+            next[k] = null as any;
           } else {
-            (next as any)[k] = override[k as keyof NodeOverride];
+            (next as Record<string, unknown>)[k] = override[k];
           }
         });
         map.set(id, next);
@@ -309,7 +310,7 @@ export function useGraphCustomization() {
         for (const key of Array.from(map.keys())) {
           const current = map.get(key);
           if (current) {
-            map.set(key, { ...current, fixedX: null as any, fixedY: null as any, customParent: null as any, customOrbitIndex: null as any, customSortOrder: null as any });
+            map.set(key, { ...current, fixedX: null, fixedY: null, customParent: null, customOrbitIndex: null, customSortOrder: null });
           }
         }
       });
