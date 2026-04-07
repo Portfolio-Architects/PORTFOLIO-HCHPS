@@ -396,8 +396,8 @@ export class OntologyCanvasEngine {
       if (target && typeof target.worldX === 'number' && !isNaN(target.worldX) && 
           typeof target.worldY === 'number' && !isNaN(target.worldY)) {
         
-        // 스샷 내용처럼 중심 노드를 화면의 왼쪽에서 25% 위치에 배치 (트리가 우측으로 뻗어나감)
-        const screenCenterX = Math.max(150, canvasW * 0.25); 
+        // 중심 노드를 화면의 중앙에 배치 (모바일 화면 등에서 좌측에 쏠리지 않도록 50% 위치에 배치)
+        const screenCenterX = canvasW * 0.5; 
         const screenCenterY = canvasH / 2;
         
         const snapX = screenCenterX - (canvasW / 2) - (target.worldX * this.zoom);

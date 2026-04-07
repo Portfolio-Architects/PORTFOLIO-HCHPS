@@ -8,7 +8,7 @@ interface Props {
   onSetup: (pin: string) => void;
 }
 
-const PIN_LENGTH = 6;
+const PIN_LENGTH = 4;
 
 export const SecurityLockScreen: React.FC<Props> = ({ hasSetupPIN, failCount, onVerify, onSetup }) => {
   const [pin, setPin] = useState<string>('');
@@ -107,7 +107,7 @@ export const SecurityLockScreen: React.FC<Props> = ({ hasSetupPIN, failCount, on
             : setupStep === 1 ? '새로운 접근 비밀번호 설정' : '비밀번호를 한 번 더 입력해주세요'}
         </h2>
         <p className={`text-sm ${errorMsg ? 'text-red-400' : 'text-slate-400'}`}>
-          {errorMsg || (hasSetupPIN ? '설정하신 6자리 PIN을 입력하세요.' : '자신만이 알 수 있는 6자리를 선택하세요.')}
+          {errorMsg || (hasSetupPIN ? '설정하신 4자리 PIN을 입력하세요.' : '자신만이 알 수 있는 4자리를 선택하세요.')}
         </p>
       </div>
 
