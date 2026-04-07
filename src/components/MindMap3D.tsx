@@ -639,8 +639,8 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
       <div 
         className={
           isOverlay 
-            ? "absolute bottom-6 left-1/2 -translate-x-1/2 z-[110] w-[95%] md:w-[90%] max-w-[800px] bg-white/95 backdrop-blur-xl rounded-xl border border-[var(--color-border-light)] shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300 pointer-events-auto"
-            : "w-full h-full flex-1 bg-white rounded-xl border border-[var(--color-border-light)] shadow-sm overflow-hidden relative flex flex-col animate-in fade-in slide-in-from-bottom-2 duration-300 pointer-events-auto"
+            ? "absolute bottom-6 left-1/2 -translate-x-1/2 z-[110] w-[95%] md:w-[90%] max-w-[800px] bg-white rounded-xl border border-[var(--color-border-light)] shadow-xl overflow-hidden pointer-events-auto"
+            : "w-full h-full flex-1 bg-white rounded-xl border border-[var(--color-border-light)] shadow-sm overflow-hidden relative flex flex-col pointer-events-auto"
         }
       >
         <div className="px-4 py-3 border-b border-[var(--color-border-light)] bg-gray-50/50 flex justify-between items-center">
@@ -990,7 +990,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
         {/* ── Side Panel: Node Details (노드 상세 패널) ── */}
         <div className={isFullscreen ? "hidden md:flex flex-col fixed top-4 right-auto bottom-4 left-4 z-[110] w-[280px] lg:w-[320px] shadow-2xl rounded-xl custom-scrollbar pointer-events-auto bg-[#f8f9fc]" : "order-2 lg:order-none w-full pointer-events-auto flex flex-col gap-3"} style={{ height: isFullscreen ? "calc(100vh - 32px)" : "min(600px, 70vh)" }}>
           {isAddingNode ? (
-            <div className="w-full shrink-0 flex flex-col gap-2 p-3 rounded-xl bg-white shadow-sm border border-[var(--color-primary)] animate-in fade-in zoom-in-95 duration-200">
+            <div className="w-full shrink-0 flex flex-col gap-2 p-3 rounded-xl bg-white shadow-sm border border-[var(--color-primary)]">
               <input
                 autoFocus
                 type="text"
@@ -1103,7 +1103,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
           {/* Whiteboard Toolbar (top-left) */}
           {edgeModeSource && (
             <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
-              <div className="bg-blue-50/90 backdrop-blur rounded-lg px-3 py-2 shadow-sm border border-blue-200 text-xs font-semibold text-blue-700 animate-pulse">
+              <div className="bg-blue-50 rounded-lg px-3 py-2 shadow-sm border border-blue-200 text-xs font-semibold text-blue-700">
                 대상을 클릭해 선을 연결하세요...
                 <button 
                   onClick={() => setEdgeModeSource(null)}
@@ -1116,7 +1116,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
           {/* Hover tooltip (for nodes that are NOT active) */}
           {hoveredNode && hoveredNode.id !== activeNode?.id && (
             <div
-              className="absolute z-20 pointer-events-none bg-white/95 backdrop-blur rounded-lg px-3 py-2 shadow-md border border-[var(--color-border-light)] animate-in fade-in zoom-in duration-100"
+              className="absolute z-20 pointer-events-none bg-white rounded-lg px-3 py-2 shadow-sm border border-[var(--color-border-light)]"
               style={{
                 left: Math.min(
                   (containerRef.current?.getBoundingClientRect().width ?? 400) - 180,
@@ -1140,7 +1140,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
             
             <button
               onClick={fetchFromCloud}
-              className="bg-white/90 backdrop-blur rounded-lg px-3 py-2.5 shadow-md border border-[var(--color-border-light)] hover:bg-gray-100 transition-colors cursor-pointer text-blue-600 hover:text-blue-800 flex items-center gap-1.5 font-medium text-sm"
+              className="bg-white rounded-lg px-3 py-2.5 shadow-sm border border-[var(--color-border-light)] hover:bg-gray-100 cursor-pointer text-blue-600 flex items-center gap-1.5 font-medium text-sm"
               title="클라우드에서 불러오기"
             >
               <CloudDownload size={16} /> <span className="hidden sm:inline">내려받기</span>
@@ -1148,7 +1148,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
 
             <button
               onClick={syncToCloud}
-              className="bg-white/90 backdrop-blur rounded-lg px-3 py-2.5 shadow-md border border-[var(--color-border-light)] hover:bg-gray-100 transition-colors cursor-pointer text-indigo-600 hover:text-indigo-800 flex items-center gap-1.5 font-medium text-sm"
+              className="bg-white rounded-lg px-3 py-2.5 shadow-sm border border-[var(--color-border-light)] hover:bg-gray-100 cursor-pointer text-indigo-600 flex items-center gap-1.5 font-medium text-sm"
               title="현재 상태 클라우드에 백업"
             >
               <CloudUpload size={16} /> <span className="hidden sm:inline">동기화</span>
@@ -1157,7 +1157,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
             {/* Fullscreen toggle */}
             <button
               onClick={() => setIsFullscreen(!isFullscreen)}
-              className="bg-white/90 backdrop-blur rounded-lg p-2.5 shadow-md border border-[var(--color-border-light)] hover:bg-gray-100 transition-colors cursor-pointer text-gray-500 hover:text-gray-800"
+              className="bg-white rounded-lg p-2.5 shadow-sm border border-[var(--color-border-light)] hover:bg-gray-100 cursor-pointer text-gray-500"
               title={isFullscreen ? '패널 보기' : '전체화면'}
             >
               {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
@@ -1167,7 +1167,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
 
           {/* Sliding Wiki Panel Overlay */}
           {isWikiOpen && activeNode && wikiLoaded && (
-            <div className="absolute top-0 right-0 h-full bg-white z-[120] shadow-2xl border-l border-slate-200 w-full md:w-[450px] lg:w-[500px] animate-in slide-in-from-right-8 duration-300">
+            <div className="absolute top-0 right-0 h-full bg-white z-[120] shadow-xl border-l border-slate-200 w-full md:w-[450px] lg:w-[500px]">
               <WikiEditor 
                 key={activeNode.id}
                 nodeId={activeNode.id} 

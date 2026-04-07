@@ -31,6 +31,28 @@ export const SecurityLockScreen: React.FC<Props> = ({ hasSetupPIN, failCount, on
     }
   }, [pin]);
 
+  // 물리적 키보드(키패드) 입력 지원
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // 숫자 키 입력
+      if (e.key >= '0' && e.key <= '9') {
+        setPin(prev => {
+          if (prev.length < PIN_LENGTH) return prev + e.key;
+          return prev;
+        });
+        setErrorMsg('');
+      } 
+      // 백스페이스 및 삭제 
+      else if (e.key === 'Backspace' || e.key === 'Delete') {
+        setPin(prev => prev.slice(0, -1));
+        setErrorMsg('');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const handlePinComplete = async (currentPin: string) => {
     if (hasSetupPIN) {
       const isValid = await onVerify(currentPin);
@@ -66,7 +88,7 @@ export const SecurityLockScreen: React.FC<Props> = ({ hasSetupPIN, failCount, on
   };
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-slate-900 flex flex-col items-center justify-center p-6 sm:p-8 animate-in fade-in duration-300">
+    <div className="fixed inset-0 z-[9999] bg-slate-900 flex flex-col items-center justify-center p-6 sm:p-8">
       
       {/* 락 아이콘 */}
       <div className="mb-8 p-4 bg-slate-800/50 rounded-full shadow-lg border border-slate-700/50">

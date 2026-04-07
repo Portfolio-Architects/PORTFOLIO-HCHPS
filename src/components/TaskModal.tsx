@@ -181,7 +181,7 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, allTags
     <Modal isOpen={isOpen} onClose={onClose} title={editTask ? '업무 수정' : '새 업무'}>
       <form onSubmit={handleSubmit} className="space-y-4">
         {matchedAdvice.length > 0 && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 mb-2 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 mb-2">
             <h4 className="flex items-center gap-1.5 text-xs font-bold text-yellow-800 mb-2">
               <Lightbulb size={14} className="text-yellow-600" />
               💡 참고할 조언 / 어드바이스 ({matchedAdvice.length}건)

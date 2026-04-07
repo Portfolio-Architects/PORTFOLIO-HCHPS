@@ -161,9 +161,9 @@ ${contextText}
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-black/60" onClick={onClose}>
       <div 
-        className="pointer-events-auto bg-[var(--color-card)] rounded-2xl shadow-2xl w-full max-w-6xl overflow-hidden border border-[var(--color-border-light)] transform transition-all animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]"
+        className="pointer-events-auto bg-[var(--color-card)] rounded-xl shadow-xl w-full max-w-6xl overflow-hidden border border-[var(--color-border-light)] flex flex-col max-h-[90vh]"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -319,8 +319,8 @@ ${contextText || '(관련 문서가 없습니다.)'}
 
           {/* Right Panel: Sources Area */}
           {(phase === 'done' && (semanticResults.length > 0 || localResults.length > 0)) && (
-            <div className="lg:w-[350px] xl:w-[400px] border-t lg:border-t-0 lg:border-l border-[var(--color-border-light)] bg-gray-50 flex flex-col flex-shrink-0 animate-in slide-in-from-right-4 duration-300">
-              <div className="px-5 py-4 border-b border-[var(--color-border-light)] bg-white/50 backdrop-blur-sm sticky top-0 z-10 hidden lg:block">
+            <div className="lg:w-[350px] xl:w-[400px] border-t lg:border-t-0 lg:border-l border-[var(--color-border-light)] bg-gray-50 flex flex-col flex-shrink-0">
+              <div className="px-5 py-4 border-b border-[var(--color-border-light)] bg-white sticky top-0 z-10 hidden lg:block">
                 <h4 className="text-[14px] font-semibold text-gray-700 flex items-center gap-2">
                   <FileText size={16} className="text-indigo-500" /> 참조된 원본 문서
                 </h4>
@@ -343,8 +343,8 @@ ${contextText || '(관련 문서가 없습니다.)'}
                                 detail: { id: nodeId, label: nodeId }
                               }));
                             }}
-                            className="text-left flex flex-col gap-2 p-4 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md hover:border-indigo-300 transition-all cursor-pointer group hover:-translate-y-0.5 animate-in fade-in slide-in-from-bottom-2 duration-500"
-                            style={{ animationDelay: `${idx * 100}ms`, animationFillMode: 'both' }}
+                            className="text-left flex flex-col gap-2 p-4 bg-white border border-gray-200 rounded-xl shadow-sm hover:border-indigo-300 cursor-pointer group"
+                            style={{ animationFillMode: 'both' }}
                           >
                             <div className="flex items-center justify-between w-full">
                               <span className="text-[14px] font-bold text-[var(--color-primary)] group-hover:text-indigo-600 transition-colors line-clamp-1">
@@ -371,8 +371,8 @@ ${contextText || '(관련 문서가 없습니다.)'}
                                 detail: { id: nodeId, label: displayTitle }
                               }));
                             }}
-                            className="text-left flex flex-col gap-2 p-4 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md hover:border-indigo-300 transition-all cursor-pointer group hover:-translate-y-0.5 animate-in fade-in slide-in-from-bottom-2 duration-500"
-                            style={{ animationDelay: `${idx * 100}ms`, animationFillMode: 'both' }}
+                            className="text-left flex flex-col gap-2 p-4 bg-white border border-gray-200 rounded-xl shadow-sm hover:border-indigo-300 cursor-pointer group"
+                            style={{ animationFillMode: 'both' }}
                           >
                             <div className="flex items-center justify-between w-full">
                               <span className="text-[14px] font-bold text-[var(--color-primary)] group-hover:text-indigo-600 transition-colors line-clamp-1">

@@ -73,10 +73,11 @@ export class OntologyRenderer {
       if (src.renderY > canvasH + CULL_MARGIN && tgt.renderY > canvasH + CULL_MARGIN) continue;
 
       // Smooth step bezier variables (좌에서 우로)
-      const leftRightX = leftNode.renderX + 60 * rc.zoom;
-      const rightLeftX = rightNode.renderX - 60 * rc.zoom;
+      // 콤팩트해진 텍스트 박스 크기에 맞춰 선의 시작점을 안쪽으로 축소
+      const leftRightX = leftNode.renderX + 30 * rc.zoom;
+      const rightLeftX = rightNode.renderX - 30 * rc.zoom;
       
-      const cpDist = Math.max(20, Math.abs(rightLeftX - leftRightX) / 2);
+      const cpDist = Math.max(15, Math.abs(rightLeftX - leftRightX) / 2);
       
       // 엣지 색상 조절 (연결된 선명도와 채도 낮춤)
       const alpha = isConnected ? 0.5 : 0.2;
@@ -142,20 +143,20 @@ export class OntologyRenderer {
 
       const labelText = node.label || '';
       
-      // NotebookLM 스타일: 텍스트가 시원하게 보이도록 폰트 크기 확대 및 상한선 해제
-      const fontSize = 15 * zoom;
-      // 트리에 속해있으면(활성 상태면) 폰트 굵기도 올려줌
+      // NotebookLM 스타일: 콤팩트한 노드 사이즈
+      const fontSize = 12 * zoom;
       ctx.font = `${(isActive || isTreeActive) ? '600' : '500'} ${fontSize}px 'Pretendard', sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
-      const paddingX = 24 * zoom; // 좌우 여백 대폭 추가
-      const paddingY = 16 * zoom; // 상하 여백 추가
+      const paddingX = 14 * zoom; // 좌우 여백 (기존 24 -> 14)
+      const paddingY = 10 * zoom; // 상하 여백 (기존 16 -> 10)
       const textWidth = ctx.measureText(labelText).width;
       
       // Node Dimensions
-      const boxW = Math.max(100 * zoom, textWidth + paddingX * 2);
-      const boxH = Math.max(40 * zoom, fontSize + paddingY * 2);
+      const boxW = Math.max(60 * zoom, textWidth + paddingX * 2); // 100 -> 60
+      const boxH = Math.max(28 * zoom, fontSize + paddingY * 2);  // 40 -> 28
+
       
       const colors = this.getDepthColor(node.orbitIndex);
 
@@ -167,7 +168,7 @@ export class OntologyRenderer {
       // Box Draw
       ctx.beginPath();
       if (ctx.roundRect) {
-        ctx.roundRect(node.renderX - boxW / 2, node.renderY - boxH / 2, boxW, boxH, 8 * zoom);
+        ctx.roundRect(node.renderX - boxW / 2, node.renderY - boxH / 2, boxW, boxH, 6 * zoom);
       } else {
         ctx.rect(node.renderX - boxW / 2, node.renderY - boxH / 2, boxW, boxH);
       }
@@ -192,9 +193,9 @@ export class OntologyRenderer {
       const hasChildren = children.length > 0;
       if (hasChildren) {
         const isCollapsed = rc.collapsedNodeIds.has(node.id);
-        const badgeRadius = 11 * zoom;
+        const badgeRadius = 8 * zoom; // 11 -> 8
         // Position it entirely outside the right edge of the box (with gap)
-        const badgeX = node.renderX + boxW / 2 + badgeRadius + (8 * zoom);
+        const badgeX = node.renderX + boxW / 2 + badgeRadius + (4 * zoom); // 8 -> 4
         const badgeY = node.renderY;
         
         ctx.beginPath();
@@ -207,7 +208,7 @@ export class OntologyRenderer {
 
         ctx.fillStyle = colors.text;
         // Use a sans-serif font for arrows to match standard NotebookLM aesthetic
-        ctx.font = `bold ${12 * zoom}px sans-serif`;
+        ctx.font = `bold ${9 * zoom}px sans-serif`;
         // Draw > if collapsed (can expand), < if expanded (can collapse)
         ctx.fillText(isCollapsed ? '>' : '<', badgeX, badgeY + Math.max(1, 1 * zoom));
       }

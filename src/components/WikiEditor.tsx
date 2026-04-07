@@ -251,8 +251,8 @@ function WikiEditorCore({ nodeId, nodeTitle, initialBlocks, onChange, onClose, a
       {/* 에디터 스크롤 영역 */}
       <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
         {isLlamaThinking && (
-          <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10 flex items-center justify-center pointer-events-none">
-            <div className="bg-white p-4 rounded-xl shadow-lg border border-emerald-100 flex items-center gap-3 animate-in fade-in zoom-in duration-200">
+          <div className="absolute inset-0 bg-white/70 z-10 flex items-center justify-center pointer-events-none">
+            <div className="bg-white p-4 rounded-xl shadow-md border border-emerald-100 flex items-center gap-3">
               <span className="text-2xl animate-spin">🪄</span>
               <span className="font-medium text-emerald-800">Llama 3가 마법을 부리는 중...</span>
             </div>
