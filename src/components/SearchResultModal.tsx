@@ -149,7 +149,10 @@ ${contextText}
           if (isMounted) {
             setMessages(prev => {
               const newMsgs = [...prev];
-              newMsgs[newMsgs.length - 1].content += chunk;
+              // React Strict Mode 더블 실행 버그 방지를 위해 반드시 객체를 새로 생성(Clone)해야 합니다.
+              const lastMsg = { ...newMsgs[newMsgs.length - 1] };
+              lastMsg.content += chunk;
+              newMsgs[newMsgs.length - 1] = lastMsg;
               return newMsgs;
             });
           }
@@ -304,7 +307,10 @@ ${contextText || '(관련 문서가 없습니다.)'}
                     await askLlama(chatParams, undefined, (chunk) => {
                       setMessages(prev => {
                         const newMsgs = [...prev];
-                        newMsgs[newMsgs.length - 1].content += chunk;
+                        // React Strict Mode 더블 실행 버그 방지 (객체 Clone)
+                        const lastMsg = { ...newMsgs[newMsgs.length - 1] };
+                        lastMsg.content += chunk;
+                        newMsgs[newMsgs.length - 1] = lastMsg;
                         return newMsgs;
                       });
                     });
