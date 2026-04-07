@@ -61,9 +61,13 @@ export function SearchResultModal({ isOpen, onClose, query, results: localResult
         // 1. Vectorize Semantic Search
         let retrievedDocs: VectorResult[] = [];
         try {
+          const storedKey = localStorage.getItem('hchps_master_key');
+          const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+          if (storedKey) headers['X-API-Key'] = storedKey;
+
           const searchRes = await fetch(`${apiBase}/api/semantic-search`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers,
             body: JSON.stringify({ query, limit: 3 })
           });
           if (searchRes.ok) {

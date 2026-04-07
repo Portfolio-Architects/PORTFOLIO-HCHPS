@@ -91,7 +91,7 @@ export function Sidebar({ activeModule, onModuleChange, taskStats, quickInput }:
                 aria-label={item.label}
               >
                 <Icon 
-                  className="w-6 h-6" 
+                  className="w-6 h-6 scale-[0.8] transition-transform duration-200" 
                   strokeWidth={isActive ? 2.5 : 2} 
                 />
                 

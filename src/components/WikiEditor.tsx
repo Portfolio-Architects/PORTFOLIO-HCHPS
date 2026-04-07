@@ -165,12 +165,15 @@ function WikiEditorCore({ nodeId, nodeTitle, initialBlocks, onChange, onClose, a
                 try {
                   setIsLlamaThinking(true);
                   const docText = await editor.blocksToMarkdownLossy(editor.document);
-                  const basePath = typeof window !== 'undefined' && window.location.pathname.startsWith('/PORTFOLIO-HCHPS') ? '/PORTFOLIO-HCHPS' : '';
+                  const apiBase = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) ? '' : 'https://portfolio-hchps.pages.dev';
+                  const storedKey = localStorage.getItem('hchps_master_key');
+                  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+                  if (storedKey) headers['X-API-Key'] = storedKey;
                   
                   // 1. Vectorize 검색하여 의미론적 유사 노드 찾기
-                  const res = await fetch(`${basePath}/api/semantic-search`, {
+                  const res = await fetch(`${apiBase}/api/semantic-search`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers,
                     body: JSON.stringify({ query: docText.substring(0, 500), limit: 3 })
                   });
                   if (!res.ok) {
