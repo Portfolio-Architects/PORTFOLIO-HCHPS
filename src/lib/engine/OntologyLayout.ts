@@ -112,15 +112,28 @@ export class OntologyLayout {
        }
     }
 
-    // 3. NotebookLM 스타일 극압축 레이아웃 (Leaf-Stacking DFS)
+    // 3. NotebookLM 스타일 극압축 레이아웃 (Depth-Based Contour Approximation)
     const X_SPACING = 180;
     const Y_SPACING = 8;
     const NODE_HEIGHT = 32;
     
-    let globalLeafY = 0;
+    // 각 뎁스(Depth / X축 레벨)별로 다음에 노드가 배치되어야 할 사용 가능한 최소 Y좌표를 추적
+    const depthY: Record<number, number> = {};
     const visibleNodes = new Set<string>();
 
-    function layoutNode(nodeId: string, depthX: number): number {
+    // 서브트리를 통째로 아래로 이동시키는 함수
+    function shiftSubtree(nodeId: string, shift: number) {
+        const node = nodeMap.get(nodeId);
+        if (node) node.worldY = (node.worldY || 0) + shift;
+        
+        if (collapsedNodeIds.has(nodeId)) return;
+        const children = treeChildrenMap.get(nodeId) || [];
+        for (const childId of children) {
+            shiftSubtree(childId, shift);
+        }
+    }
+
+    function layoutNode(nodeId: string, depth: number, depthX: number): number {
       const node = nodeMap.get(nodeId);
       if (!node) return 0;
       
@@ -130,28 +143,52 @@ export class OntologyLayout {
       const children = treeChildrenMap.get(nodeId) || [];
       const hasVisibleChildren = children.length > 0 && !collapsedNodeIds.has(nodeId);
 
+      let myY = 0;
       if (!hasVisibleChildren) {
-         // 자식이 보이도록 펴져 있지 않으면, 리프(Leaf) 취급하여 현재 전역 Y축 예약
-         const myY = globalLeafY;
+         // 자식이 없는 노드는 자신의 뎁스에서 가능한 최상단(위쪽 노드 바로 밑)에 바짝 붙임
+         myY = depthY[depth] || 0;
          node.worldY = myY;
-         globalLeafY += NODE_HEIGHT + Y_SPACING;
+         depthY[depth] = myY + NODE_HEIGHT + Y_SPACING;
          return myY;
       } else {
-         // 자식이 펼쳐져 있다면, 자식들을 먼저 순차적으로 그리고 부모는 그 중앙에 배치
+         // 자식이 있다면 자식들을 먼저 순차적으로 그리고
          let sumY = 0;
          for (const childId of children) {
-            sumY += layoutNode(childId, depthX + X_SPACING);
+            sumY += layoutNode(childId, depth + 1, depthX + X_SPACING);
          }
+         // 부모는 자식들의 중앙 위치(avgY)를 희망함
          const avgY = sumY / children.length;
-         node.worldY = avgY;
-         return avgY;
+         
+         // 하지만 자신의 뎁스에서 앞서 그려진 다른 노드와 겹치면 안 되므로 하한선(requiredY) 검사
+         const requiredY = depthY[depth] || 0;
+         myY = Math.max(requiredY, avgY);
+         const shift = myY - avgY; // 만약 위쪽 노드 때문에 강제로 밑으로 밀려났다면
+         
+         if (shift > 0) {
+            // 자식들 전체도 밀려난 만큼 똑같이 내려줌 (선이 찌그러지지 않게)
+            shiftSubtree(nodeId, shift);
+            // 자식 트리가 통째로 shift 만큼 내려갔으므로, 그 이후에 그려질 다음 형제 노드들의 자식들이 겹치지 않도록 전체 뎁스 한계선 갱신
+            for (const dStr in depthY) {
+                const d = parseInt(dStr);
+                if (d > depth) {
+                    depthY[d] += shift;
+                }
+            }
+         }
+         
+         node.worldY = myY;
+         depthY[depth] = myY + NODE_HEIGHT + Y_SPACING;
+         return myY;
       }
     }
 
     // 다중 루트 노드들 배치 시작점
     for (const root of roots) {
-       layoutNode(root.id, -600);
-       globalLeafY += Y_SPACING * 3; // 최상위 주제 간 그룹 여백
+       layoutNode(root.id, 0, -600);
+       // 루트가 변경될 때마다 모든 뎁스의 여백을 추가하여 독립된 트리 그룹으로 렌더링
+       for (const dStr in depthY) {
+           depthY[dStr] += Y_SPACING * 3;
+       }
     }
 
     // (BFS로 모든 노드를 순회하여 treeChildrenMap을 만들었으므로 고아 노드는 더 이상 없음)

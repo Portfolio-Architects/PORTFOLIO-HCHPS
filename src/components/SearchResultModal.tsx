@@ -134,7 +134,7 @@ ${contextText}
         const answer = await askLlama([
           { 
             role: 'system', 
-            content: 'You are a strict corporate knowledge assistant. You MUST strictly adhere to the provided context. NEVER hallucinate or use external knowledge. If the context does not contain the answer, reply only with "아직 위키에 해당 내용이 등록되지 않았습니다."' 
+            content: '당신은 HCHPS 시스템의 엄격한 내부 지식 관리 비서(WikiBot)입니다. 제공된 [관련 문서] 바탕으로만 대답하며, 절대 외부 지식이나 환각을 섞지 마십시오. 모든 답변은 반드시 100% 한국어로만 작성해야 합니다. 문맥에 답이 없다면 오직 "아직 위키에 해당 내용이 등록되지 않았습니다."라고만 대답하십시오.' 
           },
           { role: 'user', content: prompt }
         ]);
