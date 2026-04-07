@@ -633,12 +633,15 @@ export function classifyAndParse(text: string): ParsedResult {
     type = 'budget';
     confidence = hasAmount ? 0.9 : 0.75;
     if (hasBudgetKeyword) confidence = Math.min(1, confidence + 0.1);
-  } else {
+  } else if (hasTaskAction || allDates.length > 0 || priority === 'high') {
     type = 'task';
-    confidence = 0.7;
+    confidence = 0.8;
     if (allDates.length > 0) confidence += 0.1;
     if (hasTaskAction) confidence = Math.min(1, confidence + 0.15);
-    if (hasBudgetKeyword) confidence = Math.min(1, confidence + 0.05);
+  } else {
+    // Default to LLM Chatbot query if there are no explicit task-related signals (dates, high priority, or action verbs)
+    type = 'query';
+    confidence = 0.6;
   }
 
   // Build title: remove extracted segments, then clean

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hchps-cache-v3';
+const CACHE_NAME = 'hchps-cache-v4';
 
 // Cache basic application assets
 const urlsToCache = [
@@ -33,30 +33,36 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Network-first strategy with Dynamic Caching
+// Stale-While-Revalidate & Network-First Hybrid Strategy
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
-  // chrome-extension 등 기타 프로토콜 무시
-  if (!event.request.url.startsWith('http')) return;
+  // chrome-extension 등 기타 프로토콜 및 실시간 통신 스트림 우회
+  if (!event.request.url.startsWith('http') || event.request.url.includes('/partykit') || event.request.url.includes('/ws')) return;
 
   event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        if (!response || response.status !== 200 || response.type !== 'basic') {
-          return response;
-        }
-
-        const responseToCache = response.clone();
-        caches.open(CACHE_NAME)
-          .then((cache) => {
+    caches.match(event.request).then((cachedResponse) => {
+      // 1. 네트워크 백그라운드 페치 (항상 최신화 시도)
+      const fetchPromise = fetch(event.request).then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, responseToCache);
           });
+        }
+        return networkResponse;
+      }).catch((error) => {
+        console.warn('[SW] Network fetch failed, relying on cache', error);
+        return null;
+      });
 
-        return response;
-      })
-      .catch(() => {
-        return caches.match(event.request);
-      })
+      // 2. 캐시가 있으면 즉각 렌더링 (Stale), 없으면 Network 응답 대기
+      return cachedResponse || fetchPromise.then(res => {
+        if (!res) throw new Error('Network and cache unavailable');
+        return res;
+      });
+    }).catch(() => {
+      return caches.match('./'); // Fallback to root index.html
+    })
   );
 });

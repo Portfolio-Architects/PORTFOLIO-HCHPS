@@ -10,6 +10,11 @@ export interface SignalEntry {
   createdAt: string;
   category?: string;
   tags?: string[];
+  aiCurated?: boolean;
+  curationData?: {
+    tags: string[];
+    relatedKeywords: string[];
+  };
 }
 
 const STORAGE_KEY = 'hchps-signal-log';
@@ -162,7 +167,7 @@ export function useSignal() {
                 }));
                 import('@/lib/sheets-api').then(({ replaceAll }) => {
                   replaceAll(SHEET_NAME, toUpload).then(ok => {
-                    if (ok) console.log(`[KV Sync] 로컬 데이터 마이그레이션 완료: ${SHEET_NAME} (${localData.length}건)`);
+                    if (ok) console.info(`[KV Sync] 로컬 데이터 마이그레이션 완료: ${SHEET_NAME} (${localData.length}건)`);
                   });
                 });
               }
@@ -182,11 +187,13 @@ export function useSignal() {
 
   const addSignal = useCallback((text: string) => {
     const keywords = extractKeywords(text);
+    const entryId = generateId();
     const entry: SignalEntry = {
-      id: generateId(),
+      id: entryId,
       text,
       keywords,
       createdAt: new Date().toISOString(),
+      aiCurated: false, // 낙관적 모델: 초기에는 미분류(분석 중) 상태
     };
     // Optimistic update
     setEntries(prev => [entry, ...prev]);
@@ -194,6 +201,39 @@ export function useSignal() {
     addRow(SHEET_NAME, { ...entry, keywords: JSON.stringify(keywords) }).catch(() => {
       console.warn('시그널 Sheets 동기화 실패 (로컬 저장 완료)');
     });
+
+    // --- Phase 3: AI 기반 자동 큐레이션 백그라운드 호출 ---
+    import('@/lib/ai-curation').then(({ curateSignal }) => {
+      // 시스템 전체 태그 풀(Tag Pool) 및 키워드 추출 (단순화를 위해 로컬 entries 배열 사용)
+      setEntries(currentEntries => {
+        const poolTags = new Set<string>();
+        const poolKeywords = new Set<string>();
+        currentEntries.forEach(e => {
+          e.tags?.forEach(t => poolTags.add(t));
+          e.keywords?.forEach(k => poolKeywords.add(k));
+        });
+        
+        curateSignal(text, Array.from(poolTags), Array.from(poolKeywords)).then((res) => {
+          // 비동기 AI 분석 완료 시, 해당 Entry에 Curation 결과 덮어씌움
+          setEntries(prev => prev.map(e => {
+            if (e.id === entryId) {
+              const updatedEntry = {
+                ...e,
+                aiCurated: true,
+                tags: res.tags, // AI가 추천한 태그로 교체
+                curationData: res,
+              };
+              // Note: Google Sheets에도 메타데이터 형태로 반영하려면 updateRow 추가 구현 필요(일단 생략/옵션)
+              return updatedEntry;
+            }
+            return e;
+          }));
+        });
+        
+        return currentEntries;
+      });
+    });
+
     return entry;
   }, []);
 

@@ -169,6 +169,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
         engine.targetOffsetX = engineRef.current.targetOffsetX;
         engine.targetOffsetY = engineRef.current.targetOffsetY;
         engine.zoom = engineRef.current.zoom;
+        engine.isInitialCameraSnap = false;
         
         if (engineRef.current.activeNode) {
           const stillExists = engine.nodes.find(n => n.id === engineRef.current!.activeNode!.id);
@@ -297,6 +298,10 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
       canvas.height = rect.height * dpr;
       canvas.style.width = rect.width + 'px';
       canvas.style.height = rect.height + 'px';
+      
+      if (engineRef.current) {
+        engineRef.current.needsRedraw = true;
+      }
     };
 
     resize();

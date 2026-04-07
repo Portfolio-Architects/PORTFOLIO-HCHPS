@@ -17,6 +17,8 @@ import { TaskKnowledgeView } from '@/components/TaskKnowledgeView';
 import { SearchResultModal, SearchResultItem } from '@/components/SearchResultModal';
 import { MapCustomizationData } from '@/hooks/useGraphCustomization';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { useSecurityLock } from '@/hooks/useSecurityLock';
+import { SecurityLockScreen } from '@/components/SecurityLockScreen';
 
 // Error Boundary for MindMap3D — prevents signal map crash from breaking entire app
 class MindMapErrorBoundary extends React.Component<
@@ -76,6 +78,8 @@ export default function Home() {
       setActiveModule(saved);
     }
   }, []);
+
+  const { isLocked, hasSetupPIN, failCount, verifyPIN, setupPIN } = useSecurityLock();
 
   // Swipe gesture state
   const touchStartX = useRef<number | null>(null);
@@ -237,7 +241,7 @@ export default function Home() {
           }
           
           const searchableText = `${nodeLabel}\n${text}`;
-          console.log(`[Search Debug] wiki node: ${nodeId}, label: ${nodeLabel}, text: ${text}, matched: ${matchesTerms(searchableText)}`);
+          // Debug log removed for production purity
           if (matchesTerms(searchableText)) {
             results.push({
               id: key,
@@ -404,7 +408,7 @@ export default function Home() {
 
 
   // SSR/static export: show loading skeleton until client mounts
-  if (!mounted) {
+  if (!mounted || hasSetupPIN === null) {
     return (
       <div className="flex flex-col min-h-screen overflow-x-hidden">
         <header className="sticky top-0 z-50 bg-[var(--color-card)] border-b border-[var(--color-border-light)] shadow-[var(--shadow-sm)]">
@@ -419,7 +423,6 @@ export default function Home() {
         </header>
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
           <div className="max-w-[1800px] mx-auto">
-
             <div className="space-y-3">
               <div className="h-16 bg-gray-50 rounded-xl animate-pulse" />
               <div className="h-16 bg-gray-50 rounded-xl animate-pulse" />
@@ -428,6 +431,17 @@ export default function Home() {
           </div>
         </main>
       </div>
+    );
+  }
+
+  if (isLocked) {
+    return (
+      <SecurityLockScreen 
+        hasSetupPIN={hasSetupPIN} 
+        failCount={failCount} 
+        onVerify={verifyPIN} 
+        onSetup={setupPIN} 
+      />
     );
   }
 

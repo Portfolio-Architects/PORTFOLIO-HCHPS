@@ -55,6 +55,7 @@ export class OntologyCanvasEngine {
   private autoFitPending = false;
   public collapsedNodeIds: Set<string> = new Set();
   public hasInitializedCollapse: boolean = false;
+  public isInitialCameraSnap: boolean = true;
 
   // Physics / Interaction
   isOrbiting = false;
@@ -395,16 +396,35 @@ export class OntologyCanvasEngine {
       if (target && typeof target.worldX === 'number' && !isNaN(target.worldX) && 
           typeof target.worldY === 'number' && !isNaN(target.worldY)) {
         
-        const sidePanelWidth = 360; 
-        const screenCenterX = sidePanelWidth + (canvasW - sidePanelWidth) * 0.4;
+        // 스샷 내용처럼 중심 노드를 화면의 왼쪽에서 25% 위치에 배치 (트리가 우측으로 뻗어나감)
+        const screenCenterX = Math.max(150, canvasW * 0.25); 
         const screenCenterY = canvasH / 2;
         
-        const snapX = screenCenterX - (target.worldX * this.zoom);
-        const snapY = screenCenterY - (target.worldY * this.zoom);
+        const snapX = screenCenterX - (canvasW / 2) - (target.worldX * this.zoom);
+        const snapY = screenCenterY - (canvasH / 2) - (target.worldY * this.zoom);
         
         if (!isNaN(snapX) && !isNaN(snapY)) {
           this.targetOffsetX = snapX;
           this.targetOffsetY = snapY;
+          
+          if (this.isInitialCameraSnap && canvasW > 0 && canvasH > 0) {
+            this.cameraOffsetX = snapX;
+            this.cameraOffsetY = snapY;
+            this.isInitialCameraSnap = false;
+            
+            // 카메라가 0,0에서 snapX,snapY로 점프했으므로 방금 계산했던 구좌표 파기 후 현재 좌표로 재계산
+            OntologyLayout.computePositions(
+              this.nodes,
+              this.nodeMap,
+              this.edges,
+              canvasW,
+              canvasH,
+              this.cameraOffsetX,
+              this.cameraOffsetY,
+              this.zoom,
+              this.collapsedNodeIds
+            );
+          }
         }
       }
       this.pendingCameraTargetId = null;

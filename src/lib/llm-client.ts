@@ -9,14 +9,19 @@ export interface ChatResponse {
   error?: string;
 }
 
+const getApiBaseUrl = () => {
+  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    return ''; 
+  }
+  return 'https://portfolio-hchps.pages.dev';
+};
+
 /**
  * Cloudflare Workers AI (Llama 3) 엔드포인트를 호출하는 클라이언트 함수입니다.
  */
 export async function askLlama(messages: ChatMessage[], apiKey?: string): Promise<string> {
   const isBrowser = typeof window !== 'undefined';
-  const basePath = isBrowser && window.location.pathname.startsWith('/PORTFOLIO-HCHPS') 
-    ? '/PORTFOLIO-HCHPS' 
-    : '';
+  const apiBase = getApiBaseUrl();
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -31,17 +36,18 @@ export async function askLlama(messages: ChatMessage[], apiKey?: string): Promis
   }
 
   try {
-    const res = await fetch(`${basePath}/api/chat`, {
+    const res = await fetch(`${apiBase}/api/chat`, {
       method: 'POST',
       headers,
       body: JSON.stringify({ messages }),
     });
 
     if (!res.ok) {
-      if (res.status === 404 && isBrowser && window.location.hostname === 'localhost') {
+      if ((res.status === 404 || res.status === 500) && isBrowser && window.location.hostname === 'localhost') {
         // 로컬 next dev 환경이고 wrangler가 켜져 있지 않을 때의 테스트용 대체 응답
+        // (Next.js proxy rewrite 대상인 8788 포트가 닫혀 있으면 500 에러를 반환함)
         console.warn('🚨 Local environment without Wrangler detected. Returning mock AI response.');
-        return `[Mock AI Response]\n현재 로컬(Next.js 개발 서버) 환경이라 Cloudflare Workers AI 라우트에 접근할 수 없습니다.\nCloudflare 서버에 배포된 후 수 초 내외로 Llama 3 엔진이 연동되어 실시간 분석 응답을 반환하게 됩니다.\n\n(요청 분석량: ${messages.length}개 메시지 블록)`;
+        return `[Mock AI Response]\n현재 로컬(Next.js 개발 서버) 환경이라 Cloudflare Workers AI 라우트에 접근할 수 없거나 오프라인입니다.\nCloudflare 서버에 배포된 후에는 Llama 3 엔진이 연동되어 실시간 분석 응답을 반환하게 됩니다.\n\n(요청 분석량: ${messages.length}개 메시지 블록)`;
       }
       const errData = await res.json().catch(() => ({}));
       throw new Error(errData.error || `HTTP Error ${res.status}`);

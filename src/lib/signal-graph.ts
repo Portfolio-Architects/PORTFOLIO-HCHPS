@@ -177,6 +177,45 @@ export function buildSignalGraph(
     });
   });
 
+  // 3.5. Inject AI Curation Graph Connectivity (Phase 3)
+  // entries 배열을 순환하며 LLM이 추천한 relatedKeywords가 그래프 상에 존재할 경우 횡적 엣지를 추가합니다.
+  entries.forEach(e => {
+    if (e.aiCurated && e.curationData?.relatedKeywords) {
+      // 이 Signal이 만들어낸 주된 리프 노드 ID를 역추적 (복잡하므로 카테고리에 할당)
+      // 또는 Signal 전체를 대표하는 태그 노드를 찾습니다.
+      const sourceTags = e.tags?.filter(t => tagNodesMap.has(t)) || [];
+      if (sourceTags.length > 0) {
+        const sourceTagId = tagNodesMap.get(sourceTags[0]);
+        if (sourceTagId) {
+          e.curationData.relatedKeywords.forEach(rk => {
+            // relatedKeyword가 기존 리프 노드 레이블이거나 태그 레이블인지 찾습니다.
+            const targetTagId = tagNodesMap.get(rk);
+            if (targetTagId && targetTagId !== sourceTagId) {
+               // AI Recommendation: Category to Category structural cross-link
+               edges.push({
+                 source: sourceTagId,
+                 target: targetTagId,
+                 weight: 0.4,
+                 type: 'FEEDBACK_LOOP',
+               });
+            } else {
+               // 키워드 간의 횡적 연결을 시도 (매우 느슨한 네트워크)
+               const existingNode = nodes.find(n => n.label === rk);
+               if (existingNode && existingNode.id !== sourceTagId) {
+                 edges.push({
+                   source: sourceTagId,
+                   target: existingNode.id,
+                   weight: 0.3,
+                   type: 'DEPENDENCY', // AI 추천 엣지
+                 });
+               }
+            }
+          });
+        }
+      }
+    }
+  });
+
   // 4. Merge Custom Nodes and Edges from Whiteboard
   if (customData) {
     const dataLabels = new Map<string, string>(); // label -> id

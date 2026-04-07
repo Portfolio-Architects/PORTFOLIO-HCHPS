@@ -56,7 +56,7 @@ export function useGraphCustomization() {
         
         if (localRaw && !hasMigrated) {
           const localData = JSON.parse(localRaw) as MapCustomizationData;
-          console.log('[Yjs Migration] 기존 로컬 스토리지 데이터 발견. Yjs로 복구합니다...');
+          console.info('[Yjs Migration] 기존 로컬 스토리지 데이터 발견. Yjs로 복구합니다...');
           
           ydoc.transact(() => {
             const overridesMap = ydoc.getMap('overrides');

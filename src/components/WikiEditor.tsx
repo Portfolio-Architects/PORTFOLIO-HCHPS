@@ -173,6 +173,9 @@ function WikiEditorCore({ nodeId, nodeTitle, initialBlocks, onChange, onClose, a
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ query: docText.substring(0, 500), limit: 3 })
                   });
+                  if (!res.ok) {
+                    throw new Error(`Vectorize API returned status ${res.status}`);
+                  }
                   const searchData = await res.json();
                   
                   if (searchData.success && searchData.matches && searchData.matches.length > 0) {
@@ -215,10 +218,16 @@ function WikiEditorCore({ nodeId, nodeTitle, initialBlocks, onChange, onClose, a
                 // Vectorize DB 비동기 동기화 (Background)
                 try {
                   const docText = await editor.blocksToMarkdownLossy(editor.document);
-                  const basePath = typeof window !== 'undefined' && window.location.pathname.startsWith('/PORTFOLIO-HCHPS') ? '/PORTFOLIO-HCHPS' : '';
-                  fetch(`${basePath}/api/embeddings`, {
+                  const apiBase = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
+                    ? '' : 'https://portfolio-hchps.pages.dev';
+                  
+                  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+                  const storedKey = localStorage.getItem('hchps-api-key');
+                  if (storedKey) headers['X-API-Key'] = storedKey;
+
+                  fetch(`${apiBase}/api/embeddings`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers,
                     body: JSON.stringify({
                       id: `HCHPS-Wiki-${nodeId}`,
                       text: `${nodeTitle}\n\n${docText}`

@@ -39,6 +39,9 @@ async function writeData(sheetName: string, action: string, data?: unknown, id?:
       headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
       body: JSON.stringify({ sheet: sheetName, action, data, id }),
     });
+    if (!res.ok) {
+      throw new Error(`Cloudflare Data API returned ${res.status}`);
+    }
     const json = await res.json();
     return json.success === true;
   } catch (err) {

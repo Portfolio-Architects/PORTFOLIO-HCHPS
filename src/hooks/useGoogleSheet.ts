@@ -48,7 +48,7 @@ export function useGoogleSheet<T extends { id: string }>(
               if (localData.length > 0) {
                 import('@/lib/sheets-api').then(({ replaceAll }) => {
                   replaceAll(sheetName, localData).then(ok => {
-                    if (ok) console.log(`[KV Sync] 로컬 데이터 마이그레이션 완료: ${sheetName} (${localData.length}건)`);
+                    if (ok) console.info(`[KV Sync] 로컬 데이터 마이그레이션 완료: ${sheetName} (${localData.length}건)`);
                   });
                 });
               }

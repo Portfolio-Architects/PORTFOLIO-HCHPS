@@ -53,10 +53,10 @@ export default function RootLayout({
                   var basePath = window.location.pathname.startsWith('/PORTFOLIO-HCHPS') ? '/PORTFOLIO-HCHPS' : '';
                   navigator.serviceWorker.register(basePath + '/sw.js').then(
                     function(registration) {
-                      console.log('ServiceWorker registration successful scope: ', registration.scope);
+                      console.info('ServiceWorker registration successful scope: ', registration.scope);
                     },
                     function(err) {
-                      console.log('ServiceWorker registration failed: ', err);
+                      console.error('ServiceWorker registration failed: ', err);
                     }
                   );
                 });
