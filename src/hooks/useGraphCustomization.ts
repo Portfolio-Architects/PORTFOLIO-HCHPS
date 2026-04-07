@@ -328,6 +328,48 @@ export function useGraphCustomization() {
     }
   }, [ydoc]);
 
+  const syncToCloud = useCallback(async () => {
+    if (!confirm('현재 화면의 모든 노드 구조를 클라우드에 저장하시겠습니까? (프로덕션 환경과 동기화)')) return;
+    try {
+      const { replaceAll } = await import('@/lib/sheets-api');
+      const latestData = store.getSnapshot();
+      const res = await replaceAll('MAP_CUSTOMIZATION', [{ id: 'singleton', ...latestData }]);
+      if (res) alert('☁️ 성공적으로 클라우드에 동기화되었습니다!');
+      else alert('저장에 실패했습니다.');
+    } catch (e) {
+      console.error(e);
+      alert('동기화 중 오류가 발생했습니다.');
+    }
+  }, [store]);
+
+  const fetchFromCloud = useCallback(async () => {
+    if (!confirm('클라우드에서 최신 데이터를 불러오시겠습니까? (현재 로컬의 캔버스 내용은 모두 덮어씌워집니다)')) return;
+    try {
+      const { readSheet } = await import('@/lib/sheets-api');
+      const rows = await readSheet<any>('MAP_CUSTOMIZATION');
+      if (rows && rows.length > 0 && rows[0].id === 'singleton') {
+        const cloudData = rows[0];
+        ydoc.transact(() => {
+          ['overrides', 'customNodesMap', 'customEdgesMap', 'deletedEdgesMap'].forEach(name => {
+            const m = ydoc.getMap(name);
+            Array.from(m.keys()).forEach(k => m.delete(k));
+          });
+          
+          if (cloudData.overrides) Object.entries(cloudData.overrides).forEach(([k, v]) => ydoc.getMap('overrides').set(k, v));
+          if (cloudData.customNodes) cloudData.customNodes.forEach((n: any) => ydoc.getMap('customNodesMap').set(n.id, n));
+          if (cloudData.customEdges) cloudData.customEdges.forEach((e: any) => ydoc.getMap('customEdgesMap').set(`${e.source}|||${e.target}`, e));
+          if (cloudData.deletedEdges) cloudData.deletedEdges.forEach((e: any) => ydoc.getMap('deletedEdgesMap').set(e, true));
+        });
+        alert('☁️ 성공적으로 클라우드에서 데이터를 불러왔습니다!');
+      } else {
+        alert('클라우드에 저장된 백업 데이터가 없습니다.');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('불러오기 중 오류가 발생했습니다.');
+    }
+  }, [ydoc]);
+
   return {
     ...data,
     saveStatus: 'saved', // Mock saveStatus since Yjs persists automatically
@@ -345,5 +387,7 @@ export function useGraphCustomization() {
     clearOverrides,
     resetLayoutOverrides,
     clearAll,
+    syncToCloud,
+    fetchFromCloud,
   };
 }

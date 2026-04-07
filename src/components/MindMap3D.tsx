@@ -17,7 +17,7 @@ import {
   Radio, Loader2, RefreshCw, AlertTriangle, BookOpen,
   Circle, Link2, X, ChevronRight, ChevronUp, ChevronDown, Zap, Maximize2, Minimize2,
   Trash2, FileText, Edit2, Plus, Palette, PinOff, PlusSquare, Waypoints, Eraser, Play, Pause,
-  CheckCircle, Unlink, Crosshair
+  CheckCircle, Unlink, Crosshair, CloudUpload, CloudDownload
 } from 'lucide-react';
 
 
@@ -57,7 +57,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   const [stats, setStats] = useState({ nodes: 0, edges: 0 });
   const [isAddingNode, setIsAddingNode] = useState(false);
   const [newNodeName, setNewNodeName] = useState("");
-  const { overrides = {}, customNodes = [], customEdges = [], deletedEdges = [], undo, redo, setNodeOverride, batchSetNodeOverrides, clearNodeOverride, addCustomNode, deleteCustomNode, updateCustomNodeText, addCustomEdge, deleteCustomEdge, removeCustomTombstone, clearOverrides, resetLayoutOverrides, clearAll } = useGraphCustomization();
+  const { overrides = {}, customNodes = [], customEdges = [], deletedEdges = [], undo, redo, setNodeOverride, batchSetNodeOverrides, clearNodeOverride, addCustomNode, deleteCustomNode, updateCustomNodeText, addCustomEdge, deleteCustomEdge, removeCustomTombstone, clearOverrides, resetLayoutOverrides, clearAll, syncToCloud, fetchFromCloud } = useGraphCustomization();
   useEffect(() => {
     const handleOpenWiki = (e: CustomEvent<{ id: string; label: string }>) => {
       // Find the actual node if it exists in the engine, otherwise mock enough properties for WikiEditor to work
@@ -1138,6 +1138,21 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
           {/* Controls - Bottom Right */}
           <div className="absolute bottom-4 right-4 z-10 flex items-center gap-2">
             
+            <button
+              onClick={fetchFromCloud}
+              className="bg-white/90 backdrop-blur rounded-lg px-3 py-2.5 shadow-md border border-[var(--color-border-light)] hover:bg-gray-100 transition-colors cursor-pointer text-blue-600 hover:text-blue-800 flex items-center gap-1.5 font-medium text-sm"
+              title="클라우드에서 불러오기"
+            >
+              <CloudDownload size={16} /> <span className="hidden sm:inline">내려받기</span>
+            </button>
+
+            <button
+              onClick={syncToCloud}
+              className="bg-white/90 backdrop-blur rounded-lg px-3 py-2.5 shadow-md border border-[var(--color-border-light)] hover:bg-gray-100 transition-colors cursor-pointer text-indigo-600 hover:text-indigo-800 flex items-center gap-1.5 font-medium text-sm"
+              title="현재 상태 클라우드에 백업"
+            >
+              <CloudUpload size={16} /> <span className="hidden sm:inline">동기화</span>
+            </button>
 
             {/* Fullscreen toggle */}
             <button
