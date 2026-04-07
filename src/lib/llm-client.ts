@@ -18,8 +18,13 @@ const getApiBaseUrl = () => {
 
 /**
  * Cloudflare Workers AI (Llama 3) 엔드포인트를 호출하는 클라이언트 함수입니다.
+ * onChunk 콜백이 제공되면 SSE 형태의 실시간 스트림 출력을 수행합니다.
  */
-export async function askLlama(messages: ChatMessage[], apiKey?: string): Promise<string> {
+export async function askLlama(
+  messages: ChatMessage[], 
+  apiKey?: string, 
+  onChunk?: (chunk: string) => void
+): Promise<string> {
   const isBrowser = typeof window !== 'undefined';
   const apiBase = getApiBaseUrl();
 
@@ -30,7 +35,6 @@ export async function askLlama(messages: ChatMessage[], apiKey?: string): Promis
   if (apiKey) {
     headers['X-API-Key'] = apiKey;
   } else if (isBrowser) {
-    // 로컬 스토리지에 저장된 API 키가 있다면 자동 포함 (기존 data.ts와 동일 인증)
     const stored = localStorage.getItem('hchps-api-key');
     if (stored) headers['X-API-Key'] = stored;
   }
@@ -39,29 +43,79 @@ export async function askLlama(messages: ChatMessage[], apiKey?: string): Promis
     const res = await fetch(`${apiBase}/api/chat`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ messages }),
+      body: JSON.stringify({ messages, stream: !!onChunk }),
     });
 
     if (!res.ok) {
       if ((res.status === 404 || res.status === 500) && isBrowser && window.location.hostname === 'localhost') {
-        // 로컬 next dev 환경이고 wrangler가 켜져 있지 않을 때의 테스트용 대체 응답
-        // (Next.js proxy rewrite 대상인 8788 포트가 닫혀 있으면 500 에러를 반환함)
         console.warn('🚨 Local environment without Wrangler detected. Returning mock AI response.');
-        return `[Mock AI Response]\n현재 로컬(Next.js 개발 서버) 환경이라 Cloudflare Workers AI 라우트에 접근할 수 없거나 오프라인입니다.\nCloudflare 서버에 배포된 후에는 Llama 3 엔진이 연동되어 실시간 분석 응답을 반환하게 됩니다.\n\n(요청 분석량: ${messages.length}개 메시지 블록)`;
+        const mockResponse = `[Mock AI Response]\n현재 로컬(Next.js 개발 서버) 환경이라 Cloudflare Workers AI 라우트에 접근할 수 없거나 오프라인입니다.\nCloudflare 서버에 배포된 후에는 Llama 3 엔진이 연동되어 실시간 분석 응답을 반환하게 됩니다.\n\n(요청 분석량: ${messages.length}개 메시지 블록)`;
+        if (onChunk) {
+          // 모의 환경에서도 스트리밍처럼 약간의 의도적인 지연을 주고 동작
+          for (const char of mockResponse.split('')) {
+            onChunk(char);
+          }
+          return mockResponse;
+        }
+        return mockResponse;
       }
       const errData = await res.json().catch(() => ({}));
       throw new Error(errData.error || `HTTP Error ${res.status}`);
     }
 
-    const data = await res.json() as ChatResponse;
-
-    if (!data.success) {
-      throw new Error(data.error || 'AI Response Failed');
+    // 스트리밍을 요청하지 않았을 경우 (Fallback)
+    if (!onChunk) {
+      const data = await res.json() as ChatResponse;
+      if (!data.success) {
+        throw new Error(data.error || 'AI Response Failed');
+      }
+      return data.response || '';
     }
 
-    return data.response || '';
+    // 스트리밍 모드 처리 로직 
+    if (!res.body) {
+      throw new Error('ReadableStream not supported by response');
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let fullContent = '';
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      
+      // 맨 마지막 문장은 잘린 형태일 수 있으므로 버퍼에 보존
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.trim() === 'data: [DONE]') continue;
+        if (line.startsWith('data: ')) {
+          try {
+            const dataStr = line.replace('data: ', '').trim();
+            if (!dataStr) continue;
+            
+            const chunkObj = JSON.parse(dataStr);
+            if (chunkObj.response) {
+              fullContent += chunkObj.response;
+              onChunk(chunkObj.response); // 점진적으로 UI에 발행
+            }
+          } catch (e) {
+            console.error('SSE JSON Parsing Error on line:', line, e);
+            // 불완전한 JSON 청크는 무시하고 계속 스트림을 수신
+          }
+        }
+      }
+    }
+    
+    return fullContent;
   } catch (error: any) {
     console.error('LLM Inference Error:', error);
     throw error;
   }
 }
+

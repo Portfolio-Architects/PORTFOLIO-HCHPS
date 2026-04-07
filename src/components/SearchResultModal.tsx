@@ -131,19 +131,31 @@ ${contextText}
 3. [관련 문서] 내용을 바탕으로 질문에 대한 충분한 답변을 찾을 수 없다면, 다른 내용을 덧붙이지 말고 정확히 "아직 위키에 해당 내용이 등록되지 않았습니다." 라고만 답변하십시오.
 4. 마크다운 형식으로 가독성 좋고 전문적으로 작성하시오.`;
 
-        const answer = await askLlama([
+        if (isMounted) {
+          // Streaming 모드 지원을 위해 먼저 빈 답변 블록을 넣음
+          setMessages([
+            { role: 'user', content: query },
+            { role: 'assistant', content: '' }
+          ]);
+        }
+
+        await askLlama([
           { 
             role: 'system', 
             content: '당신은 HCHPS 시스템의 엄격한 내부 지식 관리 비서(WikiBot)입니다. 제공된 [관련 문서] 바탕으로만 대답하며, 절대 외부 지식이나 환각을 섞지 마십시오. 모든 답변은 반드시 100% 한국어로만 작성해야 합니다. 문맥에 답이 없다면 오직 "아직 위키에 해당 내용이 등록되지 않았습니다."라고만 대답하십시오.' 
           },
           { role: 'user', content: prompt }
-        ]);
+        ], undefined, (chunk) => {
+          if (isMounted) {
+            setMessages(prev => {
+              const newMsgs = [...prev];
+              newMsgs[newMsgs.length - 1].content += chunk;
+              return newMsgs;
+            });
+          }
+        });
 
         if (isMounted) {
-          setMessages([
-            { role: 'user', content: query },
-            { role: 'assistant', content: answer }
-          ]);
           setPhase('done');
         }
       } catch (error) {
@@ -287,12 +299,24 @@ ${contextText || '(관련 문서가 없습니다.)'}
                       { role: 'user', content: newText }
                     ] as Parameters<typeof askLlama>[0];
 
-                    const answer = await askLlama(chatParams);
-                    setMessages(prev => [...prev, { role: 'assistant', content: answer }]);
+                    setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
+
+                    await askLlama(chatParams, undefined, (chunk) => {
+                      setMessages(prev => {
+                        const newMsgs = [...prev];
+                        newMsgs[newMsgs.length - 1].content += chunk;
+                        return newMsgs;
+                      });
+                    });
+                    
                     setPhase('done');
                   } catch (error) {
                     const err = error as Error;
-                    setMessages(prev => [...prev, { role: 'assistant', content: `[오류 발생] ${err.message}` }]);
+                    setMessages(prev => {
+                      const newMsgs = [...prev];
+                      newMsgs[newMsgs.length - 1].content = `[오류 발생] ${err.message}`;
+                      return newMsgs;
+                    });
                     setPhase('done');
                   } finally {
                     setIsLoading(false);
