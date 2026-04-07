@@ -1,4 +1,4 @@
-# 📝 PORTFOLIO HCHPS - Engineering Report
+# PORTFOLIO HCHPS - Engineering Report
 **날짜:** 2026-04-04
 **주제:** 실시간 협업 온톨로지 캔버스 기반 통합 워크스페이스 관리 시스템
 

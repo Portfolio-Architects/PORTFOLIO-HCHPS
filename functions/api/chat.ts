@@ -50,8 +50,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       return jsonResponse({ success: false, error: 'Missing or invalid messages array' }, 400);
     }
 
-    // Cloudflare Workers AI - Switch to highly stable llama-3.1-8b-instruct to prevent 1031 endpoint proxy errors
-    const response = await context.env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+    // Cloudflare Workers AI - Switch to highly stable llama-3-8b-instruct to prevent 1031 endpoint proxy errors
+    const response = await context.env.AI.run('@cf/meta/llama-3-8b-instruct', {
       messages: body.messages,
     });
 

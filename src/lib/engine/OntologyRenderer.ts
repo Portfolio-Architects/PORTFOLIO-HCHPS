@@ -176,12 +176,11 @@ export class OntologyRenderer {
       ctx.fillStyle = colors.bg;
       ctx.fill();
 
-      // Border
-      ctx.shadowColor = 'transparent';
-      ctx.lineWidth = (isActive || isTreeActive || isHovered) ? 1.0 * zoom : 0.5 * zoom;
-      // 테두리 채도/명도 완화: 3B82F6 -> 60A5FA
-      ctx.strokeStyle = (isActive || isTreeActive) ? '#60A5FA' : (isHovered ? '#94A3B8' : colors.border);
-      ctx.stroke();
+      // 윤곽선(Stroke) 완전 제거 - 플랫 디자인
+      // ctx.shadowColor = 'transparent';
+      // ctx.lineWidth = (isActive || isTreeActive || isHovered) ? 1.0 * zoom : 0.5 * zoom;
+      // ctx.strokeStyle = (isActive || isTreeActive) ? '#60A5FA' : (isHovered ? '#94A3B8' : colors.border);
+      // ctx.stroke();
 
       // Text
       // 텍스트 활성 색상 완화: 1D4ED8 -> 3B82F6
@@ -202,9 +201,10 @@ export class OntologyRenderer {
         ctx.arc(badgeX, badgeY, badgeRadius, 0, Math.PI * 2);
         ctx.fillStyle = isCollapsed ? colors.bg : '#ffffff'; 
         ctx.fill();
-        ctx.lineWidth = 0.5 * zoom;
-        ctx.strokeStyle = colors.border;
-        ctx.stroke();
+        // 뱃지 역시 테두리 제거
+        // ctx.lineWidth = 0.5 * zoom;
+        // ctx.strokeStyle = colors.border;
+        // ctx.stroke();
 
         ctx.fillStyle = colors.text;
         // Use a sans-serif font for arrows to match standard NotebookLM aesthetic

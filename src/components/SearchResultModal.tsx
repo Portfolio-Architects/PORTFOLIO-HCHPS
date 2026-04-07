@@ -346,6 +346,7 @@ ${contextText || '(관련 문서가 없습니다.)'}
                               window.dispatchEvent(new CustomEvent('wiki:openNode', {
                                 detail: { id: nodeId, label: nodeId }
                               }));
+                              onClose();
                             }}
                             className="text-left flex flex-col gap-2 p-4 bg-white border border-gray-200 rounded-xl shadow-sm hover:border-indigo-300 cursor-pointer group"
                             style={{ animationFillMode: 'both' }}
@@ -374,6 +375,7 @@ ${contextText || '(관련 문서가 없습니다.)'}
                               window.dispatchEvent(new CustomEvent('wiki:openNode', {
                                 detail: { id: nodeId, label: displayTitle }
                               }));
+                              onClose();
                             }}
                             className="text-left flex flex-col gap-2 p-4 bg-white border border-gray-200 rounded-xl shadow-sm hover:border-indigo-300 cursor-pointer group"
                             style={{ animationFillMode: 'both' }}
