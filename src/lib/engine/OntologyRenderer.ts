@@ -82,7 +82,7 @@ export class OntologyRenderer {
       // 엣지 색상 조절 (연결된 선명도와 채도 낮춤)
       const alpha = isConnected ? 0.5 : 0.2;
       ctx.strokeStyle = isConnected ? `rgba(96, 165, 250, ${alpha})` : `rgba(148, 163, 184, ${alpha})`;
-      ctx.lineWidth = isConnected ? 1.5 * rc.zoom : 1 * rc.zoom;
+      ctx.lineWidth = isConnected ? 1.0 * rc.zoom : 0.5 * rc.zoom;
       if (edge.weight < 0) ctx.setLineDash([4, 4]);
       else ctx.setLineDash([]);
 
@@ -178,7 +178,7 @@ export class OntologyRenderer {
 
       // Border
       ctx.shadowColor = 'transparent';
-      ctx.lineWidth = (isActive || isTreeActive || isHovered) ? 2 * zoom : 1.5 * zoom;
+      ctx.lineWidth = (isActive || isTreeActive || isHovered) ? 1.0 * zoom : 0.5 * zoom;
       // 테두리 채도/명도 완화: 3B82F6 -> 60A5FA
       ctx.strokeStyle = (isActive || isTreeActive) ? '#60A5FA' : (isHovered ? '#94A3B8' : colors.border);
       ctx.stroke();
@@ -202,7 +202,7 @@ export class OntologyRenderer {
         ctx.arc(badgeX, badgeY, badgeRadius, 0, Math.PI * 2);
         ctx.fillStyle = isCollapsed ? colors.bg : '#ffffff'; 
         ctx.fill();
-        ctx.lineWidth = 1.5 * zoom;
+        ctx.lineWidth = 0.5 * zoom;
         ctx.strokeStyle = colors.border;
         ctx.stroke();
 

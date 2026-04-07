@@ -166,7 +166,7 @@ function WikiEditorCore({ nodeId, nodeTitle, initialBlocks, onChange, onClose, a
                   setIsLlamaThinking(true);
                   const docText = await editor.blocksToMarkdownLossy(editor.document);
                   const apiBase = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) ? '' : 'https://portfolio-hchps.pages.dev';
-                  const storedKey = localStorage.getItem('hchps_master_key');
+                  const storedKey = localStorage.getItem('hchps-api-key');
                   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
                   if (storedKey) headers['X-API-Key'] = storedKey;
                   
