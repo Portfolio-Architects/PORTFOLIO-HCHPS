@@ -69,6 +69,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
         radius: 20,
         x: 0, y: 0, vx: 0, vy: 0
       }) as unknown as OrbitalNode);
+      setIsWikiOpen(true);
     };
     
     const handleCloseWiki = () => {
