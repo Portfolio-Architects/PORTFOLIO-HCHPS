@@ -112,71 +112,46 @@ export class OntologyLayout {
        }
     }
 
-    // 3. 각 서브트리의 세로 높이(Height) 계산 (Post-order traversal)
-    const subTreeHeight = new Map<string, number>();
-    const X_SPACING = 180; // 가로 간격 대폭 축소 (220 -> 180)
-    const Y_SPACING = 8;  // 세로 간격 대폭 축소 (14 -> 8)
-    const NODE_HEIGHT = 32; // 노드 기본 높이 대폭 축소 (40 -> 32)
+    // 3. NotebookLM 스타일 극압축 레이아웃 (Leaf-Stacking DFS)
+    const X_SPACING = 180;
+    const Y_SPACING = 8;
+    const NODE_HEIGHT = 32;
     
-    function measureHeight(nodeId: string): number {
-      // 접힌 노드는 자신의 기본 높이만 차지 (자식 노드를 숨김)
-      if (collapsedNodeIds.has(nodeId)) {
-        subTreeHeight.set(nodeId, NODE_HEIGHT);
-        return NODE_HEIGHT;
-      }
-      
-      const children = treeChildrenMap.get(nodeId) || [];
-      let totalHeight = 0;
-      for (const childId of children) {
-          totalHeight += measureHeight(childId) + Y_SPACING;
-      }
-      
-      if (totalHeight > 0) totalHeight -= Y_SPACING; 
-      
-      const height = Math.max(NODE_HEIGHT, totalHeight);
-      subTreeHeight.set(nodeId, height);
-      return height;
-    }
-
-    roots.forEach(r => measureHeight(r.id));
-
-    // 4. 노드들의 World 좌표 할당 (Pre-order traversal)
-    let currentRootY = 0; // 다중 루트일 경우 누적되는 Y좌표
-    
+    let globalLeafY = 0;
     const visibleNodes = new Set<string>();
 
-    function placeNode(nodeId: string, x: number, targetCenterY: number): void {
+    function layoutNode(nodeId: string, depthX: number): number {
       const node = nodeMap.get(nodeId);
-      if (!node) return;
+      if (!node) return 0;
       
       visibleNodes.add(nodeId);
-
-      node.worldX = x;
-      node.worldY = targetCenterY;
-      
-      // 접혀 있다면 하위 노드는 계산하지 않음 (어차피 렌더링 시 숨겨짐)
-      if (collapsedNodeIds.has(nodeId)) return;
+      node.worldX = depthX;
 
       const children = treeChildrenMap.get(nodeId) || [];
-      if (children.length === 0) return;
-      
-      const myHeight = subTreeHeight.get(nodeId) || NODE_HEIGHT;
-      let startY = targetCenterY - myHeight / 2;
-      
-      // 하위 노드들은 x축 우측으로 밀려나고, 할당된 세로 영역 내에 균등 배치
-      for (const childId of children) {
-        const childH = subTreeHeight.get(childId) || NODE_HEIGHT;
-        const childCenterY = startY + childH / 2;
-        placeNode(childId, x + X_SPACING, childCenterY);
-        startY += childH + Y_SPACING;
+      const hasVisibleChildren = children.length > 0 && !collapsedNodeIds.has(nodeId);
+
+      if (!hasVisibleChildren) {
+         // 자식이 보이도록 펴져 있지 않으면, 리프(Leaf) 취급하여 현재 전역 Y축 예약
+         const myY = globalLeafY;
+         node.worldY = myY;
+         globalLeafY += NODE_HEIGHT + Y_SPACING;
+         return myY;
+      } else {
+         // 자식이 펼쳐져 있다면, 자식들을 먼저 순차적으로 그리고 부모는 그 중앙에 배치
+         let sumY = 0;
+         for (const childId of children) {
+            sumY += layoutNode(childId, depthX + X_SPACING);
+         }
+         const avgY = sumY / children.length;
+         node.worldY = avgY;
+         return avgY;
       }
     }
 
+    // 다중 루트 노드들 배치 시작점
     for (const root of roots) {
-       const h = subTreeHeight.get(root.id) || NODE_HEIGHT;
-       // 화면 구조상 마인드맵이 우측으로 뻗어나가므로, 시작 X를 대폭 좌측으로 이동
-       placeNode(root.id, -600, currentRootY + h / 2); 
-       currentRootY += h + Y_SPACING * 3;
+       layoutNode(root.id, -600);
+       globalLeafY += Y_SPACING * 3; // 최상위 주제 간 그룹 여백
     }
 
     // (BFS로 모든 노드를 순회하여 treeChildrenMap을 만들었으므로 고아 노드는 더 이상 없음)

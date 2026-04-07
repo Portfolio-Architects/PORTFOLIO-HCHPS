@@ -60,6 +60,7 @@ export function SearchResultModal({ isOpen, onClose, query, results: localResult
 
         // 1. Vectorize Semantic Search
         let retrievedDocs: VectorResult[] = [];
+        let vectorizeError = '';
         try {
           const storedKey = localStorage.getItem('hchps-api-key');
           const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -76,10 +77,13 @@ export function SearchResultModal({ isOpen, onClose, query, results: localResult
               retrievedDocs = searchData.matches;
             }
           } else {
-            console.warn(`Vectorize search failed with status: ${searchRes.status}`);
+            const errData = await searchRes.json().catch(() => ({}));
+            vectorizeError = errData.error || `HTTP ${searchRes.status}`;
+            console.warn(`Vectorize search failed: ${vectorizeError}`);
           }
-        } catch (e) {
+        } catch (e: any) {
           console.error("Vectorize search failed", e);
+          vectorizeError = e.message || 'Unknown network error';
         }
 
         if (!isMounted) return;
@@ -103,7 +107,7 @@ export function SearchResultModal({ isOpen, onClose, query, results: localResult
           if (isMounted) {
             setMessages([
               { role: 'user', content: query },
-              { role: 'assistant', content: '아직 위키에 관련 문서가 등록되지 않았습니다.' }
+              { role: 'assistant', content: vectorizeError ? `[오류] Vectorize API 통신에 실패했습니다: ${vectorizeError}` : '아직 위키에 관련 문서가 등록되지 않았습니다.' }
             ]);
             setPhase('done');
             setIsLoading(false);
