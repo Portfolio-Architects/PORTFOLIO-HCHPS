@@ -16,15 +16,19 @@ export function useGoogleSheet<T extends { id: string }>(
   localStorageKey: string,
   initialValue: T[] = []
 ): [T[], React.Dispatch<React.SetStateAction<T[]>>, boolean] {
-  const [data, setData] = useState<T[]>(() => {
-    if (typeof window === 'undefined') return initialValue;
+  const [data, setData] = useState<T[]>(initialValue);
+  const [loading, setLoading] = useState(true);
+  const initialLoadDone = useRef(false);
+
+  // Hydrate from localStorage once immediately after mount (prevents SSR mismatch)
+  useEffect(() => {
     try {
       const stored = localStorage.getItem(localStorageKey);
-      return stored ? JSON.parse(stored) : initialValue;
-    } catch {
-      return initialValue;
-    }
-  });
+      if (stored) {
+        setData(JSON.parse(stored));
+      }
+    } catch { /* ignore */ }
+  }, [localStorageKey]);
   const [loading, setLoading] = useState(true);
   const initialLoadDone = useRef(false);
 

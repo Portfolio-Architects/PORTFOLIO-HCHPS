@@ -17,8 +17,7 @@ export async function readSheet<T>(sheetName: string): Promise<T[]> {
     const res = await fetch(`${API_BASE}?sheet=${encodeURIComponent(sheetName)}&_t=${Date.now()}`, {
       headers: { 
         'X-API-Key': API_KEY,
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
+        'Cache-Control': 'no-cache, no-store, must-revalidate'
       },
       cache: 'no-store'
     });
