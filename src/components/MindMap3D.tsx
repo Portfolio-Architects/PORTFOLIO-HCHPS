@@ -836,7 +836,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
           <div className="absolute bottom-4 right-4 z-10 flex items-center gap-2">
             
             <button
-              onClick={fetchFromCloud}
+              onClick={() => fetchFromCloud()}
               className="bg-white rounded-lg px-3 py-2.5 shadow-sm border border-[var(--color-border-light)] hover:bg-gray-100 cursor-pointer text-blue-600 flex items-center gap-1.5 font-medium text-sm"
               title="클라우드에서 불러오기"
             >
@@ -844,7 +844,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
             </button>
 
             <button
-              onClick={syncToCloud}
+              onClick={() => syncToCloud()}
               className="bg-white rounded-lg px-3 py-2.5 shadow-sm border border-[var(--color-border-light)] hover:bg-gray-100 cursor-pointer text-indigo-600 flex items-center gap-1.5 font-medium text-sm"
               title="현재 상태 클라우드에 백업"
             >
