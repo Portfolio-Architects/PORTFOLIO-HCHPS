@@ -180,7 +180,7 @@ export class OntologyLayout {
     for (const root of roots) {
        const rootNode = nodeMap.get(root.id);
        if (rootNode) {
-           rootNode.worldX = 0; // 루트 노드는 중앙(0)에 고정
+           rootNode.worldX = 0; // 모든 루트 노드는 X축 중앙(0)에 고정
            visibleNodes.add(root.id);
            
            const rootChildren = treeChildrenMap.get(root.id) || [];
@@ -194,45 +194,59 @@ export class OntologyLayout {
                }
                
                let leftSumY = 0;
-               for (const c of leftChildren) {
-                   leftSumY += layoutNode(c, 1, -X_SPACING, -1, leftDepthY);
-               }
+               for (const c of leftChildren) leftSumY += layoutNode(c, 1, -X_SPACING, -1, leftDepthY);
+               
                let rightSumY = 0;
-               for (const c of rightChildren) {
-                   rightSumY += layoutNode(c, 1, X_SPACING, 1, rightDepthY);
-               }
+               for (const c of rightChildren) rightSumY += layoutNode(c, 1, X_SPACING, 1, rightDepthY);
                
-               // 완벽한 수직 대칭(나비 모양)을 위해 루트 노드를 0에 고정하고, 자식 서브트리들을 루트에 맞춰 Y축 이동시킵니다.
-               rootNode.worldY = 0;
-               
-               if (leftChildren.length > 0) {
-                   const leftAvg = leftSumY / leftChildren.length;
-                   const shiftAmount = rootNode.worldY - leftAvg;
-                   if (shiftAmount !== 0) {
-                       for (const c of leftChildren) shiftSubtree(c, shiftAmount);
+               if (root === roots[0]) {
+                   // 메인 루트: 완벽한 수직 대칭(나비 모양)을 위해 0에 고정 후, 양쪽 트리를 0에 맞춰 이동
+                   rootNode.worldY = 0;
+                   if (leftChildren.length > 0) {
+                       const leftAvg = leftSumY / leftChildren.length;
+                       const shiftAmount = -leftAvg;
+                       if (shiftAmount !== 0) {
+                           for (const c of leftChildren) shiftSubtree(c, shiftAmount);
+                           for (const dStr in leftDepthY) leftDepthY[dStr] += shiftAmount;
+                       }
                    }
-               }
-               
-               if (rightChildren.length > 0) {
-                   const rightAvg = rightSumY / rightChildren.length;
-                   const shiftAmount = rootNode.worldY - rightAvg;
-                   if (shiftAmount !== 0) {
-                       for (const c of rightChildren) shiftSubtree(c, shiftAmount);
+                   if (rightChildren.length > 0) {
+                       const rightAvg = rightSumY / rightChildren.length;
+                       const shiftAmount = -rightAvg;
+                       if (shiftAmount !== 0) {
+                           for (const c of rightChildren) shiftSubtree(c, shiftAmount);
+                           for (const dStr in rightDepthY) rightDepthY[dStr] += shiftAmount;
+                       }
                    }
+               } else {
+                   // 고아/독립 루트: 자식들이 depthTracker에 의해 안전하게 배치된 상태의 평균 Y값으로 이동
+                   const leftAvg = leftChildren.length > 0 ? leftSumY / leftChildren.length : null;
+                   const rightAvg = rightChildren.length > 0 ? rightSumY / rightChildren.length : null;
+                   
+                   if (leftAvg !== null && rightAvg !== null) rootNode.worldY = (leftAvg + rightAvg) / 2;
+                   else if (leftAvg !== null) rootNode.worldY = leftAvg;
+                   else if (rightAvg !== null) rootNode.worldY = rightAvg;
                }
 
-               // 좌우 분리가 끝난 루트의 depthTracker 업데이트 (가장 하단 확보)
-               const finalRootY = rootNode.worldY;
+               // 루트 자신을 위한 depthTracker 최소공간 점유 처리
+               const finalRootY = rootNode.worldY ?? 0;
                leftDepthY[0] = Math.max(leftDepthY[0] || 0, finalRootY + NODE_HEIGHT + Y_SPACING);
                rightDepthY[0] = Math.max(rightDepthY[0] || 0, finalRootY + NODE_HEIGHT + Y_SPACING);
            } else {
-               // 최상위 노드만 존재할 때
-               rootNode.worldY = Math.max(leftDepthY[0] || 0, rightDepthY[0] || 0);
+               // 자식이 없는 빈 루트 (또는 접힘)
+               if (root === roots[0]) {
+                   rootNode.worldY = 0;
+               } else {
+                   // 기존 트리의 배치가 끝난 최하단에 배치
+                   rootNode.worldY = Math.max(leftDepthY[0] || 0, rightDepthY[0] || 0);
+               }
                leftDepthY[0] = rootNode.worldY + NODE_HEIGHT + Y_SPACING;
                rightDepthY[0] = rootNode.worldY + NODE_HEIGHT + Y_SPACING;
            }
        }
        
+       // 다중 루트(고립된 서브트리들) 렌더링 시, 이전 트리와의 간격을 위해 현재 뎁스의 최하단에서 약간의 여백만 추가합니다.
+       // 이를 통해 고립된 트리들이 화면 아래로 멀리 분리되지 않고 메인 트리 바로 아래에 타이트하게 붙어 렌더링됩니다.
        for (const dStr in leftDepthY) leftDepthY[dStr] += Y_SPACING * 3;
        for (const dStr in rightDepthY) rightDepthY[dStr] += Y_SPACING * 3;
     }

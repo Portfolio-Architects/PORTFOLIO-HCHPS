@@ -14,6 +14,7 @@ import { QuickInput } from '@/components/QuickInput';
 import { WorkspaceView } from '@/components/WorkspaceView';
 import { MindMap3D } from '@/components/MindMap3D';
 import { TaskKnowledgeView } from '@/components/TaskKnowledgeView';
+import { CrmDashboardView } from '@/components/CrmDashboardView';
 import { SearchResultModal, SearchResultItem } from '@/components/SearchResultModal';
 import { MapCustomizationData } from '@/hooks/useGraphCustomization';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
@@ -55,7 +56,7 @@ class MindMapErrorBoundary extends React.Component<
 }
 
 export default function Home() {
-  const [activeModule, setActiveModule] = useState<ModuleType>('workspace');
+  const [activeModule, setActiveModule] = useState<ModuleType>('mindmap');
   const [mounted, setMounted] = useState(false);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -74,7 +75,7 @@ export default function Home() {
   useEffect(() => {
     setMounted(true);
     const saved = localStorage.getItem('hchps_active_module');
-    if (saved === 'workspace' || saved === 'knowledge' || saved === 'mindmap') {
+    if (saved === 'workspace' || saved === 'knowledge' || saved === 'mindmap' || saved === 'crm') {
       setActiveModule(saved);
     }
   }, []);
@@ -112,7 +113,7 @@ export default function Home() {
     
     // Minimum horizontal swipe distance
     if (Math.abs(distance) > 60) {
-      const order: ModuleType[] = ['workspace', 'knowledge', 'mindmap'];
+      const order: ModuleType[] = ['mindmap', 'crm', 'workspace', 'knowledge'];
       const currentIndex = order.indexOf(activeModule);
       
       if (distance > 0 && currentIndex < order.length - 1) {
@@ -377,6 +378,9 @@ export default function Home() {
             />
           </MindMapErrorBoundary>
         );
+
+      case 'crm':
+        return <CrmDashboardView />;
 
       default:
         return null;

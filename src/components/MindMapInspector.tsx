@@ -1,6 +1,6 @@
 import React from 'react';
 import { OrbitalNode, OntologyEdge, GROUP_COLORS, GROUP_LABELS, OntologyGroup } from '@/lib/ontology.types';
-import { Edit2, Waypoints, CheckCircle, Trash2, Link2, Radio, X, Crosshair } from 'lucide-react';
+import { Edit2, Waypoints, CheckCircle, Trash2, Link2, Radio, X, Crosshair, Activity, Bot } from 'lucide-react';
 
 interface MindMapInspectorProps {
   activeNode: OrbitalNode | null;
@@ -31,6 +31,8 @@ export function MindMapInspector(props: MindMapInspectorProps) {
     parentModeSource, setParentModeSource,
     initEngine, handleSwapNodeOrder, clearNodeOverride, isOverlay
   } = props;
+
+  // CRM tab moved to CrmDashboardView
 
   const renderNodeDetails = (isOverlay: boolean) => {
     return (
@@ -131,12 +133,40 @@ export function MindMapInspector(props: MindMapInspectorProps) {
                     </div>
 
                     {/* Tags */}
-                    <div className="flex flex-wrap gap-1.5 mb-3">
+                    <div className="flex flex-wrap gap-1.5 mb-2">
                       {activeNode.isHedge && (
                         <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600">
                           🚧 병목 노드
                         </span>
                       )}
+                    </div>
+
+                    {/* isPerson Toggle for CRM Dashboard */}
+                    <div className="mb-4 bg-indigo-50 border border-indigo-100 rounded-lg p-3">
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                          <div className={`p-1.5 rounded-full ${activeNode.isPerson ? 'bg-indigo-500 text-white' : 'bg-indigo-200 text-indigo-400'}`}>
+                            <Activity size={14} />
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-xs font-bold text-indigo-900">인물/이해관계자로 지정</span>
+                            <span className="text-[10px] text-indigo-500">결재 기상도에서 AI 전략 분석을 사용할 수 있습니다.</span>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setNodeOverride(activeNode.id, { isPerson: !activeNode.isPerson });
+                            if (engineRef.current) {
+                              const engineNode = engineRef.current.nodes.find((n: OrbitalNode) => n.id === activeNode.id);
+                              if (engineNode) engineNode.isPerson = !activeNode.isPerson;
+                              setActiveNode({ ...activeNode, isPerson: !activeNode.isPerson });
+                            }
+                          }}
+                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${activeNode.isPerson ? 'bg-indigo-500' : 'bg-indigo-200'}`}
+                        >
+                          <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${activeNode.isPerson ? 'translate-x-4' : 'translate-x-0'}`} />
+                        </button>
+                      </div>
                     </div>
 
                     <div className="mb-5">
@@ -257,6 +287,8 @@ export function MindMapInspector(props: MindMapInspectorProps) {
                         </div>
                       </div>
                     </div>
+
+
 
                     <div className="mb-3">
                       <div className="text-[11px] font-bold text-slate-400 mb-1.5 flex items-center px-1 gap-1.5">
