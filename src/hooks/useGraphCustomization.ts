@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useCallback, useMemo, useSyncExternalStore, useRef } from 'react';
+import { useEffect, useCallback, useMemo, useSyncExternalStore, useRef, useState } from 'react';
 import { OntologyNode, OntologyEdge, OntologyGroup } from '@/lib/ontology.types';
 import { useYjsStore } from './useYjsStore';
 import * as Y from 'yjs';
@@ -373,17 +373,17 @@ export function useGraphCustomization() {
   // 자동 클라우드 로드 (최초 마운트)
   const isInitialMount = useRef(true);
   const cloudFetched = useRef(false);
+  const [isCloudLoaded, setIsCloudLoaded] = useState(false);
 
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
-      // 로드 전에 Yjs가 초기화될 시간을 확보하기 위해 약간 지연
-      setTimeout(() => {
-        fetchFromCloud(true).then(() => {
-           cloudFetched.current = true;
-           console.log('[Auto-Load] MindMap configuration fetched from cloud.');
-        });
-      }, 500);
+      // 동기적 로딩 모델: 딜레이 없이 즉각 클라우드 호출
+      fetchFromCloud(true).then(() => {
+         cloudFetched.current = true;
+         setIsCloudLoaded(true);
+         console.log('[Auto-Load] MindMap configuration fetched from cloud.');
+      });
     }
   }, [fetchFromCloud]);
 
@@ -400,6 +400,7 @@ export function useGraphCustomization() {
 
   return {
     ...data,
+    isCloudLoaded,
     saveStatus: 'saved', // Mock saveStatus since Yjs persists automatically
     undo,
     redo,

@@ -58,7 +58,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   const [stats, setStats] = useState({ nodes: 0, edges: 0 });
   const [isAddingNode, setIsAddingNode] = useState(false);
   const [newNodeName, setNewNodeName] = useState("");
-  const { overrides = {}, customNodes = [], customEdges = [], deletedEdges = [], undo, redo, setNodeOverride, batchSetNodeOverrides, clearNodeOverride, addCustomNode, deleteCustomNode, updateCustomNodeText, addCustomEdge, deleteCustomEdge, removeCustomTombstone, clearOverrides, resetLayoutOverrides, clearAll, syncToCloud, fetchFromCloud } = useGraphCustomization();
+  const { overrides = {}, customNodes = [], customEdges = [], deletedEdges = [], undo, redo, setNodeOverride, batchSetNodeOverrides, clearNodeOverride, addCustomNode, deleteCustomNode, updateCustomNodeText, addCustomEdge, deleteCustomEdge, removeCustomTombstone, clearOverrides, resetLayoutOverrides, clearAll, syncToCloud, fetchFromCloud, isCloudLoaded } = useGraphCustomization();
   useEffect(() => {
     const handleOpenWiki = (e: CustomEvent<{ id: string; label: string }>) => {
       // Find the actual node if it exists in the engine, otherwise mock enough properties for WikiEditor to work
@@ -123,7 +123,6 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [newKeyword, setNewKeyword] = useState('');
-  const [edgeModeSource, setEdgeModeSource] = useState<string | null>(null);
   const [parentModeSource, setParentModeSource] = useState<string | null>(null);
 
   
@@ -131,8 +130,6 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   const { blocks: wikiBlocks, isLoaded: wikiLoaded, saveBlocks: saveWikiBlocks } = useWikiStorage(isWikiOpen && activeNode ? activeNode.id : null, setNodeOverride);
   
   const tooltipRef = useRef<HTMLDivElement>(null);
-  const edgeModeSourceRef = useRef(edgeModeSource);
-  useEffect(() => { edgeModeSourceRef.current = edgeModeSource; }, [edgeModeSource]);
   const parentModeSourceRef = useRef(parentModeSource);
   useEffect(() => { parentModeSourceRef.current = parentModeSource; }, [parentModeSource]);
 
@@ -195,9 +192,6 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
       // Attach callbacks AFTER init for user interaction
       engine.callbacks = {
         onActiveNodeChange: (node) => {
-          if (node?.id === edgeModeSourceRef.current) {
-             setEdgeModeSource(null); // 자기자신을 한 번 더 누르면 취소
-          }
           if (node?.id === parentModeSourceRef.current) {
              setParentModeSource(null); // 자기자신을 한 번 더 누르면 취소
           }
@@ -282,7 +276,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   }, [overrides, customNodes.length, customEdges.length, deletedEdges.length, topologicOverridesHash, initEngine]);
 
   useEffect(() => {
-    if (loading || error) return;
+    if (loading || error || !isCloudLoaded) return;
 
     const canvas = canvasRef.current;
     const container = containerRef.current;
@@ -349,7 +343,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
       canvas.removeEventListener('wheel', wheelHandler);
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
-  }, [loading, error]);
+  }, [loading, error, isCloudLoaded]);
 
   // ── Mouse/Touch Events ──
   const getCanvasPos = useCallback((e: React.MouseEvent | MouseEvent | TouchEvent): { x: number; y: number } => {
@@ -406,27 +400,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
       setTimeout(() => initEngine(), 50);
       return; 
     }
-
-    // If edge connecting mode is active, handle it
-    if (edgeModeSource && engine.activeNode && engine.activeNode.id !== edgeModeSource) {
-      const srcId = edgeModeSource;
-      const tgtId = engine.activeNode.id;
-      
-      const exists = engine.edges.some(e => 
-        (e.source === srcId && e.target === tgtId) ||
-        (e.source === tgtId && e.target === srcId)
-      );
-      
-      if (exists) {
-        deleteCustomEdge(srcId, tgtId);
-      } else {
-        addCustomEdge(srcId, tgtId);
-      }
-      
-      setEdgeModeSource(null);
-      // setTimeout 제거: customEdges.length 변화 감지로 자동 엔진 재시작됨
-    }
-  }, [getCanvasPos, edgeModeSource, parentModeSource, addCustomEdge, deleteCustomEdge, initEngine, setNodeOverride]);
+  }, [getCanvasPos, parentModeSource, addCustomEdge, deleteCustomEdge, initEngine, setNodeOverride]);
 
   // ── Touch Events for Mobile ──
   const touchStartRef = useRef<{ x: number; y: number; time: number; pinchDist?: number }>({ x: 0, y: 0, time: 0 });
@@ -505,28 +479,8 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
         setTimeout(() => initEngine(), 50);
         return;
       }
-
-      // If edge connecting mode is active, handle it (Mobile/Touch 대응)
-      if (edgeModeSource && engine.activeNode && engine.activeNode.id !== edgeModeSource) {
-        const srcId = edgeModeSource;
-        const tgtId = engine.activeNode.id;
-        
-        const exists = engine.edges.some(edge => 
-          (edge.source === srcId && edge.target === tgtId) ||
-          (edge.source === tgtId && edge.target === srcId)
-        );
-        
-        if (exists) {
-          deleteCustomEdge(srcId, tgtId);
-        } else {
-          addCustomEdge(srcId, tgtId);
-        }
-        
-        setEdgeModeSource(null);
-        setTimeout(() => initEngine(), 50);
-      }
     }
-  }, [edgeModeSource, parentModeSource, addCustomEdge, initEngine, setNodeOverride]);
+  }, [parentModeSource, addCustomEdge, initEngine, setNodeOverride]);
 
   // handleWheel is now native (see useEffect above)
 
@@ -607,11 +561,11 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
 
 
   // ── Loading / Error States ──
-  if (loading) {
+  if (loading || !isCloudLoaded) {
     return (
       <div className="flex flex-col items-center justify-center h-[600px] gap-4">
         <Loader2 size={32} className="animate-spin text-[var(--color-primary)]" />
-        <p className="text-sm text-[var(--color-text-secondary)]">온톨로지 데이터 로딩 중...</p>
+        <p className="text-sm text-[var(--color-text-secondary)]">데이터 동기화 및 로딩 중...</p>
       </div>
     );
   }
@@ -763,7 +717,6 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
               updateCustomNodeText={updateCustomNodeText} removeCustomTombstone={removeCustomTombstone}
               deleteCustomNode={deleteCustomNode} addCustomEdge={addCustomEdge} deleteCustomEdge={deleteCustomEdge}
               parentModeSource={parentModeSource} setParentModeSource={setParentModeSource}
-              edgeModeSource={edgeModeSource} setEdgeModeSource={setEdgeModeSource}
               initEngine={initEngine} handleSwapNodeOrder={handleSwapNodeOrder} clearNodeOverride={clearNodeOverride}
               isOverlay={false}
             />
@@ -795,17 +748,6 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
           />
 
           {/* Whiteboard Toolbar (top-left) */}
-          {edgeModeSource && (
-            <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
-              <div className="bg-blue-50 rounded-lg px-3 py-2 shadow-sm border border-blue-200 text-xs font-semibold text-blue-700">
-                대상을 클릭해 선을 연결하세요...
-                <button 
-                  onClick={() => setEdgeModeSource(null)}
-                  className="ml-2 underline text-blue-500 hover:text-blue-800 cursor-pointer"
-                >취소</button>
-              </div>
-            </div>
-          )}
 
           {/* Hover tooltip (for nodes that are NOT active) */}
           {hoveredNode && hoveredNode.id !== activeNode?.id && (

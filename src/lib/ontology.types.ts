@@ -89,6 +89,7 @@ export interface OrbitalNode extends OntologyNode {
   orbitIndex: number;          // 0 = center, 1-N = orbits
   orbitAngle: number;          // current angle in radians
   orbitSpeed: number;          // rad/frame
+  themeColor?: string;         // Computed Branch Theme Color for inheritance
   worldX?: number;             // Optional: Local World X tracking for radial physics layout
   worldY?: number;             // Optional: Local World Y tracking for radial physics layout
   renderX: number;             // canvas X

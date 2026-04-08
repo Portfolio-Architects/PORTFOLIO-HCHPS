@@ -17,8 +17,6 @@ interface MindMapInspectorProps {
   deleteCustomEdge: (src: string, tgt: string) => void;
   parentModeSource: string | null;
   setParentModeSource: (id: string | null) => void;
-  edgeModeSource: string | null;
-  setEdgeModeSource: (id: string | null) => void;
   initEngine: () => void;
   handleSwapNodeOrder: (dir: -1 | 1) => void;
   clearNodeOverride: (id: string) => void;
@@ -30,7 +28,7 @@ export function MindMapInspector(props: MindMapInspectorProps) {
     activeNode, engineRef, overrides, setNodeOverride, setActiveNode,
     onRenameCategory, onDeleteCategory, updateCustomNodeText, removeCustomTombstone,
     deleteCustomNode, addCustomEdge, deleteCustomEdge,
-    parentModeSource, setParentModeSource, edgeModeSource, setEdgeModeSource,
+    parentModeSource, setParentModeSource,
     initEngine, handleSwapNodeOrder, clearNodeOverride, isOverlay
   } = props;
 
@@ -256,20 +254,7 @@ export function MindMapInspector(props: MindMapInspectorProps) {
                               ⬇ 아래로 이동
                             </button>
                           </div>
-                            <p className="text-[9px] text-slate-400 leading-tight mt-1">같은 부모를 가진 동급 노드들 사이의 표시 순서를 변경합니다.</p>
                         </div>
-
-                        {/* 4. 일반 횡적 선분 연결 */}
-                        <button
-                          onClick={() => setEdgeModeSource(activeNode.id)}
-                          className={`w-full flex items-center justify-center px-3 py-2 border rounded-lg text-xs font-semibold cursor-pointer transition-colors shadow-sm ${
-                            edgeModeSource === activeNode.id
-                              ? 'bg-blue-50 border-blue-200 text-blue-600'
-                              : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                          }`}
-                        >
-                          <Link2 size={14} className="mr-1.5" /> {edgeModeSource === activeNode.id ? '선으로 이을 대상 노드 찍기...' : '다른 노드와 자유롭게 선 긋기...'}
-                        </button>
                       </div>
                     </div>
 

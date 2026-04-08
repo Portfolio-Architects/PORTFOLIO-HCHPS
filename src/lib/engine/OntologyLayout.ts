@@ -112,16 +112,16 @@ export class OntologyLayout {
        }
     }
 
-    // 3. NotebookLM 스타일 극압축 레이아웃 (Depth-Based Contour Approximation)
-    const X_SPACING = 180;
+    // 3. Bidirectional Depth-Based Contour Layout (양방향 마인드맵 전개)
+    const X_SPACING = 220; // 가로 간격을 조금 더 넓혀 가독성 향상
     const Y_SPACING = 8;
     const NODE_HEIGHT = 32;
     
-    // 각 뎁스(Depth / X축 레벨)별로 다음에 노드가 배치되어야 할 사용 가능한 최소 Y좌표를 추적
-    const depthY: Record<number, number> = {};
+    // 각 뎁스(Depth / X축 레벨)별로 왼쪽/오른쪽 트리의 최소 Y좌표를 추적
+    const leftDepthY: Record<number, number> = {};
+    const rightDepthY: Record<number, number> = {};
     const visibleNodes = new Set<string>();
 
-    // 서브트리를 통째로 아래로 이동시키는 함수
     function shiftSubtree(nodeId: string, shift: number) {
         const node = nodeMap.get(nodeId);
         if (node) node.worldY = (node.worldY || 0) + shift;
@@ -133,7 +133,7 @@ export class OntologyLayout {
         }
     }
 
-    function layoutNode(nodeId: string, depth: number, depthX: number): number {
+    function layoutNode(nodeId: string, depth: number, depthX: number, direction: number, depthTracker: Record<number, number>): number {
       const node = nodeMap.get(nodeId);
       if (!node) return 0;
       
@@ -145,50 +145,96 @@ export class OntologyLayout {
 
       let myY = 0;
       if (!hasVisibleChildren) {
-         // 자식이 없는 노드는 자신의 뎁스에서 가능한 최상단(위쪽 노드 바로 밑)에 바짝 붙임
-         myY = depthY[depth] || 0;
+         myY = depthTracker[depth] || 0;
          node.worldY = myY;
-         depthY[depth] = myY + NODE_HEIGHT + Y_SPACING;
+         depthTracker[depth] = myY + NODE_HEIGHT + Y_SPACING;
          return myY;
       } else {
-         // 자식이 있다면 자식들을 먼저 순차적으로 그리고
          let sumY = 0;
          for (const childId of children) {
-            sumY += layoutNode(childId, depth + 1, depthX + X_SPACING);
+            sumY += layoutNode(childId, depth + 1, depthX + (X_SPACING * direction), direction, depthTracker);
          }
-         // 부모는 자식들의 중앙 위치(avgY)를 희망함
          const avgY = sumY / children.length;
          
-         // 하지만 자신의 뎁스에서 앞서 그려진 다른 노드와 겹치면 안 되므로 하한선(requiredY) 검사
-         const requiredY = depthY[depth] || 0;
+         const requiredY = depthTracker[depth] || 0;
          myY = Math.max(requiredY, avgY);
-         const shift = myY - avgY; // 만약 위쪽 노드 때문에 강제로 밑으로 밀려났다면
+         const shift = myY - avgY; 
          
          if (shift > 0) {
-            // 자식들 전체도 밀려난 만큼 똑같이 내려줌 (선이 찌그러지지 않게)
             shiftSubtree(nodeId, shift);
-            // 자식 트리가 통째로 shift 만큼 내려갔으므로, 그 이후에 그려질 다음 형제 노드들의 자식들이 겹치지 않도록 전체 뎁스 한계선 갱신
-            for (const dStr in depthY) {
+            for (const dStr in depthTracker) {
                 const d = parseInt(dStr);
                 if (d > depth) {
-                    depthY[d] += shift;
+                    depthTracker[d] += shift;
                 }
             }
          }
          
          node.worldY = myY;
-         depthY[depth] = myY + NODE_HEIGHT + Y_SPACING;
+         depthTracker[depth] = myY + NODE_HEIGHT + Y_SPACING;
          return myY;
       }
     }
 
-    // 다중 루트 노드들 배치 시작점
+    // 메인 루트 노드들 배치 시작점
     for (const root of roots) {
-       layoutNode(root.id, 0, -600);
-       // 루트가 변경될 때마다 모든 뎁스의 여백을 추가하여 독립된 트리 그룹으로 렌더링
-       for (const dStr in depthY) {
-           depthY[dStr] += Y_SPACING * 3;
+       const rootNode = nodeMap.get(root.id);
+       if (rootNode) {
+           rootNode.worldX = 0; // 루트 노드는 중앙(0)에 고정
+           visibleNodes.add(root.id);
+           
+           const rootChildren = treeChildrenMap.get(root.id) || [];
+           if (rootChildren.length > 0 && !collapsedNodeIds.has(root.id)) {
+               // 루트의 자식들을 좌우로 분배 (짝수는 오른쪽, 홀수는 왼쪽)
+               const leftChildren = [];
+               const rightChildren = [];
+               for (let i = 0; i < rootChildren.length; i++) {
+                   if (i % 2 === 0) rightChildren.push(rootChildren[i]);
+                   else leftChildren.push(rootChildren[i]);
+               }
+               
+               let leftSumY = 0;
+               for (const c of leftChildren) {
+                   leftSumY += layoutNode(c, 1, -X_SPACING, -1, leftDepthY);
+               }
+               let rightSumY = 0;
+               for (const c of rightChildren) {
+                   rightSumY += layoutNode(c, 1, X_SPACING, 1, rightDepthY);
+               }
+               
+               // 완벽한 수직 대칭(나비 모양)을 위해 루트 노드를 0에 고정하고, 자식 서브트리들을 루트에 맞춰 Y축 이동시킵니다.
+               rootNode.worldY = 0;
+               
+               if (leftChildren.length > 0) {
+                   const leftAvg = leftSumY / leftChildren.length;
+                   const shiftAmount = rootNode.worldY - leftAvg;
+                   if (shiftAmount !== 0) {
+                       for (const c of leftChildren) shiftSubtree(c, shiftAmount);
+                   }
+               }
+               
+               if (rightChildren.length > 0) {
+                   const rightAvg = rightSumY / rightChildren.length;
+                   const shiftAmount = rootNode.worldY - rightAvg;
+                   if (shiftAmount !== 0) {
+                       for (const c of rightChildren) shiftSubtree(c, shiftAmount);
+                   }
+               }
+
+               // 좌우 분리가 끝난 루트의 depthTracker 업데이트 (가장 하단 확보)
+               const finalRootY = rootNode.worldY;
+               leftDepthY[0] = Math.max(leftDepthY[0] || 0, finalRootY + NODE_HEIGHT + Y_SPACING);
+               rightDepthY[0] = Math.max(rightDepthY[0] || 0, finalRootY + NODE_HEIGHT + Y_SPACING);
+           } else {
+               // 최상위 노드만 존재할 때
+               rootNode.worldY = Math.max(leftDepthY[0] || 0, rightDepthY[0] || 0);
+               leftDepthY[0] = rootNode.worldY + NODE_HEIGHT + Y_SPACING;
+               rightDepthY[0] = rootNode.worldY + NODE_HEIGHT + Y_SPACING;
+           }
        }
+       
+       for (const dStr in leftDepthY) leftDepthY[dStr] += Y_SPACING * 3;
+       for (const dStr in rightDepthY) rightDepthY[dStr] += Y_SPACING * 3;
     }
 
     // (BFS로 모든 노드를 순회하여 treeChildrenMap을 만들었으므로 고아 노드는 더 이상 없음)

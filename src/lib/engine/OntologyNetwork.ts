@@ -1,4 +1,5 @@
 import { OntologyEdge, OrbitalNode } from '../ontology.types';
+import { OntologyLayout } from './OntologyLayout';
 
 export class OntologyNetwork {
   /**
@@ -14,64 +15,50 @@ export class OntologyNetwork {
     if (!rootId) return set;
     
     set.add(rootId);
-    const rootNode = nodeMap.get(rootId);
     
-    // 1. Network Flow BFS (Strict Tree Mode)
+    // Layout이 결정한 최종 트리 계층 구조를 진실의 원천(Source of Truth)으로 사용
+    const treeChildrenMap = OntologyLayout.lastTreeChildrenMap;
+    
+    // 1. 하위 자식 방향 전파 (Network Flow BFS - Strict Tree Mode)
+    // 부모를 클릭했을 때, '진짜 자식' 노드들에게만 활성화가 전파되게 합니다.
     const queue = [rootId];
     while (queue.length > 0) {
       const currentId = queue.shift()!;
-      const isImmediateHop = (currentId === rootId);
       
-      for (const edge of edges) {
-        // 중심 노드 관통 차단
-        if (rootId !== 'root-HCHPS' && edge.target === 'root-HCHPS') continue;
-        if (rootId !== 'root-HCHPS' && isImmediateHop && edge.source === 'root-HCHPS') continue;
-        
-        // Strict Tree Mode: Only follow pure child-parent relationships (orbit flow)
-        let nextId: string | null = null;
-        
-        // Is this a structural edge (downward flow)?
-        const srcNode = nodeMap.get(edge.source);
-        const tgtNode = nodeMap.get(edge.target);
-        
-        if (srcNode && tgtNode) {
-          // downward flow (source is parent, target is child)
-          if (tgtNode.parentId === srcNode.id) {
-             if (edge.source === currentId) nextId = edge.target; // spread down
-          } else if (srcNode.parentId === tgtNode.id) {
-             if (edge.target === currentId) nextId = edge.source; // spread down (edge drawn backwards rarely)
-          } else {
-             // Lateral / Custom Edge - Block propagation!
-             // BUT visually light up the immediate neighbour so we know they are connected
-             if (edge.source === currentId && isImmediateHop) {
-                nextId = edge.target;
-                if (!set.has(nextId)) set.add(nextId);
-                nextId = null; // stop queue
-             } else if (edge.target === currentId && isImmediateHop) {
-                nextId = edge.source;
-                if (!set.has(nextId)) set.add(nextId);
-                nextId = null; // stop queue
-             }
-             continue; // Do not spread further
+      // 현재 노드의 레이아웃상 자식들을 모두 가져옵니다 (Custom Edge로 연결된 것도 레이아웃이 자식으로 취급했다면 인정)
+      const children = treeChildrenMap.get(currentId) || [];
+      for (const childId of children) {
+          if (!set.has(childId)) {
+              set.add(childId);
+              queue.push(childId);
           }
-        }
-        
-        if (nextId && !set.has(nextId)) {
-          set.add(nextId);
-          queue.push(nextId);
-        }
       }
     }
     
-    // 2. Upward Ancestors (Structural Lineage)
+    // 2. 상위 부모 방향 전파 (Upward Ancestors)
+    // 자식 노드를 클릭했을 때, 본인의 뿌리가 되는 조상 노드들까지 활성화합니다.
     let currNode = nodeMap.get(rootId);
     const seenAncestors = new Set<string>();
-    while (currNode && currNode.parentId) {
-      if (seenAncestors.has(currNode.parentId)) break; // Prevent cycle freezes
-      seenAncestors.add(currNode.parentId);
+    
+    // 역방향 조상 추적을 위해 treeChildrenMap을 뒤집은 parentMap을 임시 구성
+    const parentMap = new Map<string, string>();
+    for (const [pId, cIds] of treeChildrenMap.entries()) {
+        for (const cId of cIds) {
+            parentMap.set(cId, pId); 
+        }
+    }
+    
+    let currId = rootId;
+    while (currId) {
+      if (seenAncestors.has(currId)) break; // Prevent cycle freezes
+      seenAncestors.add(currId);
       
-      set.add(currNode.parentId);
-      currNode = nodeMap.get(currNode.parentId);
+      const parentId = parentMap.get(currId) || currNode?.parentId;
+      if (!parentId) break;
+      
+      set.add(parentId);
+      currId = parentId;
+      currNode = nodeMap.get(parentId);
     }
     
     return set;

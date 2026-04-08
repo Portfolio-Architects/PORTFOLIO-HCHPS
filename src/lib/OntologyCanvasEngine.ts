@@ -299,15 +299,12 @@ export class OntologyCanvasEngine {
     }
     this.callbacks.onActiveNodeChange?.(this.activeNode);
 
-    // Default to NotebookLM style: collapse everything starting from 1차 카테고리 (orbitIndex >= 1) 
-    // so only the center and 1st level nodes are visible initially.
+    // 사용자의 요청에 따라: 모든 노드 오픈(Full Expanded)을 디폴트 값으로 설정
     if (!this.hasInitializedCollapse && this.nodes.length > 0) {
       this.hasInitializedCollapse = true;
-      for (const node of this.nodes) {
-        if (node.orbitIndex >= 1) {
-          this.collapsedNodeIds.add(node.id);
-        }
-      }
+      // 기존에 orbitIndex >= 1 인 노드들을 강제로 접었던(collapse) 로직을 제거하여 
+      // 디폴트 상태에서 전체 맵이 모두 활짝 펼쳐진 형태로 시작되도록 합니다.
+      this.collapsedNodeIds.clear(); 
     }
   }
 
@@ -495,46 +492,53 @@ export class OntologyCanvasEngine {
       const children = treeChildrenMap.get(hit.id) || [];
       const hasChildren = children.length > 0;
 
-      // 자식이 있을 경우 토글 실행
-      if (hasChildren) {
-         const getDescendants = (nodeId: string): string[] => {
-            const desc: string[] = [];
-            const q = [nodeId];
-            while (q.length > 0) {
-               const curr = q.shift()!;
-               const kids = treeChildrenMap.get(curr) || [];
-               for (const kid of kids) {
-                  desc.push(kid);
-                  q.push(kid);
-               }
-            }
-            return desc;
-         };
-
-         const descendants = getDescendants(hit.id);
-
+      // 1. 노드 선택 및 카메라 포커스 이동 (우선 처리)
+      const isNewlyActivated = this.activeNode?.id !== hit.id;
+      
+      if (isNewlyActivated) {
+         // 최초 클릭 시: "카테고리와 함께 하위 카테고리가 모두 활성화되며 중심으로 이동" 
+         // 따라서 새롭게 클릭된 노드는 절대 접지 않으며, 혹시 접혀있었다면 무조건 전개(오픈)합니다.
+         this.activeNode = hit;
+         this.previousActiveNodeId = hit.id;
+         
          if (this.collapsedNodeIds.has(hit.id)) {
-             // 펼치기: 클릭한 노드만 삭제하여 직속 1계층 자식만 표시.
              this.collapsedNodeIds.delete(hit.id);
+         }
+      } else {
+         // 2. 이미 활성화(선택)된 노드를 "다시 한 번" 클릭했을 때 동작
+         if (hasChildren) {
+            // 자식이 있는 경우 접기/펼치기 수동 토글 지원
+            const getDescendants = (nodeId: string): string[] => {
+               const desc: string[] = [];
+               const q = [nodeId];
+               while (q.length > 0) {
+                  const curr = q.shift()!;
+                  const kids = treeChildrenMap.get(curr) || [];
+                  for (const kid of kids) {
+                     desc.push(kid);
+                     q.push(kid);
+                  }
+               }
+               return desc;
+            };
+
+            const descendants = getDescendants(hit.id);
+
+            if (this.collapsedNodeIds.has(hit.id)) {
+                this.collapsedNodeIds.delete(hit.id);
+            } else {
+                this.collapsedNodeIds.add(hit.id);
+                descendants.forEach(d => this.collapsedNodeIds.add(d));
+            }
          } else {
-             // 접기: 클릭한 노드와 하위 모든 노드를 통째로 접어둠 (다음에 다른 경로로 열리거나 강제 전개될 때 항상 접힌 상태로 보장)
-             this.collapsedNodeIds.add(hit.id);
-             descendants.forEach(d => this.collapsedNodeIds.add(d));
+            // 자식이 없는 리프 노드를 재클릭하면 포커스 해제 (최상위 루트 노드로 돌아감)
+            this.activeNode = this.centerNode;
+            this.previousActiveNodeId = this.centerNode?.id || null;
          }
       }
-
-      // 2. 일반적인 노드 선택 (카메라 포커스 지정)
-      if (this.activeNode?.id !== hit.id) {
-        this.activeNode = hit;
-        this.previousActiveNodeId = hit.id;
-      } else if (!hasChildren) {
-        // 이미 선택된 노드를 다시 클릭했을 때, 자식이 없는 리프 노드만 선택 해제
-        this.activeNode = this.centerNode;
-        this.previousActiveNodeId = this.centerNode?.id || null;
-      }
       
-      // 항상 클릭한 노드로 부드럽게 카메라 패닝 (줌은 변동 없음)
-      this.pendingCameraTargetId = hit.id;
+      // 항상 활성화된 노드 단위를 바라보도록 카메라 패닝 지정
+      this.pendingCameraTargetId = this.activeNode?.id || null;
     } else {
       // 바탕 배경 클릭 시 활성 상태 유지 (선택이 풀리지 않도록 함)
       // this.activeNode = this.centerNode;

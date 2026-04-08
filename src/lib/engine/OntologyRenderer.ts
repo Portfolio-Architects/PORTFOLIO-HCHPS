@@ -19,8 +19,21 @@ export interface RenderContext {
 }
 
 export class OntologyRenderer {
+  private static THEME_PALETTES = [
+    '#3B82F6', // Blue
+    '#10B981', // Emerald
+    '#F59E0B', // Amber
+    '#8B5CF6', // Violet
+    '#EC4899', // Pink
+    '#06B6D4', // Cyan
+    '#F43F5E', // Rose
+    '#84CC16', // Lime
+  ];
+
   public static render(context: RenderContext): void {
-    const { ctx, canvasW, canvasH } = context;
+    const { ctx, canvasW, canvasH, nodes, centerNode } = context;
+
+    this.assignThemes(nodes, centerNode);
 
     this.renderBackground(ctx, canvasW, canvasH);
 
@@ -61,9 +74,9 @@ export class OntologyRenderer {
         rightNode = src;
       }
 
-      // 접힌 노드 자식으로 가는 엣지는 그리지 않음
-      if (rc.collapsedNodeIds.has(leftNode.id)) continue;
-      
+      // 양방향 패치 이후 leftNode가 항상 부모인 것이 아니므로 삭제
+      // (자식을 가리는 처리는 이미 55번째 줄 layoutHidden 속성에서 방어됨)
+
       const isConnected = activeNodeId && activeTreeSet.has(src.id) && activeTreeSet.has(tgt.id);
 
       // Frustum cull
@@ -79,10 +92,17 @@ export class OntologyRenderer {
       
       const cpDist = Math.max(15, Math.abs(rightLeftX - leftRightX) / 2);
       
-      // 엣지 색상 조절 (연결된 선명도와 채도 낮춤)
-      const alpha = isConnected ? 0.5 : 0.2;
-      ctx.strokeStyle = isConnected ? `rgba(96, 165, 250, ${alpha})` : `rgba(148, 163, 184, ${alpha})`;
-      ctx.lineWidth = isConnected ? 1.0 * rc.zoom : 0.5 * rc.zoom;
+      // 엣지 색상 조절: 자식 노드의 테마 컬러를 따라갑니다.
+      const themeColor = tgt.themeColor || '#94A3B8';
+      const alpha = isConnected ? 0.6 : 0.15; // 0.2 -> 0.15 로 낮춤
+      
+      // convert Hex to RGBA easily by trusting context alpha, or use string manipulation
+      // To keep it simple, we set globalAlpha
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = themeColor;
+      
+      // 연결 활성화 시 두께 1.5배 강조
+      ctx.lineWidth = isConnected ? 1.5 * rc.zoom : 0.5 * rc.zoom;
       if (edge.weight < 0) ctx.setLineDash([4, 4]);
       else ctx.setLineDash([]);
 
@@ -95,25 +115,39 @@ export class OntologyRenderer {
       );
       ctx.stroke();
     }
+    ctx.globalAlpha = 1.0;
     ctx.setLineDash([]);
   }
 
-  private static getDepthColor(orbitIndex: number | undefined): { bg: string, border: string, text: string } {
-    const idx = orbitIndex ?? 0;
-    if (idx === 0) {
-      // Root: Pastel Purple
-      return { bg: '#EDE9FE', border: '#C4B5FD', text: '#5B21B6' };
-    } else if (idx === 1) {
-      // Depth 1: Pastel Blue
-      return { bg: '#E0F2FE', border: '#BAE6FD', text: '#0369A1' };
-    } else if (idx === 2) {
-      // Depth 2: Pastel Green
-      return { bg: '#D1FAE5', border: '#A7F3D0', text: '#047857' };
-    } else {
-      // Depth 3+: Pastel Gray/Slate
-      return { bg: '#F1F5F9', border: '#CBD5E1', text: '#475569' };
-    }
+  private static assignThemes(nodes: OrbitalNode[], centerNode: OrbitalNode | null) {
+      if (!centerNode) return;
+      centerNode.themeColor = '#475569'; // Slate-600 for Root
+
+      const children = OntologyLayout.lastTreeChildrenMap.get(centerNode.id) || [];
+      let paletteIdx = 0;
+      
+      for (const childId of children) {
+          const childNode = nodes.find(n => n.id === childId);
+          if (childNode) {
+              childNode.themeColor = this.THEME_PALETTES[paletteIdx % this.THEME_PALETTES.length];
+              paletteIdx++;
+              this.cascadeTheme(childNode.id, childNode.themeColor, nodes);
+          }
+      }
   }
+
+  private static cascadeTheme(parentId: string, color: string, nodes: OrbitalNode[]) {
+      const children = OntologyLayout.lastTreeChildrenMap.get(parentId) || [];
+      for (const childId of children) {
+          const childNode = nodes.find(n => n.id === childId);
+          if (childNode) {
+              childNode.themeColor = color;
+              this.cascadeTheme(childId, color, nodes);
+          }
+      }
+  }
+
+  // Legacy getColorPalette removed -> We use Flat Design and themeColor inheritance
 
   private static renderNodes(rc: RenderContext): void {
     const { ctx, sortedNodesBuffer, nodes, activeNodeId, hoveredNodeId, activeTreeSet, canvasW, canvasH, zoom } = rc;
@@ -158,59 +192,98 @@ export class OntologyRenderer {
       const boxH = Math.max(28 * zoom, fontSize + paddingY * 2);  // 40 -> 28
 
       
-      const colors = this.getDepthColor(node.orbitIndex);
+      const themeColor = node.themeColor || '#94A3B8';
 
-      // Shadow
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.05)';
-      ctx.shadowBlur = 8 * zoom;
+      // Shadow (Slightly softer for flat design)
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.04)';
+      ctx.shadowBlur = 6 * zoom;
       ctx.shadowOffsetY = 2 * zoom;
 
-      // Box Draw
+      // Box Draw (Clean White Background)
       ctx.beginPath();
       if (ctx.roundRect) {
         ctx.roundRect(node.renderX - boxW / 2, node.renderY - boxH / 2, boxW, boxH, 6 * zoom);
       } else {
         ctx.rect(node.renderX - boxW / 2, node.renderY - boxH / 2, boxW, boxH);
       }
-      
-      ctx.fillStyle = colors.bg;
+      ctx.fillStyle = '#FFFFFF';
       ctx.fill();
 
-      // 윤곽선(Stroke) 완전 제거 - 플랫 디자인
-      // ctx.shadowColor = 'transparent';
-      // ctx.lineWidth = (isActive || isTreeActive || isHovered) ? 1.0 * zoom : 0.5 * zoom;
-      // ctx.strokeStyle = (isActive || isTreeActive) ? '#60A5FA' : (isHovered ? '#94A3B8' : colors.border);
-      // ctx.stroke();
+      // Shadow clear
+      ctx.shadowColor = 'transparent';
 
-      // Text
-      // 텍스트 활성 색상 완화: 1D4ED8 -> 3B82F6
-      ctx.fillStyle = (isActive || isTreeActive) ? '#3B82F6' : colors.text;
-      ctx.fillText(labelText, node.renderX, node.renderY);
+      // Hemisphere Check (좌/우 방향 식별)
+      // root 노드 자체(worldX === 0)는 오른쪽 규칙을 따르게 하거나 별도 처리 (여기서는 기본적으로 오른쪽)
+      const isLeftSide = (node.worldX || 0) < 0;
+
+      // Color Accent Bar (방향에 따라 좌측 또는 우측 끝에 예쁘게 그려줌)
+      ctx.beginPath();
+      if (ctx.roundRect) {
+        if (isLeftSide) {
+          // 좌측 노드: 우측 모서리에 엑센트
+          ctx.roundRect(node.renderX + boxW / 2 - 6 * zoom, node.renderY - boxH / 2, 6 * zoom, boxH, {
+            tl: 0,
+            bl: 0,
+            tr: 6 * zoom,
+            br: 6 * zoom
+          });
+        } else {
+          // 우측 노드: 좌측 모서리에 엑센트
+          ctx.roundRect(node.renderX - boxW / 2, node.renderY - boxH / 2, 6 * zoom, boxH, {
+            tl: 6 * zoom,
+            bl: 6 * zoom,
+            tr: 0,
+            br: 0
+          });
+        }
+      } else {
+        const ax = isLeftSide ? (node.renderX + boxW / 2 - 6 * zoom) : (node.renderX - boxW / 2);
+        ctx.rect(ax, node.renderY - boxH / 2, 6 * zoom, boxH);
+      }
+      ctx.fillStyle = themeColor;
+      ctx.fill();
+
+      // Text (Slate-800 / Slate-500)
+      // 활성화된 텍스트는 좀 더 진하고 볼드하게, 비활성화된 노드는 살짝 연하게
+      ctx.fillStyle = (isActive || isTreeActive) ? '#1E293B' : '#64748B';
+      // 텍스트 쏠림 보정 (엑센트 바 피하기)
+      const textOffsetX = isLeftSide ? -2 * zoom : 2 * zoom;
+      ctx.fillText(labelText, node.renderX + textOffsetX, node.renderY); 
 
       // NotebookLM Style: Expand/Collapse Arrow Badge
       const children = OntologyLayout.lastTreeChildrenMap.get(node.id) || [];
       const hasChildren = children.length > 0;
       if (hasChildren) {
         const isCollapsed = rc.collapsedNodeIds.has(node.id);
-        const badgeRadius = 8 * zoom; // 11 -> 8
-        // Position it entirely outside the right edge of the box (with gap)
-        const badgeX = node.renderX + boxW / 2 + badgeRadius + (4 * zoom); // 8 -> 4
+        const badgeRadius = 8 * zoom;
+        
+        // 뱃지 위치: 좌측 노드는 왼쪽에, 우측 노드는 오른쪽에 배치
+        const badgeSpacing = badgeRadius + 4 * zoom;
+        const badgeX = isLeftSide 
+            ? node.renderX - boxW / 2 - badgeSpacing 
+            : node.renderX + boxW / 2 + badgeSpacing;
         const badgeY = node.renderY;
         
         ctx.beginPath();
         ctx.arc(badgeX, badgeY, badgeRadius, 0, Math.PI * 2);
-        ctx.fillStyle = isCollapsed ? colors.bg : '#ffffff'; 
+        
+        // 접혀 있으면 테마색으로 완전히 칠해서 시선 유도, 펴져 있으면 연하게
+        ctx.fillStyle = isCollapsed ? themeColor : '#F1F5F9'; 
         ctx.fill();
-        // 뱃지 역시 테두리 제거
-        // ctx.lineWidth = 0.5 * zoom;
-        // ctx.strokeStyle = colors.border;
-        // ctx.stroke();
 
-        ctx.fillStyle = colors.text;
-        // Use a sans-serif font for arrows to match standard NotebookLM aesthetic
+        ctx.fillStyle = isCollapsed ? '#FFFFFF' : '#94A3B8';
         ctx.font = `bold ${9 * zoom}px sans-serif`;
-        // Draw > if collapsed (can expand), < if expanded (can collapse)
-        ctx.fillText(isCollapsed ? '>' : '<', badgeX, badgeY + Math.max(1, 1 * zoom));
+        
+        // 화살표 방향 로직 (좌/우 데칼코마니 반영)
+        // 오른쪽 브랜치: 펼침(<) 접힘(>)
+        // 왼쪽 브랜치:   펼침(>) 접힘(<)
+        let arrowChar = '';
+        if (isLeftSide) {
+           arrowChar = isCollapsed ? '<' : '>';
+        } else {
+           arrowChar = isCollapsed ? '>' : '<';
+        }
+        ctx.fillText(arrowChar, badgeX, badgeY + Math.max(1, 1 * zoom));
       }
 
       node.nodeRadius = (boxW / 2) / zoom;
