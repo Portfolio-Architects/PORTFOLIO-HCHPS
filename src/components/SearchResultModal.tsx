@@ -358,7 +358,7 @@ ${contextText || '(관련 문서가 없습니다.)'}
 
           {/* Right Panel: Sources Area */}
           {(phase === 'done' && (semanticResults.length > 0 || localResults.length > 0)) && (
-            <div className="lg:w-[350px] xl:w-[400px] border-t lg:border-t-0 lg:border-l border-[var(--color-border-light)] bg-gray-50 flex flex-col flex-shrink-0">
+            <div className="lg:w-[350px] xl:w-[400px] max-h-[30vh] lg:max-h-none border-t lg:border-t-0 lg:border-l border-[var(--color-border-light)] bg-gray-50 flex flex-col flex-shrink-0">
               <div className="px-5 py-4 border-b border-[var(--color-border-light)] bg-white sticky top-0 z-10 hidden lg:block">
                 <h4 className="text-[14px] font-semibold text-gray-700 flex items-center gap-2">
                   <FileText size={16} className="text-indigo-500" /> 참조된 원본 문서
