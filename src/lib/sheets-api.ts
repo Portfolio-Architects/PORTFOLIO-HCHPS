@@ -14,8 +14,13 @@ const API_KEY = '3b2926d8ad82a9a1b7524713ace3711ad40b52b46128fb1c';
 
 export async function readSheet<T>(sheetName: string): Promise<T[]> {
   try {
-    const res = await fetch(`${API_BASE}?sheet=${encodeURIComponent(sheetName)}`, {
-      headers: { 'X-API-Key': API_KEY },
+    const res = await fetch(`${API_BASE}?sheet=${encodeURIComponent(sheetName)}&_t=${Date.now()}`, {
+      headers: { 
+        'X-API-Key': API_KEY,
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+      },
+      cache: 'no-store'
     });
     if (res.ok) {
       const json = await res.json();
