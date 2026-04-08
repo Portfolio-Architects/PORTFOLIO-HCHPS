@@ -110,6 +110,42 @@ export function TaskKnowledgeView(props: TaskKnowledgeViewProps) {
     return items.sort((a, b) => b.dateMs - a.dateMs);
   }, [props.signalEntries, props.tasks, props.meetings, props.knowledgeEntries]);
 
+  const [extractingId, setExtractingId] = useState<string | null>(null);
+
+  const handleExtractWiki = async (e: React.MouseEvent, nodeId: string, itemType: string, itemTitle: string, rawContent: string) => {
+    e.stopPropagation();
+    if (extractingId) return;
+    
+    try {
+      setExtractingId(nodeId);
+      const { askLlama } = await import('@/lib/llm-client');
+      
+      const prompt = `다음은 사용자가 남긴 '${itemType}' 형태의 RAW 데이터(메모)입니다:\n제목: ${itemTitle}\n원문:\n${rawContent}\n\n이 내용을 공식적인 마크다운(Markdown) 위키 문서로 깔끔하고 체계적으로 정제하여 작성해 주십시오. 핵심이 잘 드러나도록 구조화하고, 텍스트 응답 외의 인사말이나 별도 설명은 절대 생략하십시오.`;
+      
+      const response = await askLlama([
+        { role: 'system', content: '당신은 메모나 아이디어를 넘겨받아 체계적인 마크다운 형식의 위키 다큐멘테이션으로 변환하는 수석 테크니컬 라이터이자 지식 큐레이터입니다. 오직 변환된 마크다운 텍스트 결과물만 응답하십시오.' },
+        { role: 'user', content: prompt }
+      ]);
+
+      const lines = response.split('\n');
+      const blocks = lines.map(line => ({ type: 'paragraph', content: line }));
+      
+      // Save locally
+      localStorage.setItem(`HCHPS-Wiki-${nodeId}`, JSON.stringify(blocks));
+      
+      // Save to Cloudflare SSOT
+      const { replaceAll } = await import('@/lib/sheets-api');
+      await replaceAll(`WIKI_DOC_${nodeId}`, [{ id: 'singleton', blocks }]);
+
+      alert('✨ 지정된 RAW 데이터가 위키 문서로 정제되어 연동 전송되었습니다!');
+    } catch (e) {
+      console.error(e);
+      alert('위키 다큐 변환 중 오류가 발생했습니다.');
+    } finally {
+      setExtractingId(null);
+    }
+  };
+
   const renderFeedItem = (item: FeedItem) => {
     switch (item.type) {
       case 'signal': {
@@ -122,6 +158,12 @@ export function TaskKnowledgeView(props: TaskKnowledgeViewProps) {
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-xs text-gray-400">{formatRelativeTime(sig.createdAt)}</span>
+                <button 
+                  onClick={(e) => handleExtractWiki(e, sig.id, '시그널/아이디어', '시그널 아이디어', sig.text)}
+                  className="flex items-center gap-1 text-[11px] font-medium text-emerald-600 bg-emerald-50/80 px-2 py-1 rounded-md border border-emerald-100 hover:bg-emerald-100 transition-colors"
+                >
+                  {extractingId === sig.id ? '정제중...' : '✨ 위키 정제 (LLM)'}
+                </button>
                 {props.deleteSignal && (
                   <button onClick={() => props.deleteSignal!(sig.id)} className="text-gray-300 hover:text-red-500 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
                     <Trash2 size={14} />
@@ -164,10 +206,16 @@ export function TaskKnowledgeView(props: TaskKnowledgeViewProps) {
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-gray-400">{formatRelativeTime(task.createdAt)}</span>
-                    <button onClick={() => openTaskModal(task)} className="text-gray-300 hover:text-blue-500 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button 
+                      onClick={(e) => handleExtractWiki(e, `task-${task.id}`, '업무(Task)', task.title, task.description || '')}
+                      className="flex items-center gap-1 text-[11px] font-medium text-blue-600 bg-blue-50/80 px-2 py-1 rounded-md border border-blue-100 hover:bg-blue-100 transition-colors"
+                    >
+                      {extractingId === `task-${task.id}` ? '정제중...' : '✨ 위키 정제 (LLM)'}
+                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); openTaskModal(task); }} className="text-gray-300 hover:text-blue-500 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
                       <Edit2 size={14} />
                     </button>
-                    <button onClick={() => props.deleteTask(task.id)} className="text-gray-300 hover:text-red-500 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={(e) => { e.stopPropagation(); props.deleteTask(task.id); }} className="text-gray-300 hover:text-red-500 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
                       <Trash2 size={14} />
                     </button>
                   </div>
@@ -204,7 +252,13 @@ export function TaskKnowledgeView(props: TaskKnowledgeViewProps) {
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-xs text-gray-400">{formatRelativeTime(m.createdAt)}</span>
-                <button onClick={() => props.deleteMeeting(m.id)} className="text-gray-300 hover:text-red-500 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
+                <button 
+                  onClick={(e) => handleExtractWiki(e, `meet-${m.id}`, '미팅/회의', m.title, (m.agenda || '') + '\n' + (m.notes || ''))}
+                  className="flex items-center gap-1 text-[11px] font-medium text-purple-600 bg-purple-50/80 px-2 py-1 rounded-md border border-purple-100 hover:bg-purple-100 transition-colors"
+                >
+                  {extractingId === `meet-${m.id}` ? '정제중...' : '✨ 위키 정제 (LLM)'}
+                </button>
+                <button onClick={(e) => { e.stopPropagation(); props.deleteMeeting(m.id); }} className="text-gray-300 hover:text-red-500 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
                   <Trash2 size={14} />
                 </button>
               </div>
@@ -229,7 +283,13 @@ export function TaskKnowledgeView(props: TaskKnowledgeViewProps) {
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-xs text-gray-400">{formatRelativeTime(k.createdAt)}</span>
-                <button onClick={() => props.deleteKnowledge(k.id)} className="text-gray-300 hover:text-red-500 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
+                <button 
+                  onClick={(e) => handleExtractWiki(e, `know-${k.id}`, '지식/문서', k.title, k.content)}
+                  className="flex items-center gap-1 text-[11px] font-medium text-amber-600 bg-amber-50/80 px-2 py-1 rounded-md border border-amber-100 hover:bg-amber-100 transition-colors"
+                >
+                  {extractingId === `know-${k.id}` ? '정제중...' : '✨ 위키 정제 (LLM)'}
+                </button>
+                <button onClick={(e) => { e.stopPropagation(); props.deleteKnowledge(k.id); }} className="text-gray-300 hover:text-red-500 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
                   <Trash2 size={14} />
                 </button>
               </div>

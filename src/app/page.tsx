@@ -256,31 +256,8 @@ export default function Home() {
       }
     }
 
-    // 2. Search Knowledge
-    (knowledgeEntries || []).forEach(k => {
-      const text = k.title + '\n' + k.content;
-      if (matchesTerms(text)) {
-        results.push({
-          id: k.id,
-          title: k.title,
-          source: '지식창고',
-          context: getContext(text)
-        });
-      }
-    });
-
-    // 3. Search Tasks
-    tasks.forEach(t => {
-      const text = t.title + '\n' + (t.description || '');
-      if (matchesTerms(text)) {
-        results.push({
-          id: t.id,
-          title: t.title,
-          source: '업무',
-          context: getContext(text)
-        });
-      }
-    });
+    // Chatbot (LLM) is strictly configured to ONLY use Wiki Docs as context.
+    // Tasks and Knowledge entries (raw memos) are explicitly excluded from the RAG pipeline.
 
     setSearchResults(results);
     setSearchModalOpen(true);
