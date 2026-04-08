@@ -26,6 +26,18 @@ export function WikiEditor(props: WikiEditorProps) {
     initialContent: initialBlocks && initialBlocks.length > 0 ? initialBlocks : undefined
   });
 
+  // 클라우드 데이터가 뒤늦게 도착했을 때 빈 에디터에 내용 강제 주입
+  useEffect(() => {
+    if (editor && initialBlocks && initialBlocks.length > 0) {
+      const doc = editor.document;
+      const isEditorEmpty = doc.length === 1 && (!doc[0].content || (Array.isArray(doc[0].content) && doc[0].content.length === 0));
+      
+      if (isEditorEmpty) {
+        editor.replaceBlocks(doc, initialBlocks);
+      }
+    }
+  }, [editor, initialBlocks]);
+
   // 커스텀 Slash Menu (AI 커맨드 추가)
   const getCustomSlashMenuItems = (
     editor: BlockNoteEditor
