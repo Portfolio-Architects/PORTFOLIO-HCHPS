@@ -33,7 +33,7 @@ function jsonResponse(data: unknown, status = 200): Response {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, X-API-Key, Cache-Control',
+      'Access-Control-Allow-Headers': 'Content-Type, X-API-Key, Cache-Control, Pragma',
     },
   });
 }
@@ -61,7 +61,7 @@ export const onRequestOptions: PagesFunction<Env> = async () => {
     headers: {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, X-API-Key, Cache-Control',
+      'Access-Control-Allow-Headers': 'Content-Type, X-API-Key, Cache-Control, Pragma',
     },
   });
 };
