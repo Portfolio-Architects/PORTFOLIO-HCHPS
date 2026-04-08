@@ -12,10 +12,10 @@ const SPREADSHEET_ID = '1Ktm5PDYOHm4r5te1vnPC5gcAoIuRFxM5w5X5mSF6DGE';
 // ============ Fetch from Google Sheets ============
 
 export async function fetchDocumentEntries(): Promise<DocumentEntry[]> {
-  const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=DOCUMENT_DATA`;
+  const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=DOCUMENT_DATA&_t=${Date.now()}`;
 
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) {
       console.warn(`Google Sheets fetch failed: ${res.status}`);
       return [];

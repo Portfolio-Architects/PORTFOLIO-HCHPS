@@ -13,12 +13,12 @@ const SPREADSHEET_ID = '1Ktm5PDYOHm4r5te1vnPC5gcAoIuRFxM5w5X5mSF6DGE';
 // ============ Fetch from Google Sheets ============
 
 export async function fetchOntologyFromSheets(): Promise<OntologyGraph> {
-  const nodesUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=ONTOLOGY_NODES`;
-  const edgesUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=ONTOLOGY_EDGES`;
+  const nodesUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=ONTOLOGY_NODES&_t=${Date.now()}`;
+  const edgesUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=ONTOLOGY_EDGES&_t=${Date.now()}`;
 
   const [nodesRes, edgesRes] = await Promise.all([
-    fetch(nodesUrl),
-    fetch(edgesUrl),
+    fetch(nodesUrl, { cache: 'no-store' }),
+    fetch(edgesUrl, { cache: 'no-store' }),
   ]);
 
   if (!nodesRes.ok || !edgesRes.ok) {
