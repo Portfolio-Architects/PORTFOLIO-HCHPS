@@ -29,8 +29,6 @@ export function useGoogleSheet<T extends { id: string }>(
       }
     } catch { /* ignore */ }
   }, [localStorageKey]);
-  const [loading, setLoading] = useState(true);
-  const initialLoadDone = useRef(false);
 
   // Initial load from Google Sheets
   useEffect(() => {
