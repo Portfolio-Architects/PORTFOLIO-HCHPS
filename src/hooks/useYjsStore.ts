@@ -25,18 +25,8 @@ export function useYjsStore(roomId: string = 'hchps-global') {
   }, [roomId]);
 
   useEffect(() => {
-    // 로컬 브라우저 IndexedDB에 영구 보존(Persistence) 계층을 추가하여 서버 재시작 시에도 롤백되지 않게 보호합니다.
-    let indexeddbProvider: IndexeddbPersistence | null = null;
-    if (typeof window !== 'undefined') {
-      import('y-indexeddb').then(({ IndexeddbPersistence }) => {
-        indexeddbProvider = new IndexeddbPersistence(roomId, ydoc);
-      });
-    }
-
-    return () => {
-      // 컴포넌트 마운트 해제 시 IndexedDB provider 정리 (선택적)
-      if (indexeddbProvider) indexeddbProvider.destroy();
-    };
+    // 순수 인메모리(in-memory) ydoc만 유지. (IndexedDB 자동 백업 제거)
+    // Cloudflare KV(`fetchFromCloud`, `syncToCloud`)가 유일한 중앙 저장소가 되도록 강제합니다.
   }, [roomId, ydoc]);
 
   return { ydoc };
