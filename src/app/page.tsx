@@ -358,6 +358,7 @@ export default function Home() {
             filterKnowledge={filterKnowledge}
             knowledgeMetadata={knowledgeMetadata}
             signalEntries={signalEntries}
+            addSignal={addSignal}
             deleteSignal={deleteSignal}
           />
         );

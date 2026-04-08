@@ -4,6 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { Task, TaskStatus, Meeting, Project, KnowledgeEntry } from '@/types';
 import { SignalEntry } from '@/hooks/useSignal';
 import { TaskModal } from '@/components/TaskModal';
+import { AddDataModal } from '@/components/AddDataModal';
 import { useGraphCustomization } from '@/hooks/useGraphCustomization';
 import { Card } from '@/components/ui/card';
 import { 
@@ -36,6 +37,7 @@ interface TaskKnowledgeViewProps {
   knowledgeMetadata?: { categories: string[]; tags: string[] };
   // Signals
   signalEntries?: SignalEntry[];
+  addSignal?: (text: string) => void;
   deleteSignal?: (id: string) => void;
 }
 
@@ -61,7 +63,8 @@ function formatRelativeTime(dateStr: string) {
 }
 
 export function TaskKnowledgeView(props: TaskKnowledgeViewProps) {
-  // Task Modal State
+  // Modal States
+  const [showAddModal, setShowAddModal] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [editTask, setEditTask] = useState<Task | null>(null);
   const [defaultStatus, setDefaultStatus] = useState<TaskStatus>('todo');
@@ -313,22 +316,40 @@ export function TaskKnowledgeView(props: TaskKnowledgeViewProps) {
   };
 
   return (
-    <>
-      <div className="mb-4 flex items-center justify-between border-b border-gray-100 pb-3">
-        <h2 className="text-lg font-bold text-gray-800">통합 피드</h2>
-        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">{feed.length}개의 기록</span>
+    <div className="flex flex-col gap-4 h-full">
+      {/* Header Area */}
+      <div className="flex flex-col sm:flex-row justify-between items-start gap-4 shrink-0">
+        <div>
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">Timeline & Insights</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            업무, 미팅, 거시경제 지식 및 인사이트를 시간순으로 확인하세요.
+          </p>
+        </div>
+        <button 
+          onClick={() => setShowAddModal(true)}
+          className="w-full sm:w-auto px-5 py-2.5 bg-gray-900 text-white rounded-xl shadow-sm font-medium hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
+        >
+          <Zap size={16} className="text-amber-400" />새 메모 작성
+        </button>
       </div>
 
-      <div className="space-y-4 max-w-3xl mx-auto pb-12">
-        {feed.length === 0 ? (
-          <div className="text-center py-20 text-gray-400">
-            <Archive className="mx-auto mb-3 opacity-20" size={48} />
-            <p>기록된 데이터가 없습니다.</p>
-            <p className="text-xs mt-1">위에 위치한 단축 입력창에 아무 말이나 입력해 보세요!</p>
-          </div>
-        ) : (
-          feed.map(item => renderFeedItem(item))
-        )}
+      <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pt-2 pb-10">
+        <div className="max-w-4xl mx-auto space-y-4">
+          {feed.length === 0 ? (
+            <div className="text-center py-20 bg-white rounded-xl border border-[var(--color-border-light)] border-dashed">
+              <FileText size={48} className="mx-auto text-gray-200 mb-4" />
+              <p className="text-[var(--color-text-secondary)]">아직 기록된 항목이 없습니다.</p>
+              <button 
+                onClick={() => setShowAddModal(true)}
+                className="mt-4 px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                첫 메모 추가하기
+              </button>
+            </div>
+          ) : (
+            feed.map(item => renderFeedItem(item))
+          )}
+        </div>
       </div>
 
       <TaskModal
@@ -341,6 +362,15 @@ export function TaskKnowledgeView(props: TaskKnowledgeViewProps) {
         projects={props.projects.map(p => ({ id: p.id, name: p.name }))}
         knowledgeEntries={props.knowledgeEntries}
       />
-    </>
+
+      <AddDataModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onAddSignal={(text) => props.addSignal?.(text)}
+        onAddTask={(title, desc) => props.addTask({ title, description: desc, status: 'todo', priority: 'medium', category: '', tags: [] })}
+        onAddKnowledge={(title, content) => props.addKnowledge({ title, content, tags: [], category: '' })}
+        onAddMeeting={(title, notes) => props.addMeeting({ title, notes, datetime: new Date().toISOString(), attendees: [] })}
+      />
+    </div>
   );
 }
