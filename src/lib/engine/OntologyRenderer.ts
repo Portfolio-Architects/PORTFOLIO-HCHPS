@@ -220,21 +220,21 @@ export class OntologyRenderer {
       ctx.beginPath();
       if (ctx.roundRect) {
         if (isLeftSide) {
-          // 좌측 노드: 우측 모서리에 엑센트
-          ctx.roundRect(node.renderX + boxW / 2 - 6 * zoom, node.renderY - boxH / 2, 6 * zoom, boxH, {
-            tl: 0,
-            bl: 0,
-            tr: 6 * zoom,
-            br: 6 * zoom
-          });
+          // 좌측 노드: 우측 모서리에 엑센트 (tl, tr, br, bl)
+          ctx.roundRect(node.renderX + boxW / 2 - 6 * zoom, node.renderY - boxH / 2, 6 * zoom, boxH, [
+            0,
+            6 * zoom,
+            6 * zoom,
+            0
+          ]);
         } else {
-          // 우측 노드: 좌측 모서리에 엑센트
-          ctx.roundRect(node.renderX - boxW / 2, node.renderY - boxH / 2, 6 * zoom, boxH, {
-            tl: 6 * zoom,
-            bl: 6 * zoom,
-            tr: 0,
-            br: 0
-          });
+          // 우측 노드: 좌측 모서리에 엑센트 (tl, tr, br, bl)
+          ctx.roundRect(node.renderX - boxW / 2, node.renderY - boxH / 2, 6 * zoom, boxH, [
+            6 * zoom,
+            0,
+            0,
+            6 * zoom
+          ]);
         }
       } else {
         const ax = isLeftSide ? (node.renderX + boxW / 2 - 6 * zoom) : (node.renderX - boxW / 2);
