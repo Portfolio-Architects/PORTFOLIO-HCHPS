@@ -52,7 +52,7 @@ function authenticate(request: Request, env: Env): boolean {
 
 // 시트 이름 검증
 function validateSheet(sheet: string): boolean {
-  return ALLOWED_SHEETS.has(sheet);
+  return ALLOWED_SHEETS.has(sheet) || sheet.startsWith('WIKI_DOC_');
 }
 
 // Handle CORS preflight
