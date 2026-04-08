@@ -37,8 +37,16 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
-  // chrome-extension 등 기타 프로토콜 및 실시간 통신 스트림 우회
-  if (!event.request.url.startsWith('http') || event.request.url.includes('/partykit') || event.request.url.includes('/ws')) return;
+  // chrome-extension 등 기타 프로토콜 및 실시간 통신 스트림, API 요청 우회 (PWA 강제 동기화 보장)
+  if (
+    !event.request.url.startsWith('http') || 
+    event.request.url.includes('/partykit') || 
+    event.request.url.includes('/ws') ||
+    event.request.url.includes('/api/') ||
+    event.request.url.includes('docs.google.com')
+  ) {
+    return;
+  }
 
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
