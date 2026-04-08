@@ -95,14 +95,14 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
 
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         if (e.shiftKey) {
-          e.preventDefault();
+          if (e.cancelable) e.preventDefault();
           redo();
         } else {
-          e.preventDefault();
+          if (e.cancelable) e.preventDefault();
           undo();
         }
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
-        e.preventDefault();
+        if (e.cancelable) e.preventDefault();
         redo();
       }
     };
@@ -337,7 +337,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
 
     // Native wheel handler (non-passive to allow preventDefault)
     const wheelHandler = (e: WheelEvent) => {
-      e.preventDefault();
+      if (e.cancelable) e.preventDefault();
       e.stopPropagation();
       const engine = engineRef.current;
       if (engine) engine.handleWheel(e.deltaY);
@@ -442,7 +442,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     const engine = engineRef.current;
     if (!engine) return;
-    e.preventDefault();
+    if (e.cancelable) e.preventDefault();
 
     if (e.touches.length === 2) {
       // Pinch start
@@ -460,7 +460,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
     const engine = engineRef.current;
     const canvas = canvasRef.current;
     if (!engine || !canvas) return;
-    e.preventDefault();
+    if (e.cancelable) e.preventDefault();
 
     // Pinch zoom
     if (e.touches.length === 2 && touchStartRef.current.pinchDist) {
@@ -484,7 +484,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   const handleTouchEnd = useCallback((e: React.TouchEvent) => {
     const engine = engineRef.current;
     if (!engine) return;
-    e.preventDefault();
+    if (e.cancelable) e.preventDefault();
 
     if (touchStartRef.current.pinchDist) {
       touchStartRef.current.pinchDist = undefined;
