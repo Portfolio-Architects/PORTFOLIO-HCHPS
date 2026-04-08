@@ -442,7 +442,6 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     const engine = engineRef.current;
     if (!engine) return;
-    if (e.cancelable) e.preventDefault();
 
     if (e.touches.length === 2) {
       // Pinch start
@@ -460,7 +459,6 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
     const engine = engineRef.current;
     const canvas = canvasRef.current;
     if (!engine || !canvas) return;
-    if (e.cancelable) e.preventDefault();
 
     // Pinch zoom
     if (e.touches.length === 2 && touchStartRef.current.pinchDist) {
@@ -484,7 +482,6 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   const handleTouchEnd = useCallback((e: React.TouchEvent) => {
     const engine = engineRef.current;
     if (!engine) return;
-    if (e.cancelable) e.preventDefault();
 
     if (touchStartRef.current.pinchDist) {
       touchStartRef.current.pinchDist = undefined;
