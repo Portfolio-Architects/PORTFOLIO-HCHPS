@@ -52,7 +52,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     }
 
     // Cloudflare Workers AI - Request stream if specified
-    const response = await context.env.AI.run('@cf/meta/llama-3-8b-instruct', {
+    const response = await context.env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
       messages: body.messages,
       stream: body.stream === true
     });

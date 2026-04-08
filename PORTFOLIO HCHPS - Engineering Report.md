@@ -1,5 +1,5 @@
 # PORTFOLIO HCHPS - Engineering Report
-**날짜:** 2026-04-04
+**날짜:** 2026-04-08
 **주제:** 실시간 협업 온톨로지 캔버스 기반 통합 워크스페이스 관리 시스템
 
 ---
@@ -43,10 +43,10 @@
 
 | 지표 | 수치 |
 |------|------|
-| TypeScript/TSX 파일 수 | **55개** |
-| 총 코드 라인 수 | **~10,000줄** |
-| 총 커밋 수 | **97+** |
-| 컴포넌트 모듈 | **6개** (budget, document, inventory, knowledge, ui, workspace — 총 20개 컴포넌트) |
+| TypeScript/TSX 파일 수 | **62개** |
+| 총 코드 라인 수 | **~11,000줄** |
+| 총 커밋 수 | **118** |
+| 컴포넌트 모듈 | **6개** (budget, document, inventory, knowledge, ui, workspace — 총 22개 컴포넌트) |
 | 서버리스 함수 | **4개** (chat, data, embeddings, semantic-search) |
 | 커스텀 훅 | **11개** |
 | 라이브러리 계층 | **4개** (lib, hooks, types, party) |
@@ -285,6 +285,7 @@ sequenceDiagram
 - **M-V-C 엔진 분해:** 단일체 `OntologyCanvasEngine`을 4개 독립 모듈(컨트롤러, 레이아웃, 네트워크, 렌더러)로 분리하여 모듈당 복잡도 약 70% 감소.
 - **Dirty Flag 렌더링 파이프라인:** `needsRedraw` 조건부 렌더링 도입으로 유휴 상태 시 CPU 소모량 0% 달성.
 - **Store Subscribe 최적화:** `useState`에서 `useSyncExternalStore`로 이관하고 16ms 디바운스를 적용하여 고빈도 Yjs 변경 시 React UI 정지 현상 영구 해소.
+- **React 컴포넌트 리팩토링:** 1,200줄이 넘던 거대한 `MindMap3D.tsx`에서 상세 정보 패널을 `MindMapInspector.tsx`로 완벽히 분리 추출하여 복잡도 및 결합도 대폭 하향.
 
 ### 캔버스 및 인터랙션
 - **결정론적 2D Tidy Tree 아키텍처 전환:** 수동 핀/물리 엔진 기반 방사형 캔버스를 NotebookLM 스타일의 좌측에서 우측으로 흐르는 정돈된 계층 구조(BFS)로 전면 교체.
@@ -294,16 +295,21 @@ sequenceDiagram
 - **가독성 향상:** 노드 간격을 오밀조밀하게 좁히고, 부모-자식 연결 시 자식이 존재함을 나타내는 인디케이터(>)를 추가하여 복잡한 트리 구조의 직관성 개선.
 - **메타데이터 스마트 뱃지:** 정규표현식 기반 날짜/전화번호 패턴 인식 → 파스텔 캡슐 뱃지로 차별 렌더링.
 - **5W1H 인스펙터 패널:** 글라스모피즘 하단 고정형 6구역 조직 메타데이터 그리드(소속, 직함, 연락처, 언제, 어디서, 무엇을).
+- **초기 로드 최적화:** 모바일 뷰 최적화를 위해 온톨로지 캔버스 초기 로드 시 루트 노드가 화면 중앙에 잡히도록 렌더링 축 조정.
+- **위키 통합 인터랙션:** `wiki:openNode` 이벤트를 통한 노드 참조 시 WikiEditor 오버레이 호출이 누락 없이 수행되도록 보강하고, 참조 시 열려있던 검색 모달을 즉각 훅을 통해 닫아 편의성 제고.
 
 ### 클라우드 및 AI
 - **Cloudflare KV 이관:** 전체 CRUD 데이터 계층을 localStorage에서 Cloudflare KV(Pages Functions 경유)로 이전.
-- **Llama 3.1 안정화:** 폐기된 `llama-3-8b-instruct`에서 `@cf/meta/llama-3.1-8b-instruct`로 이관하여 Error 1031 프록시 단절 해결.
+- **LLM 스트리밍 최적화 (SSE):** Llama 모델의 빠른 응답을 UI에 직결시키기 위한 SSE(Server-Sent Events) 스트리밍 파이프라인 도입 및 프롬프트 한국어 강제화.
+- **React 렌더링 최적화:** SSE 스트리밍 도중 React Strict Mode 렌더가 발생하며 타이핑이 버벅거리고 이중 렌더링 파이프라인이 충돌하는 현상 근절.
+- **벡터화 인증 보완:** 환경 변수 및 프로덕션 Cloudflare Vectorize 연동 시 X-API-Key 누락 이슈를 식별하고 관련 예외 처리 및 URL 엔드포인트 세팅 완료.
 - **실시간 협업:** PartyKit + Yjs CRDT 프로토콜(`persist: true` Durable Object 저장) 및 y-indexeddb 오프라인 폴백 구축.
 
 ### UX 개선
 - **고스트 노드 버그 해결 (Null-State Preservation):** 사용자의 '연결 해제' 의도를 `undefined` 대신 명시적 `null` 객체로 보존하여 유령 오버라이드 재연결 현상 차단.
 - **HWPX 문서 생성기:** JSZip 기반 한국 표준 공문서(HWPX) 내보내기 기능.
 - **스마트 폼 자동 서식:** 실시간 전화번호 하이픈 삽입 및 네이티브 datetime 피커 연동.
+- **검색 & 보안 인터페이스:** 중앙 통합 검색을 위한 SearchResultModal 도입 및 앱 진입 전 전역 SecurityLockScreen 인증 레이어 추가.
 
 ---
 

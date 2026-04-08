@@ -5,9 +5,6 @@ import { BlockNoteEditor, PartialBlock } from '@blocknote/core';
 import { useCreateBlockNote, SuggestionMenuController, getDefaultReactSlashMenuItems, DefaultReactSuggestionItem } from '@blocknote/react';
 import { BlockNoteView } from '@blocknote/mantine';
 import { askLlama } from '@/lib/llm-client';
-import { useYjsStore } from '@/hooks/useYjsStore';
-import * as Y from 'yjs';
-import YPartyKitProvider from 'y-partykit/provider';
 
 import '@blocknote/mantine/style.css';
 
@@ -21,58 +18,13 @@ interface WikiEditorProps {
 }
 
 export function WikiEditor(props: WikiEditorProps) {
-  const { provider, ydoc } = useYjsStore(`wiki-${props.nodeId}`);
-
-  // Yjs Provider가 준비되기 전에는 블록노트를 초기화하지 않고 대기합니다.
-  if (!provider) {
-    return (
-      <div className="flex flex-col h-full bg-white relative justify-center items-center">
-        <div className="animate-pulse flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
-          <p className="text-sm text-slate-500 font-medium">동기화 채널 접속 중...</p>
-        </div>
-      </div>
-    );
-  }
-
-  return <WikiEditorCore {...props} provider={provider} ydoc={ydoc} />;
-}
-
-function WikiEditorCore({ nodeId, nodeTitle, initialBlocks, onChange, onClose, addCustomEdge, provider, ydoc }: WikiEditorProps & { provider: YPartyKitProvider, ydoc: Y.Doc }) {
+  const { nodeId, nodeTitle, initialBlocks, onChange, onClose, addCustomEdge } = props;
   const [isLlamaThinking, setIsLlamaThinking] = useState(false);
 
-  // 에디터 인스턴스 생성 (Yjs 실시간 협업 속성 부여)
+  // 에디터 인스턴스 생성 (협업 대신 단일 유저 로컬/클라우드 저장소 사용)
   const editor = useCreateBlockNote({
-    collaboration: {
-      provider,
-      fragment: ydoc.getXmlFragment("wiki-doc"),
-      user: {
-        name: "동료 연구원",
-        color: "#10b981",
-      }
-    }
+    initialContent: initialBlocks && initialBlocks.length > 0 ? initialBlocks : undefined
   });
-
-  // 서버 통신 완료(Sync) 직후, 파티킷 서버 방이 완전히 비어있을 경우에만 로컬 스토리지 데이터를 밀어넣습니다.
-  useEffect(() => {
-    if (!provider) return;
-
-    const onSync = async (isSynced: boolean) => {
-      if (isSynced && initialBlocks && initialBlocks.length > 0) {
-        const text = await editor.blocksToMarkdownLossy(editor.document);
-        if (text.trim() === '') {
-          editor.replaceBlocks(editor.document, initialBlocks);
-        }
-      }
-    };
-
-    if (provider.synced) {
-      onSync(true);
-    } else {
-      provider.on('sync', onSync);
-      return () => provider.off('sync', onSync);
-    }
-  }, [provider, editor, initialBlocks]);
 
   // 커스텀 Slash Menu (AI 커맨드 추가)
   const getCustomSlashMenuItems = (
