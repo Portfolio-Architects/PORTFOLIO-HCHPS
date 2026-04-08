@@ -1,16 +1,18 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import type { PartialBlock } from '@blocknote/core';
 import type { NodeOverride } from './useGraphCustomization';
+import { readSheet, replaceAll } from '@/lib/sheets-api';
 
 /**
  * 특정 노드(nodeId)에 해당하는 위키(에디터 블록 구조)를
- * localStorage에 저장 및 로드하는 훅
+ * localStorage 및 클라우드(KV)와 동기화하는 훅
  */
 export function useWikiStorage(nodeId: string | null, setNodeOverride?: (id: string, override: Partial<NodeOverride>) => void) {
   const [blocks, setBlocks] = useState<PartialBlock[] | undefined>(undefined);
   const [isLoaded, setIsLoaded] = useState(false);
+  const syncTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // nodeId 변경 시 로컬스토리지에서 해당 데이터 로드
+  // 로컬/클라우드 병합 로드
   useEffect(() => {
     if (!nodeId) {
       setBlocks(undefined);
@@ -21,6 +23,7 @@ export function useWikiStorage(nodeId: string | null, setNodeOverride?: (id: str
     const stored = localStorage.getItem(`HCHPS-Wiki-${nodeId}`);
     let initialBlocks: PartialBlock[] | undefined = undefined;
 
+    // 1. 빠른 렌더링을 위해 로컬에서 먼저 읽음
     if (stored) {
       try {
         initialBlocks = JSON.parse(stored);
@@ -78,12 +81,43 @@ export function useWikiStorage(nodeId: string | null, setNodeOverride?: (id: str
 
     setBlocks(initialBlocks);
     setIsLoaded(true);
+
+    // 2. 비동기 클라우드 동기화 (클라우드 데이터가 존재하면 로컬 덮어씌움)
+    const fetchCloud = async () => {
+      try {
+        const rows = await readSheet<any>(`WIKI_DOC_${nodeId}`);
+        if (rows && rows.length > 0 && rows[0].id === 'singleton' && rows[0].blocks) {
+          const cloudBlocks = rows[0].blocks;
+          setBlocks(cloudBlocks);
+          localStorage.setItem(`HCHPS-Wiki-${nodeId}`, JSON.stringify(cloudBlocks));
+        }
+      } catch (e) {
+        console.error('Failed to fetch wiki from cloud', e);
+      }
+    };
+    fetchCloud();
+
   }, [nodeId]);
 
-  // 새로운 블록 배열 저장
+  // 새로운 블록 배열 저장 (자동 클라우드 백업)
   const saveBlocks = useCallback((nodeIdToSave: string, newBlocks: PartialBlock[]) => {
     if (!nodeIdToSave) return;
+    
+    // 로컬 보존 1순위
     localStorage.setItem(`HCHPS-Wiki-${nodeIdToSave}`, JSON.stringify(newBlocks));
+
+    // 디바운스 클라우드 백업 (2초 유지 후 업로드)
+    if (syncTimerRef.current) {
+      clearTimeout(syncTimerRef.current);
+    }
+    syncTimerRef.current = setTimeout(async () => {
+      try {
+        await replaceAll(`WIKI_DOC_${nodeIdToSave}`, [{ id: 'singleton', blocks: newBlocks }]);
+        console.log(`[Auto-Save] Wiki ${nodeIdToSave} uploaded to cloud.`);
+      } catch (error) {
+        console.error(`[Auto-Save] Wiki ${nodeIdToSave} upload failed.`, error);
+      }
+    }, 2000);
   }, []);
 
   return { blocks, isLoaded, saveBlocks };

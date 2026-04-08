@@ -9,7 +9,6 @@ import { useYjsStore } from '@/hooks/useYjsStore';
 import * as Y from 'yjs';
 import YPartyKitProvider from 'y-partykit/provider';
 
-import '@blocknote/core/fonts/inter.css';
 import '@blocknote/mantine/style.css';
 
 interface WikiEditorProps {

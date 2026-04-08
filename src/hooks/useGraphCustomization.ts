@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useCallback, useMemo, useSyncExternalStore } from 'react';
+import { useEffect, useCallback, useMemo, useSyncExternalStore, useRef } from 'react';
 import { OntologyNode, OntologyEdge, OntologyGroup } from '@/lib/ontology.types';
 import { useYjsStore } from './useYjsStore';
 import * as Y from 'yjs';
@@ -328,22 +328,22 @@ export function useGraphCustomization() {
     }
   }, [ydoc]);
 
-  const syncToCloud = useCallback(async () => {
-    if (!confirm('현재 화면의 모든 노드 구조를 클라우드에 저장하시겠습니까? (프로덕션 환경과 동기화)')) return;
+  const syncToCloud = useCallback(async (silent = false) => {
+    if (!silent && !confirm('현재 화면의 모든 노드 구조를 클라우드에 저장하시겠습니까? (프로덕션 환경과 동기화)')) return;
     try {
       const { replaceAll } = await import('@/lib/sheets-api');
       const latestData = store.getSnapshot();
       const res = await replaceAll('MAP_CUSTOMIZATION', [{ id: 'singleton', ...latestData }]);
-      if (res) alert('☁️ 성공적으로 클라우드에 동기화되었습니다!');
-      else alert('저장에 실패했습니다.');
+      if (res && !silent) alert('☁️ 성공적으로 클라우드에 동기화되었습니다!');
+      else if (!res && !silent) alert('저장에 실패했습니다.');
     } catch (e) {
       console.error(e);
-      alert('동기화 중 오류가 발생했습니다.');
+      if (!silent) alert('동기화 중 오류가 발생했습니다.');
     }
   }, [store]);
 
-  const fetchFromCloud = useCallback(async () => {
-    if (!confirm('클라우드에서 최신 데이터를 불러오시겠습니까? (현재 로컬의 캔버스 내용은 모두 덮어씌워집니다)')) return;
+  const fetchFromCloud = useCallback(async (silent = false) => {
+    if (!silent && !confirm('클라우드에서 최신 데이터를 불러오시겠습니까? (현재 로컬의 캔버스 내용은 모두 덮어씌워집니다)')) return;
     try {
       const { readSheet } = await import('@/lib/sheets-api');
       const rows = await readSheet<any>('MAP_CUSTOMIZATION');
@@ -360,15 +360,43 @@ export function useGraphCustomization() {
           if (cloudData.customEdges) cloudData.customEdges.forEach((e: any) => ydoc.getMap('customEdgesMap').set(`${e.source}|||${e.target}`, e));
           if (cloudData.deletedEdges) cloudData.deletedEdges.forEach((e: any) => ydoc.getMap('deletedEdgesMap').set(e, true));
         });
-        alert('☁️ 성공적으로 클라우드에서 데이터를 불러왔습니다!');
+        if (!silent) alert('☁️ 성공적으로 클라우드에서 데이터를 불러왔습니다!');
       } else {
-        alert('클라우드에 저장된 백업 데이터가 없습니다.');
+        if (!silent) alert('클라우드에 저장된 백업 데이터가 없습니다.');
       }
     } catch (e) {
       console.error(e);
-      alert('불러오기 중 오류가 발생했습니다.');
+      if (!silent) alert('불러오기 중 오류가 발생했습니다.');
     }
   }, [ydoc]);
+
+  // 자동 클라우드 로드 (최초 마운트)
+  const isInitialMount = useRef(true);
+  const cloudFetched = useRef(false);
+
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      // 로드 전에 Yjs가 초기화될 시간을 확보하기 위해 약간 지연
+      setTimeout(() => {
+        fetchFromCloud(true).then(() => {
+           cloudFetched.current = true;
+           console.log('[Auto-Load] MindMap configuration fetched from cloud.');
+        });
+      }, 500);
+    }
+  }, [fetchFromCloud]);
+
+  // 자동 클라우드 백업 (디바운스 2500ms)
+  useEffect(() => {
+    if (!cloudFetched.current) return;
+    const timer = setTimeout(() => {
+      syncToCloud(true).then(() => {
+        console.log('[Auto-Save] MindMap configuration uploaded to cloud.');
+      });
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, [data, syncToCloud]);
 
   return {
     ...data,
