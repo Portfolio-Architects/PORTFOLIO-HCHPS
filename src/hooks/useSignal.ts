@@ -144,13 +144,21 @@ export function useSignal() {
     readSheet<SignalEntry>(SHEET_NAME)
       .then(rows => {
         if (rows.length > 0) {
-          // Parse keywords back from JSON string if needed
-          const parsed = rows.map(row => ({
+          // Cloudflare KV의 eventual consistency 지연으로 인해 (최대 60초)
+          // 삭제한 데이터가 원격에서 다시 불러와지는 버그(좀비 데이터)를 방지하기 위해 로컬 툼스톤(삭제 기록) 확인
+          let deletedIds: string[] = [];
+          try { deletedIds = JSON.parse(localStorage.getItem('hchps-deleted-signals') || '[]'); } catch { }
+
+          let parsed = rows.map(row => ({
             ...row,
             keywords: typeof row.keywords === 'string'
               ? JSON.parse(row.keywords as string)
               : Array.isArray(row.keywords) ? row.keywords : [],
           }));
+          
+          // 방금 막 로컬에서 삭제된 항목이 원격에서 내려온다면 무시 (필터링)
+          parsed = parsed.filter(row => !deletedIds.includes(row.id));
+
           setEntries(parsed);
           try { localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed)); } catch { /* */ }
         } else {
@@ -239,6 +247,14 @@ export function useSignal() {
 
   const deleteSignal = useCallback((id: string) => {
     setEntries(prev => prev.filter(e => e.id !== id));
+    
+    // 로컬 툼스톤(삭제 기록)에 ID 추가하여 원격 캐시(좀비 데이터)에서 부활하는 것 방지
+    try {
+      const deletedIds = JSON.parse(localStorage.getItem('hchps-deleted-signals') || '[]');
+      deletedIds.push(id);
+      localStorage.setItem('hchps-deleted-signals', JSON.stringify(deletedIds));
+    } catch { }
+
     // Background sync
     deleteRow(SHEET_NAME, id).catch(() => {
       console.warn('시그널 삭제 Sheets 동기화 실패');

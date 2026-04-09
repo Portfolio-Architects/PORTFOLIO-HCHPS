@@ -249,6 +249,7 @@ export function buildSignalGraph(
             customLabel: resolveProp('customLabel'),
             customSortOrder: resolveProp('customSortOrder'),
             hidden: resolveProp('hidden'),
+            isPerson: resolveProp('isPerson'),
           };
         }
         return; // Skip adding `cn`
@@ -278,6 +279,7 @@ export function buildSignalGraph(
         if (override.customGroup !== undefined) n.group = override.customGroup === null ? n.group : (override.customGroup as OntologyGroup);
         if (override.customOrbitIndex !== undefined) n.customOrbitIndex = override.customOrbitIndex === null ? undefined : override.customOrbitIndex;
         if (override.customSortOrder !== undefined) n.customSortOrder = override.customSortOrder === null ? undefined : override.customSortOrder;
+        if (override.isPerson !== undefined) n.isPerson = override.isPerson === null ? undefined : override.isPerson;
         
         const safeParent = override.customParent === null ? undefined : override.customParent;
         if (override.customParent !== undefined) {

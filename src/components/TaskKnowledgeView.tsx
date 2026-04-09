@@ -9,8 +9,9 @@ import { useGraphCustomization } from '@/hooks/useGraphCustomization';
 import { Card } from '@/components/ui/card';
 import { 
   Zap, ListTodo, Archive, CalendarDays, Edit2, Trash2, 
-  MapPin, Users, FileText, CheckCircle2, Circle, Clock
+  MapPin, Users, FileText, CheckCircle2, Circle, Clock, Tag, ExternalLink, BrainCircuit
 } from 'lucide-react';
+import { WikiEditor } from './WikiEditor';
 
 interface TaskKnowledgeViewProps {
   // Tasks
@@ -65,9 +66,11 @@ function formatRelativeTime(dateStr: string) {
 export function TaskKnowledgeView(props: TaskKnowledgeViewProps) {
   // Modal States
   const [showAddModal, setShowAddModal] = useState(false);
+  const [addModalMode, setAddModalMode] = useState<'memo' | 'pdf'>('memo');
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [editTask, setEditTask] = useState<Task | null>(null);
   const [defaultStatus, setDefaultStatus] = useState<TaskStatus>('todo');
+  const [editingWikiNode, setEditingWikiNode] = useState<{id: string; title: string; initialBlocks?: any[]} | null>(null);
 
   const openTaskModal = (task?: Task, status?: TaskStatus) => {
     setEditTask(task || null);
@@ -141,6 +144,8 @@ export function TaskKnowledgeView(props: TaskKnowledgeViewProps) {
       await replaceAll(`WIKI_DOC_${nodeId}`, [{ id: 'singleton', blocks }]);
 
       alert('✨ 지정된 RAW 데이터가 위키 문서로 정제되어 연동 전송되었습니다!');
+      // Force re-render to update the button status
+      setExtractingId(nodId => nodId); 
     } catch (e) {
       console.error(e);
       alert('위키 다큐 변환 중 오류가 발생했습니다.');
@@ -153,22 +158,39 @@ export function TaskKnowledgeView(props: TaskKnowledgeViewProps) {
     switch (item.type) {
       case 'signal': {
         const sig = item.data;
+        const isPdf = sig.text?.includes('[PDF 원본:');
         return (
-          <Card key={`sig-${sig.id}`} className="p-4 hover:border-emerald-200 transition-colors group">
+          <Card key={`sig-${sig.id}`} className={`p-4 transition-colors group ${isPdf ? 'hover:border-amber-200' : 'hover:border-emerald-200'}`}>
             <div className="flex justify-between items-start mb-2">
-              <div className="flex items-center gap-1.5 text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full text-xs font-semibold">
-                <Zap size={12} /> 시그널 (아무말)
+              <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold ${isPdf ? 'text-amber-600 bg-amber-50' : 'text-emerald-600 bg-emerald-50'}`}>
+                {isPdf ? <FileText size={12} /> : <Zap size={12} />} 
+                {isPdf ? 'PDF 원문 데이터' : '빠른 텍스트 메모'}
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-xs text-gray-400">{formatRelativeTime(sig.createdAt)}</span>
-                <button 
-                  onClick={(e) => handleExtractWiki(e, sig.id, '시그널/아이디어', '시그널 아이디어', sig.text)}
-                  className="flex items-center gap-1 text-[11px] font-medium text-emerald-600 bg-emerald-50/80 px-2 py-1 rounded-md border border-emerald-100 hover:bg-emerald-100 transition-colors"
-                >
-                  {extractingId === sig.id ? '정제중...' : '✨ 위키 정제 (LLM)'}
-                </button>
+                
+                {localStorage.getItem(`HCHPS-Wiki-${sig.id}`) ? (
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const blocks = JSON.parse(localStorage.getItem(`HCHPS-Wiki-${sig.id}`) || '[]');
+                      setEditingWikiNode({ id: sig.id, title: isPdf ? 'PDF 지식' : '메모 아이디어', initialBlocks: blocks });
+                    }}
+                    className="flex items-center gap-1 text-[11px] font-bold text-blue-600 bg-blue-50/80 px-2 py-1 rounded-md border border-blue-100 hover:bg-blue-100 transition-colors"
+                  >
+                    ✅ 위키 문서 보기/수정
+                  </button>
+                ) : (
+                  <button 
+                    onClick={(e) => handleExtractWiki(e, sig.id, isPdf ? 'PDF 지식' : '빠른 메모', isPdf ? 'PDF 원문 구조화' : '메모 아이디어', sig.text)}
+                    className={`flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md border transition-colors ${isPdf ? 'text-amber-600 bg-amber-50/80 border-amber-100 hover:bg-amber-100' : 'text-emerald-600 bg-emerald-50/80 border-emerald-100 hover:bg-emerald-100'}`}
+                  >
+                    {extractingId === sig.id ? '정제중...' : '✨ 위키 정제 (LLM)'}
+                  </button>
+                )}
+
                 {props.deleteSignal && (
-                  <button onClick={() => props.deleteSignal!(sig.id)} className="text-gray-300 hover:text-red-500 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onClick={() => { if(window.confirm('정말 삭제하시겠습니까?')) props.deleteSignal?.(sig.id); }} className="text-gray-400 hover:text-red-500 cursor-pointer opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                     <Trash2 size={14} />
                   </button>
                 )}
@@ -218,7 +240,7 @@ export function TaskKnowledgeView(props: TaskKnowledgeViewProps) {
                     <button onClick={(e) => { e.stopPropagation(); openTaskModal(task); }} className="text-gray-300 hover:text-blue-500 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
                       <Edit2 size={14} />
                     </button>
-                    <button onClick={(e) => { e.stopPropagation(); props.deleteTask(task.id); }} className="text-gray-300 hover:text-red-500 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={(e) => { e.stopPropagation(); if(window.confirm('정말 삭제하시겠습니까?')) props.deleteTask(task.id); }} className="text-gray-400 hover:text-red-500 cursor-pointer opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                       <Trash2 size={14} />
                     </button>
                   </div>
@@ -261,7 +283,7 @@ export function TaskKnowledgeView(props: TaskKnowledgeViewProps) {
                 >
                   {extractingId === `meet-${m.id}` ? '정제중...' : '✨ 위키 정제 (LLM)'}
                 </button>
-                <button onClick={(e) => { e.stopPropagation(); props.deleteMeeting(m.id); }} className="text-gray-300 hover:text-red-500 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
+                <button onClick={(e) => { e.stopPropagation(); if(window.confirm('정말 삭제하시겠습니까?')) props.deleteMeeting(m.id); }} className="text-gray-400 hover:text-red-500 cursor-pointer opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                   <Trash2 size={14} />
                 </button>
               </div>
@@ -292,7 +314,7 @@ export function TaskKnowledgeView(props: TaskKnowledgeViewProps) {
                 >
                   {extractingId === `know-${k.id}` ? '정제중...' : '✨ 위키 정제 (LLM)'}
                 </button>
-                <button onClick={(e) => { e.stopPropagation(); props.deleteKnowledge(k.id); }} className="text-gray-300 hover:text-red-500 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
+                <button onClick={(e) => { e.stopPropagation(); if(window.confirm('정말 삭제하시겠습니까?')) props.deleteKnowledge(k.id); }} className="text-gray-400 hover:text-red-500 cursor-pointer opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                   <Trash2 size={14} />
                 </button>
               </div>
@@ -318,15 +340,15 @@ export function TaskKnowledgeView(props: TaskKnowledgeViewProps) {
   return (
     <div className="flex flex-col gap-4 h-full">
       {/* Header Area */}
-      <div className="flex flex-col sm:flex-row justify-between items-start gap-4 shrink-0">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">Timeline & Insights</h2>
-          <p className="text-sm text-gray-500 mt-1">
-            업무, 미팅, 거시경제 지식 및 인사이트를 시간순으로 확인하세요.
-          </p>
-        </div>
+      <div className="flex justify-end shrink-0 gap-2">
         <button 
-          onClick={() => setShowAddModal(true)}
+          onClick={() => { setAddModalMode('pdf'); setShowAddModal(true); }}
+          className="w-full sm:w-auto px-4 py-2.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl shadow-sm font-medium hover:bg-amber-100 transition-colors flex items-center justify-center gap-2"
+        >
+          <FileText size={16} className="text-amber-500" />PDF 분석
+        </button>
+        <button 
+          onClick={() => { setAddModalMode('memo'); setShowAddModal(true); }}
           className="w-full sm:w-auto px-5 py-2.5 bg-gray-900 text-white rounded-xl shadow-sm font-medium hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
         >
           <Zap size={16} className="text-amber-400" />새 메모 작성
@@ -365,12 +387,42 @@ export function TaskKnowledgeView(props: TaskKnowledgeViewProps) {
 
       <AddDataModal
         isOpen={showAddModal}
+        initialMode={addModalMode}
         onClose={() => setShowAddModal(false)}
         onAddSignal={(text) => props.addSignal?.(text)}
         onAddTask={(title, desc) => props.addTask({ title, description: desc, status: 'todo', priority: 'medium', category: '', tags: [] })}
         onAddKnowledge={(title, content) => props.addKnowledge({ title, content, tags: [], category: '' })}
         onAddMeeting={(title, notes) => props.addMeeting({ title, notes, datetime: new Date().toISOString(), attendees: [] })}
       />
+
+      {editingWikiNode && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl h-[85vh] flex flex-col pt-4 px-4 pb-4">
+            <div className="flex justify-between items-center mb-4 pb-4 border-b border-gray-100">
+              <h2 className="text-lg font-bold flex items-center gap-2">📝 정제된 위키 문서 열람 및 수정</h2>
+              <button 
+                onClick={() => setEditingWikiNode(null)}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-lg transition-colors"
+              >
+                닫기
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto w-full custom-scrollbar">
+              <WikiEditor 
+                nodeId={editingWikiNode.id} 
+                nodeTitle={editingWikiNode.title} 
+                initialBlocks={editingWikiNode.initialBlocks} 
+                onChange={(blocks) => {
+                  localStorage.setItem(`HCHPS-Wiki-${editingWikiNode.id}`, JSON.stringify(blocks));
+                  import('@/lib/sheets-api').then(({ replaceAll }) => {
+                    replaceAll(`WIKI_DOC_${editingWikiNode.id}`, [{ id: 'singleton', blocks }]);
+                  });
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

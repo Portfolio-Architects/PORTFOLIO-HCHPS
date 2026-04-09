@@ -52,13 +52,6 @@ export function Sidebar({ activeModule, onModuleChange, taskStats, quickInput }:
                   >
                     <Icon className="w-4 h-4" strokeWidth={isActive ? 2.5 : 1.8} />
                     <span>{item.label}</span>
-                    {item.id === 'workspace' && taskStats.overdue > 0 && (
-                      <span className={`absolute top-auto right-auto static m-0 text-[10px] sm:text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none border-0 ${
-                        isActive ? 'bg-white/25 text-white' : 'bg-[var(--color-danger)] text-white'
-                      }`}>
-                        {taskStats.overdue}
-                      </span>
-                    )}
                   </button>
                 );
               })}
@@ -102,13 +95,6 @@ export function Sidebar({ activeModule, onModuleChange, taskStats, quickInput }:
                     isActive ? 'opacity-100' : 'opacity-0'
                   }`}
                 />
-                
-                {/* Notification Badge */}
-                {item.id === 'workspace' && taskStats.overdue > 0 && (
-                  <span className="absolute top-1.5 right-1.5 text-[10px] font-bold min-w-[16px] h-[16px] flex items-center justify-center px-1 rounded-full border-[1.5px] border-white dark:border-slate-900 bg-red-500 text-white shadow-sm z-10">
-                    {taskStats.overdue}
-                  </span>
-                )}
               </button>
             );
           })}

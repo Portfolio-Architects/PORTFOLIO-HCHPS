@@ -21,6 +21,8 @@ export interface NodeOverride {
   currentMood?: 'SUNNY' | 'CLOUDY' | 'RAINY' | 'STORM' | null;
   scheduleMemo?: string | null;
   isPreparingExam?: boolean | null;
+  useCustomContext?: boolean | null;
+  customContextText?: string | null;
   approvalLogs?: import('@/lib/ontology.types').CRM_ApprovalLog[] | null;
   story5W1H?: {
     who?: string;
@@ -301,6 +303,68 @@ export function useGraphCustomization() {
     });
   }, [ydoc]);
 
+  const renameNodeId = useCallback((oldId: string, newId: string) => {
+    ydoc.transact(() => {
+      const overridesMap = ydoc.getMap('overrides') as Y.Map<NodeOverride>;
+      const customNodesMap = ydoc.getMap('customNodesMap') as Y.Map<OntologyNode>;
+      const customEdgesMap = ydoc.getMap('customEdgesMap') as Y.Map<OntologyEdge>;
+      const deletedEdgesMap = ydoc.getMap('deletedEdgesMap') as Y.Map<boolean>;
+
+      // 1. Move Override
+      if (overridesMap.has(oldId)) {
+        overridesMap.set(newId, overridesMap.get(oldId)!);
+        overridesMap.delete(oldId);
+      }
+
+      // 2. Cascade customParent updates to all other nodes
+      for (const [key, override] of Array.from(overridesMap.entries())) {
+        if (override.customParent === oldId) {
+          overridesMap.set(key, { ...override, customParent: newId });
+        }
+      }
+
+      // 3. Move Custom Node itself if applicable
+      if (customNodesMap.has(oldId)) {
+        const node = customNodesMap.get(oldId)!;
+        customNodesMap.set(newId, { ...node, id: newId });
+        customNodesMap.delete(oldId);
+      }
+
+      // 4. Cascade Custom Edges
+      const edgesToMove: [string, OntologyEdge][] = [];
+      for (const [key, edge] of Array.from(customEdgesMap.entries())) {
+        if (edge.source === oldId || edge.target === oldId) {
+          const updatedEdge = {
+            ...edge,
+            source: edge.source === oldId ? newId : edge.source,
+            target: edge.target === oldId ? newId : edge.target
+          };
+          edgesToMove.push([key, updatedEdge]);
+        }
+      }
+      edgesToMove.forEach(([oldKey, edge]) => {
+        customEdgesMap.delete(oldKey);
+        customEdgesMap.set(`${edge.source}|||${edge.target}`, edge);
+      });
+
+      // 5. Cascade Deleted Edges (Tombstones)
+      const tombstonesToMove: string[] = [];
+      for (const key of Array.from(deletedEdgesMap.keys())) {
+        const [s, t] = key.split('|||');
+        if (s === oldId || t === oldId) {
+          tombstonesToMove.push(key);
+        }
+      }
+      tombstonesToMove.forEach(oldKey => {
+        const [s, t] = oldKey.split('|||');
+        const newS = s === oldId ? newId : s;
+        const newT = t === oldId ? newId : t;
+        deletedEdgesMap.delete(oldKey);
+        deletedEdgesMap.set(`${newS}|||${newT}`, true);
+      });
+    });
+  }, [ydoc]);
+
   const clearOverrides = useCallback(() => {
     if (confirm('모든 노드의 색상과 핀 고정 위치를 처음 상태로 되돌리겠습니까?')) {
       ydoc.transact(() => {
@@ -420,6 +484,7 @@ export function useGraphCustomization() {
     addCustomEdge,
     deleteCustomEdge,
     removeCustomTombstone,
+    renameNodeId,
     clearOverrides,
     resetLayoutOverrides,
     clearAll,

@@ -10,16 +10,19 @@ import { readSheet, replaceAll } from '@/lib/sheets-api';
 export function useWikiStorage(nodeId: string | null, setNodeOverride?: (id: string, override: Partial<NodeOverride>) => void) {
   const [blocks, setBlocks] = useState<PartialBlock[] | undefined>(undefined);
   const [isLoaded, setIsLoaded] = useState(false);
-  const syncTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [loadedNodeId, setLoadedNodeId] = useState<string | null>(null);
+  const syncTimersRef = useRef<Record<string, NodeJS.Timeout>>({});
 
   // 로컬/클라우드 병합 로드
   useEffect(() => {
     if (!nodeId) {
       setBlocks(undefined);
       setIsLoaded(false);
+      setLoadedNodeId(null);
       return;
     }
 
+    let isCancelled = false;
     const stored = localStorage.getItem(`HCHPS-Wiki-${nodeId}`);
     let initialBlocks: PartialBlock[] | undefined = undefined;
 
@@ -81,22 +84,27 @@ export function useWikiStorage(nodeId: string | null, setNodeOverride?: (id: str
 
     setBlocks(initialBlocks);
     setIsLoaded(true);
+    setLoadedNodeId(nodeId);
 
     // 2. 비동기 클라우드 동기화 (클라우드 데이터가 존재하면 로컬 덮어씌움)
     const fetchCloud = async () => {
       try {
         const rows = await readSheet<any>(`WIKI_DOC_${nodeId}`);
+        if (isCancelled) return;
         if (rows && rows.length > 0 && rows[0].id === 'singleton' && rows[0].blocks) {
           const cloudBlocks = rows[0].blocks;
           setBlocks(cloudBlocks);
           localStorage.setItem(`HCHPS-Wiki-${nodeId}`, JSON.stringify(cloudBlocks));
         }
       } catch (e) {
-        console.error('Failed to fetch wiki from cloud', e);
+        if (!isCancelled) console.error('Failed to fetch wiki from cloud', e);
       }
     };
     fetchCloud();
 
+    return () => {
+      isCancelled = true;
+    };
   }, [nodeId]);
 
   // 새로운 블록 배열 저장 (자동 클라우드 백업)
@@ -106,11 +114,11 @@ export function useWikiStorage(nodeId: string | null, setNodeOverride?: (id: str
     // 로컬 보존 1순위
     localStorage.setItem(`HCHPS-Wiki-${nodeIdToSave}`, JSON.stringify(newBlocks));
 
-    // 디바운스 클라우드 백업 (2초 유지 후 업로드)
-    if (syncTimerRef.current) {
-      clearTimeout(syncTimerRef.current);
+    // 디바운스 클라우드 백업 (2초 유지 후 업로드) - 노드 단위로 독립 타이머
+    if (syncTimersRef.current[nodeIdToSave]) {
+      clearTimeout(syncTimersRef.current[nodeIdToSave]);
     }
-    syncTimerRef.current = setTimeout(async () => {
+    syncTimersRef.current[nodeIdToSave] = setTimeout(async () => {
       try {
         await replaceAll(`WIKI_DOC_${nodeIdToSave}`, [{ id: 'singleton', blocks: newBlocks }]);
         console.log(`[Auto-Save] Wiki ${nodeIdToSave} uploaded to cloud.`);
@@ -120,5 +128,8 @@ export function useWikiStorage(nodeId: string | null, setNodeOverride?: (id: str
     }, 2000);
   }, []);
 
-  return { blocks, isLoaded, saveBlocks };
+  const safeBlocks = loadedNodeId === nodeId ? blocks : undefined;
+  const safeIsLoaded = loadedNodeId === nodeId ? isLoaded : false;
+
+  return { blocks: safeBlocks, isLoaded: safeIsLoaded, saveBlocks };
 }

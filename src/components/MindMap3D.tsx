@@ -58,7 +58,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   const [stats, setStats] = useState({ nodes: 0, edges: 0 });
   const [isAddingNode, setIsAddingNode] = useState(false);
   const [newNodeName, setNewNodeName] = useState("");
-  const { overrides = {}, customNodes = [], customEdges = [], deletedEdges = [], undo, redo, setNodeOverride, batchSetNodeOverrides, clearNodeOverride, addCustomNode, deleteCustomNode, updateCustomNodeText, addCustomEdge, deleteCustomEdge, removeCustomTombstone, clearOverrides, resetLayoutOverrides, clearAll, syncToCloud, fetchFromCloud, isCloudLoaded } = useGraphCustomization();
+  const { overrides = {}, customNodes = [], customEdges = [], deletedEdges = [], undo, redo, setNodeOverride, batchSetNodeOverrides, clearNodeOverride, addCustomNode, deleteCustomNode, updateCustomNodeText, addCustomEdge, deleteCustomEdge, removeCustomTombstone, renameNodeId, clearOverrides, resetLayoutOverrides, clearAll, syncToCloud, fetchFromCloud, isCloudLoaded } = useGraphCustomization();
   useEffect(() => {
     const handleOpenWiki = (e: CustomEvent<{ id: string; label: string }>) => {
       // Find the actual node if it exists in the engine, otherwise mock enough properties for WikiEditor to work
@@ -438,7 +438,8 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
     if (e.touches.length === 2 && touchStartRef.current.pinchDist) {
       const newDist = getTouchDist(e);
       const delta = touchStartRef.current.pinchDist - newDist;
-      engine.handleWheel(delta * 2);
+      // Reduce sensitivity from delta * 2 to delta * 0.5 for smoother control on mobile screens
+      engine.handleWheel(delta * 0.5);
       touchStartRef.current.pinchDist = newDist;
       return;
     }
@@ -714,7 +715,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
             <MindMapInspector
               activeNode={activeNode} engineRef={engineRef} overrides={overrides} setNodeOverride={setNodeOverride}
               setActiveNode={setActiveNode} onRenameCategory={onRenameCategory} onDeleteCategory={onDeleteCategory}
-              updateCustomNodeText={updateCustomNodeText} removeCustomTombstone={removeCustomTombstone}
+              updateCustomNodeText={updateCustomNodeText} removeCustomTombstone={removeCustomTombstone} renameNodeId={renameNodeId}
               deleteCustomNode={deleteCustomNode} addCustomEdge={addCustomEdge} deleteCustomEdge={deleteCustomEdge}
               parentModeSource={parentModeSource} setParentModeSource={setParentModeSource}
               initEngine={initEngine} handleSwapNodeOrder={handleSwapNodeOrder} clearNodeOverride={clearNodeOverride}
@@ -729,9 +730,9 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
           className={
             isFullscreen 
               ? 'fixed inset-0 z-[100] bg-[#f8f9fc]' 
-              : 'relative rounded-xl overflow-hidden border border-[var(--color-border-light)] order-1 lg:order-none flex-1'
+              : 'relative rounded-xl overflow-hidden border border-[var(--color-border-light)] order-1 lg:order-none flex-1 aspect-square md:aspect-auto md:h-[min(600px,70vh)]'
           }
-          style={{ height: isFullscreen ? '100vh' : 'min(600px, 70vh)', backgroundColor: '#f8f9fc' }}
+          style={{ backgroundColor: '#f8f9fc', ...(isFullscreen ? { height: '100vh' } : {}) }}
         >
           <canvas
             ref={canvasRef}

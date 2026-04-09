@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { X, ListTodo, Archive, CalendarDays, Zap } from 'lucide-react';
+import { X, ListTodo, Archive, CalendarDays, Zap, FileText } from 'lucide-react';
 
 interface AddDataModalProps {
   isOpen: boolean;
+  initialMode?: 'memo' | 'pdf';
   onClose: () => void;
   onAddSignal: (text: string) => void;
   onAddTask: (title: string, desc: string) => void;
@@ -10,12 +11,63 @@ interface AddDataModalProps {
   onAddMeeting: (title: string, notes: string) => void;
 }
 
-export function AddDataModal({ isOpen, onClose, onAddSignal, onAddTask, onAddKnowledge, onAddMeeting }: AddDataModalProps) {
+export function AddDataModal({ isOpen, initialMode = 'memo', onClose, onAddSignal, onAddTask, onAddKnowledge, onAddMeeting }: AddDataModalProps) {
+  const [mode, setMode] = useState<'memo' | 'pdf'>(initialMode);
   const [type, setType] = useState<'signal' | 'task' | 'knowledge' | 'meeting'>('signal');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [isParsing, setIsParsing] = useState(false);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setMode(initialMode);
+      setContent('');
+      setIsParsing(false);
+    }
+  }, [isOpen, initialMode]);
 
   if (!isOpen) return null;
+
+  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsParsing(true);
+    try {
+      // SSR(서버 사이드) 렌더링 시 DOMMatrix undefined 에러를 방지하기 위해 사용 시점에 동적 로드
+      const pdfjsLib = await import('pdfjs-dist');
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ 
+        data: arrayBuffer,
+        cMapUrl: `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/cmaps/`,
+        cMapPacked: true,
+      }).promise;
+      let extractedText = `[PDF 원본: ${file.name}]\n\n`;
+      let actualTextCount = 0;
+      
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items.map((item: any) => item.str).join(' ');
+        if (pageText.trim()) actualTextCount++;
+        extractedText += pageText + '\n\n';
+      }
+
+      if (actualTextCount === 0) {
+        extractedText += "\n💡 [알림]: 이 PDF는 텍스트가 없는 스캔본(이미지)입니다. 어도비 아크로뱃이나 알PDF 등에서 [텍스트 인식(OCR)]을 한 번 돌린 후 다시 업로드하시면 완벽하게 추출됩니다.";
+      }
+
+      setContent((prev) => prev + (prev ? '\n\n' : '') + extractedText.trim());
+    } catch (err) {
+      console.error(err);
+      alert('PDF 텍스트 추출 중 오류가 발생했습니다.');
+    } finally {
+      setIsParsing(false);
+      e.target.value = '';
+    }
+  };
 
   const handleSubmit = () => {
     if (!title.trim() && type !== 'signal') {
@@ -39,84 +91,101 @@ export function AddDataModal({ isOpen, onClose, onAddSignal, onAddTask, onAddKno
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="flex justify-between items-center p-4 border-b border-gray-100">
-          <h2 className="text-lg font-bold text-gray-800">새로운 데이터 추가</h2>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full transition-colors">
-            <X size={20} className="text-gray-500" />
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+        <div className={`flex justify-between items-center p-4 border-b border-gray-100 transition-colors shrink-0 ${mode === 'memo' ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}>
+          <h2 className="text-lg font-bold flex items-center gap-2">
+            {mode === 'memo' ? <><Zap size={20} className="text-emerald-500" /> 빠른 메모 작성</> : <><FileText size={20} className="text-amber-500" /> PDF 문서 지식화</>}
+          </h2>
+          <button onClick={onClose} className={`p-1 rounded-full transition-colors cursor-pointer ${mode === 'memo' ? 'hover:bg-emerald-100 text-emerald-700' : 'hover:bg-amber-100 text-amber-700'}`}>
+            <X size={20} />
           </button>
         </div>
 
-        <div className="p-4 space-y-4">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <button 
-              onClick={() => setType('signal')}
-              className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border transition-colors ${type === 'signal' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50'}`}
-            >
-              <Zap size={18} />
-              <span className="text-xs font-semibold">시그널</span>
-            </button>
-            <button 
-              onClick={() => setType('task')}
-              className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border transition-colors ${type === 'task' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50'}`}
-            >
-              <ListTodo size={18} />
-              <span className="text-xs font-semibold">업무</span>
-            </button>
-            <button 
-              onClick={() => setType('knowledge')}
-              className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border transition-colors ${type === 'knowledge' ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50'}`}
-            >
-              <Archive size={18} />
-              <span className="text-xs font-semibold">지식</span>
-            </button>
-            <button 
-              onClick={() => setType('meeting')}
-              className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border transition-colors ${type === 'meeting' ? 'border-purple-500 bg-purple-50 text-purple-700' : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50'}`}
-            >
-              <CalendarDays size={18} />
-              <span className="text-xs font-semibold">미팅</span>
-            </button>
-          </div>
-
-          <div className="space-y-3 mt-4">
-            {type !== 'signal' && (
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">제목</label>
-                <input 
-                  type="text" 
-                  value={title}
-                  onChange={e => setTitle(e.target.value)}
-                  placeholder="제목을 입력하세요..."
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        <div className="p-4 flex-1 overflow-y-auto">
+          {mode === 'memo' && (
+            <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300 h-full flex flex-col">
+              <p className="text-xs text-gray-500 px-1 -mt-1 shrink-0">
+                카테고리 구분 없이 아이디어나 시그널을 빠르게 메모하세요.<br className="hidden sm:block" />
+                작성된 내용은 추후 AI를 통해 위키 데이터로 엮을 수 있습니다.
+              </p>
+              <div className="px-1 flex-1 flex flex-col">
+                <label className="block text-xs font-semibold text-gray-600 mb-1 shrink-0">
+                  시그널 내용
+                </label>
+                <textarea 
+                  value={content}
+                  onChange={e => setContent(e.target.value)}
+                  placeholder="어떠한 사항이나 떠오르는 아이디어를 자유롭게 메모하세요..."
+                  className="w-full flex-1 border border-gray-200 rounded-lg px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent min-h-[300px] resize-none"
+                  autoFocus
                 />
               </div>
-            )}
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">{type === 'signal' ? '시그널 내용' : '상세 내용'}</label>
-              <textarea 
-                value={content}
-                onChange={e => setContent(e.target.value)}
-                placeholder={type === 'signal' ? "떠오르는 아이디어나 시그널을 자유롭게 메모하세요..." : "선택사항입니다."}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent min-h-[100px] resize-none"
-              />
             </div>
-          </div>
+          )}
+
+          {mode === 'pdf' && (
+            <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300 h-full flex flex-col">
+              <p className="text-xs text-gray-500 px-1 -mt-1 shrink-0">
+                수십 페이지의 보고서나 논문 PDF를 업로드하여 텍스트를 즉시 추출합니다.<br className="hidden sm:block" />
+                추출된 텍스트를 저장 전 수정하거나 다듬을 수 있습니다.
+              </p>
+              <div className="px-1 flex-1 flex flex-col">
+                <label className="block text-xs font-semibold text-gray-600 mb-2 shrink-0">
+                  {content ? '추출된 원문 (수정 가능)' : 'PDF 원본 업로드'}
+                </label>
+                
+                {!content ? (
+                  <label 
+                    htmlFor="pdf-upload" 
+                    className={`flex flex-col items-center justify-center gap-3 w-full h-[300px] border-2 border-dashed rounded-lg cursor-pointer transition-all ${isParsing ? 'bg-amber-50 border-amber-300 pointer-events-none' : 'bg-gray-50 border-gray-200 hover:bg-amber-50/50 hover:border-amber-300'}`}
+                  >
+                    <input 
+                      type="file" 
+                      accept="application/pdf"
+                      id="pdf-upload"
+                      className="hidden"
+                      onChange={handlePdfUpload}
+                    />
+                    <FileText size={48} className={isParsing ? 'text-amber-400 animate-pulse' : 'text-gray-400'} />
+                    <div className="text-center">
+                      <p className="text-base font-bold text-gray-700">
+                        {isParsing ? '문서 구조 분석 및 텍스트 추출 중...' : '클릭하여 PDF 파일 선택'}
+                      </p>
+                      <p className="text-sm text-gray-500 mt-2">
+                        {isParsing ? '수 초 정도 소요될 수 있습니다.' : '브라우저 단독 처리 (서버 전송 없음, 정보 유출 차단)'}
+                      </p>
+                    </div>
+                  </label>
+                ) : (
+                  <textarea 
+                    value={content}
+                    onChange={e => setContent(e.target.value)}
+                    placeholder="추출된 텍스트가 없습니다."
+                    className="w-full flex-1 border border-gray-200 rounded-lg px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent min-h-[300px] resize-none"
+                    autoFocus
+                  />
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
-        <div className="p-4 border-t border-gray-100 flex justify-end gap-2 bg-gray-50">
+        <div className="p-4 border-t border-gray-100 flex justify-end gap-2 bg-gray-50 transition-colors rounded-b-xl shrink-0">
           <button 
             onClick={onClose}
             className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-200 rounded-lg transition-colors cursor-pointer"
           >
             취소
           </button>
-          <button 
-            onClick={handleSubmit}
-            className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors cursor-pointer"
-          >
-            저장하기
-          </button>
+          {(!isParsing && (mode === 'memo' || content)) && (
+            <button 
+              onClick={handleSubmit}
+              className={`px-6 py-2.5 text-sm font-bold text-white rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1.5 ${mode === 'memo' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-amber-600 hover:bg-amber-700 shadow-sm'}`}
+            >
+              <Zap size={16} className="fill-white" />
+              {mode === 'memo' ? '저장하기' : 'PDF 텍스트 지식화'}
+            </button>
+          )}
         </div>
       </div>
     </div>

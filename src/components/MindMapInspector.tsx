@@ -12,6 +12,7 @@ interface MindMapInspectorProps {
   onDeleteCategory?: (name: string) => void;
   updateCustomNodeText: (id: string, text: string) => void;
   removeCustomTombstone: (childId: string, parentId: string) => void;
+  renameNodeId?: (oldId: string, newId: string) => void;
   deleteCustomNode: (id: string) => void;
   addCustomEdge: (src: string, tgt: string) => void;
   deleteCustomEdge: (src: string, tgt: string) => void;
@@ -26,7 +27,7 @@ interface MindMapInspectorProps {
 export function MindMapInspector(props: MindMapInspectorProps) {
   const {
     activeNode, engineRef, overrides, setNodeOverride, setActiveNode,
-    onRenameCategory, onDeleteCategory, updateCustomNodeText, removeCustomTombstone,
+    onRenameCategory, onDeleteCategory, updateCustomNodeText, removeCustomTombstone, renameNodeId,
     deleteCustomNode, addCustomEdge, deleteCustomEdge,
     parentModeSource, setParentModeSource,
     initEngine, handleSwapNodeOrder, clearNodeOverride, isOverlay
@@ -82,10 +83,17 @@ export function MindMapInspector(props: MindMapInspectorProps) {
                                 
                                 if (activeNode.id.startsWith('tag-') && !isUncategorized) {
                                   targetId = `tag-${rawNew}`;
-                                  // Transfer existing overrides to the new anticipated ID
-                                  const existingOverride = overrides[activeNode.id] || {};
-                                  setNodeOverride(targetId, { ...existingOverride, customLabel: newName.trim() });
-                                  clearNodeOverride(activeNode.id);
+                                  // 기존 ID에서 새 ID로 완전히 이관 (자식 노드들의 customParent 참조까지 모두 일괄 Cascade 업데이트)
+                                  if (renameNodeId) {
+                                    renameNodeId(activeNode.id, targetId);
+                                    // label은 별도로 오버라이드
+                                    const existingOverride = overrides[targetId] || overrides[activeNode.id] || {};
+                                    setNodeOverride(targetId, { ...existingOverride, customLabel: newName.trim() });
+                                  } else {
+                                    const existingOverride = overrides[activeNode.id] || {};
+                                    setNodeOverride(targetId, { ...existingOverride, customLabel: newName.trim() });
+                                    clearNodeOverride(activeNode.id);
+                                  }
                                 } else {
                                   // Custom nodes OR '미분류' retain their original ID
                                   const existingOverride = overrides[targetId] || {};
@@ -198,21 +206,22 @@ export function MindMapInspector(props: MindMapInspectorProps) {
                               }}
                               className={`flex-1 text-xs px-2 py-1.5 rounded-md border min-w-0 ${(activeNode.id.startsWith('root-') && (!activeNode.parentId || activeNode.parentId === 'root-HCHPS' || activeNode.parentId === 'NONE')) ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200 focus:outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] cursor-pointer'}`}
                             >
-                              <option value="NONE">소속 없음 (메인/독립 노드)</option>
+                              <option value="NONE">❌ 연결 해제 (독립된 맵으로 고립)</option>
                               {engineRef.current?.nodes
                                  .filter((n: OrbitalNode) => {
                                     // If this is the currently selected parent, always show it so the select doesn't break
                                     if (n.id === activeNode.parentId) return true;
-                                    // Otherwise, if root node, don't show any other options
-                                    if (activeNode.id.startsWith('root-')) return false;
-                                    return n.id !== activeNode.id && !n.id.startsWith('root-') && n.orbitIndex > 0;
+                                    // Cannot attach the main root to anything else via dropdown
+                                    if (activeNode.id.startsWith('root-') || activeNode.orbitIndex === 0) return false;
+                                    // Allow connecting to any node EXCEPT self
+                                    return n.id !== activeNode.id;
                                  })
                                  .sort((a: OrbitalNode, b: OrbitalNode) => {
                                    if (a.orbitIndex !== b.orbitIndex) return a.orbitIndex - b.orbitIndex;
                                    return a.label.localeCompare(b.label);
                                  })
                                  .map((c: OrbitalNode) => {
-                                   const prefix = c.orbitIndex === 1 ? '📁 1차:' : c.orbitIndex === 2 ? '📄 2차:' : `📄 ${c.orbitIndex}차:`;
+                                   const prefix = c.orbitIndex === 0 ? '🌟 중심(에코):' : c.orbitIndex === 1 ? '📁 1차:' : c.orbitIndex === 2 ? '📄 2차:' : `📄 ${c.orbitIndex}차:`;
                                    return <option key={c.id} value={c.id}>{prefix} {c.label}</option>;
                                  })
                               }
