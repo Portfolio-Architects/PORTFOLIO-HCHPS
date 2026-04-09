@@ -1,13 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Card } from '@/components/ui/card';
 import { FileText, CalendarDays, UploadCloud, Zap } from 'lucide-react';
-import * as pdfjsLib from 'pdfjs-dist';
 import { useGraphCustomization } from '@/hooks/useGraphCustomization';
-
-// pdfjs-dist worker config
-if (typeof window !== 'undefined') {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
-}
 
 interface WeeklyReportViewProps {
   addSignal?: (text: string) => void;
@@ -38,6 +32,9 @@ export function WeeklyReportView({ addSignal }: WeeklyReportViewProps) {
 
     setIsProcessing(true);
     try {
+      const pdfjsLib = await import('pdfjs-dist');
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+
       const arrayBuffer = await file.arrayBuffer();
       // Required for pure Korean PDF
       const loadingTask = pdfjsLib.getDocument({
