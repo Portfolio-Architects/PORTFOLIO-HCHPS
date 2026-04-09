@@ -140,10 +140,18 @@ export function TaskKnowledgeView(props: TaskKnowledgeViewProps) {
       setExtractingId(nodeId);
       const { askLlama } = await import('@/lib/llm-client');
       
-      const prompt = `다음은 사용자가 남긴 '${itemType}' 형태의 RAW 데이터(메모)입니다:\n제목: ${itemTitle}\n원문:\n${rawContent}\n\n이 본문의 모든 세부 지식과 수치, 내용을 절대 누락하거나 임의로 요약하지 말고 '원문 내용 100% 그대로' 보존하십시오. 오직 가독성을 위해 공식적인 마크다운(Markdown) 위키 문서 형태로 구조화(대제목, 중제목, 글머리기호 배치 등)만 수행하여 작성해 주십시오. 텍스트 응답 외의 인사말이나 별도 설명은 절대 생략하십시오.`;
+      const prompt = `다음은 사용자가 남긴 '${itemType}' 형태의 RAW 데이터입니다:
+제목: ${itemTitle}
+원문:
+${rawContent}
+
+[지시사항]
+이 본문에 포함된 모든 디테일(세세한 항목, 설명, 수치, 문장 등)을 절대로 누락하거나 임의로 '요약'하지 마십시오. 분량을 축소시키지 말고, 원문에 있는 내용을 가급적 '충분한 길이의 서술형 문장'과 풍부한 텍스트로 보존하십시오. 
+단순 명사형 단답이나 지나친 요약식 글머리기호 사용을 지양하고, 원문의 깊이를 100% 살려 공식적인 마크다운(Markdown) 위키 문서 형태로 구조화(대제목, 중제목 등)만 수행하여 작성해 주십시오.
+인사말이나 부가 설명은 절대 출력하지 마십시오.`;
       
       const response = await askLlama([
-        { role: 'system', content: '당신은 메모나 아이디어를 넘겨받아 체계적인 마크다운 형식의 위키 다큐멘테이션으로 변환하는 수석 테크니컬 라이터이자 지식 큐레이터입니다. 오직 변환된 마크다운 텍스트 결과물만 응답하십시오.' },
+        { role: 'system', content: '당신은 입력된 텍스트의 분량과 디테일을 완벽하게 보존하면서 구조만 마크다운(Markdown) 백과사전 형태로 다듬는 수석 지식 큐레이터입니다. 내용을 요약하여 짧게 만들면 안 됩니다.' },
         { role: 'user', content: prompt }
       ]);
 
