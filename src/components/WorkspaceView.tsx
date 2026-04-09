@@ -4,15 +4,13 @@ import React, { useState } from 'react';
 import { BudgetCategory, BudgetEntry, InventoryItem, StockChange } from '@/types';
 import { BudgetDashboard } from '@/components/budget/BudgetDashboard';
 import { InventoryList } from '@/components/inventory/InventoryList';
-import { DocumentGenerator } from '@/components/document/DocumentGenerator';
-import { Wallet, Package, FileText } from 'lucide-react';
+import { Wallet, Package } from 'lucide-react';
 
-type SubTab = 'budget' | 'inventory' | 'document';
+type SubTab = 'budget' | 'inventory';
 
 const subTabs: { id: SubTab; label: string; icon: React.ElementType }[] = [
   { id: 'budget', label: '예산', icon: Wallet },
   { id: 'inventory', label: '재고', icon: Package },
-  { id: 'document', label: '기안문', icon: FileText },
 ];
 
 interface WorkspaceViewProps {
@@ -69,9 +67,6 @@ export function WorkspaceView(props: WorkspaceViewProps) {
             getItemHistory={props.getItemHistory}
           />
         );
-
-      case 'document':
-        return <DocumentGenerator />;
 
       default:
         return null;

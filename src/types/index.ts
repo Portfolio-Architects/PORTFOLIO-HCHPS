@@ -29,6 +29,10 @@ export interface BudgetCategory {
   totalBudget: number;
   color: string;
   description?: string;
+  policyProject?: string; // 정책사업명
+  unitProject?: string;   // 단위사업명
+  detailedProject?: string; // 세부사업명
+  statItem?: string;      // 통계목
 }
 
 export interface BudgetEntry {
