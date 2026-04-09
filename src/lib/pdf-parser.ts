@@ -1,12 +1,16 @@
-import * as pdfjsLib from 'pdfjs-dist';
-
-// CND 기반 Worker 로드 (Next.js 빌드 오류 회피 및 브라우저 호환성)
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
-
 /**
  * ArrayBuffer 형식의 PDF 파일 데이터에서 텍스트를 추출합니다.
  */
 export async function extractTextFromPdfBuffer(buffer: ArrayBuffer): Promise<string> {
+  // 클라이언트(브라우저) 환경에서만 모듈을 게으르게 로드합니다.
+  // Next.js SSR/SSG 빌드 시 'DOMMatrix is not defined' 에러 방지
+  const pdfjsLib = await import('pdfjs-dist');
+  
+  // CDN 기반 Worker 로드 (Next.js 빌드 오류 회피 및 브라우저 호환성)
+  if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+  }
+
   const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(buffer) });
   const pdfOutput = await loadingTask.promise;
   
