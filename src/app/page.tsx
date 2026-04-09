@@ -335,6 +335,7 @@ export default function Home() {
             deleteItem={deleteItem}
             adjustStock={adjustStock}
             getItemHistory={getItemHistory}
+            addKnowledge={addKnowledge}
           />
         );
 

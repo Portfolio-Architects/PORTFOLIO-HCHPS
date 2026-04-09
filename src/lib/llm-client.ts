@@ -40,6 +40,59 @@ export async function askLlama(
   }
 
   try {
+    // 1. Hybrid Edge LLM (Local Ollama) Fallback
+    if (isBrowser) {
+      try {
+        const edgeModel = localStorage.getItem('hchps-local-model') || 'gemma';
+        // short timeout for detection
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000); // 2초 뒤 포기
+        
+        const edgeRes = await fetch('http://127.0.0.1:11434/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: edgeModel, messages, stream: !!onChunk }),
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        if (edgeRes.ok) {
+          console.log(`[Hybrid LLM] Connected to Local Edge LLM (${edgeModel})`);
+          
+          if (!onChunk) {
+            const data = await edgeRes.json();
+            return data.message?.content || '';
+          }
+
+          const reader = edgeRes.body?.getReader();
+          if (!reader) throw new Error('No readable stream');
+          const decoder = new TextDecoder();
+          let fullContent = '';
+          
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunkStr = decoder.decode(value, { stream: true });
+            const lines = chunkStr.split('\n').filter(Boolean);
+            for (const line of lines) {
+              try {
+                const data = JSON.parse(line);
+                if (data.message?.content) {
+                  fullContent += data.message.content;
+                  onChunk(data.message.content);
+                }
+              } catch(e) {} // ignore incomplete JSON
+            }
+          }
+          return fullContent;
+        }
+      } catch (err) {
+        // Local Edge Server not found (CORS, Refused, Timeout) => Fallback
+        console.log('[Hybrid LLM] Local Edge LLM not detected. Falling back to Cloudflare...');
+      }
+    }
+
+    // 2. Cloudflare Workers AI Fallback
     const res = await fetch(`${apiBase}/api/chat`, {
       method: 'POST',
       headers,

@@ -5,7 +5,7 @@ import { BudgetCategory, BudgetEntry, BudgetEntryType } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { ProgressBar } from '@/components/ui/progress-bar';
 import { Modal } from '@/components/ui/modal';
-import { Plus, Pencil, Trash2, FileCheck, FilePlus2, FileText, CheckCircle2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, FileCheck, FilePlus2, FileText, CheckCircle2, AlertOctagon, ShieldAlert } from 'lucide-react';
 import { parseBudgetDocument, ParsedBudgetDoc } from '@/lib/budget-parser';
 
 interface BudgetDashboardProps {
@@ -18,6 +18,7 @@ interface BudgetDashboardProps {
   deleteEntry: (id: string) => void;
   getCategoryStats: (id: string) => { totalBudget: number; spent: number; planned: number; remaining: number; usageRate: number } | null;
   overallStats: { totalBudget: number; totalSpent: number; totalPlanned: number; remaining: number };
+  addKnowledge?: (k: { title: string; content: string; category: string; tags: string[] }) => void;
 }
 
 function formatN(n: number) { return n.toLocaleString('ko-KR'); }
@@ -29,12 +30,16 @@ const TYPE_CONFIG: Record<BudgetEntryType, { label: string; badge: string; badge
   resolution: { label: '지출 결의', badge: '결의', badgeBg: 'bg-blue-100 text-blue-700', icon: FileCheck },
 };
 
-export function BudgetDashboard({ categories, entries, addCategory, updateCategory, deleteCategory, addEntry, deleteEntry, getCategoryStats, overallStats }: BudgetDashboardProps) {
+export function BudgetDashboard(props: BudgetDashboardProps) {
+  const { categories, entries, addCategory, updateCategory, deleteCategory, addEntry, deleteEntry, getCategoryStats, overallStats } = props;
   const [showCatModal, setShowCatModal] = useState(false);
   const [showEntryModal, setShowEntryModal] = useState(false);
   const [selectedCatId, setSelectedCatId] = useState<string>('');
   const [catName, setCatName] = useState('');
   const [catBudget, setCatBudget] = useState('');
+  const [nationalFund, setNationalFund] = useState('');
+  const [localFund, setLocalFund] = useState('');
+  
   const [entryAmount, setEntryAmount] = useState('');
   const [entryPurpose, setEntryPurpose] = useState('');
   const [entryMemo, setEntryMemo] = useState('');
@@ -59,20 +64,69 @@ export function BudgetDashboard({ categories, entries, addCategory, updateCatego
   const handleAddCategory = (e: React.FormEvent) => {
     e.preventDefault();
     if (!catName.trim() || !catBudget) return;
+
+    // 매칭비율 3:7 검증 로직 (전체 예산 입력 & 국비/시비 입력 시)
+    if (nationalFund && localFund) {
+      const nat = Number(nationalFund);
+      const loc = Number(localFund);
+      const total = Number(catBudget);
+      if (nat + loc !== total) {
+        alert('Error: 국비와 지방비의 합이 총 예산과 일치하지 않습니다.');
+        return;
+      }
+      const natRatio = nat / total;
+      if (Math.abs(natRatio - 0.3) > 0.05) {
+        alert('Warning: 서울시 통합건강증진사업 지침에 따른 [국비 30% : 지방비 70%] 매칭 비율을 충족하지 않습니다. 계속 진행하시겠습니까?');
+      }
+    }
+
     if (editCatId) {
       updateCategory(editCatId, { name: catName, totalBudget: Number(catBudget) });
     } else {
       addCategory({ name: catName, totalBudget: Number(catBudget), color: COLORS[categories.length % COLORS.length] });
     }
-    setCatName(''); setCatBudget(''); setEditCatId(null); setShowCatModal(false);
+    setCatName(''); setCatBudget(''); setNationalFund(''); setLocalFund(''); setEditCatId(null); setShowCatModal(false);
   };
 
   const handleAddEntry = (e: React.FormEvent) => {
     e.preventDefault();
     if (!entryAmount || !entryPurpose.trim() || !selectedCatId) return;
+    
+    // 예산 지침 컴플라이언스 룰 검증
+    const targetCat = categories.find(c => c.id === selectedCatId);
+    const stats = targetCat ? getCategoryStats(targetCat.id) : null;
+    const reqAmount = Number(entryAmount);
+    
+    // 1. 가용 잔액 확인
+    if (stats && reqAmount > stats.remaining) {
+      alert(`Error: 잔액이 부족합니다. (현재 가용 실 잔액: ${formatN(stats.remaining)}원)`);
+      return;
+    }
+
+    // 2. 금지 비목 차단 (블랙리스트)
+    if (entryPurpose.includes('자산취득') || entryPurpose.includes('컴퓨터') || entryPurpose.includes('장비') || targetCat?.name.includes('자산취득비') || targetCat?.name.includes('인건비')) {
+      alert('Error: 통합건강증진사업 지침상 자산취득성 사업비 및 인건비 편성이 불가합니다.');
+      return;
+    }
+
+    // 3. 오분류 방지
+    if (entryPurpose.includes('자문료') || entryPurpose.includes('속기료') || entryPurpose.includes('사례금') || entryPurpose.includes('수수료')) {
+      if (!targetCat?.name.includes('일반수용비') && !targetCat?.name.includes('210-01')) {
+        alert("Error: 지침 위반. 전문가 자문 등은 반드시 '일반수용비(210-01목)'로 집행해야 합니다.");
+        return;
+      }
+    }
+
+    // 4. 편법 지출 방지 경고
+    if (entryPurpose.includes('일용임금') || entryPurpose.includes('행정보조')) {
+      if (!window.confirm("Warning: 계속 고용 금지 및 중복 계상 금지 지침 재확인 요망. 불필요한 일용인력 계속 고용은 감사 대상입니다. 계속 진행할까요?")) {
+        return;
+      }
+    }
+
     addEntry({
       categoryId: selectedCatId,
-      amount: Number(entryAmount),
+      amount: reqAmount,
       date: entryDate,
       purpose: entryPurpose,
       memo: entryMemo,
@@ -132,11 +186,71 @@ export function BudgetDashboard({ categories, entries, addCategory, updateCatego
     setShowEntryModal(true);
   };
 
+  const currentMonth = new Date().getMonth() + 1;
+  const isEndOfYearApproaching = currentMonth >= 11;
+  
+  // 위험 사업 추출 (집행률 70% 미만이면서 하반기, 또는 연말인데 가용액 10% 이상인 경우)
+  const riskCategories = useMemo(() => {
+    return categories.map(cat => {
+      const st = getCategoryStats(cat.id);
+      if (!st) return null;
+      if (currentMonth >= 9 && st.usageRate < 70) return { cat, st, reason: '3분기 집행률 70% 미만' };
+      if (isEndOfYearApproaching && (st.remaining / st.totalBudget) >= 0.1) return { cat, st, reason: '회계연도 마감 임박 (가용 잔액 10% 초과)' };
+      return null;
+    }).filter(Boolean);
+  }, [categories, getCategoryStats, currentMonth, isEndOfYearApproaching]);
+
+  const handleSeedRulesToWiki = () => {
+    if (!props.addKnowledge) return;
+    const ruleText = `
+## 통합건강증진사업 지침 및 실무 가이드라인
+1. **국시비 매칭 비율**: 국비 30%, 지방비 70% 비율 엄수
+2. **금지 비목**: 자산취득비(400목), 인건비(100목) 편성 및 집행 엄격 금지 (별도 예산 활용)
+3. **일반수용비 강제**: 소규모 수수료, 전문가 자문료, 속기료, 사례금은 반드시 일반수용비(210-01)로 집행
+4. **인력 운용 주의**: 일용임금, 행정보조 인력 등을 편법적으로 계속 고용하거나 중복 계상하는 것을 강력히 금지함
+5. **리스크 관리**: 3분기(9월) 집행률 70% 미만 사업 및 회계연도 마감 45일 전 10% 이상 남은 예산은 즉각 정리 및 추경/전용 고려
+    `.trim();
+    
+    props.addKnowledge({
+      title: "지역사회 통합건강증진사업 지출/편성 5대 원칙",
+      content: ruleText,
+      category: "예산지침",
+      tags: ["통합건강증진", "예산", "컴플라이언스", "규정"]
+    });
+    alert("예산 실무 알고리즘 지침서가 사내 위키에 성공적으로 배포되었습니다!");
+  };
+
   return (
     <div className="space-y-6">
+      
+      {/* Risk Alert Widget */}
+      {riskCategories.length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex flex-col gap-2">
+          <div className="flex items-center gap-2 text-red-700 font-bold">
+            <ShieldAlert size={20} />
+            <h2>불용액 발생 위험 - 긴급 모니터링 알림</h2>
+          </div>
+          <p className="text-xs text-red-600 mb-2">다음 사업들은 조기 집행 및 연말 잔액 소진 조치(추경 등)가 강력 권고됩니다.</p>
+          <div className="flex flex-col gap-2">
+            {riskCategories.map((item, id) => (
+              <div key={id} className="flex flex-wrap items-center justify-between text-xs bg-white/50 px-3 py-2 rounded-lg">
+                <span className="font-semibold text-gray-800">[{item?.cat.name}]</span>
+                <span className="text-red-600 font-medium">{item?.reason}</span>
+                <span className="text-gray-600">현재 잔액: <strong className="text-red-700">{formatN(item?.st.remaining ?? 0)}원</strong></span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-xl font-bold">예산 관리</h2>
         <div className="flex gap-2">
+          {props.addKnowledge && (
+            <button onClick={handleSeedRulesToWiki} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--color-primary)] text-[var(--color-primary)] bg-[var(--color-primary)]/5 text-sm font-medium hover:bg-[var(--color-primary)]/10 transition-colors cursor-pointer">
+              <CheckCircle2 size={16} /> 지침 위키 배포
+            </button>
+          )}
           <button onClick={() => { setEditCatId(null); setCatName(''); setCatBudget(''); setShowCatModal(true); }} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm font-medium hover:bg-gray-50 transition-colors cursor-pointer">
             <Plus size={16} /> 예산 과목
           </button>
@@ -255,8 +369,17 @@ export function BudgetDashboard({ categories, entries, addCategory, updateCatego
       {/* Category Modal */}
       <Modal isOpen={showCatModal} onClose={() => setShowCatModal(false)} title={editCatId ? '예산 과목 수정' : '새 예산 과목'} size="sm">
         <form onSubmit={handleAddCategory} className="space-y-4">
-          <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">과목명 *</label><input type="text" value={catName} onChange={e => setCatName(e.target.value)} className={inputClass} required placeholder="예: 사무용품비" /></div>
-          <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">예산 금액 (원) *</label><input type="number" value={catBudget} onChange={e => setCatBudget(e.target.value)} className={inputClass} required placeholder="0" /></div>
+          <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">사업목 / 단위예산명 *</label><input type="text" value={catName} onChange={e => setCatName(e.target.value)} className={inputClass} required placeholder="예: [보건소운영] 일반수용비(210-01)" /></div>
+          <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">총 예산액 (원) *</label><input type="number" value={catBudget} onChange={e => setCatBudget(e.target.value)} className={inputClass} required placeholder="0" /></div>
+          
+          <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg space-y-2">
+             <div className="text-xs font-bold text-gray-600 mb-2">보건복지부 / 수도권 비율 매칭 검증 (선택)</div>
+             <div className="grid grid-cols-2 gap-2">
+                <div><label className="block text-[11px] text-gray-500 mb-1">국비 (30%)</label><input type="number" value={nationalFund} onChange={e => setNationalFund(e.target.value)} className={inputClass} placeholder="입력" /></div>
+                <div><label className="block text-[11px] text-gray-500 mb-1">지방비 (70%)</label><input type="number" value={localFund} onChange={e => setLocalFund(e.target.value)} className={inputClass} placeholder="입력" /></div>
+             </div>
+          </div>
+
           <button type="submit" className="w-full px-4 py-2.5 rounded-lg bg-[var(--color-primary)] text-white text-sm font-medium hover:opacity-90 transition-opacity cursor-pointer">{editCatId ? '수정' : '추가'}</button>
         </form>
       </Modal>

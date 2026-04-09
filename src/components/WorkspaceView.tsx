@@ -33,6 +33,8 @@ interface WorkspaceViewProps {
   deleteItem: (id: string) => void;
   adjustStock: (itemId: string, change: number, reason: string) => void;
   getItemHistory: (itemId: string) => StockChange[];
+  // Knowledge
+  addKnowledge: (k: { title: string; content: string; category: string; tags: string[] }) => void;
 }
 
 export function WorkspaceView(props: WorkspaceViewProps) {
@@ -52,6 +54,7 @@ export function WorkspaceView(props: WorkspaceViewProps) {
             deleteEntry={props.deleteEntry}
             getCategoryStats={props.getCategoryStats}
             overallStats={props.overallStats}
+            addKnowledge={props.addKnowledge}
           />
         );
 
