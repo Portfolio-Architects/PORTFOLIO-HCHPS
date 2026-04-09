@@ -85,6 +85,9 @@ export interface OntologyNode {
   customGroup?: OntologyGroup; // User overridden group
   customOrbitIndex?: number;   // User overridden orbit index
   customSortOrder?: number;    // User overridden sibling sort order
+  dueDate?: string;            // User overridden deadline (YYYY-MM-DD)
+  isHighlighted?: boolean;     // User custom fixed highlight/glow
+  isCompleted?: boolean;       // User custom completed state (Archive)
   // === Personal CRM ===
   isPerson?: boolean;                           // 인물 노드 여부
   currentMood?: 'SUNNY' | 'CLOUDY' | 'RAINY' | 'STORM'; // 상사의 현재 기상도

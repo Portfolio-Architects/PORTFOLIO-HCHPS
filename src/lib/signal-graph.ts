@@ -220,6 +220,9 @@ export function buildSignalGraph(
   if (customData) {
     const dataLabels = new Map<string, string>(); // label -> id
     nodes.forEach(n => dataLabels.set(n.label, n.id));
+    
+    // 유령 노드(Ghost Node) 방지: 삭제된 커스텀 노드의 ID와, 이를 대체한 실제 데이터 노드의 ID 매핑
+    const mergedIdMap = new Map<string, string>();
 
     customData.customNodes.forEach(cn => {
       const override = customData.overrides[cn.id];
@@ -228,6 +231,8 @@ export function buildSignalGraph(
       if (dataLabels.has(actualLabel)) {
         // A data node with this label exists. Transfer overrides and skip rendering the duplicate.
         const dataNodeId = dataLabels.get(actualLabel)!;
+        mergedIdMap.set(cn.id, dataNodeId);
+        
         if (override) {
           const targetOverride = customData.overrides[dataNodeId] || {};
           
@@ -250,6 +255,9 @@ export function buildSignalGraph(
             customSortOrder: resolveProp('customSortOrder'),
             hidden: resolveProp('hidden'),
             isPerson: resolveProp('isPerson'),
+            dueDate: resolveProp('dueDate'),
+            isHighlighted: resolveProp('isHighlighted'),
+            isCompleted: resolveProp('isCompleted'),
           };
         }
         return; // Skip adding `cn`
@@ -257,8 +265,19 @@ export function buildSignalGraph(
       nodes.push(cn);
     });
 
+    // Remap any ghost customParent references to their merged ALIVE IDs
+    Object.keys(customData.overrides).forEach(key => {
+      let override = customData.overrides[key];
+      if (override && override.customParent && mergedIdMap.has(override.customParent)) {
+        // 재귀적 고스트가 발생하지 않도록 대체된 ID를 주입
+        override.customParent = mergedIdMap.get(override.customParent)!;
+      }
+    });
+
     customData.customEdges.forEach(ce => {
-      edges.push({ ...ce, isCustom: true } as PartialOntologyEdge);
+      const finalSource = mergedIdMap.get(ce.source) || ce.source;
+      const finalTarget = mergedIdMap.get(ce.target) || ce.target;
+      edges.push({ ...ce, source: finalSource, target: finalTarget, isCustom: true } as PartialOntologyEdge);
     });
 
     // (DeletedEdges processing moved to the end of custom mapping to catch customParent generated edges)
@@ -280,6 +299,9 @@ export function buildSignalGraph(
         if (override.customOrbitIndex !== undefined) n.customOrbitIndex = override.customOrbitIndex === null ? undefined : override.customOrbitIndex;
         if (override.customSortOrder !== undefined) n.customSortOrder = override.customSortOrder === null ? undefined : override.customSortOrder;
         if (override.isPerson !== undefined) n.isPerson = override.isPerson === null ? undefined : override.isPerson;
+        if (override.dueDate !== undefined) n.dueDate = override.dueDate === null ? undefined : override.dueDate;
+        if (override.isHighlighted !== undefined) n.isHighlighted = override.isHighlighted === null ? undefined : override.isHighlighted;
+        if (override.isCompleted !== undefined) n.isCompleted = override.isCompleted === null ? undefined : override.isCompleted;
         
         const safeParent = override.customParent === null ? undefined : override.customParent;
         if (override.customParent !== undefined) {

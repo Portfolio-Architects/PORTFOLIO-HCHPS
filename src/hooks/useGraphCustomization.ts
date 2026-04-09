@@ -14,6 +14,9 @@ export interface NodeOverride {
   customParent?: string | null;
   customOrbitIndex?: number | null;
   customSortOrder?: number | null;
+  dueDate?: string | null;
+  isHighlighted?: boolean | null;
+  isCompleted?: boolean | null;
   hidden?: boolean | null;
   isPerson?: boolean | null;
   leadershipStyle?: 'MICROMANAGER' | 'VISIONARY' | 'UNKNOWN' | null;

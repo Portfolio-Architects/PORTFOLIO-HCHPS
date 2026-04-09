@@ -192,12 +192,22 @@ export class OntologyRenderer {
       const boxH = Math.max(28 * zoom, fontSize + paddingY * 2);  // 40 -> 28
 
       
-      const themeColor = node.themeColor || '#94A3B8';
+      const themeColor = node.isCompleted ? '#CBD5E1' : (node.themeColor || '#94A3B8'); // 완료된 노드는 회색 처리
 
-      // Shadow (Slightly softer for flat design)
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.04)';
-      ctx.shadowBlur = 6 * zoom;
-      ctx.shadowOffsetY = 2 * zoom;
+      // Shadow and Glow setup
+      if (node.isHighlighted) {
+        ctx.shadowColor = 'rgba(245, 158, 11, 0.6)'; // Amber-500 glow (통일된 하이라이트)
+        ctx.shadowBlur = 8 * zoom;
+        ctx.shadowOffsetY = 0;
+      } else if (isActive || isHovered) {
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.08)';
+        ctx.shadowBlur = 8 * zoom;
+        ctx.shadowOffsetY = 3 * zoom;
+      } else {
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.03)';
+        ctx.shadowBlur = 4 * zoom;
+        ctx.shadowOffsetY = 1 * zoom;
+      }
 
       // Box Draw (Clean White Background)
       ctx.beginPath();
@@ -208,6 +218,29 @@ export class OntologyRenderer {
       }
       ctx.fillStyle = '#FFFFFF';
       ctx.fill();
+
+      // Border Outline
+      if (node.isHighlighted) {
+        ctx.lineWidth = 2 * zoom;
+        ctx.strokeStyle = '#F59E0B'; // Amber-500
+        ctx.stroke();
+      } else if (isActive) {
+        ctx.lineWidth = 2 * zoom;
+        ctx.strokeStyle = themeColor;
+        ctx.stroke();
+      } else if (isTreeActive) {
+        // Subtle outline for nodes in the same branch
+        ctx.lineWidth = 1.5 * zoom;
+        ctx.strokeStyle = themeColor;
+        ctx.globalAlpha = 0.4;
+        ctx.stroke();
+        ctx.globalAlpha = opacity;
+      } else {
+        // Very faint outline for rest
+        ctx.lineWidth = 1 * zoom;
+        ctx.strokeStyle = '#F8FAFC'; // slate-50
+        ctx.stroke();
+      }
 
       // Shadow clear
       ctx.shadowColor = 'transparent';
@@ -243,12 +276,26 @@ export class OntologyRenderer {
       ctx.fillStyle = themeColor;
       ctx.fill();
 
-      // Text (Slate-800 / Slate-500)
-      // 활성화된 텍스트는 좀 더 진하고 볼드하게, 비활성화된 노드는 살짝 연하게
-      ctx.fillStyle = (isActive || isTreeActive) ? '#1E293B' : '#64748B';
+      // Text rendering
+      if (node.isCompleted) {
+        ctx.fillStyle = '#94A3B8'; // Slate-400 for completed
+      } else {
+        ctx.fillStyle = (isActive || isTreeActive) ? '#1E293B' : '#64748B';
+      }
       // 텍스트 쏠림 보정 (엑센트 바 피하기)
       const textOffsetX = isLeftSide ? -2 * zoom : 2 * zoom;
       ctx.fillText(labelText, node.renderX + textOffsetX, node.renderY); 
+
+      // Strikethrough for completed nodes
+      if (node.isCompleted) {
+        ctx.beginPath();
+        const textHalfWidth = textWidth / 2;
+        ctx.moveTo(node.renderX + textOffsetX - textHalfWidth, node.renderY);
+        ctx.lineTo(node.renderX + textOffsetX + textHalfWidth, node.renderY);
+        ctx.lineWidth = 1.5 * zoom;
+        ctx.strokeStyle = '#64748B'; // Slightly darker line for visibility
+        ctx.stroke();
+      } 
 
       // Personal CRM: Mood Badge (결재 기상도)
       if (node.currentMood) {
@@ -278,6 +325,48 @@ export class OntologyRenderer {
           ctx.fillText(moodIcon, moodBadgeX, moodBadgeY + 1 * zoom);
         }
       }
+      // 마감 기한 (Deadline) 표시 (활성화된 노드만 표기)
+      if (isActive && node.dueDate) {
+        const parts = node.dueDate.split('-');
+        if (parts.length === 3) {
+          const targetZero = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+          const today = new Date();
+          const todayZero = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+          
+          const diffTime = targetZero.getTime() - todayZero.getTime();
+          const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+          const dDayStr = diffDays > 0 ? `D-${diffDays}` : diffDays === 0 ? 'D-Day' : `D+${Math.abs(diffDays)}`;
+          
+          const dateText = `⏰ ${dDayStr} (${parts[1]}/${parts[2]})`;
+          ctx.font = `bold ${10 * zoom}px 'Pretendard', sans-serif`;
+          const dateWidth = ctx.measureText(dateText).width;
+          const dbW = dateWidth + 12 * zoom;
+          const dbH = 18 * zoom;
+
+          // 박스 아래쪽에 렌더링
+          const dbX = node.renderX;
+          const dbY = node.renderY + boxH / 2 + dbH / 2 + 5 * zoom;
+
+          ctx.beginPath();
+          if (ctx.roundRect) {
+            ctx.roundRect(dbX - dbW / 2, dbY - dbH / 2, dbW, dbH, 10 * zoom);
+          } else {
+            ctx.rect(dbX - dbW / 2, dbY - dbH / 2, dbW, dbH);
+          }
+          
+          ctx.fillStyle = diffDays <= 3 ? '#FEF2F2' : '#F8FAFC'; 
+          ctx.fill();
+          ctx.strokeStyle = diffDays <= 3 ? '#FCA5A5' : '#E2E8F0';
+          ctx.lineWidth = 1 * zoom;
+          ctx.stroke();
+
+          ctx.fillStyle = diffDays <= 3 ? '#EF4444' : '#64748B'; 
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(dateText, dbX, dbY + Math.max(1, 1 * zoom));
+        }
+      }
+
       // NotebookLM Style: Expand/Collapse Arrow Badge
       const children = OntologyLayout.lastTreeChildrenMap.get(node.id) || [];
       const hasChildren = children.length > 0;

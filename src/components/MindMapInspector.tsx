@@ -149,31 +149,49 @@ export function MindMapInspector(props: MindMapInspectorProps) {
                       )}
                     </div>
 
-                    {/* isPerson Toggle for CRM Dashboard */}
-                    <div className="mb-4 bg-indigo-50 border border-indigo-100 rounded-lg p-3">
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-2">
-                          <div className={`p-1.5 rounded-full ${activeNode.isPerson ? 'bg-indigo-500 text-white' : 'bg-indigo-200 text-indigo-400'}`}>
-                            <Activity size={14} />
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-xs font-bold text-indigo-900">인물/이해관계자로 지정</span>
-                            <span className="text-[10px] text-indigo-500">결재 기상도에서 AI 전략 분석을 사용할 수 있습니다.</span>
-                          </div>
+                    {/* Node Attributes Toggles: Person & Highlight */}
+                    <div className="mb-4 grid grid-cols-2 gap-1.5">
+                      {/* isPerson Toggle */}
+                      <div className="flex flex-col bg-indigo-50 p-2 border border-indigo-100 rounded-lg shadow-sm">
+                        <div className="flex justify-between items-center mb-1">
+                          <label className="text-[10px] font-bold text-indigo-900">인물/이해관계자</label>
+                          <button
+                            onClick={() => {
+                              setNodeOverride(activeNode.id, { isPerson: !activeNode.isPerson });
+                              if (engineRef.current) {
+                                const engineNode = engineRef.current.nodes.find((n: OrbitalNode) => n.id === activeNode.id);
+                                if (engineNode) engineNode.isPerson = !activeNode.isPerson;
+                                setActiveNode({ ...activeNode, isPerson: !activeNode.isPerson });
+                              }
+                            }}
+                            className={`relative inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${activeNode.isPerson ? 'bg-indigo-500' : 'bg-indigo-200'}`}
+                          >
+                            <span className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${activeNode.isPerson ? 'translate-x-3' : 'translate-x-0'}`} />
+                          </button>
                         </div>
-                        <button
-                          onClick={() => {
-                            setNodeOverride(activeNode.id, { isPerson: !activeNode.isPerson });
-                            if (engineRef.current) {
-                              const engineNode = engineRef.current.nodes.find((n: OrbitalNode) => n.id === activeNode.id);
-                              if (engineNode) engineNode.isPerson = !activeNode.isPerson;
-                              setActiveNode({ ...activeNode, isPerson: !activeNode.isPerson });
-                            }
-                          }}
-                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${activeNode.isPerson ? 'bg-indigo-500' : 'bg-indigo-200'}`}
-                        >
-                          <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${activeNode.isPerson ? 'translate-x-4' : 'translate-x-0'}`} />
-                        </button>
+                        <span className="text-[8.5px] text-indigo-500/90 leading-tight">기상도 분석 활성화</span>
+                      </div>
+
+                      {/* Highlight Toggle */}
+                      <div className="flex flex-col bg-amber-50 p-2 border border-amber-200 rounded-lg shadow-sm">
+                        <div className="flex justify-between items-center mb-1">
+                          <label className="text-[10px] font-bold text-amber-700">노드 항상 강조</label>
+                          <button
+                            onClick={() => {
+                              const newVal = !activeNode.isHighlighted;
+                              setNodeOverride(activeNode.id, { isHighlighted: newVal });
+                              if (engineRef.current) {
+                                const engineNode = engineRef.current.nodes.find((n: OrbitalNode) => n.id === activeNode.id);
+                                if (engineNode) engineNode.isHighlighted = newVal;
+                                setActiveNode({ ...activeNode, isHighlighted: newVal });
+                              }
+                            }}
+                            className={`relative inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${activeNode.isHighlighted ? 'bg-amber-400' : 'bg-amber-200/50'}`}
+                          >
+                            <span className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${activeNode.isHighlighted ? 'translate-x-3' : 'translate-x-0'}`} />
+                          </button>
+                        </div>
+                        <span className="text-[8.5px] text-amber-600/80 leading-tight">글로우 효과 지속</span>
                       </div>
                     </div>
 
@@ -247,7 +265,6 @@ export function MindMapInspector(props: MindMapInspectorProps) {
                               <Crosshair size={14} />
                             </button>
                           </div>
-                          <p className="text-[9px] text-slate-400 leading-tight mt-1">지정된 부모의 위계, 색상, 동기화 망에 종속됩니다.</p>
                         </div>
                         
                         {/* 2. 궤도 차수 강제 지정 */}
@@ -313,22 +330,41 @@ export function MindMapInspector(props: MindMapInspectorProps) {
                       </div>
                       <div className="flex flex-col gap-1.5">
                         
+                        <div className="flex flex-col gap-1 bg-slate-50 p-2.5 border border-slate-200 rounded-lg shadow-sm">
+                          <label className="text-[10px] font-bold text-slate-500 mb-0.5">마감 기한 (Deadline) 지정</label>
+                          <input
+                            type="date"
+                            className="text-xs px-2 py-1.5 rounded-md border bg-white border-slate-200 focus:outline-none focus:border-[var(--color-primary)] cursor-pointer"
+                            value={activeNode.dueDate || ''}
+                            onChange={(e) => {
+                              const newDate = e.target.value || undefined;
+                              setNodeOverride(activeNode.id, { dueDate: newDate });
+                              if (engineRef.current) {
+                                const engineNode = engineRef.current.nodes.find((n: OrbitalNode) => n.id === activeNode.id);
+                                if (engineNode) engineNode.dueDate = newDate;
+                                setActiveNode({ ...activeNode, dueDate: newDate });
+                              }
+                            }}
+                          />
+                        </div>
+
+
 
                         <div className="flex gap-1.5 mt-0.5">
                           <button
                             onClick={() => {
-                              if (confirm(`'${activeNode.label}' 처리를 완료하고 지도에서 숨기시겠습니까?`)) {
-                                setNodeOverride(activeNode.id, { hidden: true });
-                                if (engineRef.current) {
-                                  engineRef.current.nodes = engineRef.current.nodes.filter((n: OrbitalNode) => n.id !== activeNode.id);
-                                  engineRef.current.edges = engineRef.current.edges.filter((e: OntologyEdge) => e.source !== activeNode.id && e.target !== activeNode.id);
-                                  setActiveNode(null);
-                                }
+                              const newVal = !activeNode.isCompleted;
+                              setNodeOverride(activeNode.id, { isCompleted: newVal });
+                              if (engineRef.current) {
+                                const engineNode = engineRef.current.nodes.find((n: OrbitalNode) => n.id === activeNode.id);
+                                if (engineNode) engineNode.isCompleted = newVal;
+                                setActiveNode({ ...activeNode, isCompleted: newVal });
+                                engineRef.current.needsRedraw = true;
                               }
                             }}
-                            className="flex-1 flex justify-center items-center gap-1.5 py-2 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-bold text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 transition-colors shadow-sm cursor-pointer"
+                            className={`flex-1 flex justify-center items-center gap-1.5 py-2 border rounded-lg text-xs font-bold transition-colors shadow-sm cursor-pointer ${activeNode.isCompleted ? 'bg-slate-100 border-slate-300 text-slate-500 hover:bg-slate-200' : 'bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700'}`}
                           >
-                            <CheckCircle size={14} /> 완료 처리
+                            <CheckCircle size={14} /> {activeNode.isCompleted ? '완료 취소' : '완료 처리'}
                           </button>
                           <button
                             onClick={() => {

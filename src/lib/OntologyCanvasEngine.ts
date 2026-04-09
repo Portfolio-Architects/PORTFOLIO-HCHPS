@@ -497,13 +497,28 @@ export class OntologyCanvasEngine {
       
       if (isNewlyActivated) {
          // 최초 클릭 시: "카테고리와 함께 하위 카테고리가 모두 활성화되며 중심으로 이동" 
-         // 따라서 새롭게 클릭된 노드는 절대 접지 않으며, 혹시 접혀있었다면 무조건 전개(오픈)합니다.
+         // 따라서 새롭게 클릭된 노드는 절대 접지 않으며, 혹시 접혀있었다면 그와 그 하위의 모든 노드를 전개(오픈)합니다.
          this.activeNode = hit;
          this.previousActiveNodeId = hit.id;
          
-         if (this.collapsedNodeIds.has(hit.id)) {
-             this.collapsedNodeIds.delete(hit.id);
-         }
+         const getDescendants = (nodeId: string): string[] => {
+            const desc: string[] = [];
+            const q = [nodeId];
+            while (q.length > 0) {
+               const curr = q.shift()!;
+               const kids = treeChildrenMap.get(curr) || [];
+               for (const kid of kids) {
+                  desc.push(kid);
+                  q.push(kid);
+               }
+            }
+            return desc;
+         };
+
+         // 클릭한 노드 및 모든 하위 자식들의 접힘 상태를 해제 (전체 펼침)
+         this.collapsedNodeIds.delete(hit.id);
+         const descendants = getDescendants(hit.id);
+         descendants.forEach(d => this.collapsedNodeIds.delete(d));
       } else {
          // 2. 이미 활성화(선택)된 노드를 "다시 한 번" 클릭했을 때 동작
          if (hasChildren) {
@@ -603,26 +618,16 @@ export class OntologyCanvasEngine {
       this.needsRedraw = true;
     }
 
-    if (this.draggedNode) {
-      // 선택지 1: 드래그 앤 드롭 시 자동 정렬 트리를 망가뜨리는 fixedX/fixedY 위치 고정을 비활성화.
-      // (TODO: 향후 Reparenting UI로 확장 가능하도록 뼈대만 유지)
-      if (this.hasDragged) {
-        // 드래그 중인 임시 시각화 정도만 하거나 그대로 둡니다.
-        // 현재는 수동 핀 기능을 꺼버렸으므로 Drag 시 카메라 패닝이 되거나 무시되게 합니다.
-        // 아무것도 하지 않아서 트리 구조가 견고하게 고정되게 유지합니다.
-      }
-    } else {
-      // Camera Panning
-      const dx = nx - this.lastDragX;
-      const dy = ny - this.lastDragY;
-      
-      this.cameraOffsetX += dx;
-      this.cameraOffsetY += dy;
-      this.targetOffsetX = this.cameraOffsetX; // 수동 드래그 시 카메라 타겟 덮어쓰기
-      this.targetOffsetY = this.cameraOffsetY; 
-      
-      this.needsRedraw = true;
-    }
+    // Camera Panning (노드 위에서 드래그를 시작해도 카메라가 이동하도록 허용)
+    const dx = nx - this.lastDragX;
+    const dy = ny - this.lastDragY;
+    
+    this.cameraOffsetX += dx;
+    this.cameraOffsetY += dy;
+    this.targetOffsetX = this.cameraOffsetX; // 수동 드래그 시 카메라 타겟 덮어쓰기
+    this.targetOffsetY = this.cameraOffsetY; 
+    
+    this.needsRedraw = true;
     this.lastDragX = nx;
     this.lastDragY = ny;
   }
@@ -637,7 +642,6 @@ export class OntologyCanvasEngine {
     
     this.draggedNode = null;
     this.draggedSubTree = [];
-    this.hasDragged = false;
     this.needsRedraw = true;
   }
 

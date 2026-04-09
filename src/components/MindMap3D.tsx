@@ -767,9 +767,6 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                 <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: GROUP_COLORS[hoveredNode.group as OntologyGroup] }} />
                 <span className="text-xs font-semibold">{hoveredNode.label}</span>
               </div>
-              <div className="text-[10px] text-[var(--color-text-tertiary)] mt-0.5">
-                {GROUP_LABELS[hoveredNode.group as OntologyGroup]} · 중요도 {hoveredNode.baseValue}
-              </div>
             </div>
           )}
 
