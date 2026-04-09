@@ -438,8 +438,9 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
     if (e.touches.length === 2 && touchStartRef.current.pinchDist) {
       const newDist = getTouchDist(e);
       const delta = touchStartRef.current.pinchDist - newDist;
-      // Reduce sensitivity from delta * 2 to delta * 0.5 for smoother control on mobile screens
-      engine.handleWheel(delta * 0.5);
+      // Proportional multiplier: engine.handleWheel now uses Math.exp, so scaling delta by 3.5 
+      // yields a smooth, 50% reduced sensitivity pinch-to-zoom (prevents exponential explosive zooming)
+      engine.handleWheel(delta * 3.5);
       touchStartRef.current.pinchDist = newDist;
       return;
     }

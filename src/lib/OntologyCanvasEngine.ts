@@ -558,7 +558,9 @@ export class OntologyCanvasEngine {
   }
 
   handleWheel(delta: number): void {
-    const zoomFactor = delta > 0 ? 0.92 : 1.08;
+    // Proportional zoom: instead of a fixed 0.92/1.08 step irrespective of input magnitude,
+    // we scale smoothly. deltaY=100 (wheel) yields ~0.90 zoom.
+    const zoomFactor = Math.exp(-delta * 0.001);
     this.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, this.zoom * zoomFactor));
     this.targetZoom = this.zoom; // 유저가 수동 줌 할 경우 타겟을 덮어써서 물리 애니메이션 방해 차단
     this.needsRedraw = true;

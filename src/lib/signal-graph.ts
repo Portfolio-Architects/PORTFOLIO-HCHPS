@@ -449,5 +449,49 @@ export function buildSignalGraph(
     return true;
   });
 
+  // 8. Orphan Node Prevention: 모든 노드는 중앙 노드(root-HCHPS)에 물리적으로 연결되어야 함
+  // 사용자가 임의 추가한 커스텀 노드나, 간선 삭제로 인해 떨어져 나간 노드들을 중앙으로 강제 결속
+  const actualCenter = forcedCenterNode ? forcedCenterNode.id : 'root-HCHPS';
+  const adj = new Map<string, string[]>();
+  
+  finalNodes.forEach(n => adj.set(n.id, []));
+  finalEdges.forEach(e => {
+    if (adj.has(e.source) && adj.has(e.target)) {
+      adj.get(e.source)!.push(e.target);
+      adj.get(e.target)!.push(e.source);
+    }
+  });
+
+  const reachable = new Set<string>();
+  const q = [actualCenter];
+  reachable.add(actualCenter);
+
+  while(q.length > 0) {
+    const curr = q.shift()!;
+    const neighbors = adj.get(curr) || [];
+    for (const nxt of neighbors) {
+      if (!reachable.has(nxt)) {
+        reachable.add(nxt);
+        q.push(nxt);
+      }
+    }
+  }
+
+  // Reachable하지 않은 고립 컴포넌트의 노드들을 모아 중앙 루트에 엣지를 생성
+  finalNodes.forEach(n => {
+    if (!reachable.has(n.id)) {
+      finalEdges.push({
+        source: actualCenter,
+        target: n.id,
+        weight: 0.5,
+        type: 'DEPENDENCY',
+        isCustom: true // Treat as custom so it isn't easily pruned
+      } as PartialOntologyEdge);
+      
+      // BFS 상에서 직접 루트에 붙였으므로 이제 reachable
+      reachable.add(n.id);
+    }
+  });
+
   return { nodes: finalNodes, edges: finalEdges };
 }

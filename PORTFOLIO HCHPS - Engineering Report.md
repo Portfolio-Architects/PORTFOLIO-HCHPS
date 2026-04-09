@@ -1,5 +1,5 @@
 # PORTFOLIO HCHPS - Engineering Report
-**날짜:** 2026-04-08
+**날짜:** 2026-04-09
 **주제:** 실시간 협업 온톨로지 캔버스 기반 통합 워크스페이스 관리 시스템
 
 ---
@@ -44,9 +44,9 @@
 | 지표 | 수치 |
 |------|------|
 | TypeScript/TSX 파일 수 | **62개** |
-| 총 코드 라인 수 | **~11,000줄** |
-| 총 커밋 수 | **118** |
-| 컴포넌트 모듈 | **6개** (budget, document, inventory, knowledge, ui, workspace — 총 22개 컴포넌트) |
+| 총 코드 라인 수 | **~12,000줄** |
+| 총 커밋 수 | **128** |
+| 컴포넌트 모듈 | **6개** (budget, inventory, knowledge, report, ui, workspace — 총 22개 컴포넌트) |
 | 서버리스 함수 | **4개** (chat, data, embeddings, semantic-search) |
 | 커스텀 훅 | **11개** |
 | 라이브러리 계층 | **4개** (lib, hooks, types, party) |
@@ -115,7 +115,6 @@ src/
 ├── app/                → 라우트 및 페이지 (SPA — page.tsx + layout.tsx)
 ├── components/         → 기능별 UI (20개 컴포넌트)
 │   ├── budget/         → BudgetDashboard
-│   ├── document/       → DocumentGenerator (HWPX 공문서 내보내기)
 │   ├── inventory/      → InventoryList
 │   ├── knowledge/      → KnowledgeList
 │   └── ui/             → Badge, Card, Modal, ProgressBar
@@ -123,7 +122,7 @@ src/
 │   ├── MindMap3D.tsx (온톨로지 캔버스 호스트 — 1,334줄)
 │   ├── QuickInput.tsx, SearchResultModal.tsx, Sidebar.tsx
 │   ├── TaskKnowledgeView.tsx, TaskList.tsx, TaskModal.tsx
-│   ├── WikiEditor.tsx, WorkspaceView.tsx
+│   ├── WeeklyReportView.tsx, WikiEditor.tsx, WorkspaceView.tsx
 ├── hooks/              → 11개 커스텀 훅 (도메인 + 동기화)
 │   ├── useTasks.ts, useBudget.ts, useInventory.ts, useKnowledge.ts
 │   ├── useMeetings.ts, useProjects.ts, useSignal.ts
@@ -159,17 +158,17 @@ functions/
 | 지식 베이스 | `TaskKnowledgeView.tsx` | 태그 기반 분류 및 문맥 연결을 지원하는 지식 관리 시스템 |
 | 시그널 맵 | `MindMap3D.tsx` | 수동 핀 배치 방식의 방사형 시맨틱 그래프 인터랙티브 캔버스 |
 | 위키 | `WikiEditor.tsx` | BlockNote 기반 리치 텍스트 에디터로 노드별 지식 페이지 작성 |
+| 주간 보고 | `WeeklyReportView.tsx` | LLM 추출 기반 주간 보고서 및 CRM 크로스 동기화 모듈 |
 
 ### 컴포넌트 모듈
 
 | 모듈 | 파일 수 | 주요 컴포넌트 |
 |------|--------|-------------|
 | `budget/` | 1 | BudgetDashboard (카테고리별 지출 품의/결의 관리) |
-| `document/` | 1 | DocumentGenerator (JSZip 기반 HWPX 공문서 내보내기) |
 | `inventory/` | 1 | InventoryList (예산 항목 연동 재고 추적) |
 | `knowledge/` | 1 | KnowledgeList (태그 시스템 기반 검색형 지식 베이스) |
 | `ui/` | 4 | Badge, Card, Modal, ProgressBar |
-| 핵심 뷰 | 12 | MindMap3D, WorkspaceView, TaskList, TaskModal, CalendarView, DashboardView, QuickInput, SearchResultModal, Sidebar, TaskKnowledgeView, WikiEditor, DynamicForceGraph |
+| 핵심 뷰 | 12 | MindMap3D, WorkspaceView, TaskList, TaskModal, CalendarView, DashboardView, QuickInput, SearchResultModal, Sidebar, TaskKnowledgeView, WeeklyReportView, WikiEditor, DynamicForceGraph |
 
 ### 서버리스 API 엔드포인트
 
@@ -269,11 +268,12 @@ sequenceDiagram
 - **영속성:** 이중 트랙 — PartyKit Durable Objects(클라우드) + y-indexeddb(로컬 오프라인).
 - **상태 관리:** `useGraphCustomization` 훅이 Yjs 맵(`overrides`, `customNodesMap`, `customEdgesMap`, `deletedEdgesMap`)을 반응형 외부 스토어로 노출.
 
-### 7-3. AI 통합 계층
+### 7-3. AI 통합 계층 (Dual-LLM 하이브리드 아키텍처)
 
 | 기능 | 백엔드 | 모델 | 활용 사례 |
 |------|--------|------|----------|
 | 대화형 채팅 | `/api/chat` | Llama 3.1 8B Instruct | 지식 질의를 위한 인앱 AI 어시스턴트 |
+| 엣지 AI 폴백 | 로컬 Ollama | Llama 3 | 오프라인 및 로컬 환경 대비 하이브리드 폴백 시스템 |
 | 텍스트 임베딩 | `/api/embeddings` | Workers AI Embedding | 시맨틱 인덱싱을 위한 벡터 표현 생성 |
 | 시맨틱 검색 | `/api/semantic-search` | 임베딩 + 코사인 유사도 | 지식 코퍼스 대상 자연어 검색 |
 
@@ -299,11 +299,15 @@ sequenceDiagram
 - **위키 통합 인터랙션:** `wiki:openNode` 이벤트를 통한 노드 참조 시 WikiEditor 오버레이 호출이 누락 없이 수행되도록 보강하고, 참조 시 열려있던 검색 모달을 즉각 훅을 통해 닫아 편의성 제고.
 
 ### 클라우드 및 AI
+- **이중 LLM 하이브리드 아키텍처:** Cloudflare Workers AI 스트리밍 파이프라인 기반 위에 로컬 Ollama(Edge Fallback) 연동을 추가하여 오프라인/로컬 환경 대응력 향상.
+- **위키 추출 및 PDF 파싱 고도화:** Weekly Report 작성을 위한 PDF 파싱 시 cMap 적용(CJK 네이티브 폰트 지원), LLM 프롬프트를 개선하여 과도한 요약을 방지하고 정보의 손실 없는 추출 보장.
 - **Cloudflare KV 이관:** 전체 CRUD 데이터 계층을 localStorage에서 Cloudflare KV(Pages Functions 경유)로 이전.
-- **LLM 스트리밍 최적화 (SSE):** Llama 모델의 빠른 응답을 UI에 직결시키기 위한 SSE(Server-Sent Events) 스트리밍 파이프라인 도입 및 프롬프트 한국어 강제화.
-- **React 렌더링 최적화:** SSE 스트리밍 도중 React Strict Mode 렌더가 발생하며 타이핑이 버벅거리고 이중 렌더링 파이프라인이 충돌하는 현상 근절.
-- **벡터화 인증 보완:** 환경 변수 및 프로덕션 Cloudflare Vectorize 연동 시 X-API-Key 누락 이슈를 식별하고 관련 예외 처리 및 URL 엔드포인트 세팅 완료.
-- **실시간 협업:** PartyKit + Yjs CRDT 프로토콜(`persist: true` Durable Object 저장) 및 y-indexeddb 오프라인 폴백 구축.
+- **LLM 스트리밍 최적화 (SSE):** Llama 모델의 빠른 응답을 UI에 직결시키기 위한 SSE 스트리밍 파이프라인 도입 및 프롬프트 한국어 강제화, 렌더링 충돌 방지.
+
+### 데이터 파이프라인 및 모듈
+- **예산 관리 대시보드 개편:** 기존 레이아웃을 3단계 정책 클러스터링(3-tier Policy Clustering) 기반으로 전면 재구성하고, 코어 시드 지표 산출을 최적화.
+- **Weekly Report 뷰 신설:** CRM 교차 동기화 기능을 갖추었으며, LLM 추출 데이터를 JSON 구조로 견고하게 파싱하고 Mock AI 응답 기능을 포함하는 주간 업무 보고 파이프라인(`WeeklyReportView`) 도입.
+- **HWPX 문서 생성기 제거:** 불필요해진 로컬 단의 문서 내보내기 컴포넌트(`DocumentGenerator`) 대신 완전한 CRM 및 보고서 뷰 활용으로 전략 변경.
 
 ### Personal CRM 및 AI 결재 기상도
 - **인물 중심 온톨로지 대시보드 (`CrmDashboardView`):** 핵심 인물들의 생체리듬, 리더십 스타일(마이크로매니저/비저너리), 현재 기분(맑음/흐림 등) 및 최근 주요 일정을 통합 관리하는 CRM 뷰 신규 구축.
@@ -311,7 +315,6 @@ sequenceDiagram
 
 ### UX 개선
 - **고스트 노드 버그 해결 (Null-State Preservation):** 사용자의 '연결 해제' 의도를 `undefined` 대신 명시적 `null` 객체로 보존하여 유령 오버라이드 재연결 현상 차단.
-- **HWPX 문서 생성기:** JSZip 기반 한국 표준 공문서(HWPX) 내보내기 기능.
 - **스마트 폼 자동 서식:** 실시간 전화번호 하이픈 삽입 및 네이티브 datetime 피커 연동.
 - **검색 & 보안 인터페이스:** 중앙 통합 검색을 위한 SearchResultModal 도입 및 앱 진입 전 전역 SecurityLockScreen 인증 레이어 추가.
 

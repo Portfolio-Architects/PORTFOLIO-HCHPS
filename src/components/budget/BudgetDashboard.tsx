@@ -1,11 +1,13 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { BudgetCategory, BudgetEntry, BudgetEntryType, generateId } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { ProgressBar } from '@/components/ui/progress-bar';
 import { Modal } from '@/components/ui/modal';
-import { Plus, Pencil, Trash2, FileCheck, FilePlus2, CheckCircle2, AlertOctagon, ShieldAlert, RefreshCw } from 'lucide-react';
+import { extractTextFromPdfBuffer } from '@/lib/pdf-parser';
+import { askLlama } from '@/lib/llm-client';
+import { Plus, Pencil, Trash2, FileCheck, FilePlus2, CheckCircle2, AlertOctagon, ShieldAlert, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
 import { replaceAll } from '@/lib/sheets-api';
 
 interface BudgetDashboardProps {
@@ -30,6 +32,217 @@ const TYPE_CONFIG: Record<BudgetEntryType, { label: string; badge: string; badge
   resolution: { label: '지출 결의', badge: '결의', badgeBg: 'bg-blue-100 text-blue-700', icon: FileCheck },
 };
 
+const MultiSelectDropdown = ({ 
+  label, 
+  options, 
+  selected, 
+  onChange,
+  disabled
+}: { 
+  label: string; 
+  options: string[]; 
+  selected: string[]; 
+  onChange: (val: string[]) => void;
+  disabled?: boolean;
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const isAll = selected.length === 0;
+
+  const toggle = (opt: string) => {
+    if (selected.includes(opt)) onChange(selected.filter(o => o !== opt));
+    else onChange([...selected, opt]);
+  };
+
+  return (
+    <div className="relative inline-block w-full sm:max-w-[200px]">
+      <button 
+        type="button"
+        disabled={disabled}
+        onClick={() => setIsOpen(!isOpen)} 
+        className={`flex items-center justify-between w-full px-3 py-1.5 rounded-md border border-gray-200 text-sm bg-white focus:ring-1 focus:ring-blue-500 ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50'}`}
+      >
+        <span className="truncate">{isAll ? `${label} 전체` : `${selected.length}개 선택됨${selected.length === 1 ? ` (${selected[0]})` : ''}`}</span>
+        <ChevronDown size={14} className="text-gray-400" />
+      </button>
+      
+      {isOpen && !disabled && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
+          <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
+            <div 
+              className="flex items-center px-3 py-2 cursor-pointer hover:bg-gray-50 border-b border-gray-100"
+              onClick={() => { onChange([]); setIsOpen(false); }}
+            >
+              <input type="checkbox" checked={isAll} readOnly className="mr-2" />
+              <span className="text-sm font-medium text-blue-600">{label} 전체</span>
+            </div>
+            {options.map(opt => (
+              <div 
+                key={opt}
+                className="flex items-center px-3 py-2 cursor-pointer hover:bg-gray-50"
+                onClick={() => toggle(opt)}
+              >
+                <input type="checkbox" checked={selected.includes(opt)} readOnly className="mr-2" />
+                <span className="text-sm text-gray-700 truncate">{opt}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+};
+
+const PolicyGroupCard = React.memo(({
+  group,
+  entries,
+  viewFilter,
+  getCategoryStats,
+  deleteCategory,
+  deleteEntry,
+  openEditCat
+}: {
+  group: { policyName: string; cats: BudgetCategory[] };
+  entries: BudgetEntry[];
+  viewFilter: string;
+  getCategoryStats: (id: string) => { totalBudget: number; spent: number; planned: number; remaining: number; usageRate: number } | null;
+  deleteCategory: (id: string) => void;
+  deleteEntry: (id: string) => void;
+  openEditCat: (cat: BudgetCategory) => void;
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const { policyName, cats } = group;
+
+  const { totalBudget, spent, planned, remaining, usageRate, groupEntries, groupedByDetail } = useMemo(() => {
+    const tBudget = cats.reduce((s, c) => s + c.totalBudget, 0);
+    let tSpent = 0; let tPlanned = 0; let tRemaining = 0;
+    
+    cats.forEach(c => {
+      const st = getCategoryStats(c.id);
+      if (st) { tSpent += st.spent; tPlanned += st.planned; tRemaining += st.remaining; }
+    });
+    
+    const rate = tBudget > 0 ? Math.round((tSpent / tBudget) * 100) : 0;
+    
+    const catIds = cats.map(c => c.id);
+    const gEntries = entries
+      .filter(e => catIds.includes(e.categoryId))
+      .filter(e => viewFilter === 'all' || (e.entryType || 'resolution') === viewFilter)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    // Group by detailedProject
+    const groups: { detailName: string; cats: BudgetCategory[] }[] = [];
+    cats.forEach(cat => {
+      const detail = cat.detailedProject || '분류되지 않은 세부사업';
+      let group = groups.find(g => g.detailName === detail);
+      if (!group) {
+        group = { detailName: detail, cats: [] };
+        groups.push(group);
+      }
+      group.cats.push(cat);
+    });
+
+    return { totalBudget: tBudget, spent: tSpent, planned: tPlanned, remaining: tRemaining, usageRate: rate, groupEntries: gEntries, groupedByDetail: groups };
+  }, [cats, entries, viewFilter, getCategoryStats]);
+
+  return (
+    <Card className="overflow-hidden border border-[var(--color-border-light)] shadow-sm mb-3 last:mb-0">
+      <div 
+        className="px-5 py-4 cursor-pointer hover:opacity-90 transition-all border-l-4"
+        style={{ 
+          borderLeftColor: cats[0]?.color || 'var(--color-border-light)',
+          backgroundColor: cats[0]?.color ? `${cats[0].color}0D` : '#F9FAFB'
+        }}
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: cats[0]?.color || 'var(--color-primary)' }} />
+            <h3 className="font-bold text-[17px] text-gray-800">{policyName}</h3>
+          </div>
+          <div className="flex items-center gap-3">
+             <div className="text-xs text-gray-500 font-medium px-2.5 py-1 rounded-full bg-gray-200">단위사업 {cats.length}개</div>
+             <div className="text-gray-400">{isOpen ? <ChevronUp size={18}/> : <ChevronDown size={18}/>}</div>
+          </div>
+        </div>
+        <div className="flex justify-between text-sm mb-1.5 px-1">
+          <span className="text-[var(--color-text-secondary)] font-semibold">총 사용 {formatN(spent)}원 / {formatN(totalBudget)}원</span>
+          <span className="text-[var(--color-primary)] font-bold">잔여 {formatN(remaining)}원</span>
+        </div>
+        <ProgressBar value={usageRate} showLabel />
+        {planned > 0 && <div className="text-xs text-amber-600 mt-1.5 font-medium px-1">📋 품의 예정액: {formatN(planned)}원</div>}
+      </div>
+      
+      {isOpen && (
+        <div className="px-5 py-3 divide-y divide-gray-100">
+          {groupedByDetail.map(detailGroup => (
+            <div key={detailGroup.detailName} className="py-3 first:pt-0">
+              <div className="flex items-center gap-2 mb-2.5">
+                <div className="w-5 h-5 rounded bg-[var(--color-primary)]/10 flex items-center justify-center">
+                  <div className="w-2 h-2 rounded-full bg-[var(--color-primary)]" />
+                </div>
+                <div className="text-[14px] font-bold text-gray-800">{detailGroup.detailName}</div>
+              </div>
+              <div className="space-y-3 pl-2">
+                {detailGroup.cats.map(cat => {
+                  const stats = getCategoryStats(cat.id);
+                  if (!stats) return null;
+                  return (
+                    <div key={cat.id} className="group/item">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-sm font-semibold flex items-center gap-2 text-gray-700">
+                          <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }}/>
+                          <div className="line-clamp-1">{cat.statItem || cat.name}</div>
+                          <span className="text-xs text-gray-400 font-normal truncate hidden sm:block max-w-[200px]">({cat.name})</span>
+                        </div>
+                        <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover/item:opacity-100 transition-opacity flex-shrink-0">
+                          <button onClick={() => openEditCat(cat)} className="p-1 rounded hover:bg-gray-100 text-gray-400"><Pencil size={12} /></button>
+                          <button onClick={() => deleteCategory(cat.id)} className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-red-500"><Trash2 size={12} /></button>
+                        </div>
+                      </div>
+                      <div className="flex justify-between text-xs mb-1.5 pl-[14px]">
+                        <span className="text-gray-500">사용 {formatN(stats.spent)} / {formatN(stats.totalBudget)}</span>
+                        <span className="text-gray-600 font-bold">잔여 {formatN(stats.remaining)}</span>
+                      </div>
+                      <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
+                         <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, stats.usageRate)}%`, backgroundColor: cat.color }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+          
+          {groupEntries.length > 0 && (
+            <div className="pt-3 space-y-2 mt-2">
+              <div className="text-[10px] font-bold text-gray-400 mb-1 ml-1 uppercase tracking-wider">최근 지출 내역</div>
+              {groupEntries.slice(0, 6).map(entry => {
+                const cfg = TYPE_CONFIG[(entry.entryType || 'resolution') as BudgetEntryType];
+                const parentCat = cats.find(c => c.id === entry.categoryId);
+                return (
+                  <div key={entry.id} className="flex items-center justify-between text-xs group bg-gray-50/60 p-2 rounded-lg border border-gray-100">
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold flex-shrink-0 ${cfg.badgeBg}`}>{cfg.badge}</span>
+                      <span className="text-[10px] bg-white border border-gray-200 text-gray-600 px-1 py-0.5 rounded truncate max-w-[70px] hidden sm:block">{parentCat?.unitProject || '알수없음'}</span>
+                      <span className="text-[var(--color-text-secondary)] font-medium truncate">{entry.purpose}</span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0 pl-2">
+                      <span className="font-semibold text-gray-700">{formatN(entry.amount)}원</span>
+                      <button onClick={() => deleteEntry(entry.id)} className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-opacity"><Trash2 size={12} /></button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+});
+PolicyGroupCard.displayName = "PolicyGroupCard";
+
 export function BudgetDashboard(props: BudgetDashboardProps) {
   const { categories, entries, addCategory, updateCategory, deleteCategory, addEntry, deleteEntry, getCategoryStats, overallStats } = props;
   const [showCatModal, setShowCatModal] = useState(false);
@@ -43,10 +256,10 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
   const [catDetail, setCatDetail] = useState('');
   const [catStat, setCatStat] = useState('');
 
-  const [filterPolicy, setFilterPolicy] = useState('all');
-  const [filterUnit, setFilterUnit] = useState('all');
-  const [filterDetail, setFilterDetail] = useState('all');
-  const [filterStat, setFilterStat] = useState('all');
+  const [filterPolicy, setFilterPolicy] = useState<string[]>([]);
+  const [filterUnit, setFilterUnit] = useState<string[]>([]);
+  const [filterDetail, setFilterDetail] = useState<string[]>([]);
+  const [filterStat, setFilterStat] = useState<string[]>([]);
 
   const [nationalFund, setNationalFund] = useState('');
   const [localFund, setLocalFund] = useState('');
@@ -59,15 +272,93 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
   const [editCatId, setEditCatId] = useState<string | null>(null);
   const [viewFilter, setViewFilter] = useState<'all' | BudgetEntryType>('all');
 
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [isParsingPdf, setIsParsingPdf] = useState(false);
+
+  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsParsingPdf(true);
+    try {
+      const buffer = await file.arrayBuffer();
+      const text = await extractTextFromPdfBuffer(buffer);
+
+      const categoryOptions = categories.map(c => `ID: ${c.id} | 분류: ${c.policyProject} > ${c.unitProject} > ${c.detailedProject} | 항목: ${c.statItem} | 별칭: ${c.name}`).join('\n');
+      
+      const systemPrompt = `
+당신은 보건진흥과 예산 문서를 분석하여 아래 JSON 스키마로 정확하게 반환하는 스마트 스캐너입니다.
+[사용 가능한 예산 카테고리 목록]
+${categoryOptions}
+
+[분석할 문서 내용]
+${text}
+
+다음 규칙을 엄격히 준수하세요:
+1. 문서 내용에서 '지출 금액(원)', '사용 목적(적요)', 그리고 문맥상 일치하는 '예산 과목 ID'를 찾아보세요.
+2. 금액은 숫자만 추출.
+3. 목적은 20자 이내로 요약.
+4. 카테고리 ID는 반드시 위 목록에 있는 "ID:" 항목 중 하나여야 함. 찾지 못하면 "" 빈문자열.
+5. 응답은 오직 순수한 JSON 객체 문자열이어야 하며, 백틱이나 마크다운 블록이 없어야 합니다.
+형식: {"categoryId": "id문자열", "amount": 1234, "purpose": "요약"}
+      `.trim();
+
+      const responseText = await askLlama([{ role: 'system', content: systemPrompt }]);
+      const jsonStr = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
+      const result = JSON.parse(jsonStr);
+
+      if (result.categoryId && categories.find(c => c.id === result.categoryId)) {
+        setSelectedCatId(result.categoryId);
+      }
+      if (result.amount) setEntryAmount(result.amount.toString());
+      if (result.purpose) setEntryPurpose(result.purpose.substring(0, 30));
+
+      alert('✅ AI가 지출 품의서를 성공적으로 분석하여 폼을 채웠습니다.');
+    } catch (err) {
+      console.error('PDF 파싱 오류:', err);
+      // fallback fail silently UI wise or simple alert
+      alert('문서 분석에 실패했습니다. 형식 오류 또는 네트워크 문제일 수 있습니다.');
+    } finally {
+      setIsParsingPdf(false);
+      e.target.value = '';
+    }
+  };
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('hchps-budget-filters-v2');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed.policy)) setFilterPolicy(parsed.policy);
+        if (Array.isArray(parsed.unit)) setFilterUnit(parsed.unit);
+        if (Array.isArray(parsed.detail)) setFilterDetail(parsed.detail);
+        if (Array.isArray(parsed.stat)) setFilterStat(parsed.stat);
+        if (parsed.view) setViewFilter(parsed.view);
+      }
+    } catch (e) {}
+    setIsLoaded(true);
+  }, []);
+
+  const handleSaveFilters = () => {
+    localStorage.setItem('hchps-budget-filters-v2', JSON.stringify({
+      policy: filterPolicy,
+      unit: filterUnit,
+      detail: filterDetail,
+      stat: filterStat,
+      view: viewFilter
+    }));
+    alert('✅ 현재 필터링 상태가 저장되었습니다. 앞으로 페이지 접속 시 이 필터가 유지됩니다.');
+  };
+
+  const handleResetFilters = () => {
+    setFilterPolicy([]);
+    setFilterUnit([]);
+    setFilterDetail([]);
+    setFilterStat([]);
+    setViewFilter('all');
+    localStorage.removeItem('hchps-budget-filters-v2');
+  };
   const inputClass = "w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition-shadow";
-
-  // Stats by type
-  const typeStats = useMemo(() => {
-    const approvalTotal = entries.filter(e => (e.entryType || 'resolution') === 'approval').reduce((s, e) => s + e.amount, 0);
-    const resolutionTotal = entries.filter(e => (e.entryType || 'resolution') === 'resolution').reduce((s, e) => s + e.amount, 0);
-    return { approvalTotal, resolutionTotal };
-  }, [entries]);
-
   const handleAddCategory = (e: React.FormEvent) => {
     e.preventDefault();
     if (!catName.trim() || !catBudget) return;
@@ -173,16 +464,16 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
 
   // Hierarchical Filter Calculation
   const uniquePolicies = useMemo(() => Array.from(new Set(categories.map(c => c.policyProject).filter(Boolean))), [categories]);
-  const unitOptions = useMemo(() => Array.from(new Set(categories.filter(c => filterPolicy === 'all' || c.policyProject === filterPolicy).map(c => c.unitProject).filter(Boolean))), [categories, filterPolicy]);
-  const detailOptions = useMemo(() => Array.from(new Set(categories.filter(c => (filterPolicy === 'all' || c.policyProject === filterPolicy) && (filterUnit === 'all' || c.unitProject === filterUnit)).map(c => c.detailedProject).filter(Boolean))), [categories, filterPolicy, filterUnit]);
-  const statOptions = useMemo(() => Array.from(new Set(categories.filter(c => (filterPolicy === 'all' || c.policyProject === filterPolicy) && (filterUnit === 'all' || c.unitProject === filterUnit) && (filterDetail === 'all' || c.detailedProject === filterDetail)).map(c => c.statItem).filter(Boolean))), [categories, filterPolicy, filterUnit, filterDetail]);
+  const unitOptions = useMemo(() => Array.from(new Set(categories.filter(c => filterPolicy.length === 0 || filterPolicy.includes(c.policyProject || '')).map(c => c.unitProject).filter(Boolean))), [categories, filterPolicy]);
+  const detailOptions = useMemo(() => Array.from(new Set(categories.filter(c => (filterPolicy.length === 0 || filterPolicy.includes(c.policyProject || '')) && (filterUnit.length === 0 || filterUnit.includes(c.unitProject || ''))).map(c => c.detailedProject).filter(Boolean))), [categories, filterPolicy, filterUnit]);
+  const statOptions = useMemo(() => Array.from(new Set(categories.filter(c => (filterPolicy.length === 0 || filterPolicy.includes(c.policyProject || '')) && (filterUnit.length === 0 || filterUnit.includes(c.unitProject || '')) && (filterDetail.length === 0 || filterDetail.includes(c.detailedProject || ''))).map(c => c.statItem).filter(Boolean))), [categories, filterPolicy, filterUnit, filterDetail]);
 
   const filteredCategoriesTree = useMemo(() => {
     return categories.filter(c => {
-      if (filterPolicy !== 'all' && c.policyProject !== filterPolicy) return false;
-      if (filterUnit !== 'all' && c.unitProject !== filterUnit) return false;
-      if (filterDetail !== 'all' && c.detailedProject !== filterDetail) return false;
-      if (filterStat !== 'all' && c.statItem !== filterStat) return false;
+      if (filterPolicy.length > 0 && !filterPolicy.includes(c.policyProject || '')) return false;
+      if (filterUnit.length > 0 && !filterUnit.includes(c.unitProject || '')) return false;
+      if (filterDetail.length > 0 && !filterDetail.includes(c.detailedProject || '')) return false;
+      if (filterStat.length > 0 && !filterStat.includes(c.statItem || '')) return false;
       return true;
     });
   }, [categories, filterPolicy, filterUnit, filterDetail, filterStat]);
@@ -201,48 +492,27 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
     return groups;
   }, [filteredCategoriesTree]);
 
-  const handleSeedRulesToWiki = () => {
-    if (!props.addKnowledge) return;
-    const ruleText = `
-## 통합건강증진사업 지침 및 실무 가이드라인
-1. **국시비 매칭 비율**: 국비 30%, 지방비 70% 비율 엄수
-2. **금지 비목**: 자산취득비(400목), 인건비(100목) 편성 및 집행 엄격 금지 (별도 예산 활용)
-3. **일반수용비 강제**: 소규모 수수료, 전문가 자문료, 속기료, 사례금은 반드시 일반수용비(210-01)로 집행
-4. **인력 운용 주의**: 일용임금, 행정보조 인력 등을 편법적으로 계속 고용하거나 중복 계상하는 것을 강력히 금지함
-5. **리스크 관리**: 3분기(9월) 집행률 70% 미만 사업 및 회계연도 마감 45일 전 10% 이상 남은 예산은 즉각 정리 및 추경/전용 고려
-    `.trim();
-    
-    props.addKnowledge({
-      title: "지역사회 통합건강증진사업 지출/편성 5대 원칙",
-      content: ruleText,
-      category: "예산지침",
-      tags: ["통합건강증진", "예산", "컴플라이언스", "규정"]
-    });
-    alert("예산 실무 알고리즘 지침서가 사내 위키에 성공적으로 배포되었습니다!");
-  };
+  // Dynamic stats based on selected filters
+  const filteredStats = useMemo(() => {
+    let totalBudget = 0;
+    let remaining = 0;
+    let approvalTotal = 0;
+    let resolutionTotal = 0;
 
-  const handleFactoryReset = async () => {
-    if (!window.confirm("주의: 현재 등록된 모든 예산 과목이 삭제되고, 엑셀 시트 분석본(정확히 6개 단위사업)으로 완전히 초기화됩니다. 계속하시겠습니까?")) return;
-    
-    // Inject ALL 6 precise unit projects to cascade perfectly
-    const fullDefaults: BudgetCategory[] = [
-      { id: generateId(), name: '행정운영경비 (인력운영비)', totalBudget: 20908048000, color: '#4A6CF7', policyProject: '행정운영경비', unitProject: '인력운영비', detailedProject: '기본 보수', statItem: '기본급' },
-      { id: generateId(), name: '행정운영경비 (기본경비)', totalBudget: 14876000, color: '#3B82F6', policyProject: '행정운영경비', unitProject: '기본경비', detailedProject: '부서운영 기본수용비', statItem: '일반수용비(210-01)' },
-      { id: generateId(), name: '건강증진 (보건소운영지원)', totalBudget: 1805177000, color: '#F59E0B', policyProject: '건강증진', unitProject: '보건소 운영지원', detailedProject: '보건소 기능유지 및 청사관리', statItem: '일반수용비(210-01)' },
-      { id: generateId(), name: '건강증진 (사업관리)', totalBudget: 16360000, color: '#FCD34D', policyProject: '건강증진', unitProject: '건강증진사업관리', detailedProject: '의료비 지원업무 추진', statItem: '사무관리비' },
-      { id: generateId(), name: '건강도시조성 (사업활성화)', totalBudget: 45860000, color: '#10B981', policyProject: '건강도시 조성', unitProject: '건강도시사업 활성화', detailedProject: '시민건강관리', statItem: '행사운영비' },
-      { id: generateId(), name: '건강도시조성 (실천사업)', totalBudget: 225502000, color: '#34D399', policyProject: '건강도시 조성', unitProject: '건강생활 실천사업', detailedProject: '지역사회 건강조사', statItem: '연구용역비' },
-    ];
-    
-    try {
-      await replaceAll('BUDGET_CATEGORIES', fullDefaults);
-      localStorage.setItem('hchps-budget-categories', JSON.stringify(fullDefaults));
-      alert("공공행정 표준 데이터베이스(6개 카테고리) 설정이 완료되었습니다! 페이지를 새로고침합니다.");
-      window.location.reload();
-    } catch (e) {
-      alert("오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
-    }
-  };
+    filteredCategoriesTree.forEach(cat => {
+      const catStats = getCategoryStats(cat.id);
+      if (catStats) {
+        totalBudget += catStats.totalBudget;
+        remaining += catStats.remaining;
+        
+        const catEntries = entries.filter(e => e.categoryId === cat.id);
+        approvalTotal += catEntries.filter(e => (e.entryType || 'resolution') === 'approval').reduce((s, e) => s + e.amount, 0);
+        resolutionTotal += catEntries.filter(e => (e.entryType || 'resolution') === 'resolution').reduce((s, e) => s + e.amount, 0);
+      }
+    });
+
+    return { totalBudget, remaining, approvalTotal, resolutionTotal };
+  }, [filteredCategoriesTree, getCategoryStats, entries]);
 
   return (
     <div className="space-y-6">
@@ -270,17 +540,6 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-xl font-bold">예산 관리</h2>
         <div className="flex gap-2">
-          <button onClick={handleFactoryReset} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-red-200 text-red-600 bg-red-50 text-sm font-bold hover:bg-red-100 transition-colors cursor-pointer tooltip" title="잔여 데이터 오류 완전 초기화">
-            <RefreshCw size={16} /> 6계층 초기화
-          </button>
-          {props.addKnowledge && (
-            <button onClick={handleSeedRulesToWiki} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--color-primary)] text-[var(--color-primary)] bg-[var(--color-primary)]/5 text-sm font-medium hover:bg-[var(--color-primary)]/10 transition-colors cursor-pointer">
-              <CheckCircle2 size={16} /> 지침 위키 배포
-            </button>
-          )}
-          <button onClick={() => { setEditCatId(null); setCatName(''); setCatBudget(''); setShowCatModal(true); }} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm font-medium hover:bg-gray-50 transition-colors cursor-pointer">
-            <Plus size={16} /> 예산 과목
-          </button>
           <button onClick={() => openEntryModal('approval')} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-amber-500 text-white text-sm font-medium hover:opacity-90 transition-opacity cursor-pointer" disabled={categories.length === 0}>
             <FilePlus2 size={16} /> 지출 품의
           </button>
@@ -291,42 +550,43 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
       </div>
 
       {/* Hierarchical Filters */}
-      <div className="bg-[var(--color-card)] border border-[var(--color-border-light)] p-3 rounded-xl flex flex-wrap gap-2 shadow-sm">
-        <select value={filterPolicy} onChange={e => { setFilterPolicy(e.target.value); setFilterUnit('all'); setFilterDetail('all'); setFilterStat('all'); }} className="px-3 py-1.5 rounded-md border border-gray-200 text-sm focus:ring-1 focus:ring-blue-500 max-w-[200px]">
-          <option value="all">정책사업명 전체</option>
-          {(uniquePolicies as string[]).map(p => <option key={p} value={p}>{p}</option>)}
-        </select>
-        <select value={filterUnit} onChange={e => { setFilterUnit(e.target.value); setFilterDetail('all'); setFilterStat('all'); }} className="px-3 py-1.5 rounded-md border border-gray-200 text-sm focus:ring-1 focus:ring-blue-500 max-w-[200px]" disabled={unitOptions.length === 0}>
-          <option value="all">단위사업명 전체</option>
-          {(unitOptions as string[]).map(u => <option key={u} value={u}>{u}</option>)}
-        </select>
-        <select value={filterDetail} onChange={e => { setFilterDetail(e.target.value); setFilterStat('all'); }} className="px-3 py-1.5 rounded-md border border-gray-200 text-sm focus:ring-1 focus:ring-blue-500 max-w-[200px]" disabled={detailOptions.length === 0}>
-          <option value="all">세부사업명 전체</option>
-          {(detailOptions as string[]).map(d => <option key={d} value={d}>{d}</option>)}
-        </select>
-        <select value={filterStat} onChange={e => setFilterStat(e.target.value)} className="px-3 py-1.5 rounded-md border border-gray-200 text-sm focus:ring-1 focus:ring-blue-500 max-w-[200px]" disabled={statOptions.length === 0}>
-          <option value="all">통계목 전체</option>
-          {(statOptions as string[]).map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
+      <div className="bg-[var(--color-card)] border border-[var(--color-border-light)] p-3 rounded-xl shadow-sm">
+        <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+          <div className="text-sm font-bold text-gray-700">다중 필터링 시스템</div>
+          <div className="flex items-center gap-2">
+            <button onClick={handleSaveFilters} className="text-xs px-3 py-1.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg font-medium hover:bg-blue-100 transition-colors">
+              구성 저장하기
+            </button>
+            <button onClick={handleResetFilters} className="text-xs px-3 py-1.5 bg-gray-50 border border-gray-200 text-gray-600 rounded-lg font-medium hover:bg-gray-100 transition-colors flex items-center gap-1.5">
+              <RefreshCw size={14} /> 초기화 및 해제
+            </button>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <MultiSelectDropdown label="정책사업명" options={uniquePolicies as string[]} selected={filterPolicy} onChange={val => { setFilterPolicy(val); setFilterUnit([]); setFilterDetail([]); setFilterStat([]); }} />
+          <MultiSelectDropdown label="단위사업명" options={unitOptions as string[]} selected={filterUnit} onChange={val => { setFilterUnit(val); setFilterDetail([]); setFilterStat([]); }} disabled={unitOptions.length === 0} />
+          <MultiSelectDropdown label="세부사업명" options={detailOptions as string[]} selected={filterDetail} onChange={val => { setFilterDetail(val); setFilterStat([]); }} disabled={detailOptions.length === 0} />
+          <MultiSelectDropdown label="통계목" options={statOptions as string[]} selected={filterStat} onChange={val => setFilterStat(val)} disabled={statOptions.length === 0} />
+        </div>
       </div>
 
       {/* Overall Summary */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Card><CardContent>
           <div className="text-xs text-[var(--color-text-tertiary)]">전체 예산</div>
-          <div className="text-lg font-bold mt-1">{formatN(overallStats.totalBudget)}원</div>
+          <div className="text-lg font-bold mt-1">{formatN(filteredStats.totalBudget)}원</div>
         </CardContent></Card>
         <Card><CardContent>
           <div className="text-xs text-[var(--color-text-tertiary)]">품의 금액</div>
-          <div className="text-lg font-bold mt-1 text-amber-600">{formatN(typeStats.approvalTotal)}원</div>
+          <div className="text-lg font-bold mt-1 text-amber-600">{formatN(filteredStats.approvalTotal)}원</div>
         </CardContent></Card>
         <Card><CardContent>
           <div className="text-xs text-[var(--color-text-tertiary)]">결의 금액</div>
-          <div className="text-lg font-bold mt-1 text-[var(--color-primary)]">{formatN(typeStats.resolutionTotal)}원</div>
+          <div className="text-lg font-bold mt-1 text-[var(--color-primary)]">{formatN(filteredStats.resolutionTotal)}원</div>
         </CardContent></Card>
         <Card><CardContent>
           <div className="text-xs text-[var(--color-text-tertiary)]">잔여 예산</div>
-          <div className={`text-lg font-bold mt-1 ${overallStats.remaining < 0 ? 'text-[var(--color-danger)]' : 'text-[var(--color-success)]'}`}>{formatN(overallStats.remaining)}원</div>
+          <div className={`text-lg font-bold mt-1 ${filteredStats.remaining < 0 ? 'text-[var(--color-danger)]' : 'text-[var(--color-success)]'}`}>{formatN(filteredStats.remaining)}원</div>
         </CardContent></Card>
       </div>
 
@@ -356,98 +616,18 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
       ) : (
         <div className="space-y-3">
           {groupedByPolicy.length === 0 && <div className="text-center text-sm text-gray-500 py-8">선택된 필터에 해당하는 예산 과목이 없습니다.</div>}
-          {groupedByPolicy.map(group => {
-            const { policyName, cats } = group;
-            const totalBudget = cats.reduce((s, c) => s + c.totalBudget, 0);
-            let spent = 0; let planned = 0; let remaining = 0;
-            
-            cats.forEach(c => {
-              const st = getCategoryStats(c.id);
-              if (st) { spent += st.spent; planned += st.planned; remaining += st.remaining; }
-            });
-            const usageRate = totalBudget > 0 ? Math.round((spent / totalBudget) * 100) : 0;
-            
-            const catIds = cats.map(c => c.id);
-            const groupEntries = entries
-              .filter(e => catIds.includes(e.categoryId))
-              .filter(e => viewFilter === 'all' || (e.entryType || 'resolution') === viewFilter)
-              .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-            return (
-              <Card key={policyName} className="overflow-hidden border border-[var(--color-border-light)] shadow-sm">
-                <div className="px-5 py-4 bg-gray-50/80 border-b border-gray-100">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-[var(--color-primary)]" />
-                      <h3 className="font-bold text-[15px] text-gray-800">{policyName}</h3>
-                    </div>
-                    <div className="text-[11px] text-gray-400 font-medium px-2 py-0.5 rounded-full bg-gray-200">단위사업 {cats.length}개</div>
-                  </div>
-                  <div className="flex justify-between text-xs mb-1.5 px-1">
-                    <span className="text-[var(--color-text-secondary)] font-medium">총 사용 {formatN(spent)}원 / {formatN(totalBudget)}원</span>
-                    <span className="text-[var(--color-primary)] font-bold">잔여 {formatN(remaining)}원</span>
-                  </div>
-                  <ProgressBar value={usageRate} showLabel />
-                  {planned > 0 && <div className="text-xs text-amber-600 mt-1.5 font-medium px-1">📋 품의 예정액: {formatN(planned)}원</div>}
-                </div>
-                
-                {/* Unit Projects inside the Policy */}
-                <div className="px-5 py-3 divide-y divide-gray-100">
-                  {cats.map(cat => {
-                    const stats = getCategoryStats(cat.id);
-                    if (!stats) return null;
-                    return (
-                      <div key={cat.id} className="py-2.5 first:pt-0 last:pb-0">
-                        <div className="flex items-center justify-between mb-1.5">
-                          <div className="text-xs font-semibold flex items-center gap-2 text-gray-700">
-                            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: cat.color }}/>
-                            {cat.unitProject || cat.name}
-                            <span className="text-[10px] text-gray-400 font-normal truncate max-w-[120px] sm:max-w-[200px]">({cat.name})</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <button onClick={() => openEditCat(cat)} className="p-1 rounded hover:bg-gray-100 text-gray-400"><Pencil size={12} /></button>
-                            <button onClick={() => deleteCategory(cat.id)} className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-red-500"><Trash2 size={12} /></button>
-                          </div>
-                        </div>
-                        <div className="flex justify-between text-[11px] mb-1.5">
-                          <span className="text-gray-500">사용 {formatN(stats.spent)} / {formatN(stats.totalBudget)}</span>
-                          <span className="text-gray-500 font-medium">잔여 {formatN(stats.remaining)}</span>
-                        </div>
-                        {/* We hide the internal label since it's redundant with the large one, but use custom height */}
-                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                           <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, stats.usageRate)}%`, backgroundColor: cat.color }} />
-                        </div>
-                      </div>
-                    )
-                  })}
-                  
-                  {/* Entries for the whole Policy Project */}
-                  {groupEntries.length > 0 && (
-                    <div className="pt-3 space-y-2 mt-2">
-                      <div className="text-[10px] font-bold text-gray-400 mb-1 ml-1 uppercase tracking-wider">최근 지출 내역</div>
-                      {groupEntries.slice(0, 6).map(entry => {
-                        const cfg = TYPE_CONFIG[(entry.entryType || 'resolution') as BudgetEntryType];
-                        const parentCat = cats.find(c => c.id === entry.categoryId);
-                        return (
-                          <div key={entry.id} className="flex items-center justify-between text-xs group bg-gray-50/60 p-2 rounded-lg border border-gray-100">
-                            <div className="flex items-center gap-2 overflow-hidden">
-                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold flex-shrink-0 ${cfg.badgeBg}`}>{cfg.badge}</span>
-                              <span className="text-[10px] bg-white border border-gray-200 text-gray-600 px-1 py-0.5 rounded truncate max-w-[70px] hidden sm:block">{parentCat?.unitProject || '알수없음'}</span>
-                              <span className="text-[var(--color-text-secondary)] font-medium truncate">{entry.purpose}</span>
-                            </div>
-                            <div className="flex items-center gap-2 flex-shrink-0 pl-2">
-                              <span className="font-semibold text-gray-700">{formatN(entry.amount)}원</span>
-                              <button onClick={() => deleteEntry(entry.id)} className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-opacity"><Trash2 size={12} /></button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </Card>
-            );
-          })}
+          {groupedByPolicy.map(group => (
+            <PolicyGroupCard
+              key={group.policyName}
+              group={group}
+              entries={entries}
+              viewFilter={viewFilter}
+              getCategoryStats={getCategoryStats}
+              deleteCategory={deleteCategory}
+              deleteEntry={deleteEntry}
+              openEditCat={openEditCat}
+            />
+          ))}
         </div>
       )}
 
@@ -501,6 +681,25 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
                 </button>
               );
             })}
+          </div>
+
+          {/* AI Parser Widget */}
+          <div className="relative border border-dashed border-blue-200 bg-blue-50/50 rounded-xl p-4 text-center hover:bg-blue-50 transition-colors">
+             <input type="file" accept="application/pdf" onChange={handlePdfUpload} disabled={isParsingPdf} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed" />
+             <div className="flex flex-col items-center justify-center pointer-events-none">
+                {isParsingPdf ? (
+                   <div className="flex flex-col items-center gap-2">
+                     <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                     <span className="text-xs text-blue-600 font-bold animate-pulse">Llama 3 모델로 실시간 분석 중...</span>
+                   </div>
+                ) : (
+                   <>
+                     <div className="text-blue-400 mb-1.5"><FilePlus2 size={24} className="mx-auto" /></div>
+                     <div className="text-[13px] font-bold text-blue-800">스마트 파일 인식 (PDF 업로드)</div>
+                     <div className="text-[11px] text-blue-600/70">이곳에 품의서를 끌어다 놓으면 폼이 자동으로 채워집니다.</div>
+                   </>
+                )}
+             </div>
           </div>
 
           <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">예산 과목 *</label>
