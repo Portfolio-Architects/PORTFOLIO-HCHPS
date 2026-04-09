@@ -71,6 +71,8 @@ export function TaskKnowledgeView(props: TaskKnowledgeViewProps) {
   const [editTask, setEditTask] = useState<Task | null>(null);
   const [defaultStatus, setDefaultStatus] = useState<TaskStatus>('todo');
   const [editingWikiNode, setEditingWikiNode] = useState<{id: string; title: string; initialBlocks?: any[]} | null>(null);
+  const [viewingRawData, setViewingRawData] = useState<{title: string; content: string} | null>(null);
+  const [activeFeedTab, setActiveFeedTab] = useState<'all' | 'memo' | 'pdf'>('all');
 
   const openTaskModal = (task?: Task, status?: TaskStatus) => {
     setEditTask(task || null);
@@ -116,6 +118,18 @@ export function TaskKnowledgeView(props: TaskKnowledgeViewProps) {
     return items.sort((a, b) => b.dateMs - a.dateMs);
   }, [props.signalEntries, props.tasks, props.meetings, props.knowledgeEntries]);
 
+  const filteredFeed = useMemo(() => {
+    return feed.filter(item => {
+      if (activeFeedTab === 'all') return true;
+      if (item.type === 'signal') {
+        const isPdf = item.data.text?.includes('[PDF 원본:');
+        if (activeFeedTab === 'pdf') return isPdf;
+        if (activeFeedTab === 'memo') return !isPdf;
+      }
+      return false; // Hide non-signal items if not in 'all' view when filtering by signal types
+    });
+  }, [feed, activeFeedTab]);
+
   const [extractingId, setExtractingId] = useState<string | null>(null);
 
   const handleExtractWiki = async (e: React.MouseEvent, nodeId: string, itemType: string, itemTitle: string, rawContent: string) => {
@@ -126,7 +140,7 @@ export function TaskKnowledgeView(props: TaskKnowledgeViewProps) {
       setExtractingId(nodeId);
       const { askLlama } = await import('@/lib/llm-client');
       
-      const prompt = `다음은 사용자가 남긴 '${itemType}' 형태의 RAW 데이터(메모)입니다:\n제목: ${itemTitle}\n원문:\n${rawContent}\n\n이 내용을 공식적인 마크다운(Markdown) 위키 문서로 깔끔하고 체계적으로 정제하여 작성해 주십시오. 핵심이 잘 드러나도록 구조화하고, 텍스트 응답 외의 인사말이나 별도 설명은 절대 생략하십시오.`;
+      const prompt = `다음은 사용자가 남긴 '${itemType}' 형태의 RAW 데이터(메모)입니다:\n제목: ${itemTitle}\n원문:\n${rawContent}\n\n이 본문의 모든 세부 지식과 수치, 내용을 절대 누락하거나 임의로 요약하지 말고 '원문 내용 100% 그대로' 보존하십시오. 오직 가독성을 위해 공식적인 마크다운(Markdown) 위키 문서 형태로 구조화(대제목, 중제목, 글머리기호 배치 등)만 수행하여 작성해 주십시오. 텍스트 응답 외의 인사말이나 별도 설명은 절대 생략하십시오.`;
       
       const response = await askLlama([
         { role: 'system', content: '당신은 메모나 아이디어를 넘겨받아 체계적인 마크다운 형식의 위키 다큐멘테이션으로 변환하는 수석 테크니컬 라이터이자 지식 큐레이터입니다. 오직 변환된 마크다운 텍스트 결과물만 응답하십시오.' },
@@ -170,16 +184,29 @@ export function TaskKnowledgeView(props: TaskKnowledgeViewProps) {
                 <span className="text-xs text-gray-400">{formatRelativeTime(sig.createdAt)}</span>
                 
                 {localStorage.getItem(`HCHPS-Wiki-${sig.id}`) ? (
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const blocks = JSON.parse(localStorage.getItem(`HCHPS-Wiki-${sig.id}`) || '[]');
-                      setEditingWikiNode({ id: sig.id, title: isPdf ? 'PDF 지식' : '메모 아이디어', initialBlocks: blocks });
-                    }}
-                    className="flex items-center gap-1 text-[11px] font-bold text-blue-600 bg-blue-50/80 px-2 py-1 rounded-md border border-blue-100 hover:bg-blue-100 transition-colors"
-                  >
-                    ✅ 위키 문서 보기/수정
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const blocks = JSON.parse(localStorage.getItem(`HCHPS-Wiki-${sig.id}`) || '[]');
+                        setEditingWikiNode({ id: sig.id, title: isPdf ? 'PDF 지식' : '메모 아이디어', initialBlocks: blocks });
+                      }}
+                      className="flex items-center gap-1 text-[11px] font-bold text-blue-600 bg-blue-50/80 px-2 py-1 rounded-md border border-blue-100 hover:bg-blue-100 transition-colors"
+                    >
+                      ✅ 위키 문서 보기/수정
+                    </button>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (window.confirm('기존 위키 문서 내용이 삭제되고 AI가 새로 작성합니다. 계속 진행하시겠습니까?')) {
+                          handleExtractWiki(e, sig.id, isPdf ? 'PDF 지식' : '빠른 메모', isPdf ? 'PDF 원문 구조화' : '메모 아이디어', sig.text);
+                        }
+                      }}
+                      className="flex items-center gap-1 text-[11px] font-medium text-gray-500 bg-gray-50/80 px-2 py-1 rounded-md border border-gray-200 hover:bg-gray-100 transition-colors"
+                    >
+                      {extractingId === sig.id ? '정제중...' : '🔄 다시 정제'}
+                    </button>
+                  </div>
                 ) : (
                   <button 
                     onClick={(e) => handleExtractWiki(e, sig.id, isPdf ? 'PDF 지식' : '빠른 메모', isPdf ? 'PDF 원문 구조화' : '메모 아이디어', sig.text)}
@@ -196,14 +223,13 @@ export function TaskKnowledgeView(props: TaskKnowledgeViewProps) {
                 )}
               </div>
             </div>
-            <p className="text-[15px] text-gray-800 leading-relaxed font-medium">{sig.text}</p>
-            {sig.keywords && sig.keywords.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-3">
-                {sig.keywords.map(kw => (
-                  <span key={kw} className="text-[11px] px-2 py-0.5 bg-gray-100 text-gray-500 rounded-md">#{kw}</span>
-                ))}
-              </div>
-            )}
+            <p 
+              onClick={() => setViewingRawData({ title: isPdf ? 'PDF 원문 데이터' : '빠른 텍스트 메모', content: sig.text })}
+              className="text-[15px] text-gray-800 font-medium truncate cursor-pointer hover:text-blue-600 transition-colors"
+              title="클릭하여 전체 내용 보기"
+            >
+              {sig.text}
+            </p>
           </Card>
         );
       }
@@ -356,20 +382,51 @@ export function TaskKnowledgeView(props: TaskKnowledgeViewProps) {
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pt-2 pb-10">
-        <div className="max-w-4xl mx-auto space-y-4">
-          {feed.length === 0 ? (
+        <div className="max-w-4xl mx-auto flex flex-col space-y-4">
+          
+          <div className="flex flex-row flex-nowrap whitespace-nowrap bg-gray-100 p-1.5 rounded-xl mb-2 w-full sm:w-fit self-center mx-auto shadow-inner overflow-x-auto custom-scrollbar">
+            <button
+              onClick={() => setActiveFeedTab('all')}
+              className={`px-6 py-2 text-sm font-bold rounded-lg transition-all flex-shrink-0 ${activeFeedTab === 'all' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              모든 항목
+            </button>
+            <button
+              onClick={() => setActiveFeedTab('memo')}
+              className={`px-6 py-2 text-sm font-bold rounded-lg transition-all flex-shrink-0 ${activeFeedTab === 'memo' ? 'bg-white text-emerald-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              빠른 메모
+            </button>
+            <button
+              onClick={() => setActiveFeedTab('pdf')}
+              className={`px-6 py-2 text-sm font-bold rounded-lg transition-all flex-shrink-0 ${activeFeedTab === 'pdf' ? 'bg-white text-amber-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              PDF 분석
+            </button>
+          </div>
+
+          {filteredFeed.length === 0 ? (
             <div className="text-center py-20 bg-white rounded-xl border border-[var(--color-border-light)] border-dashed">
               <FileText size={48} className="mx-auto text-gray-200 mb-4" />
-              <p className="text-[var(--color-text-secondary)]">아직 기록된 항목이 없습니다.</p>
-              <button 
-                onClick={() => setShowAddModal(true)}
-                className="mt-4 px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-              >
-                첫 메모 추가하기
-              </button>
+              <p className="text-[var(--color-text-secondary)]">해당 탭에 기록된 항목이 없습니다.</p>
+              {activeFeedTab === 'pdf' ? (
+                <button 
+                  onClick={() => { setAddModalMode('pdf'); setShowAddModal(true); }}
+                  className="mt-4 px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-amber-50 transition-colors"
+                >
+                  새 PDF 추가하기
+                </button>
+              ) : (
+                <button 
+                  onClick={() => { setAddModalMode('memo'); setShowAddModal(true); }}
+                  className="mt-4 px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-emerald-50 transition-colors"
+                >
+                  새 메모 추가하기
+                </button>
+              )}
             </div>
           ) : (
-            feed.map(item => renderFeedItem(item))
+            filteredFeed.map(item => renderFeedItem(item))
           )}
         </div>
       </div>
@@ -419,6 +476,27 @@ export function TaskKnowledgeView(props: TaskKnowledgeViewProps) {
                   });
                 }}
               />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewingRawData && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50" onClick={() => setViewingRawData(null)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center p-4 border-b border-gray-100">
+              <h2 className="text-lg font-bold flex items-center gap-2">🔍 {viewingRawData.title} 원문 보기</h2>
+              <button 
+                onClick={() => setViewingRawData(null)}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-lg transition-colors"
+              >
+                닫기
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto custom-scrollbar">
+              <p className="text-[15px] text-gray-800 leading-relaxed font-medium whitespace-pre-wrap">
+                {viewingRawData.content}
+              </p>
             </div>
           </div>
         </div>

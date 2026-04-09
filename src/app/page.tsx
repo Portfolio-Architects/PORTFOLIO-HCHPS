@@ -15,6 +15,7 @@ import { WorkspaceView } from '@/components/WorkspaceView';
 import { MindMap3D } from '@/components/MindMap3D';
 import { TaskKnowledgeView } from '@/components/TaskKnowledgeView';
 import { CrmDashboardView } from '@/components/CrmDashboardView';
+import { WeeklyReportView } from '@/components/WeeklyReportView';
 import { SearchResultModal, SearchResultItem } from '@/components/SearchResultModal';
 import { MapCustomizationData } from '@/hooks/useGraphCustomization';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
@@ -75,8 +76,8 @@ export default function Home() {
   useEffect(() => {
     setMounted(true);
     const saved = localStorage.getItem('hchps_active_module');
-    if (saved === 'workspace' || saved === 'knowledge' || saved === 'mindmap' || saved === 'crm') {
-      setActiveModule(saved);
+    if (saved === 'workspace' || saved === 'knowledge' || saved === 'mindmap' || saved === 'crm' || saved === 'weekly-report') {
+      setActiveModule(saved as ModuleType);
     }
   }, []);
 
@@ -113,7 +114,7 @@ export default function Home() {
     
     // Minimum horizontal swipe distance
     if (Math.abs(distance) > 60) {
-      const order: ModuleType[] = ['mindmap', 'crm', 'workspace', 'knowledge'];
+      const order: ModuleType[] = ['mindmap', 'weekly-report', 'crm', 'workspace', 'knowledge'];
       const currentIndex = order.indexOf(activeModule);
       
       if (distance > 0 && currentIndex < order.length - 1) {
@@ -378,6 +379,9 @@ export default function Home() {
             />
           </MindMapErrorBoundary>
         );
+
+      case 'weekly-report':
+        return <WeeklyReportView addSignal={addSignal} />;
 
       case 'crm':
         return <CrmDashboardView />;

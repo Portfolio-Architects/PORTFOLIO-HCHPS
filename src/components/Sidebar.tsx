@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { ModuleType } from '@/types';
-import { SquareCheck, Archive, Zap, Activity } from 'lucide-react';
+import { SquareCheck, Archive, Zap, Activity, CalendarDays } from 'lucide-react';
 
 interface TopNavProps {
   activeModule: ModuleType;
@@ -13,6 +13,7 @@ interface TopNavProps {
 
 const navItems: { id: ModuleType; label: string; icon: React.ElementType }[] = [
   { id: 'mindmap', label: '시그널', icon: Zap },
+  { id: 'weekly-report', label: '주간업무', icon: CalendarDays },
   { id: 'crm', label: '결재 기상도', icon: Activity },
   { id: 'workspace', label: '자원관리', icon: Archive },
   { id: 'knowledge', label: '메모장', icon: SquareCheck },

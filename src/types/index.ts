@@ -121,7 +121,7 @@ export interface KnowledgeEntry {
 }
 
 // ============ Navigation ============
-export type ModuleType = 'workspace' | 'knowledge' | 'mindmap' | 'crm';
+export type ModuleType = 'workspace' | 'knowledge' | 'mindmap' | 'weekly-report' | 'crm';
 
 // ============ Utility ============
 export function generateId(): string {
