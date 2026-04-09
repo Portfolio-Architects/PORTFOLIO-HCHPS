@@ -93,7 +93,26 @@ JSON 텍스트 외에 다른 말은 절대 하지 마십시오. 마크다운 JSO
         { role: 'user', content: prompt }
       ]);
 
-      const jsonStr = response.replace(/^```json/g, '').replace(/```$/g, '').trim();
+      let jsonStr = response.trim();
+
+      // 로컬 개발 환경의 Mock 응답인 경우 더미 데이터 주입
+      if (jsonStr.includes('[Mock AI Response]')) {
+        setParsedData({
+          completedTasks: ["(Mock) A 기능 개발 완료", "(Mock) B 버그 픽스"],
+          upcomingTasks: ["(Mock) C 모듈 기획서 작성", "(Mock) 주간 미팅"],
+          leaderSchedules: ["(Mock) 04/15 15:00 외부 파트너사 회의"]
+        });
+        return;
+      }
+
+      // 정규식을 활용하여 JSON 객체 부분만 견고하게 추출
+      const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        jsonStr = jsonMatch[0];
+      } else {
+        jsonStr = jsonStr.replace(/^```json/gi, '').replace(/```$/g, '').trim();
+      }
+
       const data = JSON.parse(jsonStr) as WeeklyReportData;
       setParsedData(data);
     } catch (err) {
