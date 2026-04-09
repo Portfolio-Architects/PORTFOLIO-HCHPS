@@ -207,6 +207,14 @@ export function MindMapInspector(props: MindMapInspectorProps) {
                               className={`flex-1 text-xs px-2 py-1.5 rounded-md border min-w-0 ${(activeNode.id.startsWith('root-') && (!activeNode.parentId || activeNode.parentId === 'root-HCHPS' || activeNode.parentId === 'NONE')) ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200 focus:outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] cursor-pointer'}`}
                             >
                               <option value="NONE">❌ 연결 해제 (독립된 맵으로 고립)</option>
+                              
+                              {/* 렌더링 되지 않는 고스트(삭제/강등된) 부모 노드 처리를 위한 명시적 Option 주입 */}
+                              {(activeNode.parentId && activeNode.parentId !== 'root-HCHPS' && !engineRef.current?.nodes.some((n: OrbitalNode) => n.id === activeNode.parentId)) && (
+                                <option value={activeNode.parentId}>
+                                  👻 현재 맵에 없는 이전 부모 ({activeNode.parentId.replace('tag-', '').replace('custom-', '')})
+                                </option>
+                              )}
+
                               {engineRef.current?.nodes
                                  .filter((n: OrbitalNode) => {
                                     // If this is the currently selected parent, always show it so the select doesn't break
