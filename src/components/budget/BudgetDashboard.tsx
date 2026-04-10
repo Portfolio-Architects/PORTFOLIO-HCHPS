@@ -7,7 +7,7 @@ import { ProgressBar } from '@/components/ui/progress-bar';
 import { Modal } from '@/components/ui/modal';
 import { extractTextFromPdfBuffer } from '@/lib/pdf-parser';
 import { askLlama } from '@/lib/llm-client';
-import { Plus, Pencil, Trash2, FileCheck, FilePlus2, CheckCircle2, AlertOctagon, ShieldAlert, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Pencil, Trash2, FileCheck, FilePlus2, CheckCircle2, AlertOctagon, ShieldAlert, RefreshCw, ChevronDown, ChevronUp, Search } from 'lucide-react';
 import { replaceAll } from '@/lib/sheets-api';
 
 interface BudgetDashboardProps {
@@ -283,6 +283,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
   const [editCatId, setEditCatId] = useState<string | null>(null);
   const [editEntryId, setEditEntryId] = useState<string | null>(null);
   const [returnToEntryModal, setReturnToEntryModal] = useState(false);
+  const [showLedgerModal, setShowLedgerModal] = useState(false);
   const [actionType, setActionType] = useState<BudgetActionType>('general');
 
   const [isLoaded, setIsLoaded] = useState(false);
@@ -813,8 +814,13 @@ ${categoryOptions}
           <div className="text-sm font-bold mt-1 text-amber-700">실지출액: {formatN(filteredStats.dailyExpenseSpent)}원</div>
         </CardContent></Card>
 
-        <Card className="border-[var(--color-border-light)]"><CardContent className="h-full flex flex-col justify-center">
-          <div className="text-[11px] font-bold text-teal-600 mb-1">일상경비 통장 가용 잔액</div>
+        <Card className="border-[var(--color-border-light)] relative overflow-hidden group"><CardContent className="h-full flex flex-col justify-center">
+          <div className="flex items-center justify-between mb-1">
+            <div className="text-[11px] font-bold text-teal-600">일상경비 통장 가용 잔액</div>
+            <button onClick={() => setShowLedgerModal(true)} className="flex items-center gap-1 text-[10px] bg-teal-50 text-teal-700 px-2 py-1 rounded-full hover:bg-teal-100 transition-colors font-bold whitespace-nowrap">
+              <Search size={12} /> 상세 대조
+            </button>
+          </div>
           <div className="text-xl font-black mt-1 text-teal-700">{formatN(filteredStats.dailyExpenseRemaining)}원</div>
         </CardContent></Card>
       </div>
@@ -939,6 +945,96 @@ ${categoryOptions}
             {ACTION_TYPE_CONFIG[actionType].label} 등록
           </button>
         </form>
+      </Modal>
+
+      {/* Ledger Modal Component */}
+      <Modal isOpen={showLedgerModal} onClose={() => setShowLedgerModal(false)} title="일상경비 원장 교차 검증" size="lg">
+        <div className="space-y-4">
+          <div className="p-3 bg-teal-50 border border-teal-100 rounded-lg text-sm text-teal-800 font-medium leading-relaxed">
+            💡 일상경비가 <span className="font-bold underline text-teal-900">한 번이라도 교부되거나 지출된</span> 예산 과목들만 보여줍니다.<br/>
+            좌우 T계정 내역을 대조하여 영수증 처리가 누락되었거나 교부를 받지 못한 건을 찾아내세요.
+          </div>
+          
+          <div className="h-[60vh] overflow-y-auto space-y-3 pr-2 scrollbar-hide">
+            {categories
+              .map(cat => {
+                const stats = getCategoryStats(cat.id);
+                const catEntries = entries.filter(e => e.categoryId === cat.id);
+                const issuances = catEntries.filter(e => e.actionType === 'issuance').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                const dailyExpenses = catEntries.filter(e => e.actionType === 'daily_expense').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                return { cat, stats, issuances, dailyExpenses };
+              })
+              .filter(data => data.issuances.length > 0 || data.dailyExpenses.length > 0)
+              .map((data, idx) => (
+                <div key={data.cat.id} className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm hover:shadow transition-shadow">
+                  <details className="group marker:content-['']" open={idx === 0}>
+                    <summary className="flex items-center justify-between p-3 bg-gray-50/50 cursor-pointer hover:bg-gray-100 transition-colors list-none">
+                      <div className="flex flex-col gap-1.5">
+                        <div className="text-[14px] font-bold text-gray-800">
+                          {data.cat.name} 
+                          <span className="text-[11px] font-medium text-gray-500 ml-1.5 border border-gray-200 bg-white px-1.5 py-0.5 rounded">
+                            {data.cat.unitProject}
+                          </span>
+                        </div>
+                        <div className="flex gap-4 text-[12px] font-semibold">
+                          <span className="text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100">교부액: {formatN(data.stats?.dailyExpenseIssued || 0)}</span>
+                          <span className="text-teal-600 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-100">지출액: {formatN(data.stats?.dailyExpenseSpent || 0)}</span>
+                          <span className={`px-1.5 py-0.5 rounded border ${
+                            (data.stats?.dailyExpenseRemaining || 0) < 0 
+                              ? 'text-red-600 bg-red-50 border-red-100' 
+                              : 'text-blue-700 bg-blue-50 border-blue-100'
+                          }`}>
+                            잔액: {formatN(data.stats?.dailyExpenseRemaining || 0)}
+                          </span>
+                        </div>
+                      </div>
+                      <ChevronDown size={20} className="text-gray-400 group-open:rotate-180 transition-transform flex-shrink-0" />
+                    </summary>
+                    <div className="p-3 grid grid-cols-2 gap-4 border-t border-gray-200 bg-white">
+                      {/* Left: Issuance */}
+                      <div>
+                        <div className="text-[12px] font-bold text-amber-700 mb-2 border-b border-amber-200 pb-1.5 flex justify-between">
+                          <span>교부(입금) 내역</span>
+                          <span className="bg-amber-100 text-amber-800 px-1.5 rounded">{data.issuances.length}건</span>
+                        </div>
+                        <ul className="space-y-2">
+                          {data.issuances.length === 0 && <li className="text-[11px] text-gray-400 text-center py-4 bg-gray-50 rounded border border-dashed border-gray-200">내역 없음</li>}
+                          {data.issuances.map(e => (
+                            <li key={e.id} className="flex justify-between items-center text-[11px] bg-amber-50/50 hover:bg-amber-50 p-2 rounded border border-amber-100 transition-colors">
+                              <div className="flex flex-col gap-0.5 truncate pr-2">
+                                <span className="text-gray-500 font-medium">{e.date.replace(/-/g, '.')}</span>
+                                <span className="font-semibold text-gray-800 truncate" title={e.purpose}>{e.purpose}</span>
+                              </div>
+                              <span className="font-bold text-amber-600 shrink-0">+{formatN(e.amount)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                      {/* Right: Daily Expense */}
+                      <div>
+                        <div className="text-[12px] font-bold text-teal-700 mb-2 border-b border-teal-200 pb-1.5 flex justify-between">
+                          <span>지출(출금) 내역</span>
+                          <span className="bg-teal-100 text-teal-800 px-1.5 rounded">{data.dailyExpenses.length}건</span>
+                        </div>
+                        <ul className="space-y-2">
+                          {data.dailyExpenses.length === 0 && <li className="text-[11px] text-gray-400 text-center py-4 bg-gray-50 rounded border border-dashed border-gray-200">내역 없음</li>}
+                          {data.dailyExpenses.map(e => (
+                            <li key={e.id} className="flex justify-between items-center text-[11px] bg-teal-50/50 hover:bg-teal-50 p-2 rounded border border-teal-100 transition-colors">
+                              <div className="flex flex-col gap-0.5 truncate pr-2">
+                                <span className="text-gray-500 font-medium">{e.date.replace(/-/g, '.')}</span>
+                                <span className="font-semibold text-gray-800 truncate" title={e.purpose}>{e.purpose}</span>
+                              </div>
+                              <span className="font-bold text-teal-600 shrink-0">-{formatN(e.amount)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  </details>
+                </div>
+              ))}
+          </div>
+        </div>
       </Modal>
     </div>
   );
