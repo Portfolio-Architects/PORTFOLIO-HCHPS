@@ -365,28 +365,57 @@ ${categoryOptions}
       }
 
       if (result.categoryId) {
-        let matchedCat = categories.find(c => c.id === result.categoryId);
+        let matchedCat = categories.find(c => c.id === String(result.categoryId).trim());
+        
         if (!matchedCat) {
-          // AI가 ID 대신 이름이나 통계목을 반환한 경우 방어적 매칭 (Fuzzy Match - 통계목/이름 최우선)
           const catStr = String(result.categoryId).trim().toLowerCase();
           
-          // 1순위: 통계목 (사무관리비, 공공운영비 등) 매칭 최우선
-          matchedCat = categories.find(c => c.statItem && catStr.includes(c.statItem.split('(')[0].trim().toLowerCase()));
-          
+          // 1순위: AI 응답(catStr) 내에서 통계목 + 사업명(별칭) 동시 포함
+          matchedCat = categories.find(c => {
+            const hasStat = c.statItem && (catStr.includes(c.statItem.split('(')[0].trim().toLowerCase()) || catStr.includes(c.statItem.replace(/[^0-9-]/g, '')));
+            const prefix = c.name ? c.name.split('-')[0].trim().substring(0, 6).toLowerCase() : '';
+            const hasProj = (c.unitProject && catStr.includes(c.unitProject.toLowerCase())) ||
+                            (prefix && catStr.includes(prefix));
+            return hasStat && hasProj;
+          });
+
+          // 2순위: 카테고리 이름이나 별칭 직접 매칭
           if (!matchedCat) {
-            // 2순위: 카테고리 이름이나 별칭 직접 매칭
             matchedCat = categories.find(c => 
               c.name.toLowerCase() === catStr ||
               c.name.toLowerCase().includes(catStr) ||
               catStr.includes(c.name.toLowerCase())
             );
           }
+        }
 
-          if (!matchedCat) {
-            // 3순위: 세부사업명 매칭 (단위사업명은 너무 광범위하므로 제외)
-            matchedCat = categories.find(c => c.detailedProject && catStr.includes(c.detailedProject.toLowerCase()));
+        // 3순위 (최후의 보루): AI가 매칭을 실패하거나 빈 값을 반환했을 경우, PDF 원본 텍스트(raw text)에서 직접 교집합 찾기
+        if (!matchedCat) {
+          const rawText = text.replace(/\s+/g, '').toLowerCase(); // 띄어쓰기 제거하여 매칭 확률 증가
+          const scoredCats = categories.map(c => {
+            let score = 0;
+            // 통계목 검사 (예: "행사운영비", "201-03")
+            const statWord = c.statItem ? c.statItem.split('(')[0].trim().toLowerCase() : '';
+            const statNum = c.statItem ? c.statItem.replace(/[^0-9-]/g, '') : '';
+            if (statWord && rawText.includes(statWord)) score += 10;
+            if (statNum && rawText.includes(statNum)) score += 10;
+
+            // 프로젝트 검사 (예: "건강생활실천", "건강도시조성")
+            const prefix = c.name ? c.name.split('-')[0].trim().substring(0, 6).toLowerCase().replace(/\s+/g, '') : '';
+            const unit = c.unitProject ? c.unitProject.toLowerCase().replace(/\s+/g, '') : '';
+            if (unit && rawText.includes(unit)) score += 5;
+            if (prefix && rawText.includes(prefix)) score += 5;
+
+            return { cat: c, score };
+          });
+
+          // 통계목과 프로젝트가 둘 다 매칭되어 스코어가 15점 이상인 후보군 필터링
+          const bestMatches = scoredCats.filter(sc => sc.score >= 15).sort((a, b) => b.score - a.score);
+          if (bestMatches.length > 0) {
+            matchedCat = bestMatches[0].cat;
           }
         }
+
         if (matchedCat) {
           setSelectedCatId(matchedCat.id);
         }
