@@ -292,11 +292,16 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
   useEffect(() => {
     let migrated = false;
     categories.forEach(cat => {
-      if (cat.name && cat.name.includes('건강생활실천공통')) {
-        updateCategory(cat.id, {
-          ...cat,
-          name: cat.name.replace('건강생활실천공통', '건강생활실천사업(건강증진)')
-        });
+      let updatedName = cat.name;
+      if (updatedName && updatedName.includes('건강생활실천공통')) {
+        updatedName = updatedName.replace('건강생활실천공통', '건강생활실천사업(건강증진)');
+      }
+      if (updatedName && updatedName.includes('건강생활실천(건강증진)')) {
+        updatedName = updatedName.replace('건강생활실천(건강증진)', '건강생활실천사업(건강증진)');
+      }
+      
+      if (cat.name !== updatedName) {
+        updateCategory(cat.id, { ...cat, name: updatedName });
         migrated = true;
       }
     });
