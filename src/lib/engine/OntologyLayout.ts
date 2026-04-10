@@ -40,19 +40,37 @@ export class OntologyLayout {
   ): void {
     if (nodes.length === 0) return;
 
-    // 1. 무방향 인접 리스트 생성 (Undirected Adjacency List)
-    // - 데이터의 edge 방향성(source->target) 오류로 인해 하위 노드가 고아(Orphan)로 분류되어 좌표가 겹치는 현상을 방지
-    const adjList = new Map<string, string[]>();
-    nodes.forEach(n => adjList.set(n.id, []));
+    // 1. 방향성이 있는 인접 리스트 (Directed Adjacency List) 생성 및 무방향(Fallback) 준비
+    // - 크로스 엣지(횡적 연결)로 인해 하위 노드가 잘못된 부모 밑으로(Spanning Tree 구조 붕괴) 종속되는 것을 방지하기 위함
+    const directedDir = new Map<string, string[]>();
+    const undirectedDir = new Map<string, string[]>();
+    nodes.forEach(n => {
+      directedDir.set(n.id, []);
+      undirectedDir.set(n.id, []);
+    });
     
     for (const edge of edges) {
-      if (adjList.has(edge.source) && adjList.has(edge.target)) {
-        adjList.get(edge.source)!.push(edge.target);
-        adjList.get(edge.target)!.push(edge.source);
+      if (undirectedDir.has(edge.source) && undirectedDir.has(edge.target)) {
+        undirectedDir.get(edge.source)!.push(edge.target);
+        undirectedDir.get(edge.target)!.push(edge.source);
+        
+        // 구조적 엣지(하위 종속)인 경우에만 방향성을 부여하여 트리 구조를 명확히 잡습니다
+        const targetNode = nodeMap.get(edge.target);
+        
+        // 중요: 타겟 노드가 명시적인 parentId를 갖고 있다면, 오직 이 부모로부터 온 간선만 트리 구조로 허용 (AI 교차 추천 등 차단)
+        if (targetNode && targetNode.parentId) {
+           if (targetNode.parentId === edge.source) {
+             directedDir.get(edge.source)!.push(edge.target);
+           }
+        } 
+        // 예외: 카테고리 노드는 parentId가 없으나 CAUSAL_DRIVE 간선으로 루트와 연결됨
+        else if (edge.type === 'CAUSAL_DRIVE' || edge.type === 'DEPENDENCY') {
+           directedDir.get(edge.source)!.push(edge.target);
+        }
       }
     }
 
-    // 2. BFS를 통해 중앙 노드(Orbit 0)를 루트로 하는 진정한 트리 구조(Directed Tree) 생성
+    // 2. 방향성 그래프 기반 중앙 노드(Orbit 0) 트리 추출
     const treeChildrenMap = new Map<string, string[]>();
     OntologyLayout.lastTreeChildrenMap = treeChildrenMap;
     nodes.forEach(n => treeChildrenMap.set(n.id, []));
@@ -64,11 +82,12 @@ export class OntologyLayout {
     const visitedBfs = new Set<string>();
     visitedBfs.add(mainRoot.id);
 
+    // Phase A: 엄격한 방향성 트리를 먼저 순회 (올바른 부모-자식 정렬 우선 배정)
     const queue = [mainRoot.id];
     while (queue.length > 0) {
        const curr = queue.shift()!;
-       const neighbors = adjList.get(curr) || [];
-       // 사용자 지정 정렬 순서(customSortOrder) 최우선, 동일하면 라벨순 정렬
+       const neighbors = directedDir.get(curr) || [];
+       
        neighbors.sort((a, b) => {
          const orderA = nodeMap.get(a)?.customSortOrder ?? 0;
          const orderB = nodeMap.get(b)?.customSortOrder ?? 0;
@@ -85,7 +104,37 @@ export class OntologyLayout {
        }
     }
 
-    // 메인 그래프와 연결되지 않은(Disconnected) 노드 그룹도 루트로 취급하여 배치
+    // Phase B: 메인 방향성 트리에 결속되지 못한 남은 노드들을 무방향 엣지로 구제 (Spanning Tree 보완)
+    for (let retry = 0; retry < 2; retry++) {
+      // 첫 번째 retry에서는 기존에 방문된 노드들과 무방향 선분이 있는 미방문 노드들을 흡수
+      const existingVisited = Array.from(visitedBfs);
+      for (const curr of existingVisited) {
+          const neighbors = undirectedDir.get(curr) || [];
+          for (const nxt of neighbors) {
+             if (!visitedBfs.has(nxt)) {
+                 visitedBfs.add(nxt);
+                 treeChildrenMap.get(curr)!.push(nxt);
+                 queue.push(nxt);
+                 
+                 // 서브트리 전개
+                 while (queue.length > 0) {
+                    const subCurr = queue.shift()!;
+                    const subNeighbors = directedDir.get(subCurr)?.length ? directedDir.get(subCurr)! : undirectedDir.get(subCurr)!;
+                    subNeighbors.sort((a,b) => a.localeCompare(b));
+                    for (const subNxt of subNeighbors) {
+                        if (!visitedBfs.has(subNxt)) {
+                            visitedBfs.add(subNxt);
+                            treeChildrenMap.get(subCurr)!.push(subNxt);
+                            queue.push(subNxt);
+                        }
+                    }
+                 }
+             }
+          }
+      }
+    }
+
+    // Phase C: 영원히 고립된 완전히 끊어진 노드/서브그래프 렌더링을 위한 독립 루트 선언
     for (const n of nodes) {
        if (!visitedBfs.has(n.id)) {
            roots.push(n);
@@ -93,7 +142,7 @@ export class OntologyLayout {
            queue.push(n.id);
            while (queue.length > 0) {
               const curr = queue.shift()!;
-              const neighbors = adjList.get(curr) || [];
+              const neighbors = undirectedDir.get(curr) || [];
               neighbors.sort((a, b) => {
                  const orderA = nodeMap.get(a)?.customSortOrder ?? 0;
                  const orderB = nodeMap.get(b)?.customSortOrder ?? 0;
