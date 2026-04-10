@@ -224,14 +224,14 @@ const PolicyGroupCard = React.memo(({
           
           {groupEntries.length > 0 && (
             <div className="pt-3 space-y-2 mt-2">
-              <div className="flex items-center justify-between mb-1 ml-1">
-                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+              <div className="flex items-center justify-between mb-2 ml-1">
+                <div className="text-[13px] font-bold text-gray-500 uppercase tracking-wider">
                   지출 내역 {groupEntries.length > 6 ? `(총 ${groupEntries.length}건)` : ''}
                 </div>
                 {groupEntries.length > 6 && (
                   <button 
                     onClick={() => setShowAllEntries(prev => !prev)}
-                    className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded cursor-pointer hover:bg-blue-100 hover:text-blue-800 font-bold transition-colors"
+                    className="text-[11px] bg-blue-50 text-blue-600 px-2.5 py-1 rounded cursor-pointer hover:bg-blue-100 hover:text-blue-800 font-bold transition-colors"
                   >
                     {showAllEntries ? '간략히 보기' : '모두 보기'}
                   </button>
@@ -243,18 +243,30 @@ const PolicyGroupCard = React.memo(({
                   const cfg = ACTION_TYPE_CONFIG[entry.actionType || 'general'] || ACTION_TYPE_CONFIG['general'];
                   const parentCat = cats.find(c => c.id === entry.categoryId);
                   return (
-                    <div key={entry.id} className="flex items-center justify-between text-sm group bg-gray-50/60 p-2.5 rounded-lg border border-gray-100 hover:bg-gray-50 transition-colors">
-                      <div className="flex items-center gap-2.5 overflow-hidden">
-                        <span className={`px-2 py-0.5 rounded text-[11px] font-bold flex-shrink-0 border border-transparent ${cfg.badgeBg}`}>{cfg.badge}</span>
-                        <span className="text-[11px] bg-white border border-gray-200 text-gray-600 px-1.5 py-0.5 rounded truncate max-w-[80px] hidden sm:block">{parentCat?.unitProject || '알수없음'}</span>
-                        {entry.docRegNum && <span className="text-[11px] bg-indigo-50 border border-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded truncate max-w-[110px] hidden sm:block">{entry.docRegNum}</span>}
-                        <span className="text-gray-800 font-bold truncate tracking-tight">{entry.purpose}</span>
+                    <div key={entry.id} className="flex items-center text-sm group bg-gray-50/60 p-2.5 rounded-lg border border-gray-100 hover:bg-gray-50 transition-colors">
+                      <div className="w-[70px] flex-shrink-0">
+                        <span className={`px-2 py-0.5 rounded text-[11px] font-bold border border-transparent whitespace-nowrap ${cfg.badgeBg}`}>{cfg.badge}</span>
                       </div>
-                      <div className="flex items-center gap-2 flex-shrink-0 pl-2">
-                         <span className="font-bold text-gray-800 tracking-tight">{formatN(entry.amount)}원</span>
-                         <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                           <button onClick={() => openEditEntry(entry)} className="p-1 rounded hover:bg-gray-100 text-gray-400"><Pencil size={14} /></button>
-                           <button onClick={() => { if(window.confirm('이 지출 내역을 정말 삭제하시겠습니까? 삭제된 데이터는 복구할 수 없습니다.')) deleteEntry(entry.id) }} className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500"><Trash2 size={14} /></button>
+                      <div className="w-[180px] hidden sm:flex items-center flex-shrink-0 pr-3">
+                        <span className="text-[11px] bg-white border border-gray-200 text-gray-600 px-1.5 py-0.5 rounded whitespace-nowrap overflow-visible">
+                          {parentCat?.unitProject || '알수없음'}
+                        </span>
+                      </div>
+                      <div className="w-[140px] hidden sm:flex items-center flex-shrink-0 pr-3">
+                        {entry.docRegNum && (
+                          <span className="text-[11px] bg-indigo-50 border border-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded whitespace-nowrap">
+                            {entry.docRegNum}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-[200px] pr-2">
+                        <span className="text-gray-800 font-bold tracking-tight line-clamp-1" title={entry.purpose}>{entry.purpose}</span>
+                      </div>
+                      <div className="w-[160px] flex items-center justify-end gap-3 flex-shrink-0 pl-2">
+                         <span className="font-bold text-gray-800 tracking-tight tabular-nums">{formatN(entry.amount)}원</span>
+                         <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity w-[56px] justify-end flex-shrink-0">
+                           <button onClick={() => openEditEntry(entry)} className="p-1.5 rounded hover:bg-gray-100 text-gray-400"><Pencil size={14} /></button>
+                           <button onClick={() => { if(window.confirm('이 지출 내역을 정말 삭제하시겠습니까? 삭제된 데이터는 복구할 수 없습니다.')) deleteEntry(entry.id) }} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500"><Trash2 size={14} /></button>
                          </div>
                        </div>
                     </div>
@@ -564,7 +576,7 @@ ${categoryOptions}
     
     // 0. 중복 지출 방지 (최근 7일 내 동일 예산과목 & 동일 금액)
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    const isDuplicate = entries.some(e => 
+    const isDuplicate = !editEntryId && entries.some(e => 
       e.categoryId === selectedCatId && 
       e.amount === reqAmount &&
       e.date >= sevenDaysAgo
@@ -578,14 +590,29 @@ ${categoryOptions}
 
     // 1. 가용 잔액 확인
     if (stats) {
+      let adjRemaining = stats.remaining;
+      let adjDailyRemaining = stats.dailyExpenseRemaining;
+
+      if (editEntryId) {
+        const original = entries.find(e => e.id === editEntryId);
+        // 만약 수정 모드이고, 대상 과목이 바뀌지 않았다면 기존 금액을 잔액에 환원 파싱함 (=수정된 차액만 검증)
+        if (original && original.categoryId === selectedCatId) {
+          if (original.actionType === 'general' || original.actionType === 'issuance') {
+            adjRemaining += original.amount;
+          } else if (original.actionType === 'daily_expense') {
+            adjDailyRemaining += original.amount;
+          }
+        }
+      }
+
       if (actionType === 'general' || actionType === 'issuance') {
-        if (reqAmount > stats.remaining) {
-          alert(`Error: 일반 예산 잔액이 부족합니다. (현재 가용 실 잔액: ${formatN(stats.remaining)}원)`);
+        if (reqAmount > adjRemaining) {
+          alert(`Error: 일반 예산 잔액이 부족합니다. (현재 가용 실 잔액: ${formatN(adjRemaining)}원)`);
           return;
         }
       } else if (actionType === 'daily_expense') {
-        if (reqAmount > stats.dailyExpenseRemaining) {
-          alert(`Error: 일상경비 통장 가용 잔액이 부족합니다. (현재 가용 잔액: ${formatN(stats.dailyExpenseRemaining)}원)`);
+        if (reqAmount > adjDailyRemaining) {
+          alert(`Error: 일상경비 통장 가용 잔액이 부족합니다. (현재 가용 잔액: ${formatN(adjDailyRemaining)}원)`);
           return;
         }
       }

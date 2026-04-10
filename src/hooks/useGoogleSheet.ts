@@ -43,9 +43,17 @@ export function useGoogleSheet<T extends { id: string }>(
       try {
         const rows = await readSheet<T>(sheetName);
         if (rows.length > 0) {
-          setData(rows);
+          let finalRows = rows;
+          try {
+            const deletedIds = JSON.parse(localStorage.getItem('hchps-deleted-records') || '[]');
+            if (deletedIds.length > 0) {
+              finalRows = rows.filter(r => !deletedIds.includes(r.id));
+            }
+          } catch {}
+          
+          setData(finalRows);
           // Cache in localStorage
-          try { localStorage.setItem(localStorageKey, JSON.stringify(rows)); } catch { /* ignore */ }
+          try { localStorage.setItem(localStorageKey, JSON.stringify(finalRows)); } catch { /* ignore */ }
         } else {
           // KV is empty — push localStorage data to KV if available (one-time migration)
           const stored = localStorage.getItem(localStorageKey);
@@ -102,6 +110,13 @@ export function useSheetCrud<T extends { id: string }>(sheetName: string) {
   }, [sheetName]);
 
   const syncDelete = useCallback(async (id: string) => {
+    try {
+      const deletedIds = JSON.parse(localStorage.getItem('hchps-deleted-records') || '[]');
+      if (!deletedIds.includes(id)) {
+        deletedIds.push(id);
+        localStorage.setItem('hchps-deleted-records', JSON.stringify(deletedIds));
+      }
+    } catch {}
     await deleteRow(sheetName, id);
   }, [sheetName]);
 
