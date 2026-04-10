@@ -306,7 +306,7 @@ ${text}
 형식: {"categoryId": "id문자열", "amount": 1234, "purpose": "요약"}
       `.trim();
 
-      const responseText = await askLlama([{ role: 'system', content: systemPrompt }]);
+      const responseText = await askLlama([{ role: 'user', content: systemPrompt }]);
       let jsonStr = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
       let result: any = null;
 

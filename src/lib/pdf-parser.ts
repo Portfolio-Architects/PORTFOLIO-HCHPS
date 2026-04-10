@@ -28,7 +28,6 @@ export async function extractTextFromPdfBuffer(buffer: ArrayBuffer): Promise<str
     pageTexts.push(textItems.join(' '));
   }
 
-  // 너무 긴 문서일 경우 LLM 토큰 압박을 방지하기 위해 앞쪽 3,000자 까지만 자릅니다
-  // 비용 지출 품의서는 대개 1페이지 이내에 중요 내용이 들어있음
-  return pageTexts.join('\n\n').slice(0, 3000);
+  // 너무 긴 문서일 경우 LLM 토큰 압박(Cloudflare 9002 Error 방지)을 위해 앞쪽 2,000자 까지만 자릅니다
+  return pageTexts.join('\n\n').slice(0, 2000);
 }
