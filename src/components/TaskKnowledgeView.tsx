@@ -66,7 +66,7 @@ export function TaskKnowledgeView(props: TaskKnowledgeViewProps) {
   const [defaultStatus, setDefaultStatus] = useState<TaskStatus>('todo');
   
   // Master-Detail State
-  const [activeFeedTab, setActiveFeedTab] = useState<'all' | 'memo' | 'pdf'>('all');
+  const [activeFeedTab, setActiveFeedTab] = useState<'all' | 'memo' | 'pdf' | 'knowledge'>('all');
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [editingWikiNode, setEditingWikiNode] = useState<{id: string; title: string; initialBlocks?: any[]} | null>(null);
   const [extractingId, setExtractingId] = useState<string | null>(null);
@@ -102,6 +102,7 @@ export function TaskKnowledgeView(props: TaskKnowledgeViewProps) {
   const filteredFeed = useMemo(() => {
     return feed.filter(item => {
       if (activeFeedTab === 'all') return true;
+      if (activeFeedTab === 'knowledge') return item.type === 'knowledge';
       if (item.type === 'signal') {
         const isPdf = item.data.text?.includes('[PDF 원본:');
         if (activeFeedTab === 'pdf') return isPdf;
@@ -392,13 +393,13 @@ ${rawContent}
       {/* Top Header Row for Adding */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-xl border border-[var(--color-border)] shadow-sm shrink-0">
         <div className="flex flex-row flex-nowrap whitespace-nowrap bg-gray-100 p-1 rounded-xl w-full sm:w-fit overflow-x-auto custom-scrollbar">
-          {(['all', 'memo', 'pdf'] as const).map(tabKey => (
+          {(['all', 'knowledge', 'memo', 'pdf'] as const).map(tabKey => (
             <button
               key={tabKey}
               onClick={() => { setActiveFeedTab(tabKey); setSelectedItemId(null); }}
               className={`px-6 py-2 text-[13px] font-bold rounded-lg transition-all flex-shrink-0 cursor-pointer ${activeFeedTab === tabKey ? 'bg-white text-[var(--color-primary)] shadow-sm shadow-gray-200/50' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'}`}
             >
-              {tabKey === 'all' ? '모든 항목 보기' : tabKey === 'memo' ? '빠른 텍스트 메모' : 'PDF 스캔 분석본'}
+              {tabKey === 'all' ? '모든 항목 보기' : tabKey === 'knowledge' ? '등록된 지식 (LLM)' : tabKey === 'memo' ? '빠른 텍스트 메모' : 'PDF 스캔 분석본'}
             </button>
           ))}
         </div>

@@ -32,7 +32,9 @@ interface BudgetDashboardProps {
 
 function formatN(n: number) { return n.toLocaleString('ko-KR'); }
 
-const COLORS = ['#4A6CF7', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
+const COLORS = [
+  '#4F46E5', '#059669', '#EAB308', '#DC2626', '#7C3AED', '#0891B2', '#EA580C', '#BE185D', '#16A34A', '#2563EB', '#9333EA', '#B45309', '#0284C7', '#86198F', '#4D7C0F'
+];
 
 const ACTION_TYPE_CONFIG: Record<BudgetActionType, { label: string; badge: string; badgeBg: string; icon: typeof FilePlus2 }> = {
   general: { label: '일반 지출', badge: '일반', badgeBg: 'bg-blue-100 text-blue-700', icon: FileCheck },
@@ -209,7 +211,10 @@ const PolicyGroupCard = React.memo(({
                         </div>
                       </div>
                       <div className="flex justify-between text-xs mb-1.5 pl-[14px]">
-                        <span className="text-gray-500">사용 {formatN(stats.spent)} / {formatN(stats.totalBudget)}</span>
+                        <span className="text-gray-500 flex items-center">
+                          사용 {formatN(stats.spent)} / {formatN(stats.totalBudget)}
+                          <span className="ml-[6px] px-1 bg-gray-100 rounded text-gray-700 font-bold tracking-tight">{(stats.usageRate || 0).toFixed(1)}%</span>
+                        </span>
                         <span className="text-gray-600 font-bold">잔여 {formatN(stats.remaining)}</span>
                       </div>
                       <div className="ml-[14px] h-1.5 bg-gray-200 rounded-full overflow-hidden shadow-inner">
@@ -263,7 +268,7 @@ const PolicyGroupCard = React.memo(({
                         <span className="text-gray-800 font-bold tracking-tight line-clamp-1" title={entry.purpose}>{entry.purpose}</span>
                       </div>
                       <div className="w-[160px] flex items-center justify-end gap-3 flex-shrink-0 pl-2">
-                         <span className="font-bold text-gray-800 tracking-tight tabular-nums">{formatN(entry.amount)}원</span>
+                         <span className="font-bold text-gray-800 tracking-tight tabular-nums whitespace-nowrap">{formatN(entry.amount)}원</span>
                          <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity w-[56px] justify-end flex-shrink-0">
                            <button onClick={() => openEditEntry(entry)} className="p-1.5 rounded hover:bg-gray-100 text-gray-400"><Pencil size={14} /></button>
                            <button onClick={() => { if(window.confirm('이 지출 내역을 정말 삭제하시겠습니까? 삭제된 데이터는 복구할 수 없습니다.')) deleteEntry(entry.id) }} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500"><Trash2 size={14} /></button>
@@ -858,10 +863,10 @@ ${categoryOptions}
         </CardContent></Card>
 
         <Card className="border-[var(--color-border-light)] relative overflow-hidden group"><CardContent className="h-full flex flex-col justify-center">
-          <div className="flex items-center justify-between mb-1">
-            <div className="text-[11px] font-bold text-teal-600">일상경비 통장 가용 잔액</div>
-            <button onClick={() => setShowLedgerModal(true)} className="flex items-center gap-1 text-[10px] bg-teal-50 text-teal-700 px-2 py-1 rounded-full hover:bg-teal-100 transition-colors font-bold whitespace-nowrap">
-              <Search size={12} /> 상세 대조
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-[12px] font-bold text-teal-600">일상경비 통장 가용 잔액</div>
+            <button onClick={() => setShowLedgerModal(true)} className="flex items-center gap-1.5 text-[13px] bg-teal-50 text-teal-700 px-3 py-1.5 rounded-full hover:bg-teal-100 transition-colors font-bold whitespace-nowrap shadow-sm">
+              <Search size={16} /> 상세 대조
             </button>
           </div>
           <div className="text-xl font-black mt-1 text-teal-700">{formatN(filteredStats.dailyExpenseRemaining)}원</div>
