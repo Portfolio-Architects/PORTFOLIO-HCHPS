@@ -282,6 +282,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
   const [entryDate, setEntryDate] = useState(new Date().toISOString().split('T')[0]);
   const [editCatId, setEditCatId] = useState<string | null>(null);
   const [editEntryId, setEditEntryId] = useState<string | null>(null);
+  const [returnToEntryModal, setReturnToEntryModal] = useState(false);
   const [actionType, setActionType] = useState<BudgetActionType>('general');
 
   const [isLoaded, setIsLoaded] = useState(false);
@@ -629,6 +630,30 @@ ${categoryOptions}
     setShowEntryModal(true);
   };
 
+  const handleInlineAddCat = () => {
+    setShowEntryModal(false);
+    setReturnToEntryModal(true);
+    setEditCatId(null);
+    setCatName(''); setCatPolicy(''); setCatUnit(''); setCatDetail(''); setCatStat(''); setCatBudget('');
+    setShowCatModal(true);
+  };
+
+  const handleInlineEditCat = () => {
+    const cat = categories.find(c => c.id === selectedCatId);
+    if (!cat) return;
+    setShowEntryModal(false);
+    setReturnToEntryModal(true);
+    openEditCat(cat);
+  };
+
+  const handleInlineDeleteCat = () => {
+    if (!selectedCatId) return;
+    if (window.confirm("정말 이 예산 과목을 삭제하시겠습니까? 관련 지출 항목들도 모두 삭제됩니다.")) {
+      deleteCategory(selectedCatId);
+      setSelectedCatId('');
+    }
+  };
+
   const openEditEntry = (entry: BudgetEntry) => {
     setEditEntryId(entry.id);
     setSelectedCatId(entry.categoryId);
@@ -811,7 +836,10 @@ ${categoryOptions}
       )}
 
       {/* Category Modal */}
-      <Modal isOpen={showCatModal} onClose={() => setShowCatModal(false)} title={editCatId ? '예산 과목 수정' : '새 예산 과목'} size="lg">
+      <Modal isOpen={showCatModal} onClose={() => { 
+        setShowCatModal(false); 
+        if (returnToEntryModal) { setShowEntryModal(true); setReturnToEntryModal(false); } 
+      }} title={editCatId ? '예산 과목 수정' : '새 예산 과목'} size="lg">
         <form onSubmit={handleAddCategory} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">정책사업명</label><input type="text" value={catPolicy} onChange={e => setCatPolicy(e.target.value)} className={inputClass} placeholder="예: 건강도시조성" /></div>
@@ -871,10 +899,21 @@ ${categoryOptions}
           </div>
 
           <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">예산 과목 *</label>
-            <select value={selectedCatId} onChange={e => setSelectedCatId(e.target.value)} className={inputClass} required>
-              <option value="">선택</option>
-              {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            <div className="flex items-center gap-2">
+              <select value={selectedCatId} onChange={e => setSelectedCatId(e.target.value)} className={`${inputClass} flex-1`} required>
+                <option value="">선택</option>
+                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <button type="button" onClick={handleInlineAddCat} className="p-2.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors" title="과목 추가">
+                <Plus size={16} />
+              </button>
+              <button type="button" onClick={handleInlineEditCat} disabled={!selectedCatId} className="p-2.5 bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors" title="과목 수정">
+                <Pencil size={16} />
+              </button>
+              <button type="button" onClick={handleInlineDeleteCat} disabled={!selectedCatId} className="p-2.5 bg-red-50 text-red-500 rounded-lg hover:bg-red-100 disabled:opacity-50 transition-colors" title="과목 삭제">
+                <Trash2 size={16} />
+              </button>
+            </div>
           </div>
           <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">금액 (원) *</label>
              <input type="text" value={entryAmount} onChange={e => {
