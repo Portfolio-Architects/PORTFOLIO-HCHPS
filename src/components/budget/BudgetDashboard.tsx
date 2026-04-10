@@ -254,7 +254,7 @@ const PolicyGroupCard = React.memo(({
                          <span className="font-semibold text-gray-700">{formatN(entry.amount)}원</span>
                          <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                            <button onClick={() => openEditEntry(entry)} className="p-1 rounded hover:bg-gray-100 text-gray-400"><Pencil size={12} /></button>
-                           <button onClick={() => deleteEntry(entry.id)} className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500"><Trash2 size={12} /></button>
+                           <button onClick={() => { if(window.confirm('이 지출 내역을 정말 삭제하시겠습니까? 삭제된 데이터는 복구할 수 없습니다.')) deleteEntry(entry.id) }} className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500"><Trash2 size={12} /></button>
                          </div>
                        </div>
                     </div>
