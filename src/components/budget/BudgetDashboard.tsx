@@ -119,6 +119,7 @@ const PolicyGroupCard = React.memo(({
   openEditEntry: (entry: BudgetEntry) => void;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [showAllEntries, setShowAllEntries] = useState(false);
   const { policyName, cats } = group;
 
   const { totalBudget, spent, planned, remaining, usageRate, groupEntries, groupedByDetail } = useMemo(() => {
@@ -223,28 +224,43 @@ const PolicyGroupCard = React.memo(({
           
           {groupEntries.length > 0 && (
             <div className="pt-3 space-y-2 mt-2">
-              <div className="text-[10px] font-bold text-gray-400 mb-1 ml-1 uppercase tracking-wider">최근 지출 내역</div>
-              {groupEntries.slice(0, 6).map(entry => {
-                const cfg = ACTION_TYPE_CONFIG[entry.actionType || 'general'] || ACTION_TYPE_CONFIG['general'];
-                const parentCat = cats.find(c => c.id === entry.categoryId);
-                return (
-                  <div key={entry.id} className="flex items-center justify-between text-xs group bg-gray-50/60 p-2 rounded-lg border border-gray-100">
-                    <div className="flex items-center gap-2 overflow-hidden">
-                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold flex-shrink-0 ${cfg.badgeBg}`}>{cfg.badge}</span>
-                      <span className="text-[10px] bg-white border border-gray-200 text-gray-600 px-1 py-0.5 rounded truncate max-w-[70px] hidden sm:block">{parentCat?.unitProject || '알수없음'}</span>
-                      {entry.docRegNum && <span className="text-[10px] bg-indigo-50 border border-indigo-100 text-indigo-700 px-1 py-0.5 rounded truncate max-w-[100px] hidden sm:block">{entry.docRegNum}</span>}
-                      <span className="text-[var(--color-text-secondary)] font-medium truncate">{entry.purpose}</span>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0 pl-2">
-                       <span className="font-semibold text-gray-700">{formatN(entry.amount)}원</span>
-                       <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                         <button onClick={() => openEditEntry(entry)} className="p-1 rounded hover:bg-gray-100 text-gray-400"><Pencil size={12} /></button>
-                         <button onClick={() => deleteEntry(entry.id)} className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500"><Trash2 size={12} /></button>
+              <div className="flex items-center justify-between mb-1 ml-1">
+                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                  지출 내역 {groupEntries.length > 6 ? `(총 ${groupEntries.length}건)` : ''}
+                </div>
+                {groupEntries.length > 6 && (
+                  <button 
+                    onClick={() => setShowAllEntries(prev => !prev)}
+                    className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded cursor-pointer hover:bg-blue-100 hover:text-blue-800 font-bold transition-colors"
+                  >
+                    {showAllEntries ? '간략히 보기' : '모두 보기'}
+                  </button>
+                )}
+              </div>
+              
+              <div className={`space-y-2 ${showAllEntries ? 'max-h-[600px] overflow-y-auto pr-1 scrollbar-hide' : ''}`}>
+                {(showAllEntries ? groupEntries : groupEntries.slice(0, 6)).map(entry => {
+                  const cfg = ACTION_TYPE_CONFIG[entry.actionType || 'general'] || ACTION_TYPE_CONFIG['general'];
+                  const parentCat = cats.find(c => c.id === entry.categoryId);
+                  return (
+                    <div key={entry.id} className="flex items-center justify-between text-xs group bg-gray-50/60 p-2 rounded-lg border border-gray-100 hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center gap-2 overflow-hidden">
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold flex-shrink-0 ${cfg.badgeBg}`}>{cfg.badge}</span>
+                        <span className="text-[10px] bg-white border border-gray-200 text-gray-600 px-1 py-0.5 rounded truncate max-w-[70px] hidden sm:block">{parentCat?.unitProject || '알수없음'}</span>
+                        {entry.docRegNum && <span className="text-[10px] bg-indigo-50 border border-indigo-100 text-indigo-700 px-1 py-0.5 rounded truncate max-w-[100px] hidden sm:block">{entry.docRegNum}</span>}
+                        <span className="text-[var(--color-text-secondary)] font-medium truncate">{entry.purpose}</span>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0 pl-2">
+                         <span className="font-semibold text-gray-700">{formatN(entry.amount)}원</span>
+                         <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                           <button onClick={() => openEditEntry(entry)} className="p-1 rounded hover:bg-gray-100 text-gray-400"><Pencil size={12} /></button>
+                           <button onClick={() => deleteEntry(entry.id)} className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500"><Trash2 size={12} /></button>
+                         </div>
                        </div>
-                     </div>
-                  </div>
-                );
-              })}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>
