@@ -13,8 +13,7 @@ interface TopNavProps {
 
 const navItems: { id: ModuleType; label: string; icon: React.ElementType }[] = [
   { id: 'mindmap', label: '시그널', icon: Zap },
-  { id: 'weekly-report', label: '주간업무', icon: CalendarDays },
-  { id: 'crm', label: '결재 기상도', icon: Activity },
+  { id: 'boss-schedule', label: '상사일정', icon: CalendarDays },
   { id: 'workspace', label: '자원관리', icon: Archive },
   { id: 'knowledge', label: '메모장', icon: SquareCheck },
 ];
