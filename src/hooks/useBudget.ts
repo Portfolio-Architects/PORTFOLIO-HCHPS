@@ -69,19 +69,48 @@ export function useBudget() {
     const cat = uniqueCategories.find(c => c.id === categoryId);
     if (!cat) return null;
     const catEntries = entries.filter(e => e.categoryId === categoryId);
-    const spent = catEntries.filter(e => !e.isPlanned).reduce((sum, e) => sum + e.amount, 0);
-    const planned = catEntries.filter(e => e.isPlanned).reduce((sum, e) => sum + e.amount, 0);
+    const generalSpent = catEntries.filter(e => !e.actionType || e.actionType === 'general').reduce((sum, e) => sum + e.amount, 0);
+    const dailyExpenseIssued = catEntries.filter(e => e.actionType === 'issuance').reduce((sum, e) => sum + e.amount, 0);
+    const dailyExpenseSpent = catEntries.filter(e => e.actionType === 'daily_expense').reduce((sum, e) => sum + e.amount, 0);
+    
+    // 총 일반 예산 차감액 (= 일반 지출 + 일상경비 교부)
+    const spent = generalSpent + dailyExpenseIssued;
     const remaining = cat.totalBudget - spent;
+    const dailyExpenseRemaining = dailyExpenseIssued - dailyExpenseSpent;
+    
     const usageRate = cat.totalBudget > 0 ? Math.round((spent / cat.totalBudget) * 100) : 0;
-    return { totalBudget: cat.totalBudget, spent, planned, remaining, usageRate };
+    
+    return { 
+      totalBudget: cat.totalBudget, 
+      spent, 
+      planned: 0, 
+      remaining, 
+      usageRate,
+      generalSpent,
+      dailyExpenseIssued,
+      dailyExpenseSpent,
+      dailyExpenseRemaining
+    };
   }, [uniqueCategories, entries]);
 
   // Overall stats
   const overallStats = useMemo(() => {
     const totalBudget = uniqueCategories.reduce((sum, c) => sum + c.totalBudget, 0);
-    const totalSpent = entries.filter(e => !e.isPlanned).reduce((sum, e) => sum + e.amount, 0);
-    const totalPlanned = entries.filter(e => e.isPlanned).reduce((sum, e) => sum + e.amount, 0);
-    return { totalBudget, totalSpent, totalPlanned, remaining: totalBudget - totalSpent };
+    const generalSpent = entries.filter(e => !e.actionType || e.actionType === 'general').reduce((sum, e) => sum + e.amount, 0);
+    const dailyExpenseIssued = entries.filter(e => e.actionType === 'issuance').reduce((sum, e) => sum + e.amount, 0);
+    const dailyExpenseSpent = entries.filter(e => e.actionType === 'daily_expense').reduce((sum, e) => sum + e.amount, 0);
+    
+    const totalSpent = generalSpent + dailyExpenseIssued;
+    
+    return { 
+      totalBudget, 
+      totalSpent, 
+      totalPlanned: 0, 
+      remaining: totalBudget - totalSpent,
+      dailyExpenseIssued,
+      dailyExpenseSpent,
+      dailyExpenseRemaining: dailyExpenseIssued - dailyExpenseSpent
+    };
   }, [uniqueCategories, entries]);
 
   return { categories: uniqueCategories, entries, addCategory, updateCategory, deleteCategory, addEntry, updateEntry, deleteEntry, getCategoryStats, overallStats };

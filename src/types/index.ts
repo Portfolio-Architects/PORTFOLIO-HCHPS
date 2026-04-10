@@ -21,7 +21,7 @@ export interface Task {
 }
 
 // ============ Budget Module ============
-export type BudgetEntryType = 'approval' | 'resolution'; // 지출 품의 / 지출 결의
+export type BudgetActionType = 'general' | 'issuance' | 'daily_expense'; // 일반품의, 일상경비교부, 일상경비지출
 
 export interface BudgetCategory {
   id: string;
@@ -42,8 +42,9 @@ export interface BudgetEntry {
   date: string;
   purpose: string;
   memo?: string;
-  isPlanned: boolean; // true = 계획 지출, false = 실제 지출
-  entryType: BudgetEntryType; // 'approval' = 지출 품의, 'resolution' = 지출 결의
+  isPlanned?: boolean; // Deprecated
+  entryType?: 'approval'; // Deprecated
+  actionType?: BudgetActionType; // 일반품의, 일상경비 교부, 일상경비 지출
   inventoryItemId?: string;
 }
 

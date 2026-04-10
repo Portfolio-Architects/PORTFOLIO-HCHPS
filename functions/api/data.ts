@@ -10,7 +10,8 @@
 
 interface Env {
   HCHPS_DATA: KVNamespace;
-  API_KEY?: string; // Cloudflare Pages 환경변수로 설정
+  HCHPS_AUTH_TOKEN?: string; // Cloudflare Pages 환경변수 (PIN 유도 Auth 토큰)
+  API_KEY?: string; // Legacy API Key
 }
 
 // 허용된 시트 이름 (CWE-20: 입력값 검증)
@@ -41,14 +42,18 @@ function jsonResponse(data: unknown, status = 200): Response {
 
 // API Key 검증
 function authenticate(request: Request, env: Env): boolean {
-  const configuredKey = env.API_KEY;
-  if (!configuredKey) return true; // 키 미설정 시 인증 스킵 (개발 환경)
+  const configuredKey = env.HCHPS_AUTH_TOKEN || env.API_KEY;
+  if (!configuredKey) return true; // 키 미설정 시 인증 스킵 (개발 환경 등)
 
-  const headerKey = request.headers.get('X-API-Key');
   const url = new URL(request.url);
-  const queryKey = url.searchParams.get('key');
+  let token = request.headers.get('X-API-Key') || url.searchParams.get('token') || url.searchParams.get('key');
+  
+  const authHeader = request.headers.get('Authorization');
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.substring(7);
+  }
 
-  return headerKey === configuredKey || queryKey === configuredKey;
+  return token === configuredKey;
 }
 
 // 시트 이름 검증
@@ -62,7 +67,7 @@ export const onRequestOptions: PagesFunction<Env> = async () => {
     headers: {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, X-API-Key, Cache-Control, Pragma',
+      'Access-Control-Allow-Headers': 'Content-Type, X-API-Key, Authorization, Cache-Control, Pragma',
     },
   });
 };

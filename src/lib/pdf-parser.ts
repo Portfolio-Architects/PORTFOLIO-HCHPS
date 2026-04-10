@@ -8,7 +8,7 @@ export async function extractTextFromPdfBuffer(buffer: ArrayBuffer): Promise<str
   
   // CDN 기반 Worker 로드 (Next.js 빌드 오류 회피 및 브라우저 호환성)
   if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
   }
 
   const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(buffer) });

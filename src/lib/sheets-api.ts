@@ -2,13 +2,21 @@
  * Data API Client — Cloudflare KV 기반
  * 
  * Cloudflare Pages Functions (/api/data) 엔드포인트와 통신
- * 기존 Google Sheets API와 동일한 인터페이스 유지
- * localStorage는 캐시/폴백으로 유지
+ * E2EE (End-to-End Encryption) 및 Token 인증 추가
  */
 
-// basePath에 맞게 API URL 구성
+import { encryptPayload, decryptPayload, getAuthToken } from '@/lib/crypto';
+
 const API_BASE = 'https://portfolio-hchps.pages.dev/api/data';
-const API_KEY = '3b2926d8ad82a9a1b7524713ace3711ad40b52b46128fb1c';
+
+function getAuthHeaders(): Record<string, string> {
+  try {
+    const token = getAuthToken();
+    return { 'Authorization': `Bearer ${token}` };
+  } catch {
+    return {};
+  }
+}
 
 // ============ Read ============
 
@@ -16,7 +24,7 @@ export async function readSheet<T>(sheetName: string): Promise<T[]> {
   try {
     const res = await fetch(`${API_BASE}?sheet=${encodeURIComponent(sheetName)}&_t=${Date.now()}`, {
       headers: { 
-        'X-API-Key': API_KEY,
+        ...getAuthHeaders(),
         'Cache-Control': 'no-cache, no-store, must-revalidate'
       },
       cache: 'no-store'
@@ -24,12 +32,25 @@ export async function readSheet<T>(sheetName: string): Promise<T[]> {
     if (res.ok) {
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
-        return json.data as T[];
+        // E2EE Decryption
+        const decryptedPromises = json.data.map(async (row: any) => {
+          if (row._enc) {
+            try {
+              const dec = await decryptPayload(row._enc);
+              return { id: row.id, ...(dec as any) };
+            } catch (e) {
+              console.error('Decryption failed for row', row.id, e);
+              return row; // Return base object if decryption fails
+            }
+          }
+          return row; // Legacy plaintext fallback
+        });
+        return await Promise.all(decryptedPromises) as T[];
       }
     }
     return [];
-  } catch {
-    console.warn(`데이터 읽기 실패 (오프라인 모드): ${sheetName}`);
+  } catch (err) {
+    console.warn(`데이터 읽기 실패 (오프라인 모드): ${sheetName}`, err);
     return [];
   }
 }
@@ -38,11 +59,35 @@ export async function readSheet<T>(sheetName: string): Promise<T[]> {
 
 async function writeData(sheetName: string, action: string, data?: unknown, id?: string): Promise<boolean> {
   try {
+    let payload = data;
+    
+    // E2EE Encryption
+    if (data && typeof data === 'object') {
+      if (Array.isArray(data)) {
+        payload = await Promise.all(data.map(async (row) => {
+          if (!row.id) return row;
+          const { id, ...rest } = row;
+          const _enc = await encryptPayload(rest);
+          return { id, _enc };
+        }));
+      } else {
+        const { id, ...rest } = data as any;
+        if (id) {
+          const _enc = await encryptPayload(rest);
+          payload = { id, _enc };
+        } else {
+          // Fallback encryption without ID mapping if ID doesn't exist
+          payload = { _enc: await encryptPayload(data) };
+        }
+      }
+    }
+
     const res = await fetch(API_BASE, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
-      body: JSON.stringify({ sheet: sheetName, action, data, id }),
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify({ sheet: sheetName, action, data: payload, id }),
     });
+    
     if (!res.ok) {
       throw new Error(`Cloudflare Data API returned ${res.status}`);
     }

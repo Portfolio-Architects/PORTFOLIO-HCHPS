@@ -44,47 +44,57 @@ export async function askLlama(
     if (isBrowser) {
       try {
         const edgeModel = localStorage.getItem('hchps-local-model') || 'gemma';
-        // short timeout for detection
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2000); // 2초 뒤 포기
         
-        const edgeRes = await fetch('http://127.0.0.1:11434/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model: edgeModel, messages, stream: !!onChunk }),
-          signal: controller.signal
-        });
-        clearTimeout(timeoutId);
+        // 1. Fast Ping to check if Ollama is awake (1 second timeout)
+        let isOllamaAlive = false;
+        try {
+          const pingController = new AbortController();
+          const pingTimeout = setTimeout(() => pingController.abort(), 1000);
+          const pingRes = await fetch('http://127.0.0.1:11434/', { signal: pingController.signal });
+          clearTimeout(pingTimeout);
+          isOllamaAlive = pingRes.ok || pingRes.status === 200;
+        } catch (e) {
+          console.log('[Hybrid LLM] Fast ping failed. Ollama might be offline or blocked by CORS.');
+        }
 
-        if (edgeRes.ok) {
-          console.log(`[Hybrid LLM] Connected to Local Edge LLM (${edgeModel})`);
+        if (isOllamaAlive) {
+          console.log(`[Hybrid LLM] Connected to Local Edge LLM (${edgeModel}). Waiting for inference...`);
           
-          if (!onChunk) {
-            const data = await edgeRes.json();
-            return data.message?.content || '';
-          }
+          // 2. Actual Inference: No short timeout (Ollama needs time to evaluate 3,000 tokens)
+          const edgeRes = await fetch('http://127.0.0.1:11434/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model: edgeModel, messages, stream: !!onChunk }),
+          });
 
-          const reader = edgeRes.body?.getReader();
-          if (!reader) throw new Error('No readable stream');
-          const decoder = new TextDecoder();
-          let fullContent = '';
-          
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            const chunkStr = decoder.decode(value, { stream: true });
-            const lines = chunkStr.split('\n').filter(Boolean);
-            for (const line of lines) {
-              try {
-                const data = JSON.parse(line);
-                if (data.message?.content) {
-                  fullContent += data.message.content;
-                  onChunk(data.message.content);
-                }
-              } catch(e) {} // ignore incomplete JSON
+          if (edgeRes.ok) {
+            if (!onChunk) {
+              const data = await edgeRes.json();
+              return data.message?.content || '';
             }
+
+            const reader = edgeRes.body?.getReader();
+            if (!reader) throw new Error('No readable stream');
+            const decoder = new TextDecoder();
+            let fullContent = '';
+            
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              const chunkStr = decoder.decode(value, { stream: true });
+              const lines = chunkStr.split('\n').filter(Boolean);
+              for (const line of lines) {
+                try {
+                  const data = JSON.parse(line);
+                  if (data.message?.content) {
+                    fullContent += data.message.content;
+                    onChunk(data.message.content);
+                  }
+                } catch(e) {} // ignore incomplete JSON
+              }
+            }
+            return fullContent;
           }
-          return fullContent;
         }
       } catch (err) {
         // Local Edge Server not found (CORS, Refused, Timeout) => Fallback
@@ -102,7 +112,15 @@ export async function askLlama(
     if (!res.ok) {
       if ((res.status === 404 || res.status === 500) && isBrowser && window.location.hostname === 'localhost') {
         console.warn('🚨 Local environment without Wrangler detected. Returning mock AI response.');
-        const mockResponse = `[Mock AI Response]\n현재 로컬(Next.js 개발 서버) 환경이라 Cloudflare Workers AI 라우트에 접근할 수 없거나 오프라인입니다.\nCloudflare 서버에 배포된 후에는 Llama 3 엔진이 연동되어 실시간 분석 응답을 반환하게 됩니다.\n\n(요청 분석량: ${messages.length}개 메시지 블록)`;
+        
+        const wantsJson = messages.some(m => m.role === 'system' && m.content.includes('JSON 스키마로 정확하게 반환'));
+        let mockResponse = '';
+        
+        if (wantsJson) {
+          mockResponse = `{"categoryId": "", "amount": 0, "purpose": "[Mock AI] 분석 불가(로컬 환경)"}`;
+        } else {
+          mockResponse = `[Mock AI Response]\n현재 로컬(Next.js 개발 서버) 환경이라 Cloudflare Workers AI 라우트에 접근할 수 없거나 오프라인입니다.\nCloudflare 서버에 배포된 후에는 Llama 3 엔진이 연동되어 실시간 분석 응답을 반환하게 됩니다.\n\n(요청 분석량: ${messages.length}개 메시지 블록)`;
+        }
         if (onChunk) {
           // 모의 환경에서도 스트리밍처럼 약간의 의도적인 지연을 주고 동작
           for (const char of mockResponse.split('')) {

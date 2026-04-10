@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { initCryptoContext, clearCryptoContext } from '@/lib/crypto';
 
 // 간단한 자체 해시 체계 (보안성보다는 단일 암호화 목적으로 충분)
 const hashPIN = async (pin: string): Promise<string> => {
@@ -23,9 +24,11 @@ export const useSecurityLock = () => {
     if (storedHash) {
       setHasSetupPIN(true);
       setIsLocked(true); // 항상 새로고침 시 락
+      clearCryptoContext();
     } else {
       setHasSetupPIN(false);
       setIsLocked(true); // PIN이 없으면 설정 화면을 띄움
+      clearCryptoContext();
     }
   }, []);
 
@@ -41,6 +44,7 @@ export const useSecurityLock = () => {
         const timeAway = Date.now() - lastVisibleTime;
         if (timeAway > IDLE_TIMEOUT) {
           setIsLocked(true);
+          clearCryptoContext();
         }
       }
     };
@@ -54,6 +58,7 @@ export const useSecurityLock = () => {
   const verifyPIN = async (pin: string): Promise<boolean> => {
     // 로컬 마스터 비밀번호 (강제 패스)
     if (pin === '0509') {
+      await initCryptoContext(pin);
       setIsLocked(false);
       setFailCount(0);
       return true;
@@ -64,6 +69,7 @@ export const useSecurityLock = () => {
     
     const computedHash = await hashPIN(pin);
     if (computedHash === storedHash) {
+      await initCryptoContext(pin);
       setIsLocked(false);
       setFailCount(0);
       return true;
@@ -76,6 +82,7 @@ export const useSecurityLock = () => {
   const setupPIN = async (pin: string) => {
     const computedHash = await hashPIN(pin);
     localStorage.setItem('hchps-pin-hash', computedHash);
+    await initCryptoContext(pin);
     setHasSetupPIN(true);
     setIsLocked(false);
   };

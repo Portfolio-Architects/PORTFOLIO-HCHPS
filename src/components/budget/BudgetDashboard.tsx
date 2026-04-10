@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { BudgetCategory, BudgetEntry, BudgetEntryType, generateId } from '@/types';
+import { BudgetCategory, BudgetEntry, BudgetActionType, generateId } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { ProgressBar } from '@/components/ui/progress-bar';
 import { Modal } from '@/components/ui/modal';
@@ -18,8 +18,14 @@ interface BudgetDashboardProps {
   deleteCategory: (id: string) => void;
   addEntry: (entry: Omit<BudgetEntry, 'id'>) => void;
   deleteEntry: (id: string) => void;
-  getCategoryStats: (id: string) => { totalBudget: number; spent: number; planned: number; remaining: number; usageRate: number } | null;
-  overallStats: { totalBudget: number; totalSpent: number; totalPlanned: number; remaining: number };
+  getCategoryStats: (id: string) => { 
+    totalBudget: number; spent: number; planned: number; remaining: number; usageRate: number;
+    generalSpent: number; dailyExpenseIssued: number; dailyExpenseSpent: number; dailyExpenseRemaining: number;
+  } | null;
+  overallStats: { 
+    totalBudget: number; totalSpent: number; totalPlanned: number; remaining: number;
+    dailyExpenseIssued: number; dailyExpenseSpent: number; dailyExpenseRemaining: number;
+  };
   addKnowledge?: (k: { title: string; content: string; category: string; tags: string[] }) => void;
 }
 
@@ -27,9 +33,10 @@ function formatN(n: number) { return n.toLocaleString('ko-KR'); }
 
 const COLORS = ['#4A6CF7', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
 
-const TYPE_CONFIG: Record<BudgetEntryType, { label: string; badge: string; badgeBg: string; icon: typeof FilePlus2 }> = {
-  approval:   { label: '지출 품의', badge: '품의', badgeBg: 'bg-amber-100 text-amber-700', icon: FilePlus2 },
-  resolution: { label: '지출 결의', badge: '결의', badgeBg: 'bg-blue-100 text-blue-700', icon: FileCheck },
+const ACTION_TYPE_CONFIG: Record<BudgetActionType, { label: string; badge: string; badgeBg: string; icon: typeof FilePlus2 }> = {
+  general: { label: '일반 지출', badge: '일반', badgeBg: 'bg-blue-100 text-blue-700', icon: FileCheck },
+  issuance: { label: '일상경비 교부', badge: '교부', badgeBg: 'bg-amber-100 text-amber-700', icon: FilePlus2 },
+  daily_expense: { label: '일상경비 지출', badge: '경비지출', badgeBg: 'bg-teal-100 text-teal-700', icon: FileCheck },
 };
 
 const MultiSelectDropdown = ({ 
@@ -96,7 +103,6 @@ const MultiSelectDropdown = ({
 const PolicyGroupCard = React.memo(({
   group,
   entries,
-  viewFilter,
   getCategoryStats,
   deleteCategory,
   deleteEntry,
@@ -104,7 +110,6 @@ const PolicyGroupCard = React.memo(({
 }: {
   group: { policyName: string; cats: BudgetCategory[] };
   entries: BudgetEntry[];
-  viewFilter: string;
   getCategoryStats: (id: string) => { totalBudget: number; spent: number; planned: number; remaining: number; usageRate: number } | null;
   deleteCategory: (id: string) => void;
   deleteEntry: (id: string) => void;
@@ -127,7 +132,6 @@ const PolicyGroupCard = React.memo(({
     const catIds = cats.map(c => c.id);
     const gEntries = entries
       .filter(e => catIds.includes(e.categoryId))
-      .filter(e => viewFilter === 'all' || (e.entryType || 'resolution') === viewFilter)
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     // Group by detailedProject
@@ -143,7 +147,7 @@ const PolicyGroupCard = React.memo(({
     });
 
     return { totalBudget: tBudget, spent: tSpent, planned: tPlanned, remaining: tRemaining, usageRate: rate, groupEntries: gEntries, groupedByDetail: groups };
-  }, [cats, entries, viewFilter, getCategoryStats]);
+  }, [cats, entries, getCategoryStats]);
 
   return (
     <Card className="overflow-hidden border border-[var(--color-border-light)] shadow-sm mb-3 last:mb-0">
@@ -218,7 +222,7 @@ const PolicyGroupCard = React.memo(({
             <div className="pt-3 space-y-2 mt-2">
               <div className="text-[10px] font-bold text-gray-400 mb-1 ml-1 uppercase tracking-wider">최근 지출 내역</div>
               {groupEntries.slice(0, 6).map(entry => {
-                const cfg = TYPE_CONFIG[(entry.entryType || 'resolution') as BudgetEntryType];
+                const cfg = ACTION_TYPE_CONFIG[entry.actionType || 'general'] || ACTION_TYPE_CONFIG['general'];
                 const parentCat = cats.find(c => c.id === entry.categoryId);
                 return (
                   <div key={entry.id} className="flex items-center justify-between text-xs group bg-gray-50/60 p-2 rounded-lg border border-gray-100">
@@ -268,9 +272,8 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
   const [entryPurpose, setEntryPurpose] = useState('');
   const [entryMemo, setEntryMemo] = useState('');
   const [entryDate, setEntryDate] = useState(new Date().toISOString().split('T')[0]);
-  const [entryType, setEntryType] = useState<BudgetEntryType>('approval');
   const [editCatId, setEditCatId] = useState<string | null>(null);
-  const [viewFilter, setViewFilter] = useState<'all' | BudgetEntryType>('all');
+  const [actionType, setActionType] = useState<BudgetActionType>('general');
 
   const [isLoaded, setIsLoaded] = useState(false);
   const [isParsingPdf, setIsParsingPdf] = useState(false);
@@ -304,7 +307,14 @@ ${text}
       `.trim();
 
       const responseText = await askLlama([{ role: 'system', content: systemPrompt }]);
-      const jsonStr = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
+      let jsonStr = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
+      
+      const startIdx = jsonStr.indexOf('{');
+      const endIdx = jsonStr.lastIndexOf('}');
+      if (startIdx !== -1 && endIdx !== -1) {
+        jsonStr = jsonStr.substring(startIdx, endIdx + 1);
+      }
+      
       const result = JSON.parse(jsonStr);
 
       if (result.categoryId && categories.find(c => c.id === result.categoryId)) {
@@ -314,10 +324,9 @@ ${text}
       if (result.purpose) setEntryPurpose(result.purpose.substring(0, 30));
 
       alert('✅ AI가 지출 품의서를 성공적으로 분석하여 폼을 채웠습니다.');
-    } catch (err) {
+    } catch (err: any) {
       console.error('PDF 파싱 오류:', err);
-      // fallback fail silently UI wise or simple alert
-      alert('문서 분석에 실패했습니다. 형식 오류 또는 네트워크 문제일 수 있습니다.');
+      alert('문서 분석에 실패했습니다. 형식 오류 또는 네트워크 문제일 수 있습니다.\n상세오류: ' + (err.message || '알 수 없는 오류'));
     } finally {
       setIsParsingPdf(false);
       e.target.value = '';
@@ -333,7 +342,6 @@ ${text}
         if (Array.isArray(parsed.unit)) setFilterUnit(parsed.unit);
         if (Array.isArray(parsed.detail)) setFilterDetail(parsed.detail);
         if (Array.isArray(parsed.stat)) setFilterStat(parsed.stat);
-        if (parsed.view) setViewFilter(parsed.view);
       }
     } catch (e) {}
     setIsLoaded(true);
@@ -344,8 +352,7 @@ ${text}
       policy: filterPolicy,
       unit: filterUnit,
       detail: filterDetail,
-      stat: filterStat,
-      view: viewFilter
+      stat: filterStat
     }));
     alert('✅ 현재 필터링 상태가 저장되었습니다. 앞으로 페이지 접속 시 이 필터가 유지됩니다.');
   };
@@ -355,7 +362,6 @@ ${text}
     setFilterUnit([]);
     setFilterDetail([]);
     setFilterStat([]);
-    setViewFilter('all');
     localStorage.removeItem('hchps-budget-filters-v2');
   };
   const inputClass = "w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition-shadow";
@@ -397,10 +403,33 @@ ${text}
     const stats = targetCat ? getCategoryStats(targetCat.id) : null;
     const reqAmount = Number(entryAmount);
     
+    // 0. 중복 지출 방지 (최근 7일 내 동일 예산과목 & 동일 금액)
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const isDuplicate = entries.some(e => 
+      e.categoryId === selectedCatId && 
+      e.amount === reqAmount &&
+      e.date >= sevenDaysAgo
+    );
+
+    if (isDuplicate) {
+      if (!window.confirm(`[경고] 최근 7일 내에 동일한 금액(${formatN(reqAmount)}원)이 같은 과목으로 지출된 이력이 있습니다.\n중복 등록입니까? 그래도 진행하시겠습니까?`)) {
+        return;
+      }
+    }
+
     // 1. 가용 잔액 확인
-    if (stats && reqAmount > stats.remaining) {
-      alert(`Error: 잔액이 부족합니다. (현재 가용 실 잔액: ${formatN(stats.remaining)}원)`);
-      return;
+    if (stats) {
+      if (actionType === 'general' || actionType === 'issuance') {
+        if (reqAmount > stats.remaining) {
+          alert(`Error: 일반 예산 잔액이 부족합니다. (현재 가용 실 잔액: ${formatN(stats.remaining)}원)`);
+          return;
+        }
+      } else if (actionType === 'daily_expense') {
+        if (reqAmount > stats.dailyExpenseRemaining) {
+          alert(`Error: 일상경비 통장 가용 잔액이 부족합니다. (현재 가용 잔액: ${formatN(stats.dailyExpenseRemaining)}원)`);
+          return;
+        }
+      }
     }
 
     // 2. 금지 비목 차단 (블랙리스트)
@@ -430,8 +459,7 @@ ${text}
       date: entryDate,
       purpose: entryPurpose,
       memo: entryMemo,
-      isPlanned: entryType === 'approval',
-      entryType,
+      actionType,
     });
     setEntryAmount(''); setEntryPurpose(''); setEntryMemo(''); setShowEntryModal(false);
   };
@@ -443,8 +471,7 @@ ${text}
     setEditCatId(cat.id); setShowCatModal(true);
   };
 
-  const openEntryModal = (type: BudgetEntryType) => {
-    setEntryType(type);
+  const openEntryModal = () => {
     setShowEntryModal(true);
   };
 
@@ -496,22 +523,25 @@ ${text}
   const filteredStats = useMemo(() => {
     let totalBudget = 0;
     let remaining = 0;
-    let approvalTotal = 0;
-    let resolutionTotal = 0;
+    let totalSpent = 0;
+
+    let dailyExpenseIssued = 0;
+    let dailyExpenseSpent = 0;
+    let dailyExpenseRemaining = 0;
 
     filteredCategoriesTree.forEach(cat => {
       const catStats = getCategoryStats(cat.id);
       if (catStats) {
         totalBudget += catStats.totalBudget;
         remaining += catStats.remaining;
-        
-        const catEntries = entries.filter(e => e.categoryId === cat.id);
-        approvalTotal += catEntries.filter(e => (e.entryType || 'resolution') === 'approval').reduce((s, e) => s + e.amount, 0);
-        resolutionTotal += catEntries.filter(e => (e.entryType || 'resolution') === 'resolution').reduce((s, e) => s + e.amount, 0);
+        totalSpent += catStats.spent;
+        dailyExpenseIssued += catStats.dailyExpenseIssued;
+        dailyExpenseSpent += catStats.dailyExpenseSpent;
+        dailyExpenseRemaining += catStats.dailyExpenseRemaining;
       }
     });
 
-    return { totalBudget, remaining, approvalTotal, resolutionTotal };
+    return { totalBudget, remaining, totalSpent, dailyExpenseIssued, dailyExpenseSpent, dailyExpenseRemaining };
   }, [filteredCategoriesTree, getCategoryStats, entries]);
 
   return (
@@ -540,11 +570,8 @@ ${text}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-xl font-bold">예산 관리</h2>
         <div className="flex gap-2">
-          <button onClick={() => openEntryModal('approval')} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-amber-500 text-white text-sm font-medium hover:opacity-90 transition-opacity cursor-pointer" disabled={categories.length === 0}>
+          <button onClick={() => openEntryModal()} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-amber-500 text-white text-sm font-medium hover:opacity-90 transition-opacity cursor-pointer" disabled={categories.length === 0}>
             <FilePlus2 size={16} /> 지출 품의
-          </button>
-          <button onClick={() => openEntryModal('resolution')} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[var(--color-primary)] text-white text-sm font-medium hover:opacity-90 transition-opacity cursor-pointer" disabled={categories.length === 0}>
-            <FileCheck size={16} /> 지출 결의
           </button>
         </div>
       </div>
@@ -570,44 +597,30 @@ ${text}
         </div>
       </div>
 
-      {/* Overall Summary */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Card><CardContent>
-          <div className="text-xs text-[var(--color-text-tertiary)]">전체 예산</div>
-          <div className="text-lg font-bold mt-1">{formatN(filteredStats.totalBudget)}원</div>
+      {/* Overall Summary (3-way split) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        <Card><CardContent className="h-full flex flex-col justify-center">
+          <div className="text-xs text-[var(--color-text-tertiary)]">전체 (총 예산/총 지출)</div>
+          <div className="text-lg font-bold mt-1 text-gray-800">{formatN(filteredStats.totalBudget)}원</div>
+          <div className="text-xs font-semibold mt-1 text-gray-500">지출계: {formatN(filteredStats.totalSpent)}원</div>
         </CardContent></Card>
-        <Card><CardContent>
-          <div className="text-xs text-[var(--color-text-tertiary)]">품의 금액</div>
-          <div className="text-lg font-bold mt-1 text-amber-600">{formatN(filteredStats.approvalTotal)}원</div>
+        
+        <Card className="border-l-4 border-l-blue-500 bg-blue-50/50"><CardContent className="h-full flex flex-col justify-center">
+          <div className="text-[11px] font-bold text-blue-600 mb-1">일반 계좌</div>
+          <div className="text-sm font-bold text-gray-700">일반 지출: {formatN(filteredStats.totalSpent - filteredStats.dailyExpenseIssued)}원</div>
+          <div className="text-sm font-bold mt-1 text-blue-700">잔여: {formatN(filteredStats.remaining)}원</div>
         </CardContent></Card>
-        <Card><CardContent>
-          <div className="text-xs text-[var(--color-text-tertiary)]">결의 금액</div>
-          <div className="text-lg font-bold mt-1 text-[var(--color-primary)]">{formatN(filteredStats.resolutionTotal)}원</div>
-        </CardContent></Card>
-        <Card><CardContent>
-          <div className="text-xs text-[var(--color-text-tertiary)]">잔여 예산</div>
-          <div className={`text-lg font-bold mt-1 ${filteredStats.remaining < 0 ? 'text-[var(--color-danger)]' : 'text-[var(--color-success)]'}`}>{formatN(filteredStats.remaining)}원</div>
-        </CardContent></Card>
-      </div>
 
-      {/* Filter Tabs */}
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit">
-        {([['all', '전체'], ['approval', '품의'], ['resolution', '결의']] as const).map(([key, label]) => (
-          <button
-            key={key}
-            onClick={() => setViewFilter(key)}
-            className={`px-4 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
-              viewFilter === key
-                ? 'bg-white text-[var(--color-text-primary)] shadow-sm'
-                : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
-            }`}
-          >
-            {label}
-            <span className="ml-1 text-[10px] opacity-60">
-              ({key === 'all' ? entries.length : entries.filter(e => (e.entryType || 'resolution') === key).length})
-            </span>
-          </button>
-        ))}
+        <Card className="border-l-4 border-l-amber-500 bg-amber-50/50"><CardContent className="h-full flex flex-col justify-center">
+          <div className="text-[11px] font-bold text-amber-600 mb-1">일상경비 통장 이체내역</div>
+          <div className="text-sm font-bold text-gray-700">교부액 (이체원금): {formatN(filteredStats.dailyExpenseIssued)}원</div>
+          <div className="text-sm font-bold mt-1 text-amber-700">실지출액: {formatN(filteredStats.dailyExpenseSpent)}원</div>
+        </CardContent></Card>
+
+        <Card className="border-[var(--color-border-light)]"><CardContent className="h-full flex flex-col justify-center">
+          <div className="text-[11px] font-bold text-teal-600 mb-1">일상경비 통장 가용 잔액</div>
+          <div className="text-xl font-black mt-1 text-teal-700">{formatN(filteredStats.dailyExpenseRemaining)}원</div>
+        </CardContent></Card>
       </div>
 
       {/* Categories */}
@@ -621,7 +634,6 @@ ${text}
               key={group.policyName}
               group={group}
               entries={entries}
-              viewFilter={viewFilter}
               getCategoryStats={getCategoryStats}
               deleteCategory={deleteCategory}
               deleteEntry={deleteEntry}
@@ -657,32 +669,21 @@ ${text}
       </Modal>
 
       {/* Entry Modal */}
-      <Modal isOpen={showEntryModal} onClose={() => setShowEntryModal(false)} title={TYPE_CONFIG[entryType].label} size="sm">
+      <Modal isOpen={showEntryModal} onClose={() => setShowEntryModal(false)} title="지출 등록" size="sm">
+        <div className="flex bg-gray-100 p-1 rounded-lg mb-4">
+          {(Object.keys(ACTION_TYPE_CONFIG) as BudgetActionType[]).map(type => (
+            <button
+              key={type}
+              type="button"
+              onClick={() => setActionType(type)}
+              className={`flex-1 flex flex-col items-center gap-1 py-1.5 px-1 rounded-md text-[13px] font-bold transition-all ${actionType === type ? 'bg-white text-gray-900 shadow font-black' : 'text-gray-500 hover:bg-gray-200'}`}
+            >
+              {ACTION_TYPE_CONFIG[type].label}
+            </button>
+          ))}
+        </div>
         <form onSubmit={handleAddEntry} className="space-y-4">
-          {/* Type selector */}
-          <div className="flex gap-2">
-            {(['approval', 'resolution'] as const).map(type => {
-              const cfg = TYPE_CONFIG[type];
-              const Icon = cfg.icon;
-              return (
-                <button
-                  key={type}
-                  type="button"
-                  onClick={() => setEntryType(type)}
-                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer border ${
-                    entryType === type
-                      ? type === 'approval'
-                        ? 'bg-amber-50 border-amber-300 text-amber-700'
-                        : 'bg-blue-50 border-blue-300 text-blue-700'
-                      : 'bg-white border-[var(--color-border)] text-[var(--color-text-tertiary)] hover:bg-gray-50'
-                  }`}
-                >
-                  <Icon size={14} /> {cfg.label}
-                </button>
-              );
-            })}
-          </div>
-
+          
           {/* AI Parser Widget */}
           <div className="relative border border-dashed border-blue-200 bg-blue-50/50 rounded-xl p-4 text-center hover:bg-blue-50 transition-colors">
              <input type="file" accept="application/pdf" onChange={handlePdfUpload} disabled={isParsingPdf} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed" />
@@ -709,16 +710,16 @@ ${text}
             </select>
           </div>
           <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">금액 (원) *</label><input type="number" value={entryAmount} onChange={e => setEntryAmount(e.target.value)} className={inputClass} required placeholder="0" /></div>
-          <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">{entryType === 'approval' ? '품의 내용' : '지출 목적'} *</label><input type="text" value={entryPurpose} onChange={e => setEntryPurpose(e.target.value)} className={inputClass} required placeholder={entryType === 'approval' ? '어떤 지출을 승인받을 건지' : '무엇에 사용했는지'} /></div>
+          <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">품의 내용 *</label><input type="text" value={entryPurpose} onChange={e => setEntryPurpose(e.target.value)} className={inputClass} required placeholder="어떤 지출을 승인받을 건지" /></div>
           <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">날짜</label><input type="date" value={entryDate} onChange={e => setEntryDate(e.target.value)} className={inputClass} /></div>
           <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">메모</label><input type="text" value={entryMemo} onChange={e => setEntryMemo(e.target.value)} className={inputClass} placeholder="추가 메모 (선택)" /></div>
           <button
             type="submit"
-            className={`w-full px-4 py-2.5 rounded-lg text-white text-sm font-medium hover:opacity-90 transition-opacity cursor-pointer ${
-              entryType === 'approval' ? 'bg-amber-500' : 'bg-[var(--color-primary)]'
+            className={`w-full px-4 py-2.5 rounded-lg text-white text-sm font-bold hover:opacity-90 transition-opacity cursor-pointer shadow-sm ${
+              actionType === 'general' ? 'bg-blue-600' : actionType === 'issuance' ? 'bg-amber-500' : 'bg-teal-600'
             }`}
           >
-            {TYPE_CONFIG[entryType].label} 등록
+            {ACTION_TYPE_CONFIG[actionType].label} 등록
           </button>
         </form>
       </Modal>

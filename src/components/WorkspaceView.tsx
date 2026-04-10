@@ -22,8 +22,14 @@ interface WorkspaceViewProps {
   deleteCategory: (id: string) => void;
   addEntry: (entry: Omit<BudgetEntry, 'id'>) => void;
   deleteEntry: (id: string) => void;
-  getCategoryStats: (id: string) => { totalBudget: number; spent: number; planned: number; remaining: number; usageRate: number } | null;
-  overallStats: { totalBudget: number; totalSpent: number; totalPlanned: number; remaining: number };
+  getCategoryStats: (id: string) => { 
+    totalBudget: number; spent: number; planned: number; remaining: number; usageRate: number;
+    generalSpent: number; dailyExpenseIssued: number; dailyExpenseSpent: number; dailyExpenseRemaining: number;
+  } | null;
+  overallStats: { 
+    totalBudget: number; totalSpent: number; totalPlanned: number; remaining: number;
+    dailyExpenseIssued: number; dailyExpenseSpent: number; dailyExpenseRemaining: number;
+  };
   // Inventory
   inventoryItems: InventoryItem[];
   addItem: (item: Omit<InventoryItem, 'id' | 'createdAt' | 'updatedAt'>) => void;
