@@ -287,6 +287,21 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isParsingPdf, setIsParsingPdf] = useState(false);
 
+  // Auto-Migration for Legacy Nomenclature
+  useEffect(() => {
+    let migrated = false;
+    categories.forEach(cat => {
+      if (cat.name && cat.name.includes('건강생활실천공통')) {
+        updateCategory(cat.id, {
+          ...cat,
+          name: cat.name.replace('건강생활실천공통', '건강생활실천사업(건강증진)')
+        });
+        migrated = true;
+      }
+    });
+    if (migrated) console.info('[Migration] Legacy category nomenclature updated.');
+  }, [categories, updateCategory]);
+
   const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
