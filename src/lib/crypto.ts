@@ -33,8 +33,11 @@ export const initCryptoContext = async (pin: string) => {
   // However, sharing token in memory only is safer.
   if (typeof window !== 'undefined') {
     (window as any).__HCHPS_AUTH_TOKEN = sessionAuthToken;
+    window.dispatchEvent(new Event('crypto-ready'));
   }
 };
+
+export const isCryptoReady = () => masterKey !== null;
 
 function arrayBufferToBase64(buffer: ArrayBuffer) {
   let binary = '';

@@ -32,11 +32,16 @@ export function useGoogleSheet<T extends { id: string }>(
 
   // Initial load from Google Sheets
   useEffect(() => {
-    if (initialLoadDone.current) return;
-    initialLoadDone.current = true;
+    // Only load if it's the first time OR we received a crypto-ready event
+    const attemptLoadKV = async () => {
+      const { isCryptoReady } = await import('@/lib/crypto');
+      if (!isCryptoReady()) return; // Abort silently if locked. Will retry via event.
+      
+      if (initialLoadDone.current) return;
+      initialLoadDone.current = true;
 
-    readSheet<T>(sheetName)
-      .then(rows => {
+      try {
+        const rows = await readSheet<T>(sheetName);
         if (rows.length > 0) {
           setData(rows);
           // Cache in localStorage
@@ -48,20 +53,30 @@ export function useGoogleSheet<T extends { id: string }>(
             try {
               const localData = JSON.parse(stored) as T[];
               if (localData.length > 0) {
-                import('@/lib/sheets-api').then(({ replaceAll }) => {
-                  replaceAll(sheetName, localData).then(ok => {
-                    if (ok) console.info(`[KV Sync] 로컬 데이터 마이그레이션 완료: ${sheetName} (${localData.length}건)`);
-                  });
-                });
+                const { replaceAll } = await import('@/lib/sheets-api');
+                const ok = await replaceAll(sheetName, localData);
+                if (ok) console.info(`[KV Sync] 로컬 데이터 마이그레이션 완료: ${sheetName} (${localData.length}건)`);
               }
             } catch { /* ignore parse errors */ }
           }
         }
-      })
-      .catch(() => {
+      } catch (err) {
         // Silently fall back to localStorage data
-      })
-      .finally(() => setLoading(false));
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    attemptLoadKV();
+
+    const onCryptoReady = () => {
+      initialLoadDone.current = false; // Reset to allow fetching now that crypto is available
+      attemptLoadKV();
+    };
+
+    window.addEventListener('crypto-ready', onCryptoReady);
+    return () => window.removeEventListener('crypto-ready', onCryptoReady);
+    
   }, [sheetName, localStorageKey]);
 
   // Sync to localStorage on change

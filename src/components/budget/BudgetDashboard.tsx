@@ -297,13 +297,13 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
 ${categoryOptions}
 
 다음 규칙을 엄격히 준수하세요:
-1. 문서 내용에서 '지출 금액(원)', '사용 목적(적요)', 그리고 문맥상 일치하는 '예산 과목 ID'를 찾아보세요.
-2. 금액은 숫자만 추출.
-3. 목적은 20자 이내로 요약.
-4. 예산 과목 매칭: 위 목록 중 가장 관련성 높은 항목을 찾아 "ID" 문자열을 반환하세요. 정확한 ID를 모르겠다면, 빈 문자열로 두지 말고 가장 비슷한 "별칭"이나 "항목" 텍스트를 그대로 적출하세요. (절대 빈 문자열을 반환하지 마세요.)
-5. 문서 하단 "시행 [문서번호] (날짜)" 패턴을 찾아 "시행 문서 번호"(예: 보건행정과-1234)와 해당 문서를 시행한 "날짜"(예: 2026. 04. 10. -> YYYY-MM-DD 변환)를 우선적으로 추출하세요. 
-6. 응답은 오직 순수한 JSON 객체 문자열이어야 하며, 백틱이나 마크다운 블록이 없어야 합니다.
-형식: {"categoryId": "id또는별칭", "amount": 1234, "purpose": "요약", "docNum": "보건행정과-123", "date": "2026-04-10"}
+1. 문서 내용에서 '지출 금액(원)', '사용 목적(적요)', 그리고 문맥상 완벽히 일치하는 예산 '항목(통계목)'을 찾아보세요.
+2. 예산 과목 매칭: 위 목록 중 가장 관련성 높은 통계목(예: 사무관리비, 공공운영비 등 여비)을 찾아 그 항목에 해당하는 정확한 "ID"를 추출해야 합니다. 
+3. 응답할 JSON은 반드시 'reasoning' 필드를 맨 처음 작성하여 지출 목적과 통계목 매칭의 논리적 이유를 스스로 설명한 뒤에 'categoryId' 등 나머지 필드를 작성하세요.
+4. 금액은 숫자만 추출. 목적은 20자 이내로 요약.
+5. 문서 하단 "시행 [문서번호] (날짜)" 패턴을 찾아 "시행 문서 번호"(예: 보건행정과-1234)와 해당 문서를 시행한 "날짜"(예: 2026-04-10)를 우선적으로 추출.
+6. 응답은 오직 순수한 JSON 객체 문자열이어야 하며, 마크다운이나 백틱이 없어야 합니다.
+형식: {"reasoning": "지출 목적이 XX이므로 YY항목이 적합함", "categoryId": "정확한ID", "amount": 1234, "purpose": "요약", "docNum": "보건행정과-123", "date": "2026-04-10"}
       `.trim();
 
       const responseText = await askLlama([
@@ -360,16 +360,25 @@ ${categoryOptions}
       if (result.categoryId) {
         let matchedCat = categories.find(c => c.id === result.categoryId);
         if (!matchedCat) {
-          // AI가 ID 대신 이름이나 별칭을 반환한 경우 방어적 매칭 (Fuzzy Match)
+          // AI가 ID 대신 이름이나 통계목을 반환한 경우 방어적 매칭 (Fuzzy Match - 통계목/이름 최우선)
           const catStr = String(result.categoryId).trim().toLowerCase();
-          matchedCat = categories.find(c => 
-            c.name.toLowerCase() === catStr ||
-            c.name.toLowerCase().includes(catStr) ||
-            catStr.includes(c.name.toLowerCase()) ||
-            (c.unitProject && catStr.includes(c.unitProject.toLowerCase())) ||
-            (c.detailedProject && catStr.includes(c.detailedProject.toLowerCase())) ||
-            (c.statItem && catStr.includes(c.statItem.split('(')[0].trim().toLowerCase()))
-          );
+          
+          // 1순위: 통계목 (사무관리비, 공공운영비 등) 매칭 최우선
+          matchedCat = categories.find(c => c.statItem && catStr.includes(c.statItem.split('(')[0].trim().toLowerCase()));
+          
+          if (!matchedCat) {
+            // 2순위: 카테고리 이름이나 별칭 직접 매칭
+            matchedCat = categories.find(c => 
+              c.name.toLowerCase() === catStr ||
+              c.name.toLowerCase().includes(catStr) ||
+              catStr.includes(c.name.toLowerCase())
+            );
+          }
+
+          if (!matchedCat) {
+            // 3순위: 세부사업명 매칭 (단위사업명은 너무 광범위하므로 제외)
+            matchedCat = categories.find(c => c.detailedProject && catStr.includes(c.detailedProject.toLowerCase()));
+          }
         }
         if (matchedCat) {
           setSelectedCatId(matchedCat.id);
