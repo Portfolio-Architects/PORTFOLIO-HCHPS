@@ -300,10 +300,10 @@ ${categoryOptions}
 1. 문서 내용에서 '지출 금액(원)', '사용 목적(적요)', 그리고 문맥상 일치하는 '예산 과목 ID'를 찾아보세요.
 2. 금액은 숫자만 추출.
 3. 목적은 20자 이내로 요약.
-4. 카테고리 ID는 반드시 위 목록에 있는 "ID:" 항목 중 하나여야 함. 찾지 못하면 "" 빈문자열.
-5. 문서 하단 등에서 '시행 문서 번호' (예: 보건행정과-1234)와 해당 문서의 '날짜' (예: 2026. 04. 10. -> YYYY-MM-DD 형식으로 변환)를 찾아 추출하세요. 문서 번호가 없으면 빈 문자열.
+4. 예산 과목 매칭: 위 목록 중 가장 관련성 높은 항목을 찾아 "ID" 문자열을 반환하세요. 정확한 ID를 모르겠다면, 빈 문자열로 두지 말고 가장 비슷한 "별칭"이나 "항목" 텍스트를 그대로 적출하세요. (절대 빈 문자열을 반환하지 마세요.)
+5. 문서 하단 "시행 [문서번호] (날짜)" 패턴을 찾아 "시행 문서 번호"(예: 보건행정과-1234)와 해당 문서를 시행한 "날짜"(예: 2026. 04. 10. -> YYYY-MM-DD 변환)를 우선적으로 추출하세요. 
 6. 응답은 오직 순수한 JSON 객체 문자열이어야 하며, 백틱이나 마크다운 블록이 없어야 합니다.
-형식: {"categoryId": "id문자열", "amount": 1234, "purpose": "요약", "docNum": "보건행정과-123", "date": "2026-04-10"}
+형식: {"categoryId": "id또는별칭", "amount": 1234, "purpose": "요약", "docNum": "보건행정과-123", "date": "2026-04-10"}
       `.trim();
 
       const responseText = await askLlama([
@@ -380,8 +380,24 @@ ${categoryOptions}
         setEntryAmount(amtStr ? Number(amtStr).toLocaleString('ko-KR') : '');
       }
       if (result.purpose) setEntryPurpose(result.purpose.substring(0, 30));
-      if (result.docNum) setEntryDocNum(result.docNum);
-      if (result.date && /^\d{4}-\d{2}-\d{2}$/.test(result.date)) setEntryDate(result.date);
+      
+      // 1. LLM 파싱 결과 기본 할당
+      let finalDocNum = result.docNum || '';
+      let finalDate = (result.date && /^\d{4}-\d{2}-\d{2}$/.test(result.date)) ? result.date : '';
+
+      // 2. 정규식(Regex)을 통한 초정밀 원본 텍스트 직접 추출 (우선순위 높음)
+      const docRegex = /시행[\s\n]*([가-힣a-zA-Z0-9]+-\d+)[\s\n]*\([\s\n]*(\d{4})\.[\s\n]*(\d{1,2})\.[\s\n]*(\d{1,2})\.[\s\n]*\)/;
+      const docMatch = text.match(docRegex);
+      if (docMatch) {
+        finalDocNum = docMatch[1]; // 보건행정과-3084
+        const year = docMatch[2];
+        const month = docMatch[3].padStart(2, '0');
+        const day = docMatch[4].padStart(2, '0');
+        finalDate = `${year}-${month}-${day}`;
+      }
+
+      if (finalDocNum) setEntryDocNum(finalDocNum);
+      if (finalDate) setEntryDate(finalDate);
 
       alert('✅ AI가 지출 품의서를 성공적으로 분석하여 폼을 채웠습니다.');
     } catch (err: any) {
