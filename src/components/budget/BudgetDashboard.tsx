@@ -243,18 +243,18 @@ const PolicyGroupCard = React.memo(({
                   const cfg = ACTION_TYPE_CONFIG[entry.actionType || 'general'] || ACTION_TYPE_CONFIG['general'];
                   const parentCat = cats.find(c => c.id === entry.categoryId);
                   return (
-                    <div key={entry.id} className="flex items-center justify-between text-xs group bg-gray-50/60 p-2 rounded-lg border border-gray-100 hover:bg-gray-50 transition-colors">
-                      <div className="flex items-center gap-2 overflow-hidden">
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold flex-shrink-0 ${cfg.badgeBg}`}>{cfg.badge}</span>
-                        <span className="text-[10px] bg-white border border-gray-200 text-gray-600 px-1 py-0.5 rounded truncate max-w-[70px] hidden sm:block">{parentCat?.unitProject || '알수없음'}</span>
-                        {entry.docRegNum && <span className="text-[10px] bg-indigo-50 border border-indigo-100 text-indigo-700 px-1 py-0.5 rounded truncate max-w-[100px] hidden sm:block">{entry.docRegNum}</span>}
-                        <span className="text-[var(--color-text-secondary)] font-medium truncate">{entry.purpose}</span>
+                    <div key={entry.id} className="flex items-center justify-between text-sm group bg-gray-50/60 p-2.5 rounded-lg border border-gray-100 hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center gap-2.5 overflow-hidden">
+                        <span className={`px-2 py-0.5 rounded text-[11px] font-bold flex-shrink-0 border border-transparent ${cfg.badgeBg}`}>{cfg.badge}</span>
+                        <span className="text-[11px] bg-white border border-gray-200 text-gray-600 px-1.5 py-0.5 rounded truncate max-w-[80px] hidden sm:block">{parentCat?.unitProject || '알수없음'}</span>
+                        {entry.docRegNum && <span className="text-[11px] bg-indigo-50 border border-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded truncate max-w-[110px] hidden sm:block">{entry.docRegNum}</span>}
+                        <span className="text-gray-800 font-bold truncate tracking-tight">{entry.purpose}</span>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0 pl-2">
-                         <span className="font-semibold text-gray-700">{formatN(entry.amount)}원</span>
+                         <span className="font-bold text-gray-800 tracking-tight">{formatN(entry.amount)}원</span>
                          <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                           <button onClick={() => openEditEntry(entry)} className="p-1 rounded hover:bg-gray-100 text-gray-400"><Pencil size={12} /></button>
-                           <button onClick={() => { if(window.confirm('이 지출 내역을 정말 삭제하시겠습니까? 삭제된 데이터는 복구할 수 없습니다.')) deleteEntry(entry.id) }} className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500"><Trash2 size={12} /></button>
+                           <button onClick={() => openEditEntry(entry)} className="p-1 rounded hover:bg-gray-100 text-gray-400"><Pencil size={14} /></button>
+                           <button onClick={() => { if(window.confirm('이 지출 내역을 정말 삭제하시겠습니까? 삭제된 데이터는 복구할 수 없습니다.')) deleteEntry(entry.id) }} className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500"><Trash2 size={14} /></button>
                          </div>
                        </div>
                     </div>
@@ -964,14 +964,14 @@ ${categoryOptions}
       </Modal>
 
       {/* Ledger Modal Component */}
-      <Modal isOpen={showLedgerModal} onClose={() => setShowLedgerModal(false)} title="일상경비 원장 교차 검증" size="lg">
+      <Modal isOpen={showLedgerModal} onClose={() => setShowLedgerModal(false)} title="일상경비 원장 교차 검증" size="2xl">
         <div className="space-y-4">
-          <div className="p-3 bg-teal-50 border border-teal-100 rounded-lg text-sm text-teal-800 font-medium leading-relaxed">
+          <div className="p-4 bg-teal-50 border border-teal-100 rounded-lg text-[15px] text-teal-800 font-medium leading-relaxed">
             💡 일상경비가 <span className="font-bold underline text-teal-900">한 번이라도 교부되거나 지출된</span> 예산 과목들만 보여줍니다.<br/>
             좌우 T계정 내역을 대조하여 영수증 처리가 누락되었거나 교부를 받지 못한 건을 찾아내세요.
           </div>
           
-          <div className="h-[60vh] overflow-y-auto space-y-3 pr-2 scrollbar-hide">
+          <div className="h-[65vh] overflow-y-auto space-y-4 pr-2 scrollbar-hide">
             {categories
               .map(cat => {
                 const stats = getCategoryStats(cat.id);
@@ -984,18 +984,18 @@ ${categoryOptions}
               .map((data, idx) => (
                 <div key={data.cat.id} className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm hover:shadow transition-shadow">
                   <details className="group marker:content-['']" open={idx === 0}>
-                    <summary className="flex items-center justify-between p-3 bg-gray-50/50 cursor-pointer hover:bg-gray-100 transition-colors list-none">
-                      <div className="flex flex-col gap-1.5">
-                        <div className="text-[14px] font-bold text-gray-800">
+                    <summary className="flex items-center justify-between p-4 bg-gray-50/50 cursor-pointer hover:bg-gray-100 transition-colors list-none">
+                      <div className="flex flex-col gap-2">
+                        <div className="text-[17px] font-bold text-gray-800">
                           {data.cat.name} 
-                          <span className="text-[11px] font-medium text-gray-500 ml-1.5 border border-gray-200 bg-white px-1.5 py-0.5 rounded">
+                          <span className="text-[13px] font-medium text-gray-500 ml-2 border border-gray-200 bg-white px-2 py-0.5 rounded">
                             {data.cat.unitProject}
                           </span>
                         </div>
-                        <div className="flex gap-4 text-[12px] font-semibold">
-                          <span className="text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100">교부액: {formatN(data.stats?.dailyExpenseIssued || 0)}</span>
-                          <span className="text-teal-600 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-100">지출액: {formatN(data.stats?.dailyExpenseSpent || 0)}</span>
-                          <span className={`px-1.5 py-0.5 rounded border ${
+                        <div className="flex gap-4 text-[14px] font-semibold mt-1">
+                          <span className="text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-100">교부액: {formatN(data.stats?.dailyExpenseIssued || 0)}</span>
+                          <span className="text-teal-600 bg-teal-50 px-2 py-1 rounded border border-teal-100">지출액: {formatN(data.stats?.dailyExpenseSpent || 0)}</span>
+                          <span className={`px-2 py-1 rounded border ${
                             (data.stats?.dailyExpenseRemaining || 0) < 0 
                               ? 'text-red-600 bg-red-50 border-red-100' 
                               : 'text-blue-700 bg-blue-50 border-blue-100'
@@ -1004,43 +1004,43 @@ ${categoryOptions}
                           </span>
                         </div>
                       </div>
-                      <ChevronDown size={20} className="text-gray-400 group-open:rotate-180 transition-transform flex-shrink-0" />
+                      <ChevronDown size={24} className="text-gray-400 group-open:rotate-180 transition-transform flex-shrink-0" />
                     </summary>
-                    <div className="p-3 grid grid-cols-2 gap-4 border-t border-gray-200 bg-white">
+                    <div className="p-4 grid grid-cols-2 gap-6 border-t border-gray-200 bg-white">
                       {/* Left: Issuance */}
                       <div>
-                        <div className="text-[12px] font-bold text-amber-700 mb-2 border-b border-amber-200 pb-1.5 flex justify-between">
+                        <div className="text-[14px] font-bold text-amber-700 mb-3 border-b border-amber-200 pb-2 flex justify-between">
                           <span>교부(입금) 내역</span>
-                          <span className="bg-amber-100 text-amber-800 px-1.5 rounded">{data.issuances.length}건</span>
+                          <span className="bg-amber-100 text-amber-800 px-2 rounded-md">{data.issuances.length}건</span>
                         </div>
-                        <ul className="space-y-2">
-                          {data.issuances.length === 0 && <li className="text-[11px] text-gray-400 text-center py-4 bg-gray-50 rounded border border-dashed border-gray-200">내역 없음</li>}
+                        <ul className="space-y-2.5">
+                          {data.issuances.length === 0 && <li className="text-[13px] text-gray-400 text-center py-6 bg-gray-50 rounded border border-dashed border-gray-200 font-medium">내역 없음</li>}
                           {data.issuances.map(e => (
-                            <li key={e.id} className="flex justify-between items-center text-[11px] bg-amber-50/50 hover:bg-amber-50 p-2 rounded border border-amber-100 transition-colors">
-                              <div className="flex flex-col gap-0.5 truncate pr-2">
-                                <span className="text-gray-500 font-medium">{e.date.replace(/-/g, '.')}</span>
-                                <span className="font-semibold text-gray-800 truncate" title={e.purpose}>{e.purpose}</span>
+                            <li key={e.id} className="flex justify-between items-center text-[13px] bg-amber-50/50 hover:bg-amber-50 p-3 rounded-lg border border-amber-100 transition-colors shadow-sm">
+                              <div className="flex flex-col gap-1 truncate pr-2">
+                                <span className="text-gray-500 font-semibold">{e.date.replace(/-/g, '.')}</span>
+                                <span className="font-bold text-gray-800 truncate" title={e.purpose}>{e.purpose}</span>
                               </div>
-                              <span className="font-bold text-amber-600 shrink-0">+{formatN(e.amount)}</span>
+                              <span className="font-bold text-amber-600 shrink-0 text-[14px]">{formatN(e.amount)}</span>
                             </li>
                           ))}
                         </ul>
                       </div>
                       {/* Right: Daily Expense */}
                       <div>
-                        <div className="text-[12px] font-bold text-teal-700 mb-2 border-b border-teal-200 pb-1.5 flex justify-between">
+                        <div className="text-[14px] font-bold text-teal-700 mb-3 border-b border-teal-200 pb-2 flex justify-between">
                           <span>지출(출금) 내역</span>
-                          <span className="bg-teal-100 text-teal-800 px-1.5 rounded">{data.dailyExpenses.length}건</span>
+                          <span className="bg-teal-100 text-teal-800 px-2 rounded-md">{data.dailyExpenses.length}건</span>
                         </div>
-                        <ul className="space-y-2">
-                          {data.dailyExpenses.length === 0 && <li className="text-[11px] text-gray-400 text-center py-4 bg-gray-50 rounded border border-dashed border-gray-200">내역 없음</li>}
+                        <ul className="space-y-2.5">
+                          {data.dailyExpenses.length === 0 && <li className="text-[13px] text-gray-400 text-center py-6 bg-gray-50 rounded border border-dashed border-gray-200 font-medium">내역 없음</li>}
                           {data.dailyExpenses.map(e => (
-                            <li key={e.id} className="flex justify-between items-center text-[11px] bg-teal-50/50 hover:bg-teal-50 p-2 rounded border border-teal-100 transition-colors">
-                              <div className="flex flex-col gap-0.5 truncate pr-2">
-                                <span className="text-gray-500 font-medium">{e.date.replace(/-/g, '.')}</span>
-                                <span className="font-semibold text-gray-800 truncate" title={e.purpose}>{e.purpose}</span>
+                            <li key={e.id} className="flex justify-between items-center text-[13px] bg-teal-50/50 hover:bg-teal-50 p-3 rounded-lg border border-teal-100 transition-colors shadow-sm">
+                              <div className="flex flex-col gap-1 truncate pr-2">
+                                <span className="text-gray-500 font-semibold">{e.date.replace(/-/g, '.')}</span>
+                                <span className="font-bold text-gray-800 truncate" title={e.purpose}>{e.purpose}</span>
                               </div>
-                              <span className="font-bold text-teal-600 shrink-0">-{formatN(e.amount)}</span>
+                              <span className="font-bold text-teal-600 shrink-0 text-[14px]">{formatN(e.amount)}</span>
                             </li>
                           ))}
                         </ul>
