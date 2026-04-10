@@ -308,14 +308,50 @@ ${text}
 
       const responseText = await askLlama([{ role: 'system', content: systemPrompt }]);
       let jsonStr = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
-      
-      const startIdx = jsonStr.indexOf('{');
-      const endIdx = jsonStr.lastIndexOf('}');
-      if (startIdx !== -1 && endIdx !== -1) {
-        jsonStr = jsonStr.substring(startIdx, endIdx + 1);
+      let result: any = null;
+
+      try {
+        result = JSON.parse(jsonStr);
+      } catch (e1) {
+        // 단일 객체 매칭 (첫번째 { } 블록)
+        const objMatch = jsonStr.match(/\{[\s\S]*?\}/);
+        // 배열 매칭 (첫번째 [ ] 블록)
+        const arrMatch = jsonStr.match(/\[[\s\S]*?\]/);
+        
+        let parsed = false;
+        if (arrMatch) {
+          try {
+            result = JSON.parse(arrMatch[0]);
+            parsed = true;
+          } catch(e) {}
+        }
+        
+        if (!parsed && objMatch) {
+          try {
+            result = JSON.parse(objMatch[0]);
+            parsed = true;
+          } catch(e) {}
+        }
+        
+        if (!parsed) {
+          // 마지막 시도: 전체를 둘러보는 광범위 매칭
+          const startIdx = jsonStr.indexOf('{');
+          const endIdx = jsonStr.lastIndexOf('}');
+          if (startIdx !== -1 && endIdx !== -1) {
+            result = JSON.parse(jsonStr.substring(startIdx, endIdx + 1));
+          } else {
+            throw new Error('유효한 JSON 묶음을 찾을 수 없습니다.');
+          }
+        }
       }
-      
-      const result = JSON.parse(jsonStr);
+
+      // 배열일 경우 다중 폼 중 첫번째만 로드하고 알림
+      if (Array.isArray(result)) {
+        if (result.length > 1) {
+          alert(`여러 건(${result.length}건)의 내역이 분석되었습니다! 현재 폼에는 첫 번째 내역만 자동으로 입력됩니다.`);
+        }
+        result = result[0] || {};
+      }
 
       if (result.categoryId && categories.find(c => c.id === result.categoryId)) {
         setSelectedCatId(result.categoryId);
