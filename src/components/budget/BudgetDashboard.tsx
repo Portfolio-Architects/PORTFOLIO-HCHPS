@@ -727,7 +727,7 @@ ${text}
                 {isParsingPdf ? (
                    <div className="flex flex-col items-center gap-2">
                      <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                     <span className="text-xs text-blue-600 font-bold animate-pulse">Llama 3 모델로 실시간 분석 중...</span>
+                     <span className="text-xs text-blue-600 font-bold animate-pulse">AI 모델로 실시간 분석 중...</span>
                    </div>
                 ) : (
                    <>
