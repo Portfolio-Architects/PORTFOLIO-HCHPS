@@ -21,6 +21,7 @@ interface WorkspaceViewProps {
   updateCategory: (id: string, updates: Partial<BudgetCategory>) => void;
   deleteCategory: (id: string) => void;
   addEntry: (entry: Omit<BudgetEntry, 'id'>) => void;
+  updateEntry: (id: string, updates: Partial<BudgetEntry>) => void;
   deleteEntry: (id: string) => void;
   getCategoryStats: (id: string) => { 
     totalBudget: number; spent: number; planned: number; remaining: number; usageRate: number;
@@ -55,6 +56,7 @@ export function WorkspaceView(props: WorkspaceViewProps) {
             updateCategory={props.updateCategory}
             deleteCategory={props.deleteCategory}
             addEntry={props.addEntry}
+            updateEntry={props.updateEntry}
             deleteEntry={props.deleteEntry}
             getCategoryStats={props.getCategoryStats}
             overallStats={props.overallStats}

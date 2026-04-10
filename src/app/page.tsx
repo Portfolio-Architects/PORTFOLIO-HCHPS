@@ -326,6 +326,7 @@ export default function Home() {
             updateCategory={updateCategory}
             deleteCategory={deleteCategory}
             addEntry={addEntry}
+            updateEntry={updateEntry}
             deleteEntry={deleteEntry}
             getCategoryStats={getCategoryStats}
             overallStats={overallStats}

@@ -17,6 +17,7 @@ interface BudgetDashboardProps {
   updateCategory: (id: string, updates: Partial<BudgetCategory>) => void;
   deleteCategory: (id: string) => void;
   addEntry: (entry: Omit<BudgetEntry, 'id'>) => void;
+  updateEntry: (id: string, updates: Partial<BudgetEntry>) => void;
   deleteEntry: (id: string) => void;
   getCategoryStats: (id: string) => { 
     totalBudget: number; spent: number; planned: number; remaining: number; usageRate: number;
@@ -106,7 +107,8 @@ const PolicyGroupCard = React.memo(({
   getCategoryStats,
   deleteCategory,
   deleteEntry,
-  openEditCat
+  openEditCat,
+  openEditEntry
 }: {
   group: { policyName: string; cats: BudgetCategory[] };
   entries: BudgetEntry[];
@@ -114,6 +116,7 @@ const PolicyGroupCard = React.memo(({
   deleteCategory: (id: string) => void;
   deleteEntry: (id: string) => void;
   openEditCat: (cat: BudgetCategory) => void;
+  openEditEntry: (entry: BudgetEntry) => void;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const { policyName, cats } = group;
@@ -233,9 +236,12 @@ const PolicyGroupCard = React.memo(({
                       <span className="text-[var(--color-text-secondary)] font-medium truncate">{entry.purpose}</span>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0 pl-2">
-                      <span className="font-semibold text-gray-700">{formatN(entry.amount)}원</span>
-                      <button onClick={() => deleteEntry(entry.id)} className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-opacity"><Trash2 size={12} /></button>
-                    </div>
+                       <span className="font-semibold text-gray-700">{formatN(entry.amount)}원</span>
+                       <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                         <button onClick={() => openEditEntry(entry)} className="p-1 rounded hover:bg-gray-100 text-gray-400"><Pencil size={12} /></button>
+                         <button onClick={() => deleteEntry(entry.id)} className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500"><Trash2 size={12} /></button>
+                       </div>
+                     </div>
                   </div>
                 );
               })}
@@ -249,7 +255,7 @@ const PolicyGroupCard = React.memo(({
 PolicyGroupCard.displayName = "PolicyGroupCard";
 
 export function BudgetDashboard(props: BudgetDashboardProps) {
-  const { categories, entries, addCategory, updateCategory, deleteCategory, addEntry, deleteEntry, getCategoryStats, overallStats } = props;
+  const { categories, entries, addCategory, updateCategory, deleteCategory, addEntry, updateEntry, deleteEntry, getCategoryStats, overallStats } = props;
   const [showCatModal, setShowCatModal] = useState(false);
   const [showEntryModal, setShowEntryModal] = useState(false);
   const [selectedCatId, setSelectedCatId] = useState<string>('');
@@ -275,6 +281,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
   const [entryMemo, setEntryMemo] = useState('');
   const [entryDate, setEntryDate] = useState(new Date().toISOString().split('T')[0]);
   const [editCatId, setEditCatId] = useState<string | null>(null);
+  const [editEntryId, setEditEntryId] = useState<string | null>(null);
   const [actionType, setActionType] = useState<BudgetActionType>('general');
 
   const [isLoaded, setIsLoaded] = useState(false);
@@ -538,16 +545,32 @@ ${categoryOptions}
       }
     }
 
-    addEntry({
-      categoryId: selectedCatId,
-      amount: reqAmount,
-      date: entryDate,
-      purpose: entryPurpose,
-      memo: entryMemo,
-      actionType,
-      docRegNum: entryDocNum,
-    });
-    setEntryAmount(''); setEntryPurpose(''); setEntryMemo(''); setEntryDocNum(''); setShowEntryModal(false);
+    if (editEntryId) {
+      updateEntry(editEntryId, {
+        categoryId: selectedCatId,
+        amount: reqAmount,
+        date: entryDate,
+        purpose: entryPurpose,
+        memo: entryMemo,
+        actionType,
+        docRegNum: entryDocNum,
+      });
+    } else {
+      addEntry({
+        categoryId: selectedCatId,
+        amount: reqAmount,
+        date: entryDate,
+        purpose: entryPurpose,
+        memo: entryMemo,
+        actionType,
+        docRegNum: entryDocNum,
+      });
+    }
+    closeEntryModal();
+  };
+
+  const closeEntryModal = () => {
+    setEntryAmount(''); setEntryPurpose(''); setEntryMemo(''); setEntryDocNum(''); setEditEntryId(null); setShowEntryModal(false);
   };
 
   const openEditCat = (cat: BudgetCategory) => {
@@ -558,6 +581,19 @@ ${categoryOptions}
   };
 
   const openEntryModal = () => {
+    setEditEntryId(null);
+    setShowEntryModal(true);
+  };
+
+  const openEditEntry = (entry: BudgetEntry) => {
+    setEditEntryId(entry.id);
+    setSelectedCatId(entry.categoryId);
+    setEntryAmount(entry.amount.toLocaleString('ko-KR'));
+    setEntryDate(entry.date);
+    setEntryPurpose(entry.purpose);
+    setEntryMemo(entry.memo || '');
+    setEntryDocNum(entry.docRegNum || '');
+    setActionType(entry.actionType || 'general');
     setShowEntryModal(true);
   };
 
@@ -724,6 +760,7 @@ ${categoryOptions}
               deleteCategory={deleteCategory}
               deleteEntry={deleteEntry}
               openEditCat={openEditCat}
+              openEditEntry={openEditEntry}
             />
           ))}
         </div>
