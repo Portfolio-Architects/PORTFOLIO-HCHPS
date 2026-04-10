@@ -229,6 +229,7 @@ const PolicyGroupCard = React.memo(({
                     <div className="flex items-center gap-2 overflow-hidden">
                       <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold flex-shrink-0 ${cfg.badgeBg}`}>{cfg.badge}</span>
                       <span className="text-[10px] bg-white border border-gray-200 text-gray-600 px-1 py-0.5 rounded truncate max-w-[70px] hidden sm:block">{parentCat?.unitProject || '알수없음'}</span>
+                      {entry.docRegNum && <span className="text-[10px] bg-indigo-50 border border-indigo-100 text-indigo-700 px-1 py-0.5 rounded truncate max-w-[100px] hidden sm:block">{entry.docRegNum}</span>}
                       <span className="text-[var(--color-text-secondary)] font-medium truncate">{entry.purpose}</span>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0 pl-2">
@@ -270,6 +271,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
   
   const [entryAmount, setEntryAmount] = useState('');
   const [entryPurpose, setEntryPurpose] = useState('');
+  const [entryDocNum, setEntryDocNum] = useState('');
   const [entryMemo, setEntryMemo] = useState('');
   const [entryDate, setEntryDate] = useState(new Date().toISOString().split('T')[0]);
   const [editCatId, setEditCatId] = useState<string | null>(null);
@@ -294,19 +296,21 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
 [사용 가능한 예산 카테고리 목록]
 ${categoryOptions}
 
-[분석할 문서 내용]
-${text}
-
 다음 규칙을 엄격히 준수하세요:
 1. 문서 내용에서 '지출 금액(원)', '사용 목적(적요)', 그리고 문맥상 일치하는 '예산 과목 ID'를 찾아보세요.
 2. 금액은 숫자만 추출.
 3. 목적은 20자 이내로 요약.
 4. 카테고리 ID는 반드시 위 목록에 있는 "ID:" 항목 중 하나여야 함. 찾지 못하면 "" 빈문자열.
-5. 응답은 오직 순수한 JSON 객체 문자열이어야 하며, 백틱이나 마크다운 블록이 없어야 합니다.
-형식: {"categoryId": "id문자열", "amount": 1234, "purpose": "요약"}
+5. 문서 하단 등에서 '시행 문서 번호' (예: 보건행정과-1234)와 해당 문서의 '날짜' (예: 2026. 04. 10. -> YYYY-MM-DD 형식으로 변환)를 찾아 추출하세요. 문서 번호가 없으면 빈 문자열.
+6. 응답은 오직 순수한 JSON 객체 문자열이어야 하며, 백틱이나 마크다운 블록이 없어야 합니다.
+형식: {"categoryId": "id문자열", "amount": 1234, "purpose": "요약", "docNum": "보건행정과-123", "date": "2026-04-10"}
       `.trim();
 
-      const responseText = await askLlama([{ role: 'user', content: systemPrompt }]);
+      const responseText = await askLlama([
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `[문서 원문]\n${text}\n\n위 문서를 분석하여 반드시 지정된 JSON 형식으로만 응답해.` }
+      ]);
+
       let jsonStr = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
       let result: any = null;
 
@@ -353,11 +357,31 @@ ${text}
         result = result[0] || {};
       }
 
-      if (result.categoryId && categories.find(c => c.id === result.categoryId)) {
-        setSelectedCatId(result.categoryId);
+      if (result.categoryId) {
+        let matchedCat = categories.find(c => c.id === result.categoryId);
+        if (!matchedCat) {
+          // AI가 ID 대신 이름이나 별칭을 반환한 경우 방어적 매칭 (Fuzzy Match)
+          const catStr = String(result.categoryId).trim().toLowerCase();
+          matchedCat = categories.find(c => 
+            c.name.toLowerCase() === catStr ||
+            c.name.toLowerCase().includes(catStr) ||
+            catStr.includes(c.name.toLowerCase()) ||
+            (c.unitProject && catStr.includes(c.unitProject.toLowerCase())) ||
+            (c.detailedProject && catStr.includes(c.detailedProject.toLowerCase())) ||
+            (c.statItem && catStr.includes(c.statItem.split('(')[0].trim().toLowerCase()))
+          );
+        }
+        if (matchedCat) {
+          setSelectedCatId(matchedCat.id);
+        }
       }
-      if (result.amount) setEntryAmount(result.amount.toString());
+      if (result.amount) {
+        const amtStr = result.amount.toString().replace(/[^0-9]/g, '');
+        setEntryAmount(amtStr ? Number(amtStr).toLocaleString('ko-KR') : '');
+      }
       if (result.purpose) setEntryPurpose(result.purpose.substring(0, 30));
+      if (result.docNum) setEntryDocNum(result.docNum);
+      if (result.date && /^\d{4}-\d{2}-\d{2}$/.test(result.date)) setEntryDate(result.date);
 
       alert('✅ AI가 지출 품의서를 성공적으로 분석하여 폼을 채웠습니다.');
     } catch (err: any) {
@@ -437,7 +461,7 @@ ${text}
     // 예산 지침 컴플라이언스 룰 검증
     const targetCat = categories.find(c => c.id === selectedCatId);
     const stats = targetCat ? getCategoryStats(targetCat.id) : null;
-    const reqAmount = Number(entryAmount);
+    const reqAmount = Number(entryAmount.replace(/,/g, ''));
     
     // 0. 중복 지출 방지 (최근 7일 내 동일 예산과목 & 동일 금액)
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -496,8 +520,9 @@ ${text}
       purpose: entryPurpose,
       memo: entryMemo,
       actionType,
+      docRegNum: entryDocNum,
     });
-    setEntryAmount(''); setEntryPurpose(''); setEntryMemo(''); setShowEntryModal(false);
+    setEntryAmount(''); setEntryPurpose(''); setEntryMemo(''); setEntryDocNum(''); setShowEntryModal(false);
   };
 
   const openEditCat = (cat: BudgetCategory) => {
@@ -745,8 +770,14 @@ ${text}
               {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
-          <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">금액 (원) *</label><input type="number" value={entryAmount} onChange={e => setEntryAmount(e.target.value)} className={inputClass} required placeholder="0" /></div>
+          <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">금액 (원) *</label>
+             <input type="text" value={entryAmount} onChange={e => {
+               const raw = e.target.value.replace(/[^0-9]/g, '');
+               setEntryAmount(raw ? Number(raw).toLocaleString('ko-KR') : '');
+             }} className={inputClass} required placeholder="0" />
+          </div>
           <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">품의 내용 *</label><input type="text" value={entryPurpose} onChange={e => setEntryPurpose(e.target.value)} className={inputClass} required placeholder="어떤 지출을 승인받을 건지" /></div>
+          <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">시행 문서 번호</label><input type="text" value={entryDocNum} onChange={e => setEntryDocNum(e.target.value)} className={inputClass} placeholder="예: 찾아가는보건팀-1234 (선택)" /></div>
           <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">날짜</label><input type="date" value={entryDate} onChange={e => setEntryDate(e.target.value)} className={inputClass} /></div>
           <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">메모</label><input type="text" value={entryMemo} onChange={e => setEntryMemo(e.target.value)} className={inputClass} placeholder="추가 메모 (선택)" /></div>
           <button

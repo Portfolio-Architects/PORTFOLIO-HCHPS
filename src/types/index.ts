@@ -46,6 +46,7 @@ export interface BudgetEntry {
   entryType?: 'approval'; // Deprecated
   actionType?: BudgetActionType; // 일반품의, 일상경비 교부, 일상경비 지출
   inventoryItemId?: string;
+  docRegNum?: string; // 시행 문서 번호 (보건행정과-00000)
 }
 
 // ============ Inventory Module ============
