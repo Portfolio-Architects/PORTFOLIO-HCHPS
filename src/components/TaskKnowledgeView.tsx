@@ -9,34 +9,29 @@ import { useGraphCustomization } from '@/hooks/useGraphCustomization';
 import { Card } from '@/components/ui/card';
 import { 
   Zap, ListTodo, Archive, CalendarDays, Edit2, Trash2, 
-  MapPin, Users, FileText, CheckCircle2, Circle, Clock, Tag, ExternalLink, BrainCircuit
+  MapPin, Users, FileText, CheckCircle2, Circle, Clock, Tag, ExternalLink, BrainCircuit, BookOpen
 } from 'lucide-react';
 import { WikiEditor } from './WikiEditor';
 
 interface TaskKnowledgeViewProps {
-  // Tasks
   tasks: Task[];
   addTask: (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateTask: (id: string, updates: Partial<Task>) => void;
   deleteTask: (id: string) => void;
   moveTask: (id: string, status: TaskStatus) => void;
-  // Meetings
   meetings: Meeting[];
   addMeeting: (meeting: Omit<Meeting, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateMeeting: (id: string, updates: Partial<Meeting>) => void;
   deleteMeeting: (id: string) => void;
-  // Projects
   projects: Project[];
   addProject: (p: Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'checklistItems'>) => void;
   deleteProject: (id: string) => void;
-  // Knowledge
   knowledgeEntries: KnowledgeEntry[];
   addKnowledge: (entry: Omit<KnowledgeEntry, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateKnowledge: (id: string, updates: Partial<KnowledgeEntry>) => void;
   deleteKnowledge: (id: string) => void;
   filterKnowledge: (filters: { search?: string; category?: string; tag?: string }) => KnowledgeEntry[];
   knowledgeMetadata?: { categories: string[]; tags: string[] };
-  // Signals
   signalEntries?: SignalEntry[];
   addSignal?: (text: string) => void;
   deleteSignal?: (id: string) => void;
@@ -64,15 +59,17 @@ function formatRelativeTime(dateStr: string) {
 }
 
 export function TaskKnowledgeView(props: TaskKnowledgeViewProps) {
-  // Modal States
   const [showAddModal, setShowAddModal] = useState(false);
   const [addModalMode, setAddModalMode] = useState<'memo' | 'pdf'>('memo');
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [editTask, setEditTask] = useState<Task | null>(null);
   const [defaultStatus, setDefaultStatus] = useState<TaskStatus>('todo');
-  const [editingWikiNode, setEditingWikiNode] = useState<{id: string; title: string; initialBlocks?: any[]} | null>(null);
-  const [viewingRawData, setViewingRawData] = useState<{title: string; content: string} | null>(null);
+  
+  // Master-Detail State
   const [activeFeedTab, setActiveFeedTab] = useState<'all' | 'memo' | 'pdf'>('all');
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [editingWikiNode, setEditingWikiNode] = useState<{id: string; title: string; initialBlocks?: any[]} | null>(null);
+  const [extractingId, setExtractingId] = useState<string | null>(null);
 
   const openTaskModal = (task?: Task, status?: TaskStatus) => {
     setEditTask(task || null);
@@ -81,7 +78,6 @@ export function TaskKnowledgeView(props: TaskKnowledgeViewProps) {
   };
 
   const { overrides, customNodes } = useGraphCustomization();
-
   const allTags = useMemo(() => {
     return [
       ...new Set([
@@ -94,27 +90,12 @@ export function TaskKnowledgeView(props: TaskKnowledgeViewProps) {
     ];
   }, [props.tasks, customNodes, overrides]);
 
-  // Build the chronological feed
   const feed = useMemo<FeedItem[]>(() => {
     const items: FeedItem[] = [];
-    
-    (props.signalEntries || []).forEach(sig => {
-      items.push({ type: 'signal', data: sig, dateMs: new Date(sig.createdAt).getTime() });
-    });
-    
-    props.tasks.forEach(task => {
-      items.push({ type: 'task', data: task, dateMs: new Date(task.createdAt).getTime() });
-    });
-
-    props.meetings.forEach(meeting => {
-      items.push({ type: 'meeting', data: meeting, dateMs: new Date(meeting.createdAt).getTime() });
-    });
-
-    props.knowledgeEntries.forEach(know => {
-      items.push({ type: 'knowledge', data: know, dateMs: new Date(know.createdAt).getTime() });
-    });
-
-    // Sort descending (newest first)
+    (props.signalEntries || []).forEach(sig => items.push({ type: 'signal', data: sig, dateMs: new Date(sig.createdAt).getTime() }));
+    props.tasks.forEach(task => items.push({ type: 'task', data: task, dateMs: new Date(task.createdAt).getTime() }));
+    props.meetings.forEach(meeting => items.push({ type: 'meeting', data: meeting, dateMs: new Date(meeting.createdAt).getTime() }));
+    props.knowledgeEntries.forEach(know => items.push({ type: 'knowledge', data: know, dateMs: new Date(know.createdAt).getTime() }));
     return items.sort((a, b) => b.dateMs - a.dateMs);
   }, [props.signalEntries, props.tasks, props.meetings, props.knowledgeEntries]);
 
@@ -126,11 +107,19 @@ export function TaskKnowledgeView(props: TaskKnowledgeViewProps) {
         if (activeFeedTab === 'pdf') return isPdf;
         if (activeFeedTab === 'memo') return !isPdf;
       }
-      return false; // Hide non-signal items if not in 'all' view when filtering by signal types
+      return false;
     });
   }, [feed, activeFeedTab]);
 
-  const [extractingId, setExtractingId] = useState<string | null>(null);
+  const activeItem = useMemo(() => {
+    if (!selectedItemId) return null;
+    return filteredFeed.find(i => 
+      (i.type === 'signal' && i.data.id === selectedItemId) ||
+      (i.type === 'task' && i.data.id === selectedItemId) ||
+      (i.type === 'meeting' && i.data.id === selectedItemId) ||
+      (i.type === 'knowledge' && i.data.id === selectedItemId)
+    ) || null;
+  }, [filteredFeed, selectedItemId]);
 
   const handleExtractWiki = async (e: React.MouseEvent, nodeId: string, itemType: string, itemTitle: string, rawContent: string) => {
     e.stopPropagation();
@@ -158,285 +147,304 @@ ${rawContent}
       const lines = response.split('\n');
       const blocks = lines.map(line => ({ type: 'paragraph', content: line }));
       
-      // Save locally
       localStorage.setItem(`HCHPS-Wiki-${nodeId}`, JSON.stringify(blocks));
-      
-      // Save to Cloudflare SSOT
       const { replaceAll } = await import('@/lib/sheets-api');
       await replaceAll(`WIKI_DOC_${nodeId}`, [{ id: 'singleton', blocks }]);
 
       alert('✨ 지정된 RAW 데이터가 위키 문서로 정제되어 연동 전송되었습니다!');
-      // Force re-render to update the button status
-      setExtractingId(nodId => nodId); 
-    } catch (e) {
-      console.error(e);
-      alert('위키 다큐 변환 중 오류가 발생했습니다.');
+      
+      // Auto open wiki if selected
+      setEditingWikiNode({ id: nodeId, title: itemType, initialBlocks: blocks });
+      setSelectedItemId(nodeId);
+      
+    } catch (err) {
+      console.error(err);
+      alert('위키 변환 중 오류가 발생했습니다.');
     } finally {
       setExtractingId(null);
     }
   };
 
-  const renderFeedItem = (item: FeedItem) => {
-    switch (item.type) {
-      case 'signal': {
-        const sig = item.data;
-        const isPdf = sig.text?.includes('[PDF 원본:');
-        return (
-          <Card key={`sig-${sig.id}`} className={`p-4 transition-colors group ${isPdf ? 'hover:border-amber-200' : 'hover:border-emerald-200'}`}>
-            <div className="flex justify-between items-start mb-2">
-              <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold ${isPdf ? 'text-amber-600 bg-amber-50' : 'text-emerald-600 bg-emerald-50'}`}>
-                {isPdf ? <FileText size={12} /> : <Zap size={12} />} 
-                {isPdf ? 'PDF 원문 데이터' : '빠른 텍스트 메모'}
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-gray-400">{formatRelativeTime(sig.createdAt)}</span>
-                
-                {localStorage.getItem(`HCHPS-Wiki-${sig.id}`) ? (
-                  <div className="flex items-center gap-1.5">
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const blocks = JSON.parse(localStorage.getItem(`HCHPS-Wiki-${sig.id}`) || '[]');
-                        setEditingWikiNode({ id: sig.id, title: isPdf ? 'PDF 지식' : '메모 아이디어', initialBlocks: blocks });
-                      }}
-                      className="flex items-center gap-1 text-[11px] font-bold text-blue-600 bg-blue-50/80 px-2 py-1 rounded-md border border-blue-100 hover:bg-blue-100 transition-colors"
-                    >
-                      ✅ 위키 문서 보기/수정
-                    </button>
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (window.confirm('기존 위키 문서 내용이 삭제되고 AI가 새로 작성합니다. 계속 진행하시겠습니까?')) {
-                          handleExtractWiki(e, sig.id, isPdf ? 'PDF 지식' : '빠른 메모', isPdf ? 'PDF 원문 구조화' : '메모 아이디어', sig.text);
-                        }
-                      }}
-                      className="flex items-center gap-1 text-[11px] font-medium text-gray-500 bg-gray-50/80 px-2 py-1 rounded-md border border-gray-200 hover:bg-gray-100 transition-colors"
-                    >
-                      {extractingId === sig.id ? '정제중...' : '🔄 다시 정제'}
-                    </button>
-                  </div>
-                ) : (
-                  <button 
-                    onClick={(e) => handleExtractWiki(e, sig.id, isPdf ? 'PDF 지식' : '빠른 메모', isPdf ? 'PDF 원문 구조화' : '메모 아이디어', sig.text)}
-                    className={`flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md border transition-colors ${isPdf ? 'text-amber-600 bg-amber-50/80 border-amber-100 hover:bg-amber-100' : 'text-emerald-600 bg-emerald-50/80 border-emerald-100 hover:bg-emerald-100'}`}
-                  >
-                    {extractingId === sig.id ? '정제중...' : '✨ 위키 정제 (LLM)'}
-                  </button>
-                )}
+  const renderLeftFeedItem = (item: FeedItem) => {
+    const isSelected = selectedItemId === (item.data as any).id;
+    let titleStr = '';
+    let previewStr = '';
+    let categoryBadge = null;
+    let timeStr = formatRelativeTime(item.data.createdAt);
+    const itemId = (item.data as any).id;
 
-                {props.deleteSignal && (
-                  <button onClick={() => { if(window.confirm('정말 삭제하시겠습니까?')) props.deleteSignal?.(sig.id); }} className="text-gray-400 hover:text-red-500 cursor-pointer opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
-                    <Trash2 size={14} />
-                  </button>
-                )}
-              </div>
-            </div>
-            <p 
-              onClick={() => setViewingRawData({ title: isPdf ? 'PDF 원문 데이터' : '빠른 텍스트 메모', content: sig.text })}
-              className="text-[15px] text-gray-800 font-medium truncate cursor-pointer hover:text-blue-600 transition-colors"
-              title="클릭하여 전체 내용 보기"
-            >
-              {sig.text}
-            </p>
-          </Card>
-        );
-      }
-      
-      case 'task': {
-        const task = item.data;
-        return (
-          <Card key={`task-${task.id}`} className="p-0 overflow-hidden group hover:border-blue-200 transition-colors">
-            <div className="flex items-stretch">
-              {/* Checkbox Ribbon */}
-              <div 
-                className={`w-12 flex flex-col items-center justify-start pt-4 cursor-pointer transition-colors ${task.status === 'done' ? 'bg-gray-50' : 'bg-blue-50/30 hover:bg-blue-50'}`}
-                onClick={() => props.moveTask(task.id, task.status === 'done' ? 'todo' : 'done')}
-              >
-                {task.status === 'done' 
-                  ? <CheckCircle2 size={20} className="text-emerald-500" />
-                  : <Circle size={20} className="text-blue-300 hover:text-blue-500" />
-                }
-              </div>
-              
-              <div className="flex-1 p-4">
-                <div className="flex justify-between items-start mb-1">
-                  <div className="flex items-center gap-1.5 text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full text-xs font-semibold mb-1 w-fit">
-                    <ListTodo size={12} /> 업무
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-gray-400">{formatRelativeTime(task.createdAt)}</span>
-                    <button 
-                      onClick={(e) => handleExtractWiki(e, `task-${task.id}`, '업무(Task)', task.title, task.description || '')}
-                      className="flex items-center gap-1 text-[11px] font-medium text-blue-600 bg-blue-50/80 px-2 py-1 rounded-md border border-blue-100 hover:bg-blue-100 transition-colors"
-                    >
-                      {extractingId === `task-${task.id}` ? '정제중...' : '✨ 위키 정제 (LLM)'}
-                    </button>
-                    <button onClick={(e) => { e.stopPropagation(); openTaskModal(task); }} className="text-gray-300 hover:text-blue-500 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Edit2 size={14} />
-                    </button>
-                    <button onClick={(e) => { e.stopPropagation(); if(window.confirm('정말 삭제하시겠습니까?')) props.deleteTask(task.id); }} className="text-gray-400 hover:text-red-500 cursor-pointer opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </div>
-                <h3 className={`text-[15px] font-semibold ${task.status === 'done' ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
-                  {task.title}
-                </h3>
-                {task.description && (
-                  <p className="text-sm text-gray-500 mt-1 line-clamp-2">{task.description}</p>
-                )}
-                <div className="flex items-center gap-2 mt-3 flex-wrap">
-                  {task.dueDate && (
-                    <span className="flex items-center gap-1 text-[11px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-100">
-                      <Clock size={10} /> 마감: {task.dueDate.replace('T', ' ')}
-                    </span>
-                  )}
-                  {task.tags.map(tag => (
-                    <span key={tag} className="text-[11px] px-2 py-0.5 bg-gray-100 text-gray-600 rounded-md">#{tag}</span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </Card>
-        );
-      }
-
-      case 'meeting': {
-        const m = item.data;
-        return (
-          <Card key={`meet-${m.id}`} className="p-4 hover:border-purple-200 transition-colors group">
-            <div className="flex justify-between items-start mb-2">
-              <div className="flex items-center gap-1.5 text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full text-xs font-semibold">
-                <CalendarDays size={12} /> 미팅/일정
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-gray-400">{formatRelativeTime(m.createdAt)}</span>
-                <button 
-                  onClick={(e) => handleExtractWiki(e, `meet-${m.id}`, '미팅/회의', m.title, (m.agenda || '') + '\n' + (m.notes || ''))}
-                  className="flex items-center gap-1 text-[11px] font-medium text-purple-600 bg-purple-50/80 px-2 py-1 rounded-md border border-purple-100 hover:bg-purple-100 transition-colors"
-                >
-                  {extractingId === `meet-${m.id}` ? '정제중...' : '✨ 위키 정제 (LLM)'}
-                </button>
-                <button onClick={(e) => { e.stopPropagation(); if(window.confirm('정말 삭제하시겠습니까?')) props.deleteMeeting(m.id); }} className="text-gray-400 hover:text-red-500 cursor-pointer opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            </div>
-            <h3 className="text-[15px] font-semibold text-gray-900 mb-1">{m.title}</h3>
-            <div className="flex flex-col gap-1 text-xs text-gray-500 mt-2 bg-gray-50 p-3 rounded-lg">
-              <div className="flex items-center gap-1.5"><Clock size={12} />일시: {new Date(m.datetime).toLocaleString('ko-KR')}</div>
-              {m.location && <div className="flex items-center gap-1.5"><MapPin size={12} />장소: {m.location}</div>}
-              {m.attendees && m.attendees.length > 0 && <div className="flex items-center gap-1.5"><Users size={12} />참석: {m.attendees.join(', ')}</div>}
-            </div>
-          </Card>
-        );
-      }
-
-      case 'knowledge': {
-        const k = item.data;
-        return (
-          <Card key={`know-${k.id}`} className="p-4 hover:border-amber-200 transition-colors group">
-            <div className="flex justify-between items-start mb-2">
-              <div className="flex items-center gap-1.5 text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full text-xs font-semibold">
-                <Archive size={12} /> 지식/문서
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-gray-400">{formatRelativeTime(k.createdAt)}</span>
-                <button 
-                  onClick={(e) => handleExtractWiki(e, `know-${k.id}`, '지식/문서', k.title, k.content)}
-                  className="flex items-center gap-1 text-[11px] font-medium text-amber-600 bg-amber-50/80 px-2 py-1 rounded-md border border-amber-100 hover:bg-amber-100 transition-colors"
-                >
-                  {extractingId === `know-${k.id}` ? '정제중...' : '✨ 위키 정제 (LLM)'}
-                </button>
-                <button onClick={(e) => { e.stopPropagation(); if(window.confirm('정말 삭제하시겠습니까?')) props.deleteKnowledge(k.id); }} className="text-gray-400 hover:text-red-500 cursor-pointer opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 mb-2">
-              {k.category && <span className="text-[10px] font-bold text-gray-500 border border-gray-200 px-1.5 py-0.5 rounded">{k.category}</span>}
-              <h3 className="text-[15px] font-semibold text-gray-900">{k.title}</h3>
-            </div>
-            <p className="text-sm text-gray-600 line-clamp-3 leading-relaxed whitespace-pre-wrap">{k.content}</p>
-            {k.tags && k.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-3">
-                {k.tags.map(tag => (
-                  <span key={tag} className="text-[11px] px-2 py-0.5 bg-gray-100 text-gray-500 rounded-md">#{tag}</span>
-                ))}
-              </div>
-            )}
-          </Card>
-        );
-      }
+    if (item.type === 'signal') {
+      const sig = item.data as SignalEntry;
+      const isPdf = sig.text?.includes('[PDF 원본:');
+      titleStr = isPdf ? 'PDF 원본 데이터' : '빠른 메모';
+      previewStr = sig.text;
+      categoryBadge = (
+        <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold ${isPdf ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+          {isPdf ? <FileText size={10} /> : <Zap size={10} />} {titleStr}
+        </span>
+      );
+      titleStr = previewStr.substring(0, 30) + '...'; // Override title with content snippet for signals
+    } else if (item.type === 'task') {
+      const t = item.data as Task;
+      titleStr = t.title;
+      previewStr = t.description || '';
+      categoryBadge = <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700"><ListTodo size={10} /> 업무</span>;
+    } else if (item.type === 'meeting') {
+      const m = item.data as Meeting;
+      titleStr = m.title;
+      previewStr = (m.location ? `[${m.location}] ` : '') + (m.notes || '');
+      categoryBadge = <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700"><CalendarDays size={10} /> 미팅</span>;
+    } else if (item.type === 'knowledge') {
+      const k = item.data as KnowledgeEntry;
+      titleStr = k.title;
+      previewStr = k.content;
+      categoryBadge = <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700"><Archive size={10} /> 지식</span>;
     }
+
+    return (
+      <div 
+        key={`feed-${item.type}-${itemId}`}
+        onClick={() => { setSelectedItemId(itemId); setEditingWikiNode(null); }}
+        className={`p-3.5 rounded-xl border cursor-pointer transition-all ${isSelected ? 'border-primary bg-primary/5 ring-1 ring-primary/30 shadow-sm' : 'border-[var(--color-border)] bg-white hover:border-[var(--color-primary-light)]'}`}
+      >
+        <div className="flex justify-between items-start mb-1.5 gap-2">
+          {categoryBadge}
+          <span className="text-[10px] text-[var(--color-text-tertiary)] flex-shrink-0">{timeStr}</span>
+        </div>
+        <h3 className={`text-[13px] font-bold line-clamp-1 mb-1 ${isSelected ? 'text-[var(--color-primary)]' : 'text-gray-800'}`}>{titleStr}</h3>
+        {previewStr && previewStr !== titleStr && (
+          <p className="text-[12px] text-gray-500 line-clamp-2 leading-relaxed">{previewStr}</p>
+        )}
+      </div>
+    );
+  };
+
+  const renderRightDetailPane = () => {
+    // 1. If wiki editing mode is active
+    if (editingWikiNode && editingWikiNode.id === selectedItemId) {
+      return (
+        <div className="flex flex-col h-full bg-white relative">
+          <div className="flex justify-between items-center p-3 sm:p-5 border-b border-gray-100 bg-blue-50/20 shrink-0">
+            <h2 className="text-[15px] font-bold text-blue-900 flex items-center gap-2">
+              <BrainCircuit size={18} className="text-blue-500" />
+              위키 문서 수정 
+              <span className="bg-white border border-blue-200 text-blue-600 px-2 py-0.5 rounded-full text-[10px] font-black">AI 정제본</span>
+            </h2>
+            <button 
+              onClick={() => setEditingWikiNode(null)}
+              className="px-3.5 py-1.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-[12px] font-bold rounded-lg transition-colors shadow-sm cursor-pointer"
+            >
+              단순 조회 모드로 닫기
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-4 py-2 sm:px-6 custom-scrollbar relative">
+            <WikiEditor 
+              nodeId={editingWikiNode.id} 
+              nodeTitle={editingWikiNode.title} 
+              initialBlocks={editingWikiNode.initialBlocks} 
+              onChange={(blocks) => {
+                localStorage.setItem(`HCHPS-Wiki-${editingWikiNode.id}`, JSON.stringify(blocks));
+                import('@/lib/sheets-api').then(({ replaceAll }) => {
+                  replaceAll(`WIKI_DOC_${editingWikiNode.id}`, [{ id: 'singleton', blocks }]);
+                });
+              }}
+            />
+          </div>
+        </div>
+      );
+    }
+
+    // 2. If nothing is selected
+    if (!selectedItemId || !activeItem) {
+      return (
+        <div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-12 bg-gray-50/50 h-[300px] lg:h-full">
+          <BookOpen size={56} className="mb-4 opacity-20 text-gray-500" />
+          <h3 className="text-[15px] font-bold text-gray-500 mb-1">메모장 항목을 선택하세요</h3>
+          <p className="text-[12px] font-medium text-gray-400">좌측 리스트에서 조회할 데이터를 클릭하면 상세 내용과 위키 정제 기능을 사용할 수 있습니다.</p>
+        </div>
+      );
+    }
+
+    // 3. Detail View Render
+    let titleStr = '';
+    let categoryObj: { text: string; icon: any; color: string } | null = null;
+    let contentStr = '';
+    let extraMeta: React.ReactNode = null;
+    
+    const itemId = (activeItem.data as any).id;
+    const hasWiki = localStorage.getItem(`HCHPS-Wiki-${itemId}`);
+
+    if (activeItem.type === 'signal') {
+      const sig = activeItem.data as SignalEntry;
+      const isPdf = sig.text?.includes('[PDF 원본:');
+      titleStr = isPdf ? 'PDF 원본 데이터 전문' : '빠른 메모 전문';
+      contentStr = sig.text;
+      categoryObj = isPdf 
+        ? { text: 'PDF 문서', icon: FileText, color: 'text-amber-700 bg-amber-100' }
+        : { text: '빠른 메모', icon: Zap, color: 'text-emerald-700 bg-emerald-100' };
+    } else if (activeItem.type === 'task') {
+      const t = activeItem.data as Task;
+      titleStr = t.title;
+      contentStr = t.description || '내용 없음';
+      categoryObj = { text: '업무', icon: ListTodo, color: 'text-blue-700 bg-blue-100' };
+      extraMeta = (
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${t.status === 'done' ? 'text-emerald-700 border-emerald-200 bg-emerald-50' : 'text-blue-700 border-blue-200 bg-blue-50'}`}>
+            {t.status === 'done' ? '완료됨' : '진행중'}
+          </span>
+          {t.dueDate && <span className="text-[11px] font-bold px-2 py-0.5 rounded-full border border-gray-200 bg-white">마감일: {t.dueDate}</span>}
+          {t.tags.map(tag => <span key={tag} className="text-[11px] font-bold px-2 py-0.5 rounded-full border border-gray-200 bg-gray-50">#{tag}</span>)}
+        </div>
+      );
+    } else if (activeItem.type === 'meeting') {
+      const m = activeItem.data as Meeting;
+      titleStr = m.title;
+      contentStr = `[일시]\n${new Date(m.datetime).toLocaleString('ko-KR')}\n\n[장소]\n${m.location || '미정'}\n\n[참석자]\n${m.attendees?.join(', ') || '없음'}\n\n[아젠다/내용]\n${m.notes || m.agenda || '내용 없음'}`;
+      categoryObj = { text: '미팅/일정', icon: CalendarDays, color: 'text-purple-700 bg-purple-100' };
+    } else if (activeItem.type === 'knowledge') {
+      const k = activeItem.data as KnowledgeEntry;
+      titleStr = k.title;
+      contentStr = k.content;
+      categoryObj = { text: '지식', icon: Archive, color: 'text-amber-700 bg-amber-100' };
+      extraMeta = k.tags && k.tags.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          {k.tags.map(tag => <span key={tag} className="text-[11px] font-bold px-2 py-0.5 rounded-full border border-gray-200 bg-gray-50">#{tag}</span>)}
+        </div>
+      );
+    }
+
+    const Icon = categoryObj?.icon || Tag;
+
+    return (
+      <div className="flex flex-col h-full bg-white relative">
+        <div className="p-5 sm:p-7 border-b border-gray-100 shadow-[0_4px_10px_-10px_rgba(0,0,0,0.1)] relative z-10 shrink-0">
+          <div className="flex justify-between items-start mb-3">
+             <div className={`flex items-center gap-1.5 px-2 py-1 rounded text-[11px] font-bold ${categoryObj?.color}`}>
+               <Icon size={12} /> {categoryObj?.text}
+             </div>
+             
+             {/* Action Buttons */}
+             <div className="flex items-center gap-1.5">
+               {hasWiki ? (
+                 <>
+                   <button 
+                     onClick={() => setEditingWikiNode({ id: itemId, title: categoryObj?.text || '위키 문서', initialBlocks: JSON.parse(hasWiki) })}
+                     className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-[11px] font-bold transition-colors cursor-pointer border border-blue-200"
+                   >
+                     ✅ 위키 열람/수정
+                   </button>
+                   <button 
+                     onClick={(e) => {
+                       if (window.confirm('기존 위키 내용이 초기화되고 AI가 전체 원문으로 다시 정제합니다. 진행하시겠습니까?')) {
+                         handleExtractWiki(e, itemId, categoryObj?.text || '문서', titleStr, contentStr);
+                       }
+                     }}
+                     className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 text-gray-600 hover:bg-gray-100 rounded-lg text-[11px] font-bold transition-colors cursor-pointer border border-gray-200"
+                   >
+                     🔄 AI 갱신
+                   </button>
+                 </>
+               ) : (
+                 <button 
+                   onClick={(e) => handleExtractWiki(e, itemId, categoryObj?.text || '문서', titleStr, contentStr)}
+                   className="flex items-center gap-1.5 px-4 py-1.5 bg-primary text-white hover:bg-primary/90 rounded-lg text-[12px] font-bold transition-colors shadow-sm cursor-pointer"
+                 >
+                   {extractingId === itemId ? '⏳ LLM 분석중...' : '✨ 위키 정제(LLM)'}
+                 </button>
+               )}
+               
+               <div className="w-px h-4 bg-gray-200 mx-1"></div>
+               
+               <button 
+                 onClick={() => {
+                   if(window.confirm('정말 삭제하시겠습니까?')) {
+                     if (activeItem.type === 'signal') props.deleteSignal?.(itemId);
+                     else if (activeItem.type === 'task') props.deleteTask(itemId);
+                     else if (activeItem.type === 'meeting') props.deleteMeeting(itemId);
+                     else if (activeItem.type === 'knowledge') props.deleteKnowledge(itemId);
+                     setSelectedItemId(null);
+                   }
+                 }} 
+                 className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer"
+                 title="목록에서 삭제"
+               >
+                 <Trash2 size={16} />
+               </button>
+             </div>
+          </div>
+          
+          <h1 className="text-[20px] font-black text-gray-900 leading-snug mb-3">{titleStr}</h1>
+          {extraMeta}
+          <div className="text-[11px] font-medium text-gray-400">최초 등록: {new Date(activeItem.data.createdAt).toLocaleString('ko-KR')}</div>
+        </div>
+        
+        <div className="p-5 sm:p-7 flex-1 overflow-y-auto custom-scrollbar bg-gray-50/20">
+          <div className="text-[14px] text-gray-700 leading-[1.8] whitespace-pre-wrap font-medium">
+             {contentStr}
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
-    <div className="flex flex-col gap-4 h-full">
-      {/* Header Area */}
-      <div className="flex justify-end shrink-0 gap-2">
-        <button 
-          onClick={() => { setAddModalMode('pdf'); setShowAddModal(true); }}
-          className="w-full sm:w-auto px-4 py-2.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl shadow-sm font-medium hover:bg-amber-100 transition-colors flex items-center justify-center gap-2"
-        >
-          <FileText size={16} className="text-amber-500" />PDF 분석
-        </button>
-        <button 
-          onClick={() => { setAddModalMode('memo'); setShowAddModal(true); }}
-          className="w-full sm:w-auto px-5 py-2.5 bg-gray-900 text-white rounded-xl shadow-sm font-medium hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
-        >
-          <Zap size={16} className="text-amber-400" />새 메모 작성
-        </button>
+    <div className="flex flex-col gap-4 h-full relative">
+      {/* Top Header Row for Adding */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-xl border border-[var(--color-border)] shadow-sm shrink-0">
+        <div className="flex flex-row flex-nowrap whitespace-nowrap bg-gray-100 p-1 rounded-xl w-full sm:w-fit overflow-x-auto custom-scrollbar">
+          {(['all', 'memo', 'pdf'] as const).map(tabKey => (
+            <button
+              key={tabKey}
+              onClick={() => { setActiveFeedTab(tabKey); setSelectedItemId(null); }}
+              className={`px-6 py-2 text-[13px] font-bold rounded-lg transition-all flex-shrink-0 cursor-pointer ${activeFeedTab === tabKey ? 'bg-white text-[var(--color-primary)] shadow-sm shadow-gray-200/50' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'}`}
+            >
+              {tabKey === 'all' ? '모든 항목 보기' : tabKey === 'memo' ? '빠른 텍스트 메모' : 'PDF 스캔 분석본'}
+            </button>
+          ))}
+        </div>
+        
+        <div className="flex gap-2 w-full sm:w-auto">
+          <button 
+            onClick={() => { setAddModalMode('pdf'); setShowAddModal(true); }}
+            className="flex-1 sm:flex-none px-4 py-2 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg shadow-sm text-[13px] font-bold hover:bg-amber-100 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+          >
+            <FileText size={15} className="text-amber-500" />PDF 분석
+          </button>
+          <button 
+            onClick={() => { setAddModalMode('memo'); setShowAddModal(true); }}
+            className="flex-1 sm:flex-none px-4 py-2 bg-gray-900 text-white rounded-lg shadow-sm text-[13px] font-bold hover:bg-gray-800 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+          >
+            <Zap size={15} className="text-emerald-400" />새 메모
+          </button>
+        </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pt-2 pb-10">
-        <div className="max-w-4xl mx-auto flex flex-col space-y-4">
-          
-          <div className="flex flex-row flex-nowrap whitespace-nowrap bg-gray-100 p-1.5 rounded-xl mb-2 w-full sm:w-fit self-center mx-auto shadow-inner overflow-x-auto custom-scrollbar">
-            <button
-              onClick={() => setActiveFeedTab('all')}
-              className={`px-6 py-2 text-sm font-bold rounded-lg transition-all flex-shrink-0 ${activeFeedTab === 'all' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-            >
-              모든 항목
-            </button>
-            <button
-              onClick={() => setActiveFeedTab('memo')}
-              className={`px-6 py-2 text-sm font-bold rounded-lg transition-all flex-shrink-0 ${activeFeedTab === 'memo' ? 'bg-white text-emerald-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-            >
-              빠른 메모
-            </button>
-            <button
-              onClick={() => setActiveFeedTab('pdf')}
-              className={`px-6 py-2 text-sm font-bold rounded-lg transition-all flex-shrink-0 ${activeFeedTab === 'pdf' ? 'bg-white text-amber-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-            >
-              PDF 분석
-            </button>
-          </div>
-
+      {/* Main Split Layout */}
+      <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-0 overflow-hidden">
+        
+        {/* Left Master List */}
+        <div className="w-full lg:w-[360px] xl:w-[400px] flex flex-col gap-2.5 overflow-y-auto pr-1 flex-shrink-0 custom-scrollbar pb-6">
           {filteredFeed.length === 0 ? (
-            <div className="text-center py-20 bg-white rounded-xl border border-[var(--color-border-light)] border-dashed">
+            <div className="text-center py-24 bg-white rounded-xl border border-[var(--color-border-light)] border-dashed">
               <FileText size={48} className="mx-auto text-gray-200 mb-4" />
-              <p className="text-[var(--color-text-secondary)]">해당 탭에 기록된 항목이 없습니다.</p>
-              {activeFeedTab === 'pdf' ? (
-                <button 
-                  onClick={() => { setAddModalMode('pdf'); setShowAddModal(true); }}
-                  className="mt-4 px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-amber-50 transition-colors"
-                >
-                  새 PDF 추가하기
-                </button>
-              ) : (
-                <button 
-                  onClick={() => { setAddModalMode('memo'); setShowAddModal(true); }}
-                  className="mt-4 px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-emerald-50 transition-colors"
-                >
-                  새 메모 추가하기
-                </button>
-              )}
+              <p className="text-[13px] font-bold text-[var(--color-text-secondary)]">항목이 없습니다.</p>
+              <button 
+                onClick={() => { setAddModalMode(activeFeedTab === 'pdf' ? 'pdf' : 'memo'); setShowAddModal(true); }}
+                className="mt-4 px-4 py-2 border border-gray-200 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer"
+              >
+                + 새 레코드 추가
+              </button>
             </div>
           ) : (
-            filteredFeed.map(item => renderFeedItem(item))
+            filteredFeed.map(item => renderLeftFeedItem(item))
           )}
         </div>
+
+        {/* Right Detail Pane */}
+        <div className="flex-1 bg-white rounded-xl border border-[var(--color-border)] shadow-sm flex flex-col overflow-hidden min-h-[500px] lg:min-h-0">
+          {renderRightDetailPane()}
+        </div>
+
       </div>
 
       <TaskModal
@@ -459,56 +467,6 @@ ${rawContent}
         onAddKnowledge={(title, content) => props.addKnowledge({ title, content, tags: [], category: '' })}
         onAddMeeting={(title, notes) => props.addMeeting({ title, notes, datetime: new Date().toISOString(), attendees: [] })}
       />
-
-      {editingWikiNode && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl h-[85vh] flex flex-col pt-4 px-4 pb-4">
-            <div className="flex justify-between items-center mb-4 pb-4 border-b border-gray-100">
-              <h2 className="text-lg font-bold flex items-center gap-2">📝 정제된 위키 문서 열람 및 수정</h2>
-              <button 
-                onClick={() => setEditingWikiNode(null)}
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-lg transition-colors"
-              >
-                닫기
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto w-full custom-scrollbar">
-              <WikiEditor 
-                nodeId={editingWikiNode.id} 
-                nodeTitle={editingWikiNode.title} 
-                initialBlocks={editingWikiNode.initialBlocks} 
-                onChange={(blocks) => {
-                  localStorage.setItem(`HCHPS-Wiki-${editingWikiNode.id}`, JSON.stringify(blocks));
-                  import('@/lib/sheets-api').then(({ replaceAll }) => {
-                    replaceAll(`WIKI_DOC_${editingWikiNode.id}`, [{ id: 'singleton', blocks }]);
-                  });
-                }}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {viewingRawData && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50" onClick={() => setViewingRawData(null)}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center p-4 border-b border-gray-100">
-              <h2 className="text-lg font-bold flex items-center gap-2">🔍 {viewingRawData.title} 원문 보기</h2>
-              <button 
-                onClick={() => setViewingRawData(null)}
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-lg transition-colors"
-              >
-                닫기
-              </button>
-            </div>
-            <div className="p-6 overflow-y-auto custom-scrollbar">
-              <p className="text-[15px] text-gray-800 leading-relaxed font-medium whitespace-pre-wrap">
-                {viewingRawData.content}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
