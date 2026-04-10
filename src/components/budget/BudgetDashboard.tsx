@@ -199,7 +199,7 @@ const PolicyGroupCard = React.memo(({
                     <div key={cat.id} className="group/item">
                       <div className="flex items-center justify-between mb-2">
                         <div className="text-sm font-semibold flex items-center gap-2 text-gray-700">
-                          <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }}/>
+                          <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color || '#4A6CF7' }}/>
                           <div className="line-clamp-1">{cat.statItem || cat.name}</div>
                           <span className="text-xs text-gray-400 font-normal truncate hidden sm:block max-w-[200px]">({cat.name})</span>
                         </div>
@@ -212,8 +212,8 @@ const PolicyGroupCard = React.memo(({
                         <span className="text-gray-500">사용 {formatN(stats.spent)} / {formatN(stats.totalBudget)}</span>
                         <span className="text-gray-600 font-bold">잔여 {formatN(stats.remaining)}</span>
                       </div>
-                      <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
-                         <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, stats.usageRate)}%`, backgroundColor: cat.color }} />
+                      <div className="ml-[14px] h-1.5 bg-gray-200 rounded-full overflow-hidden shadow-inner">
+                         <div className="h-full rounded-full transition-all duration-500 shadow-sm" style={{ width: `${Math.min(100, stats.usageRate || 0)}%`, backgroundColor: cat.color || '#4A6CF7' }} />
                       </div>
                     </div>
                   )
