@@ -35,25 +35,33 @@ function jsonResponse(data: unknown, status = 200): Response {
       'Cache-Control': 'no-cache, no-store, must-revalidate',
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, X-API-Key, Cache-Control, Pragma',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, Cache-Control, Pragma',
     },
   });
 }
 
-// API Key 검증
+// API Key 검증 (Dynamic Session Token - E2EE)
 function authenticate(request: Request, env: Env): boolean {
-  const configuredKey = env.HCHPS_AUTH_TOKEN || env.API_KEY;
-  if (!configuredKey) return true; // 키 미설정 시 인증 스킵 (개발 환경 등)
-
-  const url = new URL(request.url);
-  let token = request.headers.get('X-API-Key') || url.searchParams.get('token') || url.searchParams.get('key');
+  const configuredKey = env.HCHPS_AUTH_TOKEN;
   
+  // 환경 변수조차 없으면 서버 자체를 Fail-Close 모드로 운영하여 보안 사고 방지
+  if (!configuredKey) {
+    console.error("CRITICAL SECURITY WARN: HCHPS_AUTH_TOKEN is missing in environment variables.");
+    return false; 
+  }
+
+  // 동적 세션 검증 (Authorization Bearer Token 방식만 허용, 구형 X-API-Key 탈피)
+  let token = null;
   const authHeader = request.headers.get('Authorization');
   if (authHeader && authHeader.startsWith('Bearer ')) {
     token = authHeader.substring(7);
+  } else {
+    // WebSocket 연결 등 쿼리스트링 Fallback이 필요한 경우만 예외적 허용 (?token=)
+    const url = new URL(request.url);
+    token = url.searchParams.get('token');
   }
 
-  return token === configuredKey;
+  return !!token && token === configuredKey;
 }
 
 // 시트 이름 검증
@@ -67,7 +75,7 @@ export const onRequestOptions: PagesFunction<Env> = async () => {
     headers: {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, X-API-Key, Authorization, Cache-Control, Pragma',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, Cache-Control, Pragma',
     },
   });
 };

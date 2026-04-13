@@ -1,7 +1,7 @@
 interface Env {
   WIKI_VECTORS: any;
   AI: any;
-  API_KEY?: string;
+  HCHPS_AUTH_TOKEN?: string;
 }
 
 function jsonResponse(data: unknown, status = 200): Response {
@@ -11,15 +11,28 @@ function jsonResponse(data: unknown, status = 200): Response {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     },
   });
 }
 
 function authenticate(request: Request, env: Env): boolean {
-  const configuredKey = env.API_KEY;
-  if (!configuredKey) return true;
-  const headerKey = request.headers.get('X-API-Key');
-  return headerKey === configuredKey;
+  const configuredKey = env.HCHPS_AUTH_TOKEN;
+  if (!configuredKey) {
+    console.error("CRITICAL SECURITY WARN: HCHPS_AUTH_TOKEN is missing in environment variables.");
+    return false;
+  }
+
+  let token = null;
+  const authHeader = request.headers.get('Authorization');
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.substring(7);
+  } else {
+    const url = new URL(request.url);
+    token = url.searchParams.get('token');
+  }
+
+  return !!token && token === configuredKey;
 }
 
 export const onRequestOptions: PagesFunction<Env> = async () => {
@@ -27,7 +40,7 @@ export const onRequestOptions: PagesFunction<Env> = async () => {
     headers: {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, X-API-Key',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     },
   });
 };

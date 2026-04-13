@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { QueryProviders } from "@/components/QueryProviders";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -44,26 +45,28 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} font-[family-name:var(--font-geist-sans)] antialiased`}
       >
-        {children}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              if ('serviceWorker' in navigator) {
-                window.addEventListener('load', function() {
-                  var basePath = window.location.pathname.startsWith('/PORTFOLIO-HCHPS') ? '/PORTFOLIO-HCHPS' : '';
-                  navigator.serviceWorker.register(basePath + '/sw.js').then(
-                    function(registration) {
-                      console.info('ServiceWorker registration successful scope: ', registration.scope);
-                    },
-                    function(err) {
-                      console.error('ServiceWorker registration failed: ', err);
-                    }
-                  );
-                });
-              }
-            `,
-          }}
-        />
+        <QueryProviders>
+          {children}
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `
+                if ('serviceWorker' in navigator) {
+                  window.addEventListener('load', function() {
+                    var basePath = window.location.pathname.startsWith('/PORTFOLIO-HCHPS') ? '/PORTFOLIO-HCHPS' : '';
+                    navigator.serviceWorker.register(basePath + '/sw.js').then(
+                      function(registration) {
+                        console.info('ServiceWorker registration successful scope: ', registration.scope);
+                      },
+                      function(err) {
+                        console.error('ServiceWorker registration failed: ', err);
+                      }
+                    );
+                  });
+                }
+              `,
+            }}
+          />
+        </QueryProviders>
       </body>
     </html>
   );

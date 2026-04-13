@@ -8,8 +8,9 @@ export default {
     const token = url.searchParams.get("token");
     const expectedToken = room.env.HCHPS_AUTH_TOKEN as string;
 
-    if (expectedToken && token !== expectedToken) {
-      ws.close(1008, "Unauthorized");
+    // 엄격한 Auth Token 유효성 검사 (하드코딩된 우회 또는 미설정 허용 금지)
+    if (!expectedToken || !token || token !== expectedToken) {
+      ws.close(1008, "Unauthorized: Strict E2EE Session Token required");
       return;
     }
 

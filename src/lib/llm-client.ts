@@ -1,3 +1,5 @@
+import { getAuthToken } from './crypto';
+
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
@@ -22,7 +24,6 @@ const getApiBaseUrl = () => {
  */
 export async function askLlama(
   messages: ChatMessage[], 
-  apiKey?: string, 
   onChunk?: (chunk: string) => void
 ): Promise<string> {
   const isBrowser = typeof window !== 'undefined';
@@ -32,11 +33,13 @@ export async function askLlama(
     'Content-Type': 'application/json',
   };
   
-  if (apiKey) {
-    headers['X-API-Key'] = apiKey;
-  } else if (isBrowser) {
-    const stored = localStorage.getItem('hchps-api-key');
-    if (stored) headers['X-API-Key'] = stored;
+  if (isBrowser) {
+    try {
+      const token = getAuthToken();
+      headers['Authorization'] = `Bearer ${token}`;
+    } catch {
+      // ignore
+    }
   }
 
   try {

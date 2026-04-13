@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useMemo, useRef, useEffect } from 'react';
-import { useGoogleSheet, useSheetCrud } from './useGoogleSheet';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { readSheet, addRow, updateRow, deleteRow } from '@/lib/sheets-api';
 import { Task, TaskStatus, TaskPriority, generateId } from '@/types';
 import { isHoliday } from '@/lib/holidays';
 
@@ -73,28 +74,74 @@ function calculateNextDueDate(currentDueDate?: string, recurrence?: string): str
 }
 
 export function useTasks() {
-  const [tasks, setTasks] = useGoogleSheet<Task>('TASKS', 'hchps-tasks', []);
-  const { syncAdd, syncUpdate, syncDelete } = useSheetCrud<Task>('TASKS');
+  const queryClient = useQueryClient();
 
-  const tasksRef = useRef(tasks);
-  useEffect(() => { tasksRef.current = tasks; }, [tasks]);
+  const { data: tasks = [], isLoading, error } = useQuery({
+    queryKey: ['TASKS'],
+    queryFn: () => readSheet<Task>('TASKS'),
+    staleTime: 1000 * 60 * 5,
+  });
 
-  const addTask = useCallback((task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => {
+  const addTaskMut = useMutation({
+    mutationFn: (newTask: Task) => addRow('TASKS', newTask),
+    onMutate: async (newTask) => {
+      await queryClient.cancelQueries({ queryKey: ['TASKS'] });
+      const previousTasks = queryClient.getQueryData<Task[]>(['TASKS']);
+      queryClient.setQueryData<Task[]>(['TASKS'], (old) => [newTask, ...(old || [])]);
+      return { previousTasks };
+    },
+    onError: (err, newTask, context) => {
+      if (context?.previousTasks) queryClient.setQueryData(['TASKS'], context.previousTasks);
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['TASKS'] })
+  });
+
+  const updateTaskMut = useMutation({
+    mutationFn: ({ id, updates }: { id: string, updates: Partial<Task> }) => updateRow('TASKS', id, updates),
+    onMutate: async ({ id, updates }) => {
+      await queryClient.cancelQueries({ queryKey: ['TASKS'] });
+      const previousTasks = queryClient.getQueryData<Task[]>(['TASKS']);
+      
+      const updatedFields = { ...updates, updatedAt: new Date().toISOString() };
+      queryClient.setQueryData<Task[]>(['TASKS'], (old) => 
+        (old || []).map(t => t.id === id ? { ...t, ...updatedFields } : t)
+      );
+      
+      return { previousTasks };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousTasks) queryClient.setQueryData(['TASKS'], context.previousTasks);
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['TASKS'] })
+  });
+
+  const deleteTaskMut = useMutation({
+    mutationFn: (id: string) => deleteRow('TASKS', id),
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ['TASKS'] });
+      const previousTasks = queryClient.getQueryData<Task[]>(['TASKS']);
+      queryClient.setQueryData<Task[]>(['TASKS'], (old) => (old || []).filter(t => t.id !== id));
+      return { previousTasks };
+    },
+    onError: (err, id, context) => {
+      if (context?.previousTasks) queryClient.setQueryData(['TASKS'], context.previousTasks);
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['TASKS'] })
+  });
+
+  const addTask = useCallback((taskPayload: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => {
     const now = new Date().toISOString();
-    const newTask: Task = { ...task, id: generateId(), createdAt: now, updatedAt: now };
-    setTasks(prev => [newTask, ...prev]);
-    syncAdd(newTask);
+    const newTask: Task = { ...taskPayload, id: generateId(), createdAt: now, updatedAt: now };
+    addTaskMut.mutate(newTask);
     return newTask;
-  }, [setTasks, syncAdd]);
+  }, [addTaskMut]);
 
   const updateTask = useCallback((id: string, updates: Partial<Task>) => {
-    const task = tasksRef.current.find(t => t.id === id);
+    const task = tasks.find(t => t.id === id);
 
     if (task && updates.status === 'done' && task.status !== 'done' && task.recurrence) {
-      // Auto-duplicate recurring task for the next cycle
       const nextDate = calculateNextDueDate(task.dueDate, task.recurrence);
       
-      // Check if nextDate is beyond recurrenceEndDate
       let shouldDuplicate = true;
       if (nextDate && task.recurrenceEndDate) {
         if (new Date(nextDate) > new Date(task.recurrenceEndDate)) {
@@ -117,20 +164,16 @@ export function useTasks() {
           recurrenceEndDate: task.recurrenceEndDate,
           recurrenceCount: task.recurrenceCount
         };
-        // Delay scheduling the next task to prevent state conflict during current render
         setTimeout(() => addTask(nextTask), 50);
       }
     }
 
-    const updatedFields = { ...updates, updatedAt: new Date().toISOString() };
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updatedFields } : t));
-    syncUpdate(id, updatedFields);
-  }, [setTasks, syncUpdate, addTask]);
+    updateTaskMut.mutate({ id, updates });
+  }, [tasks, updateTaskMut, addTask]);
 
   const deleteTask = useCallback((id: string) => {
-    setTasks(prev => prev.filter(t => t.id !== id));
-    syncDelete(id);
-  }, [setTasks, syncDelete]);
+    deleteTaskMut.mutate(id);
+  }, [deleteTaskMut]);
 
   const moveTask = useCallback((id: string, status: TaskStatus) => {
     updateTask(id, { status });
@@ -163,5 +206,5 @@ export function useTasks() {
     });
   }, [tasks]);
 
-  return { tasks, addTask, updateTask, deleteTask, moveTask, stats, filterTasks };
+  return { tasks, isLoading, error, addTask, updateTask, deleteTask, moveTask, stats, filterTasks };
 }

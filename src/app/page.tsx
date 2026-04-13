@@ -55,7 +55,7 @@ class MindMapErrorBoundary extends React.Component<
   }
 }
 
-export default function Home() {
+function ProtectedApp() {
   const [activeModule, setActiveModule] = useState<ModuleType>('mindmap');
   const [mounted, setMounted] = useState(false);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
@@ -79,8 +79,6 @@ export default function Home() {
       setActiveModule(saved as ModuleType);
     }
   }, []);
-
-  const { isLocked, hasSetupPIN, failCount, verifyPIN, setupPIN } = useSecurityLock();
 
   // Swipe gesture state
   const touchStartX = useRef<number | null>(null);
@@ -391,43 +389,7 @@ export default function Home() {
 
 
 
-  // SSR/static export: show loading skeleton until client mounts
-  if (!mounted || hasSetupPIN === null) {
-    return (
-      <div className="flex flex-col min-h-screen overflow-x-hidden">
-        <header className="sticky top-0 z-50 bg-[var(--color-card)] border-b border-[var(--color-border-light)] shadow-[var(--shadow-sm)]">
-          <div className="max-w-[1800px] mx-auto px-4 sm:px-6">
-            <div className="flex items-center h-14 gap-3">
-              <div className="w-24 h-8 bg-gray-100 rounded-full animate-pulse" />
-              <div className="w-20 h-8 bg-gray-100 rounded-full animate-pulse" />
-              <div className="w-24 h-8 bg-gray-100 rounded-full animate-pulse" />
-              <div className="flex-1" />
-            </div>
-          </div>
-        </header>
-        <main className="flex-1 p-4 sm:p-6 lg:p-8">
-          <div className="max-w-[1800px] mx-auto">
-            <div className="space-y-3">
-              <div className="h-16 bg-gray-50 rounded-xl animate-pulse" />
-              <div className="h-16 bg-gray-50 rounded-xl animate-pulse" />
-              <div className="h-16 bg-gray-50 rounded-xl animate-pulse" />
-            </div>
-          </div>
-        </main>
-      </div>
-    );
-  }
-
-  if (isLocked) {
-    return (
-      <SecurityLockScreen 
-        hasSetupPIN={hasSetupPIN} 
-        failCount={failCount} 
-        onVerify={verifyPIN} 
-        onSetup={setupPIN} 
-      />
-    );
-  }
+  // Lock guard moved to the parent Home component.
 
   return (
     <div 
@@ -476,4 +438,52 @@ export default function Home() {
       />
     </div>
   );
+}
+
+export default function Home() {
+  const [mounted, setMounted] = useState(false);
+  const { isLocked, hasSetupPIN, failCount, verifyPIN, setupPIN } = useSecurityLock();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted || hasSetupPIN === null) {
+    return (
+      <div className="flex flex-col min-h-screen overflow-x-hidden">
+        <header className="sticky top-0 z-50 bg-[var(--color-card)] border-b border-[var(--color-border-light)] shadow-[var(--shadow-sm)]">
+          <div className="max-w-[1800px] mx-auto px-4 sm:px-6">
+            <div className="flex items-center h-14 gap-3">
+              <div className="w-24 h-8 bg-gray-100 rounded-full animate-pulse" />
+              <div className="w-20 h-8 bg-gray-100 rounded-full animate-pulse" />
+              <div className="w-24 h-8 bg-gray-100 rounded-full animate-pulse" />
+              <div className="flex-1" />
+            </div>
+          </div>
+        </header>
+        <main className="flex-1 p-4 sm:p-6 lg:p-8">
+          <div className="max-w-[1800px] mx-auto">
+            <div className="space-y-3">
+              <div className="h-16 bg-gray-50 rounded-xl animate-pulse" />
+              <div className="h-16 bg-gray-50 rounded-xl animate-pulse" />
+              <div className="h-16 bg-gray-50 rounded-xl animate-pulse" />
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (isLocked) {
+    return (
+      <SecurityLockScreen 
+        hasSetupPIN={hasSetupPIN} 
+        failCount={failCount} 
+        onVerify={verifyPIN} 
+        onSetup={setupPIN} 
+      />
+    );
+  }
+
+  return <ProtectedApp />;
 }

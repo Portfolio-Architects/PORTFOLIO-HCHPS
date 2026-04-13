@@ -62,9 +62,13 @@ export function SearchResultModal({ isOpen, onClose, query, results: localResult
         let retrievedDocs: VectorResult[] = [];
         let vectorizeError = '';
         try {
-          const storedKey = localStorage.getItem('hchps-api-key');
           const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-          if (storedKey) headers['X-API-Key'] = storedKey;
+          try {
+            const { getAuthToken } = await import('@/lib/crypto');
+            headers['Authorization'] = `Bearer ${getAuthToken()}`;
+          } catch {
+             // ignore
+          }
 
           const searchRes = await fetch(`${apiBase}/api/semantic-search`, {
             method: 'POST',

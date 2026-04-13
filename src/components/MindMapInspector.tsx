@@ -213,14 +213,25 @@ export function MindMapInspector(props: MindMapInspectorProps) {
                                 const val = e.target.value;
                                 if (val === 'NONE') {
                                   setNodeOverride(activeNode.id, { customParent: 'NONE', customOrbitIndex: undefined, fixedX: undefined, fixedY: undefined });
+                                  setTimeout(() => {
+                                    if (engineRef.current) {
+                                      setActiveNode(prev => prev ? { ...prev, parentId: undefined, customOrbitIndex: undefined } : null);
+                                      initEngine();
+                                    }
+                                  }, 50);
                                 } else {
                                   const parentNode = engineRef.current?.nodes.find((n: OrbitalNode) => n.id === val);
                                   const newOrbit = parentNode ? parentNode.orbitIndex + 1 : undefined;
                                   // 과거에 이 대상과의 '끊기'를 수행한 적이 있다면 (Tombstone 존재), 부모 지정을 위해 Tombstone을 영구히 파기
                                   removeCustomTombstone(activeNode.id, val);
                                   setNodeOverride(activeNode.id, { customParent: val, customOrbitIndex: newOrbit, fixedX: undefined, fixedY: undefined });
+                                  setTimeout(() => {
+                                    if (engineRef.current) {
+                                      setActiveNode(prev => prev ? { ...prev, parentId: val, customOrbitIndex: newOrbit, orbitIndex: newOrbit ?? prev.orbitIndex } : null);
+                                      initEngine();
+                                    }
+                                  }, 50);
                                 }
-                                setTimeout(() => initEngine(), 50);
                               }}
                               className={`flex-1 text-xs px-2 py-1.5 rounded-md border min-w-0 ${(activeNode.id.startsWith('root-') && (!activeNode.parentId || activeNode.parentId === 'root-HCHPS' || activeNode.parentId === 'NONE')) ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200 focus:outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] cursor-pointer'}`}
                             >

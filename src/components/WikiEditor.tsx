@@ -129,9 +129,13 @@ export function WikiEditor(props: WikiEditorProps) {
                   setIsLlamaThinking(true);
                   const docText = await editor.blocksToMarkdownLossy(editor.document);
                   const apiBase = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) ? '' : 'https://portfolio-hchps.pages.dev';
-                  const storedKey = localStorage.getItem('hchps-api-key');
                   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-                  if (storedKey) headers['X-API-Key'] = storedKey;
+                  try {
+                    const { getAuthToken } = await import('@/lib/crypto');
+                    headers['Authorization'] = `Bearer ${getAuthToken()}`;
+                  } catch {
+                     // ignore
+                  }
                   
                   // 1. Vectorize 검색하여 의미론적 유사 노드 찾기
                   const res = await fetch(`${apiBase}/api/semantic-search`, {
@@ -188,8 +192,12 @@ export function WikiEditor(props: WikiEditorProps) {
                     ? '' : 'https://portfolio-hchps.pages.dev';
                   
                   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-                  const storedKey = localStorage.getItem('hchps-api-key');
-                  if (storedKey) headers['X-API-Key'] = storedKey;
+                  try {
+                    const { getAuthToken } = await import('@/lib/crypto');
+                    headers['Authorization'] = `Bearer ${getAuthToken()}`;
+                  } catch {
+                     // ignore
+                  }
 
                   fetch(`${apiBase}/api/embeddings`, {
                     method: 'POST',

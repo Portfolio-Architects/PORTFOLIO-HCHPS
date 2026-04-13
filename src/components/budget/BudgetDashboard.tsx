@@ -5,10 +5,11 @@ import { BudgetCategory, BudgetEntry, BudgetActionType, generateId } from '@/typ
 import { Card, CardContent } from '@/components/ui/card';
 import { ProgressBar } from '@/components/ui/progress-bar';
 import { Modal } from '@/components/ui/modal';
-import { extractTextFromPdfBuffer } from '@/lib/pdf-parser';
-import { askLlama } from '@/lib/llm-client';
-import { Plus, Pencil, Trash2, FileCheck, FilePlus2, CheckCircle2, AlertOctagon, ShieldAlert, RefreshCw, ChevronDown, ChevronUp, Search } from 'lucide-react';
+import { Plus, Pencil, Trash2, CheckCircle2, AlertOctagon, ShieldAlert, RefreshCw, Search } from 'lucide-react';
 import { replaceAll } from '@/lib/sheets-api';
+import { MultiSelectDropdown } from './ui/MultiSelectDropdown';
+import { PolicyGroupCard, ACTION_TYPE_CONFIG } from './ui/PolicyGroupCard';
+import { useBudgetAI } from './model/useBudgetAI';
 
 interface BudgetDashboardProps {
   categories: BudgetCategory[];
@@ -36,243 +37,7 @@ const COLORS = [
   '#4F46E5', '#059669', '#EAB308', '#DC2626', '#7C3AED', '#0891B2', '#EA580C', '#BE185D', '#16A34A', '#2563EB', '#9333EA', '#B45309', '#0284C7', '#86198F', '#4D7C0F'
 ];
 
-const ACTION_TYPE_CONFIG: Record<BudgetActionType, { label: string; badge: string; badgeBg: string; icon: typeof FilePlus2 }> = {
-  general: { label: '일반 지출', badge: '일반', badgeBg: 'bg-blue-100 text-blue-700', icon: FileCheck },
-  issuance: { label: '일상경비 교부', badge: '교부', badgeBg: 'bg-amber-100 text-amber-700', icon: FilePlus2 },
-  daily_expense: { label: '일상경비 지출', badge: '경비지출', badgeBg: 'bg-teal-100 text-teal-700', icon: FileCheck },
-};
-
-const MultiSelectDropdown = ({ 
-  label, 
-  options, 
-  selected, 
-  onChange,
-  disabled
-}: { 
-  label: string; 
-  options: string[]; 
-  selected: string[]; 
-  onChange: (val: string[]) => void;
-  disabled?: boolean;
-}) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const isAll = selected.length === 0;
-
-  const toggle = (opt: string) => {
-    if (selected.includes(opt)) onChange(selected.filter(o => o !== opt));
-    else onChange([...selected, opt]);
-  };
-
-  return (
-    <div className="relative inline-block w-full sm:max-w-[200px]">
-      <button 
-        type="button"
-        disabled={disabled}
-        onClick={() => setIsOpen(!isOpen)} 
-        className={`flex items-center justify-between w-full px-3 py-1.5 rounded-md border border-gray-200 text-sm bg-white focus:ring-1 focus:ring-blue-500 ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50'}`}
-      >
-        <span className="truncate">{isAll ? `${label} 전체` : `${selected.length}개 선택됨${selected.length === 1 ? ` (${selected[0]})` : ''}`}</span>
-        <ChevronDown size={14} className="text-gray-400" />
-      </button>
-      
-      {isOpen && !disabled && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-          <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
-            <div 
-              className="flex items-center px-3 py-2 cursor-pointer hover:bg-gray-50 border-b border-gray-100"
-              onClick={() => { onChange([]); setIsOpen(false); }}
-            >
-              <input type="checkbox" checked={isAll} readOnly className="mr-2" />
-              <span className="text-sm font-medium text-blue-600">{label} 전체</span>
-            </div>
-            {options.map(opt => (
-              <div 
-                key={opt}
-                className="flex items-center px-3 py-2 cursor-pointer hover:bg-gray-50"
-                onClick={() => toggle(opt)}
-              >
-                <input type="checkbox" checked={selected.includes(opt)} readOnly className="mr-2" />
-                <span className="text-sm text-gray-700 truncate">{opt}</span>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  )
-};
-
-const PolicyGroupCard = React.memo(({
-  group,
-  entries,
-  getCategoryStats,
-  deleteCategory,
-  deleteEntry,
-  openEditCat,
-  openEditEntry
-}: {
-  group: { policyName: string; cats: BudgetCategory[] };
-  entries: BudgetEntry[];
-  getCategoryStats: (id: string) => { totalBudget: number; spent: number; planned: number; remaining: number; usageRate: number } | null;
-  deleteCategory: (id: string) => void;
-  deleteEntry: (id: string) => void;
-  openEditCat: (cat: BudgetCategory) => void;
-  openEditEntry: (entry: BudgetEntry) => void;
-}) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [showAllEntries, setShowAllEntries] = useState(false);
-  const { policyName, cats } = group;
-
-  const { totalBudget, spent, planned, remaining, usageRate, groupEntries, groupedByDetail } = useMemo(() => {
-    const tBudget = cats.reduce((s, c) => s + c.totalBudget, 0);
-    let tSpent = 0; let tPlanned = 0; let tRemaining = 0;
-    
-    cats.forEach(c => {
-      const st = getCategoryStats(c.id);
-      if (st) { tSpent += st.spent; tPlanned += st.planned; tRemaining += st.remaining; }
-    });
-    
-    const rate = tBudget > 0 ? Math.round((tSpent / tBudget) * 100) : 0;
-    
-    const catIds = cats.map(c => c.id);
-    const gEntries = entries
-      .filter(e => catIds.includes(e.categoryId))
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-    // Group by detailedProject
-    const groups: { detailName: string; cats: BudgetCategory[] }[] = [];
-    cats.forEach(cat => {
-      const detail = cat.detailedProject || '분류되지 않은 세부사업';
-      let group = groups.find(g => g.detailName === detail);
-      if (!group) {
-        group = { detailName: detail, cats: [] };
-        groups.push(group);
-      }
-      group.cats.push(cat);
-    });
-
-    return { totalBudget: tBudget, spent: tSpent, planned: tPlanned, remaining: tRemaining, usageRate: rate, groupEntries: gEntries, groupedByDetail: groups };
-  }, [cats, entries, getCategoryStats]);
-
-  return (
-    <Card className="overflow-hidden border border-[var(--color-border-light)] shadow-sm mb-3 last:mb-0">
-      <div 
-        className="px-5 py-4 cursor-pointer hover:opacity-90 transition-all border-l-4"
-        style={{ 
-          borderLeftColor: cats[0]?.color || 'var(--color-border-light)',
-          backgroundColor: cats[0]?.color ? `${cats[0].color}0D` : '#F9FAFB'
-        }}
-        onClick={() => setIsOpen(!isOpen)}
-      >
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: cats[0]?.color || 'var(--color-primary)' }} />
-            <h3 className="font-bold text-[17px] text-gray-800">{policyName}</h3>
-          </div>
-          <div className="flex items-center gap-3">
-             <div className="text-xs text-gray-500 font-medium px-2.5 py-1 rounded-full bg-gray-200">단위사업 {cats.length}개</div>
-             <div className="text-gray-400">{isOpen ? <ChevronUp size={18}/> : <ChevronDown size={18}/>}</div>
-          </div>
-        </div>
-        <div className="flex justify-between text-sm mb-1.5 px-1">
-          <span className="text-[var(--color-text-secondary)] font-semibold">총 사용 {formatN(spent)}원 / {formatN(totalBudget)}원</span>
-          <span className="text-[var(--color-primary)] font-bold">잔여 {formatN(remaining)}원</span>
-        </div>
-        <ProgressBar value={usageRate} showLabel />
-        {planned > 0 && <div className="text-xs text-amber-600 mt-1.5 font-medium px-1">📋 품의 예정액: {formatN(planned)}원</div>}
-      </div>
-      
-      {isOpen && (
-        <div className="px-5 py-3 divide-y divide-gray-100">
-          {groupedByDetail.map(detailGroup => (
-            <div key={detailGroup.detailName} className="py-3 first:pt-0">
-              <div className="flex items-center gap-2 mb-2.5">
-                <div className="w-5 h-5 rounded bg-[var(--color-primary)]/10 flex items-center justify-center">
-                  <div className="w-2 h-2 rounded-full bg-[var(--color-primary)]" />
-                </div>
-                <div className="text-[14px] font-bold text-gray-800">{detailGroup.detailName}</div>
-              </div>
-              <div className="space-y-3 pl-2">
-                {detailGroup.cats.map(cat => {
-                  const stats = getCategoryStats(cat.id);
-                  if (!stats) return null;
-                  return (
-                    <div key={cat.id} className="group/item">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="text-sm font-semibold flex items-center gap-2 text-gray-700">
-                          <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color || '#4A6CF7' }}/>
-                          <div className="line-clamp-1">{cat.statItem || cat.name}</div>
-                          <span className="text-xs text-gray-400 font-normal truncate hidden sm:block max-w-[200px]">({cat.name})</span>
-                        </div>
-                        <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover/item:opacity-100 transition-opacity flex-shrink-0">
-                          <button onClick={() => openEditCat(cat)} className="p-1 rounded hover:bg-gray-100 text-gray-400"><Pencil size={12} /></button>
-                          <button onClick={() => deleteCategory(cat.id)} className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-red-500"><Trash2 size={12} /></button>
-                        </div>
-                      </div>
-                      <div className="flex justify-between text-xs mb-1.5 pl-[14px]">
-                        <span className="text-gray-500 flex items-center">
-                          사용 {formatN(stats.spent)} / {formatN(stats.totalBudget)}
-                          <span className="ml-[6px] px-1 bg-gray-100 rounded text-gray-700 font-bold tracking-tight">{(stats.usageRate || 0).toFixed(1)}%</span>
-                        </span>
-                        <span className="text-gray-600 font-bold">잔여 {formatN(stats.remaining)}</span>
-                      </div>
-                      <div className="ml-[14px] h-1.5 bg-gray-200 rounded-full overflow-hidden shadow-inner">
-                         <div className="h-full rounded-full transition-all duration-500 shadow-sm" style={{ width: `${Math.min(100, stats.usageRate || 0)}%`, backgroundColor: cat.color || '#4A6CF7' }} />
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          ))}
-          
-          {groupEntries.length > 0 && (
-            <div className="pt-3 space-y-2 mt-2">
-              <div className="flex items-center justify-between mb-2 ml-1">
-                <div className="text-[13px] font-bold text-gray-500 uppercase tracking-wider">
-                  지출 내역 {groupEntries.length > 6 ? `(총 ${groupEntries.length}건)` : ''}
-                </div>
-                {groupEntries.length > 6 && (
-                  <button 
-                    onClick={() => setShowAllEntries(prev => !prev)}
-                    className="text-[11px] bg-blue-50 text-blue-600 px-2.5 py-1 rounded cursor-pointer hover:bg-blue-100 hover:text-blue-800 font-bold transition-colors"
-                  >
-                    {showAllEntries ? '간략히 보기' : '모두 보기'}
-                  </button>
-                )}
-              </div>
-              
-              <div className={`space-y-2 ${showAllEntries ? 'max-h-[600px] overflow-y-auto pr-1 scrollbar-hide' : ''}`}>
-                {(showAllEntries ? groupEntries : groupEntries.slice(0, 6)).map(entry => {
-                  const cfg = ACTION_TYPE_CONFIG[entry.actionType || 'general'] || ACTION_TYPE_CONFIG['general'];
-                  const parentCat = cats.find(c => c.id === entry.categoryId);
-                  return (
-                    <div key={entry.id} className="flex items-center text-sm group bg-gray-50/60 p-2.5 rounded-lg border border-gray-100 hover:bg-gray-50 transition-colors">
-                      <div className="w-[70px] flex-shrink-0">
-                        <span className={`px-2 py-0.5 rounded text-[11px] font-bold border border-transparent whitespace-nowrap ${cfg.badgeBg}`}>{cfg.badge}</span>
-                      </div>
-                      <div className="w-[180px] hidden sm:flex items-center flex-shrink-0 pr-3">
-                        <span className="text-[11px] bg-white border border-gray-200 text-gray-600 px-1.5 py-0.5 rounded whitespace-nowrap overflow-visible">
-                          {parentCat?.unitProject || '알수없음'}
-                        </span>
-                      </div>
-                      <div className="w-[140px] hidden sm:flex items-center flex-shrink-0 pr-3">
-                        {entry.docRegNum && (
-                          <span className="text-[11px] bg-indigo-50 border border-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded whitespace-nowrap">
-                            {entry.docRegNum}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-[200px] pr-2">
-                        <span className="text-gray-800 font-bold tracking-tight line-clamp-1" title={entry.purpose}>{entry.purpose}</span>
-                      </div>
-                      <div className="w-[160px] flex items-center justify-end gap-3 flex-shrink-0 pl-2">
-                         <span className="font-bold text-gray-800 tracking-tight tabular-nums whitespace-nowrap">{formatN(entry.amount)}원</span>
-                         <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity w-[56px] justify-end flex-shrink-0">
-                           <button onClick={() => openEditEntry(entry)} className="p-1.5 rounded hover:bg-gray-100 text-gray-400"><Pencil size={14} /></button>
-                           <button onClick={() => { if(window.confirm('이 지출 내역을 정말 삭제하시겠습니까? 삭제된 데이터는 복구할 수 없습니다.')) deleteEntry(entry.id) }} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500"><Trash2 size={14} /></button>
-                         </div>
+// UI components offloaded to ./ui/            </div>
                        </div>
                     </div>
                   );
@@ -282,7 +47,7 @@ const PolicyGroupCard = React.memo(({
           )}
         </div>
       )}
-    </Card>
+    </div>
   );
 });
 PolicyGroupCard.displayName = "PolicyGroupCard";
@@ -342,172 +107,16 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
     if (migrated) console.info('[Migration] Legacy category nomenclature updated.');
   }, [categories, updateCategory]);
 
-  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setIsParsingPdf(true);
-    try {
-      const buffer = await file.arrayBuffer();
-      const text = await extractTextFromPdfBuffer(buffer);
-
-      const categoryOptions = categories.map(c => `ID: ${c.id} | 분류: ${c.policyProject} > ${c.unitProject} > ${c.detailedProject} | 항목: ${c.statItem} | 별칭: ${c.name}`).join('\n');
-      
-      const systemPrompt = `
-당신은 보건진흥과 예산 문서를 분석하여 아래 JSON 스키마로 정확하게 반환하는 스마트 스캐너입니다.
-[사용 가능한 예산 카테고리 목록]
-${categoryOptions}
-
-다음 규칙을 엄격히 준수하세요:
-1. 문서 내용에서 '지출 금액(원)', '사용 목적(적요)', 그리고 문맥상 완벽히 일치하는 예산 '항목(통계목)'을 찾아보세요.
-2. 예산 과목 매칭: 위 목록 중 가장 관련성 높은 통계목(예: 사무관리비, 공공운영비 등 여비)을 찾아 그 항목에 해당하는 정확한 "ID"를 추출해야 합니다. 
-3. 응답할 JSON은 반드시 'reasoning' 필드를 맨 처음 작성하여 지출 목적과 통계목 매칭의 논리적 이유를 스스로 설명한 뒤에 'categoryId' 등 나머지 필드를 작성하세요.
-4. 금액은 숫자만 추출. 목적은 20자 이내로 요약.
-5. 문서 하단 "시행 [문서번호] (날짜)" 패턴을 찾아 "시행 문서 번호"(예: 보건행정과-1234)와 해당 문서를 시행한 "날짜"(예: 2026-04-10)를 우선적으로 추출.
-6. 응답은 오직 순수한 JSON 객체 문자열이어야 하며, 마크다운이나 백틱이 없어야 합니다.
-형식: {"reasoning": "지출 목적이 XX이므로 YY항목이 적합함", "categoryId": "정확한ID", "amount": 1234, "purpose": "요약", "docNum": "보건행정과-123", "date": "2026-04-10"}
-      `.trim();
-
-      const responseText = await askLlama([
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: `[문서 원문]\n${text}\n\n위 문서를 분석하여 반드시 지정된 JSON 형식으로만 응답해.` }
-      ]);
-
-      let jsonStr = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
-      let result: any = null;
-
-      try {
-        result = JSON.parse(jsonStr);
-      } catch (e1) {
-        // 단일 객체 매칭 (첫번째 { } 블록)
-        const objMatch = jsonStr.match(/\{[\s\S]*?\}/);
-        // 배열 매칭 (첫번째 [ ] 블록)
-        const arrMatch = jsonStr.match(/\[[\s\S]*?\]/);
-        
-        let parsed = false;
-        if (arrMatch) {
-          try {
-            result = JSON.parse(arrMatch[0]);
-            parsed = true;
-          } catch(e) {}
-        }
-        
-        if (!parsed && objMatch) {
-          try {
-            result = JSON.parse(objMatch[0]);
-            parsed = true;
-          } catch(e) {}
-        }
-        
-        if (!parsed) {
-          // 마지막 시도: 전체를 둘러보는 광범위 매칭
-          const startIdx = jsonStr.indexOf('{');
-          const endIdx = jsonStr.lastIndexOf('}');
-          if (startIdx !== -1 && endIdx !== -1) {
-            result = JSON.parse(jsonStr.substring(startIdx, endIdx + 1));
-          } else {
-            throw new Error('유효한 JSON 묶음을 찾을 수 없습니다.');
-          }
-        }
-      }
-
-      // 배열일 경우 다중 폼 중 첫번째만 로드하고 알림
-      if (Array.isArray(result)) {
-        if (result.length > 1) {
-          alert(`여러 건(${result.length}건)의 내역이 분석되었습니다! 현재 폼에는 첫 번째 내역만 자동으로 입력됩니다.`);
-        }
-        result = result[0] || {};
-      }
-
-      if (result.categoryId) {
-        let matchedCat = categories.find(c => c.id === String(result.categoryId).trim());
-        
-        if (!matchedCat) {
-          const catStr = String(result.categoryId).trim().toLowerCase();
-          
-          // 1순위: AI 응답(catStr) 내에서 통계목 + 사업명(별칭) 동시 포함
-          matchedCat = categories.find(c => {
-            const hasStat = c.statItem && (catStr.includes(c.statItem.split('(')[0].trim().toLowerCase()) || catStr.includes(c.statItem.replace(/[^0-9-]/g, '')));
-            const prefix = c.name ? c.name.split('-')[0].trim().substring(0, 6).toLowerCase() : '';
-            const hasProj = (c.unitProject && catStr.includes(c.unitProject.toLowerCase())) ||
-                            (prefix && catStr.includes(prefix));
-            return hasStat && hasProj;
-          });
-
-          // 2순위: 카테고리 이름이나 별칭 직접 매칭
-          if (!matchedCat) {
-            matchedCat = categories.find(c => 
-              c.name.toLowerCase() === catStr ||
-              c.name.toLowerCase().includes(catStr) ||
-              catStr.includes(c.name.toLowerCase())
-            );
-          }
-        }
-
-        // 3순위 (최후의 보루): AI가 매칭을 실패하거나 빈 값을 반환했을 경우, PDF 원본 텍스트(raw text)에서 직접 교집합 찾기
-        if (!matchedCat) {
-          const rawText = text.replace(/\s+/g, '').toLowerCase(); // 띄어쓰기 제거하여 매칭 확률 증가
-          const scoredCats = categories.map(c => {
-            let score = 0;
-            // 통계목 검사 (예: "행사운영비", "201-03")
-            const statWord = c.statItem ? c.statItem.split('(')[0].trim().toLowerCase() : '';
-            const statNum = c.statItem ? c.statItem.replace(/[^0-9-]/g, '') : '';
-            if (statWord && rawText.includes(statWord)) score += 10;
-            if (statNum && rawText.includes(statNum)) score += 10;
-
-            // 프로젝트 검사 (예: "건강생활실천", "건강도시조성")
-            const prefix = c.name ? c.name.split('-')[0].trim().substring(0, 6).toLowerCase().replace(/\s+/g, '') : '';
-            const unit = c.unitProject ? c.unitProject.toLowerCase().replace(/\s+/g, '') : '';
-            if (unit && rawText.includes(unit)) score += 5;
-            if (prefix && rawText.includes(prefix)) score += 5;
-
-            return { cat: c, score };
-          });
-
-          // 통계목과 프로젝트가 둘 다 매칭되어 스코어가 15점 이상인 후보군 필터링
-          const bestMatches = scoredCats.filter(sc => sc.score >= 15).sort((a, b) => b.score - a.score);
-          if (bestMatches.length > 0) {
-            matchedCat = bestMatches[0].cat;
-          }
-        }
-
-        if (matchedCat) {
-          setSelectedCatId(matchedCat.id);
-        }
-      }
-      if (result.amount) {
-        const amtStr = result.amount.toString().replace(/[^0-9]/g, '');
-        setEntryAmount(amtStr ? Number(amtStr).toLocaleString('ko-KR') : '');
-      }
-      if (result.purpose) setEntryPurpose(result.purpose.substring(0, 30));
-      
-      // 1. LLM 파싱 결과 기본 할당
-      let finalDocNum = result.docNum || '';
-      let finalDate = (result.date && /^\d{4}-\d{2}-\d{2}$/.test(result.date)) ? result.date : '';
-
-      // 2. 정규식(Regex)을 통한 초정밀 원본 텍스트 직접 추출 (우선순위 높음)
-      const docRegex = /시행[\s\n]*([가-힣a-zA-Z0-9]+-\d+)[\s\n]*\([\s\n]*(\d{4})\.[\s\n]*(\d{1,2})\.[\s\n]*(\d{1,2})\.[\s\n]*\)/;
-      const docMatch = text.match(docRegex);
-      if (docMatch) {
-        finalDocNum = docMatch[1]; // 보건행정과-3084
-        const year = docMatch[2];
-        const month = docMatch[3].padStart(2, '0');
-        const day = docMatch[4].padStart(2, '0');
-        finalDate = `${year}-${month}-${day}`;
-      }
-
-      if (finalDocNum) setEntryDocNum(finalDocNum);
-      if (finalDate) setEntryDate(finalDate);
-
-      alert('✅ AI가 지출 품의서를 성공적으로 분석하여 폼을 채웠습니다.');
-    } catch (err: any) {
-      console.error('PDF 파싱 오류:', err);
-      alert('문서 분석에 실패했습니다. 형식 오류 또는 네트워크 문제일 수 있습니다.\n상세오류: ' + (err.message || '알 수 없는 오류'));
-    } finally {
-      setIsParsingPdf(false);
-      e.target.value = '';
+  const { isParsingPdf, handlePdfUpload } = useBudgetAI({
+    categories,
+    onSuccess: (data) => {
+      if (data.categoryId) setSelectedCatId(data.categoryId);
+      if (data.amount) setEntryAmount(data.amount);
+      if (data.purpose) setEntryPurpose(data.purpose);
+      if (data.docNum) setEntryDocNum(data.docNum);
+      if (data.date) setEntryDate(data.date);
     }
-  };
+  });
 
   useEffect(() => {
     try {
@@ -842,35 +451,77 @@ ${categoryOptions}
         </div>
       </div>
 
-      {/* Overall Summary (3-way split) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-        <Card><CardContent className="h-full flex flex-col justify-center">
-          <div className="text-xs text-[var(--color-text-tertiary)]">전체 (총 예산/총 지출)</div>
-          <div className="text-lg font-bold mt-1 text-gray-800">{formatN(filteredStats.totalBudget)}원</div>
-          <div className="text-xs font-semibold mt-1 text-gray-500">지출계: {formatN(filteredStats.totalSpent)}원</div>
-        </CardContent></Card>
+      {/* Overall Summary (4 Premium Cards) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         
-        <Card className="border-l-4 border-l-blue-500 bg-blue-50/50"><CardContent className="h-full flex flex-col justify-center">
-          <div className="text-[11px] font-bold text-blue-600 mb-1">일반 계좌</div>
-          <div className="text-sm font-bold text-gray-700">일반 지출: {formatN(filteredStats.totalSpent - filteredStats.dailyExpenseIssued)}원</div>
-          <div className="text-sm font-bold mt-1 text-blue-700">잔여: {formatN(filteredStats.remaining)}원</div>
-        </CardContent></Card>
-
-        <Card className="border-l-4 border-l-amber-500 bg-amber-50/50"><CardContent className="h-full flex flex-col justify-center">
-          <div className="text-[11px] font-bold text-amber-600 mb-1">일상경비 통장 이체내역</div>
-          <div className="text-sm font-bold text-gray-700">교부액 (이체원금): {formatN(filteredStats.dailyExpenseIssued)}원</div>
-          <div className="text-sm font-bold mt-1 text-amber-700">실지출액: {formatN(filteredStats.dailyExpenseSpent)}원</div>
-        </CardContent></Card>
-
-        <Card className="border-[var(--color-border-light)] relative overflow-hidden group"><CardContent className="h-full flex flex-col justify-center">
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-[12px] font-bold text-teal-600">일상경비 통장 가용 잔액</div>
-            <button onClick={() => setShowLedgerModal(true)} className="flex items-center gap-1.5 text-[13px] bg-teal-50 text-teal-700 px-3 py-1.5 rounded-full hover:bg-teal-100 transition-colors font-bold whitespace-nowrap shadow-sm">
-              <Search size={16} /> 상세 대조
-            </button>
+        {/* Card 1: Total Budget */}
+        <div className="relative overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-lg border border-slate-700/50 p-5 group hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+          <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 rounded-full bg-slate-700/30 blur-2xl group-hover:bg-slate-600/40 transition-all duration-500"></div>
+          <div className="relative z-10 flex flex-col h-full justify-between">
+            <div className="text-[13px] font-medium text-slate-400 mb-3 tracking-wide flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-slate-400"></div> 전체 예산 현황</div>
+            <div>
+              <div className="text-2xl sm:text-3xl font-black text-white tracking-tight mb-2">{formatN(filteredStats.totalBudget)}<span className="text-lg font-medium text-slate-400 ml-1">원</span></div>
+              <div className="inline-block mt-2 px-3 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700 text-[13px] text-slate-300 font-medium backdrop-blur-sm shadow-inner">
+                총 지출액 <span className="font-bold text-white ml-1">{formatN(filteredStats.totalSpent)}</span>원
+              </div>
+            </div>
           </div>
-          <div className="text-xl font-black mt-1 text-teal-700">{formatN(filteredStats.dailyExpenseRemaining)}원</div>
-        </CardContent></Card>
+        </div>
+        
+        {/* Card 2: General Account */}
+        <div className="relative overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-50/50 rounded-2xl shadow-sm border border-blue-200/60 p-5 group hover:shadow-md transition-all duration-300 hover:border-blue-300">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-blue-400/20 to-transparent rounded-full blur-xl transform translate-x-4 -translate-y-4"></div>
+          <div className="relative z-10 flex flex-col h-full justify-between">
+            <div className="text-[13px] font-bold text-blue-700 mb-3 tracking-wide flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div> 일반 계좌</div>
+            <div>
+              <div className="text-2xl sm:text-3xl font-extrabold text-gray-800 tracking-tight mb-1">{formatN(filteredStats.remaining)}<span className="text-base font-bold text-gray-500 ml-1">잔여</span></div>
+              <div className="flex flex-col gap-1 mt-3">
+                <div className="flex justify-between items-center text-[13px] bg-white/50 px-3 py-2 rounded-lg border border-blue-100">
+                  <span className="text-gray-500 font-medium">일반 지출</span>
+                  <span className="font-bold text-gray-700">{formatN(filteredStats.totalSpent - filteredStats.dailyExpenseIssued)}원</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 3: Daily Expense Issuance */}
+        <div className="relative overflow-hidden bg-gradient-to-br from-amber-50 to-orange-50/40 rounded-2xl shadow-sm border border-amber-200/60 p-5 group hover:shadow-md transition-all duration-300 hover:border-amber-300">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-amber-400/20 to-transparent rounded-full blur-xl transform translate-x-4 -translate-y-4"></div>
+          <div className="relative z-10 flex flex-col h-full justify-between">
+            <div className="text-[13px] font-bold text-amber-700 mb-3 tracking-wide flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)] animate-pulse"></div> 일상경비 이체내역</div>
+            <div className="flex flex-col gap-2 mt-1">
+              <div className="bg-white/70 backdrop-blur-sm rounded-xl p-3 border border-amber-100 shadow-[0_2px_8px_rgba(245,158,11,0.05)]">
+                <div className="text-[11px] text-amber-600 font-bold mb-0.5">교부액 (이체원금)</div>
+                <div className="text-lg font-black text-gray-800 tracking-tight">{formatN(filteredStats.dailyExpenseIssued)}<span className="text-xs font-semibold text-gray-500 ml-1">원</span></div>
+              </div>
+              <div className="bg-white/70 backdrop-blur-sm rounded-xl p-3 border border-amber-100 shadow-[0_2px_8px_rgba(245,158,11,0.05)] flex justify-between items-end">
+                <div className="text-[11px] text-gray-500 font-bold mb-0.5">실지출액</div>
+                <div className="text-[15px] font-bold text-gray-700">{formatN(filteredStats.dailyExpenseSpent)}<span className="text-[10px] text-gray-400 ml-1">원</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 4: Daily Expense Remaining */}
+        <div className="relative overflow-hidden bg-gradient-to-br from-teal-500 to-emerald-700 rounded-2xl shadow-lg border border-teal-600/50 p-5 group hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl transform translate-x-8 -translate-y-8 group-hover:bg-white/20 transition-all duration-500"></div>
+          <div className="absolute bottom-0 left-0 w-24 h-24 bg-teal-900/30 rounded-full blur-xl transform -translate-x-8 translate-y-8"></div>
+          <div className="relative z-10 flex flex-col h-full justify-between">
+            <div className="flex items-center justify-between mb-4">
+              <div className="text-[13px] font-bold text-teal-50 tracking-wide flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full bg-teal-300 animate-pulse"></div> 가용 잔액
+              </div>
+              <button onClick={() => setShowLedgerModal(true)} className="flex items-center gap-1.5 text-[12px] bg-white/20 hover:bg-white/30 text-white px-3 py-1.5 rounded-full transition-all duration-200 font-bold backdrop-blur-md border border-white/20 shadow-sm hover:shadow">
+                <Search size={14} /> 상세 대조
+              </button>
+            </div>
+            <div>
+              <div className="text-3xl font-black text-white tracking-tight drop-shadow-md">{formatN(filteredStats.dailyExpenseRemaining)}<span className="text-base font-semibold text-teal-100 ml-1">원</span></div>
+              <div className="mt-2 text-[11px] text-teal-50/80 font-medium">원장대조 버튼으로 영수증 누락을 확인하세요.</div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Categories */}

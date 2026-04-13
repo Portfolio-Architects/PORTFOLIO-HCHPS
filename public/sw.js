@@ -43,8 +43,21 @@ self.addEventListener('fetch', (event) => {
     event.request.url.includes('/partykit') || 
     event.request.url.includes('/ws') ||
     event.request.url.includes('/api/') ||
-    event.request.url.includes('docs.google.com')
+    event.request.url.includes('docs.google.com') ||
+    event.request.url.includes('webpack') ||
+    event.request.url.includes('_next/webpack-hmr')
   ) {
+    return;
+  }
+
+  // HTML 진입점(navigate) 요청 시 항상 네트워크에서 최신 버전을 가져옴
+  // -> 캐시된 구버전 index.html이 삭제된 구버전 JS 청크를 요청해 404가 발생하는 문제(ChunkLoadError) 방지
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).catch(() => {
+        return caches.match('./'); // 네트워크 오프라인 시 Fallback
+      })
+    );
     return;
   }
 
@@ -69,8 +82,6 @@ self.addEventListener('fetch', (event) => {
         if (!res) throw new Error('Network and cache unavailable');
         return res;
       });
-    }).catch(() => {
-      return caches.match('./'); // Fallback to root index.html
     })
   );
 });

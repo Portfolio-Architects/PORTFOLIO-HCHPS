@@ -367,4 +367,23 @@ sequenceDiagram
   - *목표:* 언더커버 환경(회의실, 출퇴근 등)에서도 즉각적인 인물 검색 및 메모 작성이 가능한 오프라인 우선 모바일 경험.
   - *실행:* PWA 심화 적용 및 장기적으로 Expo 기반 React Native 네이티브 앱 컴파일.
 
+### 4. Vibe Coding 한계 극복 및 엔지니어링 고도화 (4대 핵심 Pillar)
+
+프로토타이핑(Vibe Coding)을 통해 구축된 현 시스템을, 프로덕션 레벨의 견고한 소프트웨어 엔지니어링 산출물로 업그레이드하기 위한 구체적 로드맵입니다.
+
+- [ ] **Pillar 1: 블랙박스 해소 및 아키텍처 통제 (Separation of Concerns)**
+  - 거대 컴포넌트(예: 1,000줄 이상의 `BudgetDashboard` 등)를 비즈니스 로직과 UI로 쪼개는 Feature-sliced Design (FSD) 도입.
+  - 핵심 유틸리티 로직(PDF 파싱, 동기화 로직)에 대한 TSDoc 표준 주석 강제화.
+- [ ] **Pillar 2: 기술 부채 상환 및 유지보수성 확보 (Maintainability)**
+  - Zod를 이용한 런타임 타입 검증 체계 구축 (API 입출력 무결성 확보).
+  - Zustand 및 React Query 등을 도입하여 산발적 동기화를 단방향 SSOT로 통제하고 스파게티 렌더링 방지.
+- [ ] **Pillar 3: 방어적 프로그래밍 (Defensive Programming)**
+  - PartyKit/Websocket 기반 다중 동시 편집 시 Race Condition 방어를 위한 낙관적 업데이트(Optimistic UI) 및 롤백 도입.
+  - 전역 및 도메인 단위의 `error.tsx` 모듈 기반 Error Boundary 배치로 애플리케이션 먹통(White-screen) 방어.
+  - React Hook Form + Zod 구조를 바탕으로 안티-XSS(Anti-Cross Site Scripting) 폼 검증 파이프라인 정립.
+- [ ] **Pillar 4: 테스트와 검증 체계 (Automated Testing & CI)**
+  - Jest를 활용한 핵심 순수 함수 및 데이터 파싱 룰셋의 단위 테스트(Unit Test) 구축.
+  - Playwright E2E 봇을 활용하여 UI 크리티컬 패스(지출 품의, 위키 문서 작성 등) 시나리오 자동 검증 스크립트 작성.
+  - GitHub Actions 기반으로 Lint와 Test를 강제하는 Branch Protection CI 라우팅 구축.
+
 ---

@@ -1,5 +1,14 @@
 /**
  * ArrayBuffer 형식의 PDF 파일 데이터에서 텍스트를 추출합니다.
+ * 
+ * @param buffer - 파싱할 PDF 파일의 ArrayBuffer 데이터.
+ * @returns 추출된 PDF 텍스트 문자열 (최대 2,000자 제한).
+ * 
+ * @remarks
+ * - 브라우저 환경에서만 `pdfjs-dist` 모듈을 게으르게 로드하여 Next.js 빌드 시 발생하는 `DOMMatrix is not defined` 에러를 방지합니다.
+ * - 긴 문서의 경우 LLM 토큰 압박(Cloudflare 9002 Error)을 방지하기 위해 앞부분 2,000자만 추출합니다.
+ * 
+ * @throws {Error} PDF 문서 파싱 중 텍스트 추출에 실패하거나 버퍼가 손상된 경우 오류를 던집니다.
  */
 export async function extractTextFromPdfBuffer(buffer: ArrayBuffer): Promise<string> {
   // 클라이언트(브라우저) 환경에서만 모듈을 게으르게 로드합니다.
