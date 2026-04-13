@@ -5,21 +5,21 @@ export const TaskStatusSchema = z.enum(['todo', 'in-progress', 'done']);
 export const TaskPrioritySchema = z.enum(['low', 'medium', 'high']);
 
 export const TaskSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  description: z.string().optional(),
-  status: TaskStatusSchema,
-  priority: TaskPrioritySchema,
-  category: z.string(),
-  dueDate: z.string().optional(),
-  projectId: z.string().optional(),
-  recurrence: z.string().optional(),
-  recurrenceStartDate: z.string().optional(),
-  recurrenceEndDate: z.string().optional(),
-  recurrenceCount: z.number().optional(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-  tags: z.array(z.string()).default([]),
+  id: z.string().catch('unknown-id'),
+  title: z.string().catch('제목 없음'),
+  description: z.string().optional().catch(''),
+  status: TaskStatusSchema.catch('todo'),
+  priority: TaskPrioritySchema.catch('medium'),
+  category: z.string().catch('미분류'),
+  dueDate: z.string().optional().catch(undefined),
+  projectId: z.string().optional().catch(undefined),
+  recurrence: z.string().optional().catch(undefined),
+  recurrenceStartDate: z.string().optional().catch(undefined),
+  recurrenceEndDate: z.string().optional().catch(undefined),
+  recurrenceCount: z.number().optional().catch(undefined),
+  createdAt: z.string().catch(new Date().toISOString()),
+  updatedAt: z.string().catch(new Date().toISOString()),
+  tags: z.array(z.string()).default([]).catch([]),
 });
 
 export type TaskDto = z.infer<typeof TaskSchema>;
@@ -28,61 +28,61 @@ export type TaskDto = z.infer<typeof TaskSchema>;
 export const BudgetActionTypeSchema = z.enum(['general', 'issuance', 'daily_expense']);
 
 export const BudgetCategorySchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  totalBudget: z.number(),
-  color: z.string(),
-  description: z.string().optional(),
-  policyProject: z.string().optional(),
-  unitProject: z.string().optional(),
-  detailedProject: z.string().optional(),
-  statItem: z.string().optional(),
+  id: z.string().catch('unknown-cat'),
+  name: z.string().catch('알 수 없는 카테고리'),
+  totalBudget: z.number().catch(0),
+  color: z.string().optional().default('#3b82f6').catch('#3b82f6'),
+  description: z.string().optional().catch(''),
+  policyProject: z.string().optional().catch('기타'),
+  unitProject: z.string().optional().catch('전반'),
+  detailedProject: z.string().optional().catch('기본운영'),
+  statItem: z.string().optional().catch('일반'),
 });
 
 export type BudgetCategoryDto = z.infer<typeof BudgetCategorySchema>;
 
 export const BudgetEntrySchema = z.object({
-  id: z.string(),
-  categoryId: z.string(),
-  amount: z.number(),
-  date: z.string(),
-  purpose: z.string(),
-  memo: z.string().optional(),
-  isPlanned: z.boolean().optional(),
-  entryType: z.literal('approval').optional(),
-  actionType: BudgetActionTypeSchema.optional(),
-  inventoryItemId: z.string().optional(),
-  docRegNum: z.string().optional(),
+  id: z.string().catch('unknown-entry'),
+  categoryId: z.string().catch('unknown-cat'),
+  amount: z.number().catch(0),
+  date: z.string().catch(new Date().toISOString()),
+  purpose: z.string().catch('내역 없음'),
+  memo: z.string().optional().catch(''),
+  isPlanned: z.boolean().optional().catch(false),
+  entryType: z.literal('approval').optional().catch(undefined),
+  actionType: BudgetActionTypeSchema.optional().catch(undefined),
+  inventoryItemId: z.string().optional().catch(undefined),
+  docRegNum: z.string().optional().catch(''),
 });
 
 export type BudgetEntryDto = z.infer<typeof BudgetEntrySchema>;
 
 // ============ Project Module ============
 export const ChecklistItemSchema = z.object({
-  id: z.string(),
-  text: z.string(),
-  completed: z.boolean(),
+  id: z.string().catch('unknown-item'),
+  text: z.string().catch('할일'),
+  completed: z.boolean().catch(false),
 });
 
 export const ProjectSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  description: z.string().optional(),
-  color: z.string(),
-  checklistItems: z.array(ChecklistItemSchema).default([]),
-  createdAt: z.string(),
-  updatedAt: z.string(),
+  id: z.string().catch('unknown-project'),
+  name: z.string().catch('알 수 없는 프로젝트'),
+  description: z.string().optional().catch(''),
+  color: z.string().catch('#94a3b8'),
+  checklistItems: z.array(ChecklistItemSchema).default([]).catch([]),
+  createdAt: z.string().catch(new Date().toISOString()),
+  updatedAt: z.string().catch(new Date().toISOString()),
 });
 
 // ============ Knowledge Base Module ============
 export const KnowledgeEntrySchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  content: z.string(),
-  category: z.string(),
-  tags: z.array(z.string()).default([]),
-  createdAt: z.string(),
-  updatedAt: z.string(),
+  id: z.string().catch('unknown-knowledge'),
+  title: z.string().catch('제목 없음'),
+  content: z.string().catch('내용 없음'),
+  category: z.string().catch('일반'),
+  tags: z.array(z.string()).default([]).catch([]),
+  createdAt: z.string().catch(new Date().toISOString()),
+  updatedAt: z.string().catch(new Date().toISOString()),
 });
 
 export const getDomainSchema = (sheetName: string) => {

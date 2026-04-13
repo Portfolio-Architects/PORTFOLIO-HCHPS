@@ -77,7 +77,21 @@ export class OntologyRenderer {
       // 양방향 패치 이후 leftNode가 항상 부모인 것이 아니므로 삭제
       // (자식을 가리는 처리는 이미 55번째 줄 layoutHidden 속성에서 방어됨)
 
-      const isConnected = activeNodeId && activeTreeSet.has(src.id) && activeTreeSet.has(tgt.id);
+      const isConnectedToTree = activeNodeId && activeTreeSet.has(src.id) && activeTreeSet.has(tgt.id);
+
+      // 1. 순수 계층 트리(Spanning Tree) 연결 여부 판별
+      const childrenOfSrc = OntologyLayout.lastTreeChildrenMap.get(src.id) || [];
+      const childrenOfTgt = OntologyLayout.lastTreeChildrenMap.get(tgt.id) || [];
+      const isSpanningTreeEdge = childrenOfSrc.includes(tgt.id) || childrenOfTgt.includes(src.id);
+
+      // 2. 현재 선택된 노드에 '직접' 닿아있는 간선인지 판별
+      const isDirectlyConnectedToActive = activeNodeId && (activeNodeId === src.id || activeNodeId === tgt.id);
+
+      // 3. 더럽게 꼬인 거미줄(Spiderweb) 차단 로직: 
+      // 트리 구조가 아닌 교차 간선(Cross-edge)은 양 끝점 중 하나를 직접 명시적으로 클릭하지 않는 이상 완전히 렌더링을 차단합니다.
+      if (!isSpanningTreeEdge && !isDirectlyConnectedToActive) {
+         continue; 
+      }
 
       // Frustum cull
       if (src.renderX < -CULL_MARGIN && tgt.renderX < -CULL_MARGIN) continue;
@@ -92,17 +106,23 @@ export class OntologyRenderer {
       
       const cpDist = Math.max(15, Math.abs(rightLeftX - leftRightX) / 2);
       
-      // 엣지 색상 조절: 자식 노드의 테마 컬러를 따라갑니다.
+      // 엣지 투명도 및 두께 조절
       const themeColor = tgt.themeColor || '#94A3B8';
-      const alpha = isConnected ? 0.6 : 0.15; // 0.2 -> 0.15 로 낮춤
+      let alpha = 0.15;
+      let lineWidth = 0.5 * rc.zoom;
+
+      if (isDirectlyConnectedToActive) {
+          alpha = 0.7; // 직접 선택된 노드의 엣지는 가장 선명하게
+          lineWidth = 1.8 * rc.zoom;
+      } else if (isConnectedToTree) {
+          alpha = 0.4; // 활성 트리에 속한 엣지는 약간 선명하게
+          lineWidth = 1.0 * rc.zoom;
+      }
       
-      // convert Hex to RGBA easily by trusting context alpha, or use string manipulation
-      // To keep it simple, we set globalAlpha
       ctx.globalAlpha = alpha;
       ctx.strokeStyle = themeColor;
+      ctx.lineWidth = lineWidth;
       
-      // 연결 활성화 시 두께 1.5배 강조
-      ctx.lineWidth = isConnected ? 1.5 * rc.zoom : 0.5 * rc.zoom;
       if (edge.weight < 0) ctx.setLineDash([4, 4]);
       else ctx.setLineDash([]);
 

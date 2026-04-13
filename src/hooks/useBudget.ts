@@ -21,10 +21,11 @@ export function useBudget() {
   });
 
   // Deduplicate categories based on a composite key to prevent double-counting
+  // FIX: Include 'name' in the key to prevent merging distinct categories
   const uniqueCategories = useMemo(() => {
     const seen = new Set();
     return rawCategories.filter(c => {
-      const key = `${c.policyProject}-${c.unitProject}-${c.detailedProject}-${c.statItem}-${c.totalBudget}`;
+      const key = `${c.name}-${c.policyProject}-${c.unitProject}-${c.detailedProject}-${c.statItem}-${c.totalBudget}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;

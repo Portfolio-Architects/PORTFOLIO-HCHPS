@@ -328,10 +328,36 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
   }, [categories, getCategoryStats, currentMonth, isEndOfYearApproaching]);
 
   // Hierarchical Filter Calculation
-  const uniquePolicies = useMemo(() => Array.from(new Set(categories.map(c => c.policyProject).filter(Boolean))), [categories]);
-  const unitOptions = useMemo(() => Array.from(new Set(categories.filter(c => filterPolicy.length === 0 || filterPolicy.includes(c.policyProject || '')).map(c => c.unitProject).filter(Boolean))), [categories, filterPolicy]);
-  const detailOptions = useMemo(() => Array.from(new Set(categories.filter(c => (filterPolicy.length === 0 || filterPolicy.includes(c.policyProject || '')) && (filterUnit.length === 0 || filterUnit.includes(c.unitProject || ''))).map(c => c.detailedProject).filter(Boolean))), [categories, filterPolicy, filterUnit]);
-  const statOptions = useMemo(() => Array.from(new Set(categories.filter(c => (filterPolicy.length === 0 || filterPolicy.includes(c.policyProject || '')) && (filterUnit.length === 0 || filterUnit.includes(c.unitProject || '')) && (filterDetail.length === 0 || filterDetail.includes(c.detailedProject || ''))).map(c => c.statItem).filter(Boolean))), [categories, filterPolicy, filterUnit, filterDetail]);
+  const uniquePolicies = useMemo(() => {
+    return Array.from(new Set(categories.map(c => c.policyProject).filter(Boolean))).map(policy => {
+      const sum = categories.filter(c => c.policyProject === policy).reduce((a, b) => a + b.totalBudget, 0);
+      return { value: policy as string, suffix: `${formatN(sum)}원` };
+    });
+  }, [categories]);
+  
+  const unitOptions = useMemo(() => {
+    const list = categories.filter(c => filterPolicy.length === 0 || filterPolicy.includes(c.policyProject || ''));
+    return Array.from(new Set(list.map(c => c.unitProject).filter(Boolean))).map(unit => {
+      const sum = list.filter(c => c.unitProject === unit).reduce((a, b) => a + b.totalBudget, 0);
+      return { value: unit as string, suffix: `${formatN(sum)}원` };
+    });
+  }, [categories, filterPolicy]);
+  
+  const detailOptions = useMemo(() => {
+    const list = categories.filter(c => (filterPolicy.length === 0 || filterPolicy.includes(c.policyProject || '')) && (filterUnit.length === 0 || filterUnit.includes(c.unitProject || '')));
+    return Array.from(new Set(list.map(c => c.detailedProject).filter(Boolean))).map(detail => {
+      const sum = list.filter(c => c.detailedProject === detail).reduce((a, b) => a + b.totalBudget, 0);
+      return { value: detail as string, suffix: `${formatN(sum)}원` };
+    });
+  }, [categories, filterPolicy, filterUnit]);
+  
+  const statOptions = useMemo(() => {
+    const list = categories.filter(c => (filterPolicy.length === 0 || filterPolicy.includes(c.policyProject || '')) && (filterUnit.length === 0 || filterUnit.includes(c.unitProject || '')) && (filterDetail.length === 0 || filterDetail.includes(c.detailedProject || '')));
+    return Array.from(new Set(list.map(c => c.statItem).filter(Boolean))).map(stat => {
+      const sum = list.filter(c => c.statItem === stat).reduce((a, b) => a + b.totalBudget, 0);
+      return { value: stat as string, suffix: `${formatN(sum)}원` };
+    });
+  }, [categories, filterPolicy, filterUnit, filterDetail]);
 
   const filteredCategoriesTree = useMemo(() => {
     return categories.filter(c => {
@@ -428,82 +454,69 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <MultiSelectDropdown label="정책사업명" options={uniquePolicies as string[]} selected={filterPolicy} onChange={val => { setFilterPolicy(val); setFilterUnit([]); setFilterDetail([]); setFilterStat([]); }} />
-          <MultiSelectDropdown label="단위사업명" options={unitOptions as string[]} selected={filterUnit} onChange={val => { setFilterUnit(val); setFilterDetail([]); setFilterStat([]); }} disabled={unitOptions.length === 0} />
-          <MultiSelectDropdown label="세부사업명" options={detailOptions as string[]} selected={filterDetail} onChange={val => { setFilterDetail(val); setFilterStat([]); }} disabled={detailOptions.length === 0} />
-          <MultiSelectDropdown label="통계목" options={statOptions as string[]} selected={filterStat} onChange={val => setFilterStat(val)} disabled={statOptions.length === 0} />
+          <MultiSelectDropdown label="정책사업명" options={uniquePolicies} selected={filterPolicy} onChange={val => { setFilterPolicy(val); setFilterUnit([]); setFilterDetail([]); setFilterStat([]); }} />
+          <MultiSelectDropdown label="단위사업명" options={unitOptions} selected={filterUnit} onChange={val => { setFilterUnit(val); setFilterDetail([]); setFilterStat([]); }} disabled={unitOptions.length === 0} />
+          <MultiSelectDropdown label="세부사업명" options={detailOptions} selected={filterDetail} onChange={val => { setFilterDetail(val); setFilterStat([]); }} disabled={detailOptions.length === 0} />
+          <MultiSelectDropdown label="통계목" options={statOptions} selected={filterStat} onChange={val => setFilterStat(val)} disabled={statOptions.length === 0} />
         </div>
       </div>
 
-      {/* Overall Summary (4 Premium Cards) */}
+      {/* Overall Summary (4 Cards) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         
         {/* Card 1: Total Budget */}
-        <div className="relative overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-lg border border-slate-700/50 p-5 group hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-          <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 rounded-full bg-slate-700/30 blur-2xl group-hover:bg-slate-600/40 transition-all duration-500"></div>
-          <div className="relative z-10 flex flex-col h-full justify-between">
-            <div className="text-[13px] font-medium text-slate-400 mb-3 tracking-wide flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-slate-400"></div> 전체 예산 현황</div>
-            <div>
-              <div className="text-2xl sm:text-3xl font-black text-white tracking-tight mb-2">{formatN(filteredStats.totalBudget)}<span className="text-lg font-medium text-slate-400 ml-1">원</span></div>
-              <div className="inline-block mt-2 px-3 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700 text-[13px] text-slate-300 font-medium backdrop-blur-sm shadow-inner">
-                총 지출액 <span className="font-bold text-white ml-1">{formatN(filteredStats.totalSpent)}</span>원
-              </div>
+        <div className="bg-slate-800 rounded-xl border border-slate-700 p-5 flex flex-col h-full justify-between">
+          <div className="text-[13px] font-medium text-slate-400 mb-3 tracking-wide flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-slate-400"></div> 전체 예산 현황</div>
+          <div>
+            <div className="text-2xl sm:text-3xl font-black text-white tracking-tight mb-2">{formatN(filteredStats.totalBudget)}<span className="text-lg font-medium text-slate-400 ml-1">원</span></div>
+            <div className="inline-block mt-2 px-3 py-1.5 rounded-lg bg-slate-700 border border-slate-600 text-[13px] text-slate-200 font-medium">
+              총 지출액 <span className="font-bold text-white ml-1">{formatN(filteredStats.totalSpent)}</span>원
             </div>
           </div>
         </div>
         
         {/* Card 2: General Account */}
-        <div className="relative overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-50/50 rounded-2xl shadow-sm border border-blue-200/60 p-5 group hover:shadow-md transition-all duration-300 hover:border-blue-300">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-blue-400/20 to-transparent rounded-full blur-xl transform translate-x-4 -translate-y-4"></div>
-          <div className="relative z-10 flex flex-col h-full justify-between">
-            <div className="text-[13px] font-bold text-blue-700 mb-3 tracking-wide flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div> 일반 계좌</div>
-            <div>
-              <div className="text-2xl sm:text-3xl font-extrabold text-gray-800 tracking-tight mb-1">{formatN(filteredStats.remaining)}<span className="text-base font-bold text-gray-500 ml-1">잔여</span></div>
-              <div className="flex flex-col gap-1 mt-3">
-                <div className="flex justify-between items-center text-[13px] bg-white/50 px-3 py-2 rounded-lg border border-blue-100">
-                  <span className="text-gray-500 font-medium">일반 지출</span>
-                  <span className="font-bold text-gray-700">{formatN(filteredStats.totalSpent - filteredStats.dailyExpenseIssued)}원</span>
-                </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col h-full justify-between">
+          <div className="text-[13px] font-bold text-blue-600 mb-3 tracking-wide flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div> 일반 계좌</div>
+          <div>
+            <div className="text-2xl sm:text-3xl font-extrabold text-gray-800 tracking-tight mb-1">{formatN(filteredStats.remaining)}<span className="text-base font-bold text-gray-500 ml-1">잔여</span></div>
+            <div className="flex flex-col gap-1 mt-3">
+              <div className="flex justify-between items-center text-[13px] bg-gray-50 px-3 py-2 rounded border border-gray-100">
+                <span className="text-gray-500 font-medium">일반 지출</span>
+                <span className="font-bold text-gray-700">{formatN(filteredStats.totalSpent - filteredStats.dailyExpenseIssued)}원</span>
               </div>
             </div>
           </div>
         </div>
 
         {/* Card 3: Daily Expense Issuance */}
-        <div className="relative overflow-hidden bg-gradient-to-br from-amber-50 to-orange-50/40 rounded-2xl shadow-sm border border-amber-200/60 p-5 group hover:shadow-md transition-all duration-300 hover:border-amber-300">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-amber-400/20 to-transparent rounded-full blur-xl transform translate-x-4 -translate-y-4"></div>
-          <div className="relative z-10 flex flex-col h-full justify-between">
-            <div className="text-[13px] font-bold text-amber-700 mb-3 tracking-wide flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)] animate-pulse"></div> 일상경비 이체내역</div>
-            <div className="flex flex-col gap-2 mt-1">
-              <div className="bg-white/70 backdrop-blur-sm rounded-xl p-3 border border-amber-100 shadow-[0_2px_8px_rgba(245,158,11,0.05)]">
-                <div className="text-[11px] text-amber-600 font-bold mb-0.5">교부액 (이체원금)</div>
-                <div className="text-lg font-black text-gray-800 tracking-tight">{formatN(filteredStats.dailyExpenseIssued)}<span className="text-xs font-semibold text-gray-500 ml-1">원</span></div>
-              </div>
-              <div className="bg-white/70 backdrop-blur-sm rounded-xl p-3 border border-amber-100 shadow-[0_2px_8px_rgba(245,158,11,0.05)] flex justify-between items-end">
-                <div className="text-[11px] text-gray-500 font-bold mb-0.5">실지출액</div>
-                <div className="text-[15px] font-bold text-gray-700">{formatN(filteredStats.dailyExpenseSpent)}<span className="text-[10px] text-gray-400 ml-1">원</span></div>
-              </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col h-full justify-between">
+          <div className="text-[13px] font-bold text-amber-600 mb-3 tracking-wide flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-500"></div> 일상경비 이체내역</div>
+          <div className="flex flex-col gap-2 mt-1">
+            <div className="bg-gray-50 rounded p-3 border border-gray-100">
+              <div className="text-[11px] text-amber-600 font-bold mb-0.5">교부액 (이체원금)</div>
+              <div className="text-lg font-black text-gray-800 tracking-tight">{formatN(filteredStats.dailyExpenseIssued)}<span className="text-xs font-semibold text-gray-500 ml-1">원</span></div>
+            </div>
+            <div className="bg-gray-50 rounded p-3 border border-gray-100 flex justify-between items-end">
+              <div className="text-[11px] text-gray-500 font-bold mb-0.5">실지출액</div>
+              <div className="text-[15px] font-bold text-gray-700">{formatN(filteredStats.dailyExpenseSpent)}<span className="text-[10px] text-gray-400 ml-1">원</span></div>
             </div>
           </div>
         </div>
 
         {/* Card 4: Daily Expense Remaining */}
-        <div className="relative overflow-hidden bg-gradient-to-br from-teal-500 to-emerald-700 rounded-2xl shadow-lg border border-teal-600/50 p-5 group hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl transform translate-x-8 -translate-y-8 group-hover:bg-white/20 transition-all duration-500"></div>
-          <div className="absolute bottom-0 left-0 w-24 h-24 bg-teal-900/30 rounded-full blur-xl transform -translate-x-8 translate-y-8"></div>
-          <div className="relative z-10 flex flex-col h-full justify-between">
-            <div className="flex items-center justify-between mb-4">
-              <div className="text-[13px] font-bold text-teal-50 tracking-wide flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full bg-teal-300 animate-pulse"></div> 가용 잔액
-              </div>
-              <button onClick={() => setShowLedgerModal(true)} className="flex items-center gap-1.5 text-[12px] bg-white/20 hover:bg-white/30 text-white px-3 py-1.5 rounded-full transition-all duration-200 font-bold backdrop-blur-md border border-white/20 shadow-sm hover:shadow">
-                <Search size={14} /> 상세 대조
-              </button>
+        <div className="bg-teal-700 rounded-xl border border-teal-800 p-5 flex flex-col h-full justify-between">
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-[13px] font-bold text-teal-50 tracking-wide flex items-center gap-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-teal-300"></div> 가용 잔액
             </div>
-            <div>
-              <div className="text-3xl font-black text-white tracking-tight drop-shadow-md">{formatN(filteredStats.dailyExpenseRemaining)}<span className="text-base font-semibold text-teal-100 ml-1">원</span></div>
-              <div className="mt-2 text-[11px] text-teal-50/80 font-medium">원장대조 버튼으로 영수증 누락을 확인하세요.</div>
-            </div>
+            <button onClick={() => setShowLedgerModal(true)} className="flex items-center gap-1.5 text-[12px] bg-teal-800 hover:bg-teal-900 text-white px-3 py-1.5 rounded transition-colors font-bold border border-teal-600">
+              <Search size={14} /> 상세 대조
+            </button>
+          </div>
+          <div>
+            <div className="text-3xl font-black text-white tracking-tight">{formatN(filteredStats.dailyExpenseRemaining)}<span className="text-base font-semibold text-teal-100 ml-1">원</span></div>
+            <div className="mt-2 text-[11px] text-teal-200 font-medium">원장대조 버튼으로 영수증 누락을 확인하세요.</div>
           </div>
         </div>
       </div>
