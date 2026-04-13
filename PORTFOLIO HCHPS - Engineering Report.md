@@ -350,9 +350,6 @@ sequenceDiagram
 - [x] **벡터화 파이프라인 (Phase 2)** ✅
   - *목표:* 모든 위키 콘텐츠와 업무 설명을 벡터 임베딩으로 자동 인덱싱.
   - *실행:* `/api/embeddings` (벡터 임베딩 생성) 및 `/api/semantic-search` (AI 시맨틱 검색) 엔드포인트 배포 완료.
-- [ ] **자동 큐레이션 엔진 (Phase 3)**
-  - *목표:* 새 콘텐츠에 대해 최적의 카테고리, 부모 노드, 엣지 연결을 자동 추천.
-  - *실행:* LLM 기반 수신 시그널 분류 + 자동 화이트보드 엣지 생성.
 
 ### 3. 전략적 지평 (차세대 1인 생존 비서 체제)
 
@@ -368,9 +365,6 @@ sequenceDiagram
     1. **End-to-End 암호화 (E2EE):** `crypto.ts` 내장 등 클라이언트 단 PBDKF2 파생 기반 AES-256-GCM 암호화/복호화 적용 완료.
     2. **API 및 WebSocket 토큰 검증:** `party/index.ts` 내 `onConnect` 접근 시 동적 Auth Token 기반 엄격 검증 도입 완료.
     3. **Zero-Trust LockScreen 아키텍처 도입:** 구현 완료되어 데이터 유출 원천 차단 아키텍처를 세웠으나, 현재 잦은 로컬 접속 편의를 위해 `useSecurityLock.ts`에서 하드코딩 핀으로 LockScreen을 자동 우회(Bypass)하도록 임시 조정된 상태입니다.
-- [ ] **모바일 생태계 이식 (초연결성 보장)**
-  - *목표:* 언더커버 환경(회의실, 출퇴근 등)에서도 즉각적인 인물 검색 및 메모 작성이 가능한 오프라인 우선 모바일 경험.
-  - *실행:* PWA 심화 적용 및 장기적으로 Expo 기반 React Native 네이티브 앱 컴파일.
 
 ### 4. Vibe Coding 한계 극복 및 엔지니어링 고도화 (4대 핵심 Pillar)
 
@@ -388,9 +382,9 @@ sequenceDiagram
   - *실행:* `PolicyGroupCard` 등 고빈도 리렌더링 컴포넌트의 CSS 고부하 필터(블러, 그림자)를 GPU 가속 솔리드 애니메이션으로 대체하여 프레임 드랍(FPS) 성능 최적화 달성.
   - *대기 중:* PartyKit/Websocket 기반 다중 동시 편집 시 Race Condition 방어를 위한 낙관적 업데이트(Optimistic UI) 및 롤백 도입.
   - *대기 중:* React Hook Form + Zod 구조를 바탕으로 안티-XSS(Anti-Cross Site Scripting) 폼 검증 파이프라인 정립.
-- [ ] **Pillar 4: 테스트와 검증 체계 (Automated Testing & CI)**
-  - Jest를 활용한 핵심 순수 함수 및 데이터 파싱 룰셋의 단위 테스트(Unit Test) 구축.
-  - Playwright E2E 봇을 활용하여 UI 크리티컬 패스(지출 품의, 위키 문서 작성 등) 시나리오 자동 검증 스크립트 작성.
-  - GitHub Actions 기반으로 Lint와 Test를 강제하는 Branch Protection CI 라우팅 구축.
+- [x] **Pillar 4: 테스트와 검증 체계 (Automated Testing & CI)** ✅
+  - *실행:* Jest를 활용하여 `korean-nlp.ts`의 날짜, 시간, 금액 등 정보 추출 순수 함수 및 분류(`classifyAndParse`) 단위 테스트(Unit Test) 구축 완료.
+  - *실행:* Playwright 환경 기반으로 앱 전면 구조 렌더링 무결성을 점검하는 `critical-path.spec.ts` 헤드리스 UI 마운트 검증 스크립트 작성 완료.
+  - *실행:* GitHub Actions(`ci.yml`)를 연동하여 `main` 브랜치 Push 및 PR 시 Node.js 환경에서 Lint, Jest Unit Test, Playwright E2E 검증을 모두 강제하는 자동형상관리 파이프라인 개통.
 
 ---
