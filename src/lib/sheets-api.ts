@@ -68,7 +68,7 @@ export async function readSheet<T>(sheetName: string): Promise<T[]> {
             if (result.success) {
               validRows.push(result.data);
             } else {
-              console.warn(`[Zod Error] Corrupted data suppressed in sheet ${sheetName}:`, result.error.errors, 'Row:', row.id);
+              console.warn(`[Zod Error] Corrupted data suppressed in sheet ${sheetName}:`, result.error, 'Row:', row.id);
             }
           } else {
             validRows.push(row);
@@ -136,7 +136,7 @@ async function writeData(sheetName: string, action: string, data?: unknown, id?:
  * @param data - 저장할 원본 객체 (암호화 전)
  * @returns 성공 여부 (true/false)
  */
-export async function addRow<T extends Record<string, unknown>>(sheetName: string, data: T): Promise<boolean> {
+export async function addRow<T>(sheetName: string, data: T): Promise<boolean> {
   return writeData(sheetName, 'add', data);
 }
 
@@ -148,7 +148,7 @@ export async function addRow<T extends Record<string, unknown>>(sheetName: strin
  * @param data - 변경할 내용의 객체 (재암호화 수행됨)
  * @returns 성공 여부 (true/false)
  */
-export async function updateRow(sheetName: string, id: string, data: Record<string, unknown>): Promise<boolean> {
+export async function updateRow<T = any>(sheetName: string, id: string, data: T): Promise<boolean> {
   return writeData(sheetName, 'update', data, id);
 }
 

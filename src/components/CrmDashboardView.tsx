@@ -97,7 +97,7 @@ ${logsInfo}
     };
 
     try {
-      await askLlama([systemPrompt, userPrompt], undefined, (chunk) => {
+      await askLlama([systemPrompt, userPrompt], (chunk) => {
         setAiResponses(prev => ({
           ...prev,
           [personId]: (prev[personId] || '') + chunk

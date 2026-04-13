@@ -5,7 +5,7 @@ import { BudgetCategory, BudgetEntry, BudgetActionType, generateId } from '@/typ
 import { Card, CardContent } from '@/components/ui/card';
 import { ProgressBar } from '@/components/ui/progress-bar';
 import { Modal } from '@/components/ui/modal';
-import { Plus, Pencil, Trash2, CheckCircle2, AlertOctagon, ShieldAlert, RefreshCw, Search } from 'lucide-react';
+import { Plus, Pencil, Trash2, CheckCircle2, AlertOctagon, ShieldAlert, RefreshCw, Search, FilePlus2, ChevronDown } from 'lucide-react';
 import { replaceAll } from '@/lib/sheets-api';
 import { MultiSelectDropdown } from './ui/MultiSelectDropdown';
 import { PolicyGroupCard, ACTION_TYPE_CONFIG } from './ui/PolicyGroupCard';
@@ -36,21 +36,6 @@ function formatN(n: number) { return n.toLocaleString('ko-KR'); }
 const COLORS = [
   '#4F46E5', '#059669', '#EAB308', '#DC2626', '#7C3AED', '#0891B2', '#EA580C', '#BE185D', '#16A34A', '#2563EB', '#9333EA', '#B45309', '#0284C7', '#86198F', '#4D7C0F'
 ];
-
-// UI components offloaded to ./ui/            </div>
-                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-});
-PolicyGroupCard.displayName = "PolicyGroupCard";
 
 export function BudgetDashboard(props: BudgetDashboardProps) {
   const { categories, entries, addCategory, updateCategory, deleteCategory, addEntry, updateEntry, deleteEntry, getCategoryStats, overallStats } = props;
@@ -85,7 +70,6 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
   const [actionType, setActionType] = useState<BudgetActionType>('general');
 
   const [isLoaded, setIsLoaded] = useState(false);
-  const [isParsingPdf, setIsParsingPdf] = useState(false);
 
   // Auto-Migration for Legacy Nomenclature
   useEffect(() => {
