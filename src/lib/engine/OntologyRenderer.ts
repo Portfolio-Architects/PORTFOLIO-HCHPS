@@ -87,10 +87,12 @@ export class OntologyRenderer {
       // 2. 현재 선택된 노드에 '직접' 닿아있는 간선인지 판별
       const isDirectlyConnectedToActive = activeNodeId && (activeNodeId === src.id || activeNodeId === tgt.id);
 
-      // 3. 더럽게 꼬인 거미줄(Spiderweb) 차단 로직: 
-      // 트리 구조가 아닌 교차 간선(Cross-edge)은 양 끝점 중 하나를 직접 명시적으로 클릭하지 않는 이상 완전히 렌더링을 차단합니다.
+      // 3. 네트워크 토폴로지 교차 간선 (Cross-edge) 렌더링 지원 (이전에는 강제 차단됨)
+      // 트리 구조가 아닌 엣지는 기본적으로 매우 투명하고 얇은 점선으로 렌더링하여 트리를 어지럽히지 않게 설계합니다.
+      let isCrossEdge = false;
       if (!isSpanningTreeEdge && !isDirectlyConnectedToActive) {
-         continue; 
+         isCrossEdge = true;
+         // 교차 간선을 무조건 삭제(continue)하지 않고 렌더링하도록 변경합니다!
       }
 
       // Frustum cull
@@ -117,13 +119,18 @@ export class OntologyRenderer {
       } else if (isConnectedToTree) {
           alpha = 0.4; // 활성 트리에 속한 엣지는 약간 선명하게
           lineWidth = 1.0 * rc.zoom;
+      } else if (isCrossEdge) {
+          // [네트워크 토폴로지] 활성화되지 않은 비계층적 간선은 은은한 배경 거미줄로 배치
+          alpha = 0.08; 
+          lineWidth = 0.4 * rc.zoom;
       }
       
       ctx.globalAlpha = alpha;
       ctx.strokeStyle = themeColor;
       ctx.lineWidth = lineWidth;
       
-      if (edge.weight < 0) ctx.setLineDash([4, 4]);
+      // 사용자 지정 가중치(음수)이거나 교차 간선일 경우 점선(Dashed) 처리
+      if (edge.weight < 0 || isCrossEdge) ctx.setLineDash([4, 4]);
       else ctx.setLineDash([]);
 
       ctx.beginPath();

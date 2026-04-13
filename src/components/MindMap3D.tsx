@@ -18,7 +18,7 @@ import {
   Radio, Loader2, RefreshCw, AlertTriangle, BookOpen,
   Circle, Link2, X, ChevronRight, ChevronUp, ChevronDown, Zap, Maximize2, Minimize2,
   Trash2, FileText, Edit2, Plus, Palette, PinOff, PlusSquare, Waypoints, Eraser, Play, Pause,
-  CheckCircle, Unlink, Crosshair, CloudUpload, CloudDownload
+  CheckCircle, Unlink, Crosshair, CloudUpload, CloudDownload, Printer
 } from 'lucide-react';
 
 
@@ -384,6 +384,9 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   }, []);
 
   const handleClick = useCallback((e: React.MouseEvent) => {
+    // 터치 직후 브라우저에서 인위적으로 발생시키는 ghost click 차단 (더블클릭 판정으로 노드 선택이 풀리는 현상 방지)
+    if (Date.now() - lastTouchTimeRef.current < 500) return;
+
     const engine = engineRef.current;
     if (!engine) return;
     const { x, y } = getCanvasPos(e.nativeEvent);
@@ -400,11 +403,12 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
       setTimeout(() => initEngine(), 50);
       return; 
     }
-  }, [getCanvasPos, parentModeSource, addCustomEdge, deleteCustomEdge, initEngine, setNodeOverride]);
+  }, [getCanvasPos, parentModeSource, addCustomEdge, deleteCustomEdge, initEngine, setNodeOverride, removeCustomTombstone]);
 
   // ── Touch Events for Mobile ──
   const touchStartRef = useRef<{ x: number; y: number; time: number; pinchDist?: number }>({ x: 0, y: 0, time: 0 });
   const isTouchDragging = useRef(false);
+  const lastTouchTimeRef = useRef(0);
 
   const getTouchDist = (e: React.TouchEvent) => {
     if (e.touches.length < 2) return 0;
@@ -469,6 +473,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
     // Tap detection (short duration + small movement)
     const elapsed = Date.now() - touchStartRef.current.time;
     if (!isTouchDragging.current && elapsed < 300) {
+      lastTouchTimeRef.current = Date.now();
       engine.handleClick(touchStartRef.current.x, touchStartRef.current.y);
 
       // Parent mode logic
@@ -561,6 +566,46 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
     setTimeout(() => initEngine(), 50);
   }, [activeNode, overrides, setNodeOverride, initEngine]);
 
+  const handlePrintPdf = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const dataUrl = canvas.toDataURL('image/png');
+    
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+    
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>시그널 노드 맵 PDF 인쇄</title>
+          <style>
+            @media print {
+              @page { size: landscape; margin: 0; }
+              body { margin: 0; display: flex; justify-content: center; align-items: center; background-color: #ffffff; }
+              img { max-width: 100vw; max-height: 100vh; object-fit: contain; }
+              .print-btn { display: none !important; }
+            }
+            body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; min-height: 100vh; font-family: sans-serif; }
+            img { max-width: 90vw; max-height: 90vh; background: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+            .print-btn {
+              position: fixed; top: 20px; right: 20px; padding: 12px 24px; 
+              background: #0066ff; color: #fff; border: none; border-radius: 8px;
+              cursor: pointer; font-weight: bold; font-size: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 1000;
+            }
+            .print-btn:hover { background: #0052cc; }
+          </style>
+        </head>
+        <body>
+          <button class="print-btn" onclick="window.print()">인쇄 / PDF로 저장 (가로형)</button>
+          <img src="${dataUrl}" alt="Signal Map" />
+          <script>
+            setTimeout(() => { window.print(); }, 500);
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  }, []);
 
   // ── Loading / Error States ──
   if (loading || !isCloudLoaded) {
@@ -629,7 +674,14 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
       <div className={isFullscreen ? '' : 'grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4'}>
 
         {/* ── Side Panel: Node Details (노드 상세 패널) ── */}
-        <div className={isFullscreen ? "hidden md:flex flex-col fixed top-4 right-auto bottom-4 left-4 z-[110] w-[280px] lg:w-[320px] shadow-2xl rounded-xl custom-scrollbar pointer-events-auto bg-[#f8f9fc]" : "order-2 lg:order-none w-full pointer-events-auto flex flex-col gap-3"} style={{ height: isFullscreen ? "calc(100vh - 32px)" : "min(600px, 70vh)" }}>
+        <div 
+          className={
+            isFullscreen 
+              ? "hidden md:flex flex-col fixed top-4 right-auto bottom-4 left-4 z-[110] w-[280px] lg:w-[320px] shadow-2xl rounded-xl custom-scrollbar pointer-events-auto bg-[#f8f9fc]" 
+              : "order-2 lg:order-none w-full pointer-events-auto flex flex-col gap-3 lg:h-[min(600px,70vh)]"
+          } 
+          style={isFullscreen ? { height: "calc(100vh - 32px)" } : {}}
+        >
           {isAddingNode ? (
             <div className="w-full shrink-0 flex flex-col gap-2 p-3 rounded-xl bg-white shadow-sm border border-[var(--color-primary)]">
               <input
@@ -773,10 +825,19 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
           {/* Controls - Bottom Right */}
           <div className="absolute bottom-24 md:bottom-4 right-4 z-10 flex items-center gap-2">
             
+            {/* PDF Print/Export */}
+            <button
+              onClick={handlePrintPdf}
+              className="bg-white rounded-lg p-2.5 shadow-sm border border-[var(--color-border-light)] hover:bg-gray-100 cursor-pointer text-gray-500 transition-colors"
+              title="시그널 맵 PDF 인쇄/저장"
+            >
+              <Printer size={18} />
+            </button>
+
             {/* Fullscreen toggle */}
             <button
               onClick={() => setIsFullscreen(!isFullscreen)}
-              className="bg-white rounded-lg p-2.5 shadow-sm border border-[var(--color-border-light)] hover:bg-gray-100 cursor-pointer text-gray-500"
+              className="bg-white rounded-lg p-2.5 shadow-sm border border-[var(--color-border-light)] hover:bg-gray-100 cursor-pointer text-gray-500 transition-colors"
               title={isFullscreen ? '패널 보기' : '전체화면'}
             >
               {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
