@@ -59,10 +59,17 @@ export async function readSheet<T>(sheetName: string): Promise<T[]> {
         });
         const rawRows = await Promise.all(decryptedPromises);
         
+        // Global Tombstone: Filter out deleted items to prevent Cloudflare KV eventual consistency zombie data
+        let deletedIds: string[] = [];
+        if (typeof window !== 'undefined') {
+          try { deletedIds = JSON.parse(localStorage.getItem('hchps-global-tombstones') || '[]'); } catch {}
+        }
+        
         // Zod Runtimes Validation (Fail-Safe)
         const schema = getDomainSchema(sheetName);
         const validRows: any[] = [];
         for (const row of rawRows) {
+          if (deletedIds.includes(row.id)) continue; // 🚀 Kill Zombies
           if ('safeParse' in schema) {
             const result = schema.safeParse(row);
             if (result.success) {
@@ -160,6 +167,15 @@ export async function updateRow<T = any>(sheetName: string, id: string, data: T)
  * @returns 성공 여부 (true/false)
  */
 export async function deleteRow(sheetName: string, id: string): Promise<boolean> {
+  if (typeof window !== 'undefined') {
+    try {
+      const deletedIds = JSON.parse(localStorage.getItem('hchps-global-tombstones') || '[]');
+      if (!deletedIds.includes(id)) {
+        deletedIds.push(id);
+        localStorage.setItem('hchps-global-tombstones', JSON.stringify(deletedIds));
+      }
+    } catch {}
+  }
   return writeData(sheetName, 'delete', undefined, id);
 }
 

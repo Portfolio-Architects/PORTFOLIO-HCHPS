@@ -13,6 +13,8 @@ import {
 import { useGraphCustomization } from '@/hooks/useGraphCustomization';
 import { WikiEditor } from './WikiEditor';
 import { MindMapInspector } from './MindMapInspector';
+import { MindMapHeader } from './mindmap/ui/MindMapHeader';
+import { MindMapHUD } from './mindmap/ui/MindMapHUD';
 import { useWikiStorage } from '@/hooks/useWikiStorage';
 import {
   Radio, Loader2, RefreshCw, AlertTriangle, BookOpen,
@@ -641,34 +643,13 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   return (
     <div className="space-y-4">
 
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h2 className="text-xl font-bold flex items-center gap-2">
-            <Radio size={22} className="text-emerald-500" />
-            시그널
-          </h2>
-          <div className="mt-1 flex items-center gap-3 text-xs text-[var(--color-text-tertiary)]">
-            <span>노드 <strong className="text-[var(--color-primary)]">{stats.nodes}</strong>개</span>
-            <span>연결 <strong className="text-[var(--color-success)]">{stats.edges}</strong>개</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {activeNode && !isWikiOpen && (
-            <button
-              onClick={() => setIsWikiOpen(true)}
-              className="flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 text-xs font-bold hover:bg-indigo-100 shadow-sm border border-indigo-200 cursor-pointer transition-colors"
-            >
-              <BookOpen size={15} /> 위키 문서 편집
-            </button>
-          )}
-          {usingSample && (
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 font-medium">
-              시그널을 입력해주세요
-            </span>
-          )}
-        </div>
-      </div>
+      <MindMapHeader
+        stats={stats}
+        activeNode={activeNode}
+        isWikiOpen={isWikiOpen}
+        usingSample={usingSample}
+        onOpenWiki={() => setIsWikiOpen(true)}
+      />
 
       {/* Main: Side Panel (left) + Canvas (right) */}
       <div className={isFullscreen ? '' : 'grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4'}>
@@ -803,46 +784,14 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
 
           {/* Whiteboard Toolbar (top-left) */}
 
-          {/* Hover tooltip (for nodes that are NOT active) */}
-          {hoveredNode && hoveredNode.id !== activeNode?.id && (
-            <div
-              className="absolute z-20 pointer-events-none bg-white rounded-lg px-3 py-2 shadow-sm border border-[var(--color-border-light)]"
-              style={{
-                left: Math.min(
-                  (containerRef.current?.getBoundingClientRect().width ?? 400) - 180,
-                  hoveredNode.renderX + 20
-                ),
-                top: hoveredNode.renderY - 10,
-              }}
-            >
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: GROUP_COLORS[hoveredNode.group as OntologyGroup] }} />
-                <span className="text-xs font-semibold">{hoveredNode.label}</span>
-              </div>
-            </div>
-          )}
-
-          {/* Controls - Bottom Right */}
-          <div className="absolute bottom-24 md:bottom-4 right-4 z-10 flex items-center gap-2">
-            
-            {/* PDF Print/Export */}
-            <button
-              onClick={handlePrintPdf}
-              className="bg-white rounded-lg p-2.5 shadow-sm border border-[var(--color-border-light)] hover:bg-gray-100 cursor-pointer text-gray-500 transition-colors"
-              title="시그널 맵 PDF 인쇄/저장"
-            >
-              <Printer size={18} />
-            </button>
-
-            {/* Fullscreen toggle */}
-            <button
-              onClick={() => setIsFullscreen(!isFullscreen)}
-              className="bg-white rounded-lg p-2.5 shadow-sm border border-[var(--color-border-light)] hover:bg-gray-100 cursor-pointer text-gray-500 transition-colors"
-              title={isFullscreen ? '패널 보기' : '전체화면'}
-            >
-              {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
-            </button>
-          </div>
+          <MindMapHUD
+            containerWidth={containerRef.current?.getBoundingClientRect().width ?? 400}
+            hoveredNode={hoveredNode}
+            activeNode={activeNode}
+            isFullscreen={isFullscreen}
+            onToggleFullscreen={() => setIsFullscreen(!isFullscreen)}
+            onPrintPdf={handlePrintPdf}
+          />
 
 
           {/* Sliding Wiki Panel Overlay */}

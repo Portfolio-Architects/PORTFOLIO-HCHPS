@@ -32,7 +32,10 @@ export interface BudgetCategory {
   policyProject?: string; // 정책사업명
   unitProject?: string;   // 단위사업명
   detailedProject?: string; // 세부사업명
-  statItem?: string;      // 통계목
+  formationItem?: string; // 편성목 (ex: 201 일반운영비)
+  statItem?: string;      // 통계목 (ex: 01 사무관리비)
+  budgetType?: '본예산' | '간주예산' | '추경'; // 예산 구분
+  fundingSource?: string; // 재원 구분 (구비, 국비, 시비 등)
 }
 
 export interface BudgetEntry {
@@ -42,7 +45,12 @@ export interface BudgetEntry {
   date: string;
   purpose: string;
   memo?: string;
-  isPlanned?: boolean; // Deprecated
+  
+  // Commitment Accounting (원인행위 & 정산)
+  isPlanned?: boolean;    // true = 지출품의(예상), false = 실제 지출
+  isSettled?: boolean;    // true = 이 품의에 대한 실제 지출(정산) 완료됨
+  relatedPlanId?: string; // 실제 지출(isPlanned:false)일 경우 연관된 품의서(isPlanned:true)의 ID
+  
   entryType?: 'approval'; // Deprecated
   actionType?: BudgetActionType; // 일반품의, 일상경비 교부, 일상경비 지출
   inventoryItemId?: string;

@@ -147,7 +147,7 @@ export function useSignal() {
           // Cloudflare KV의 eventual consistency 지연으로 인해 (최대 60초)
           // 삭제한 데이터가 원격에서 다시 불러와지는 버그(좀비 데이터)를 방지하기 위해 로컬 툼스톤(삭제 기록) 확인
           let deletedIds: string[] = [];
-          try { deletedIds = JSON.parse(localStorage.getItem('hchps-deleted-signals') || '[]'); } catch { }
+          try { deletedIds = JSON.parse(localStorage.getItem('hchps-global-tombstones') || '[]'); } catch { }
 
           let parsed = rows.map(row => ({
             ...row,
@@ -250,10 +250,10 @@ export function useSignal() {
     
     // 로컬 툼스톤(삭제 기록)에 ID 추가하여 원격 캐시(좀비 데이터)에서 부활하는 것 방지
     try {
-      const deletedIds = JSON.parse(localStorage.getItem('hchps-deleted-signals') || '[]');
+      const deletedIds = JSON.parse(localStorage.getItem('hchps-global-tombstones') || '[]');
       deletedIds.push(id);
-      localStorage.setItem('hchps-deleted-signals', JSON.stringify(deletedIds));
-    } catch { }
+      localStorage.setItem('hchps-global-tombstones', JSON.stringify(deletedIds));
+    } catch {}
 
     // Background sync
     deleteRow(SHEET_NAME, id).catch(() => {

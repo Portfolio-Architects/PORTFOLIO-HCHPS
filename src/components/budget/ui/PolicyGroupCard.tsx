@@ -17,7 +17,8 @@ export const PolicyGroupCard = React.memo(({
   deleteCategory,
   deleteEntry,
   openEditCat,
-  openEditEntry
+  openEditEntry,
+  openBatchEdit
 }: {
   group: { policyName: string; cats: BudgetCategory[] };
   entries: BudgetEntry[];
@@ -26,12 +27,13 @@ export const PolicyGroupCard = React.memo(({
   deleteEntry: (id: string) => void;
   openEditCat: (cat: BudgetCategory) => void;
   openEditEntry: (entry: BudgetEntry) => void;
+  openBatchEdit?: (title: string, cats: BudgetCategory[]) => void;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [showAllEntries, setShowAllEntries] = useState(false);
   const { policyName, cats } = group;
 
-  const { totalBudget, spent, planned, remaining, usageRate, groupEntries, groupedByDetail } = useMemo(() => {
+  const { totalBudget, spent, planned, remaining, usageRate, groupEntries, groupedByDetail, groupFunding, groupTypes } = useMemo(() => {
     const tBudget = cats.reduce((s, c) => s + c.totalBudget, 0);
     let tSpent = 0; let tPlanned = 0; let tRemaining = 0;
     
@@ -40,7 +42,7 @@ export const PolicyGroupCard = React.memo(({
       if (st) { tSpent += st.spent; tPlanned += st.planned; tRemaining += st.remaining; }
     });
     
-    const rate = tBudget > 0 ? Math.round((tSpent / tBudget) * 100) : 0;
+    const rate = tBudget > 0 ? ((tSpent + tPlanned) / tBudget) * 100 : 0;
     
     const catIds = cats.map(c => c.id);
     const gEntries = entries
@@ -59,7 +61,10 @@ export const PolicyGroupCard = React.memo(({
       g.cats.push(cat);
     });
 
-    return { totalBudget: tBudget, spent: tSpent, planned: tPlanned, remaining: tRemaining, usageRate: rate, groupEntries: gEntries, groupedByDetail: groups };
+    const groupFunding = Array.from(new Set(cats.map(c => c.fundingSource).filter(f => f && f !== '구비(자체)')));
+    const groupTypes = Array.from(new Set(cats.map(c => c.budgetType).filter(t => t && t !== '본예산')));
+
+    return { totalBudget: tBudget, spent: tSpent, planned: tPlanned, remaining: tRemaining, usageRate: rate, groupEntries: gEntries, groupedByDetail: groups, groupFunding, groupTypes };
   }, [cats, entries, getCategoryStats]);
 
   return (
@@ -74,7 +79,15 @@ export const PolicyGroupCard = React.memo(({
               <div className="w-3.5 h-3.5 rounded-full" style={{ backgroundColor: cats[0]?.color || 'var(--color-primary)' }} />
             </div>
             <div>
-               <h3 className="font-extrabold text-[17px] text-gray-800 tracking-tight group-hover:text-[var(--color-primary)] transition-colors">{policyName}</h3>
+               <h3 className="font-extrabold text-[17px] text-gray-800 tracking-tight group-hover:text-[var(--color-primary)] transition-colors flex items-center gap-1.5 flex-wrap">
+                 {policyName}
+                 {groupTypes.map(t => (
+                   <span key={t} className={`text-[11px] font-bold px-1.5 py-0.5 rounded border ${t === '간주예산' ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>{t}</span>
+                 ))}
+                 {groupFunding.map(f => (
+                   <span key={f} className="text-[11px] font-bold px-1.5 py-0.5 rounded border bg-teal-50 text-teal-700 border-teal-200">{f}</span>
+                 ))}
+               </h3>
                <div className="text-[12px] text-gray-500 font-medium mt-0.5 tracking-tight">단위사업 {cats.length}개 그룹</div>
             </div>
           </div>
@@ -89,7 +102,7 @@ export const PolicyGroupCard = React.memo(({
           <div className="flex justify-between text-[13px] items-end">
             <div className="flex flex-col">
                <span className="text-gray-500 font-semibold mb-0.5 text-[11px]">총 예산 대비 사용액</span>
-               <span className="font-bold text-gray-800">{formatN(spent)} / {formatN(totalBudget)}</span>
+               <span className="font-bold text-gray-800">{formatN(spent + planned)} / {formatN(totalBudget)}</span>
             </div>
             <div className="flex flex-col items-end">
                <span className="text-gray-500 font-semibold mb-0.5 text-[11px]">총 잔여액</span>
@@ -97,7 +110,7 @@ export const PolicyGroupCard = React.memo(({
             </div>
           </div>
           <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
-             <div className="h-full bg-blue-500 rounded-full transition-transform duration-300" style={{ transform: `translateX(-${100 - Math.min(100, usageRate)}%)` }} />
+             <div className="h-full w-full bg-blue-500 rounded-full transition-transform duration-300" style={{ transform: `translateX(-${100 - Math.min(100, usageRate)}%)` }} />
           </div>
           {planned > 0 && <div className="text-[11px] text-amber-700 font-bold bg-amber-50 px-2 py-1 rounded inline-block self-start border border-amber-200">📋 품의 진행/예정: {formatN(planned)}원</div>}
         </div>
@@ -107,15 +120,32 @@ export const PolicyGroupCard = React.memo(({
         <div className="px-5 py-3 divide-y divide-gray-100">
           {groupedByDetail.map(detailGroup => {
             const detailTotalBudget = detailGroup.cats.reduce((sum, c) => sum + c.totalBudget, 0);
+            const detailFunding = Array.from(new Set(detailGroup.cats.map(c => c.fundingSource).filter(f => f && f !== '구비(자체)')));
+            const detailTypes = Array.from(new Set(detailGroup.cats.map(c => c.budgetType).filter(t => t && t !== '본예산')));
             return (
             <div key={detailGroup.detailName} className="py-3 first:pt-0">
               <div className="flex items-center gap-2 mb-2.5">
                 <div className="w-5 h-5 rounded bg-[var(--color-primary)]/10 flex items-center justify-center">
                   <div className="w-2 h-2 rounded-full bg-[var(--color-primary)]" />
                 </div>
-                <div className="flex items-center gap-2 text-[14px] font-bold text-gray-800">
+                <div className="flex items-center gap-2 text-[14px] font-bold text-gray-800 flex-wrap">
                   {detailGroup.detailName}
-                  <span className="text-[12px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">{formatN(detailTotalBudget)}원</span>
+                  {detailTypes.map(t => (
+                    <span key={t} className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${t === '간주예산' ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>{t}</span>
+                  ))}
+                  {detailFunding.map(f => (
+                    <span key={f} className="text-[10px] font-bold px-1.5 py-0.5 rounded border bg-teal-50 text-teal-700 border-teal-200">{f}</span>
+                  ))}
+                  <span className="text-[12px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 mr-2">{formatN(detailTotalBudget)}원</span>
+                  {openBatchEdit && (
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); openBatchEdit(detailGroup.detailName, detailGroup.cats); }} 
+                      className="p-1 rounded cursor-pointer hover:bg-slate-200 text-gray-500 hover:text-blue-600 transition-colors"
+                      title="이 세부사업의 하위 과목 일괄 수정"
+                    >
+                      <Pencil size={13} />
+                    </button>
+                  )}
                 </div>
               </div>
               <div className="space-y-3 pl-2">
@@ -127,8 +157,21 @@ export const PolicyGroupCard = React.memo(({
                       <div className="flex items-center justify-between mb-3">
                         <div className="text-[14px] font-bold flex items-center gap-2.5 text-gray-800">
                           <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color || '#4A6CF7' }}/>
-                          <div className="line-clamp-1">{cat.statItem || cat.name}</div>
+                          <div className="line-clamp-1">
+                            {cat.formationItem && <span className="text-gray-500 font-medium mr-1.5 opacity-90">[{cat.formationItem}]</span>}
+                            {cat.statItem || cat.name}
+                          </div>
                           <span className="text-[11px] text-gray-400 font-normal truncate hidden sm:block max-w-[200px]">({cat.name})</span>
+                          {cat.budgetType && cat.budgetType !== '본예산' && (
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ml-1 flex-shrink-0 border ${cat.budgetType === '간주예산' ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
+                              {cat.budgetType}
+                            </span>
+                          )}
+                          {cat.fundingSource && cat.fundingSource !== '구비(자체)' && (
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded ml-0.5 flex-shrink-0 border bg-teal-50 text-teal-700 border-teal-200">
+                              {cat.fundingSource}
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover/item:opacity-100 transition-opacity flex-shrink-0 absolute right-2 top-2 bg-white rounded-md p-1 border border-slate-200 z-10">
                           <button onClick={() => openEditCat(cat)} className="p-1 rounded hover:bg-slate-100 text-gray-500"><Pencil size={13} /></button>
@@ -138,7 +181,7 @@ export const PolicyGroupCard = React.memo(({
                       <div className="flex items-center justify-between text-[12px] bg-gray-50 rounded-lg p-2.5 mb-2.5">
                         <div className="flex flex-col">
                            <span className="text-gray-500 font-medium mb-0.5">사용 (집행+품의)</span>
-                           <span className="text-gray-800 font-bold tracking-tight">{formatN(stats.spent)} / {formatN(stats.totalBudget)}</span>
+                           <span className="text-gray-800 font-bold tracking-tight">{formatN(stats.spent + stats.planned)} / {formatN(stats.totalBudget)}</span>
                         </div>
                         <div className="flex flex-col items-end">
                            <span className="text-gray-500 font-medium mb-0.5">잔여금액</span>
@@ -147,9 +190,9 @@ export const PolicyGroupCard = React.memo(({
                       </div>
                       <div className="flex items-center gap-2.5">
                          <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden flex">
-                            <div className="h-full rounded-full transition-transform duration-300" style={{ transform: `translateX(-${100 - Math.min(100, stats.usageRate || 0)}%)`, backgroundColor: cat.color || '#4A6CF7' }} />
+                            <div className="h-full w-full rounded-full transition-transform duration-300" style={{ transform: `translateX(-${100 - Math.min(100, stats.usageRate || 0)}%)`, backgroundColor: cat.color || '#4A6CF7' }} />
                          </div>
-                         <span className="text-[11px] font-bold text-gray-500 w-9 text-right tracking-tighter">{(stats.usageRate || 0).toFixed(1)}%</span>
+                         <span className="text-[11px] font-bold text-gray-500 w-11 text-right tracking-tighter">{(stats.usageRate || 0).toFixed(2)}%</span>
                       </div>
                     </div>
                   )

@@ -15,11 +15,12 @@ import { WorkspaceView } from '@/components/WorkspaceView';
 import { MindMap3D } from '@/components/MindMap3D';
 import { BossScheduleView } from '@/components/BossScheduleView';
 import { TaskKnowledgeView } from '@/components/TaskKnowledgeView';
-import { SearchResultModal, SearchResultItem } from '@/components/SearchResultModal';
-import { MapCustomizationData } from '@/hooks/useGraphCustomization';
+import { SearchResultModal } from '@/components/SearchResultModal';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { useSecurityLock } from '@/hooks/useSecurityLock';
 import { SecurityLockScreen } from '@/components/SecurityLockScreen';
+import { useGlobalSearch } from '@/hooks/useGlobalSearch';
+import { useMergedSignals } from '@/hooks/useMergedSignals';
 
 // Error Boundary for MindMap3D — prevents signal map crash from breaking entire app
 class MindMapErrorBoundary extends React.Component<
@@ -58,10 +59,6 @@ class MindMapErrorBoundary extends React.Component<
 function ProtectedApp() {
   const [activeModule, setActiveModule] = useState<ModuleType>('mindmap');
   const [mounted, setMounted] = useState(false);
-  const [searchModalOpen, setSearchModalOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
-
   // Hooks
   const { tasks, addTask, updateTask, deleteTask, moveTask, stats: taskStats } = useTasks();
   const { categories: budgetCategories, entries: budgetEntries, addCategory, updateCategory, deleteCategory, addEntry, updateEntry, deleteEntry, getCategoryStats, overallStats } = useBudget();
@@ -70,6 +67,9 @@ function ProtectedApp() {
   const { projects, addProject, updateProject, deleteProject, addChecklistItem, toggleChecklistItem, deleteChecklistItem, getProjectProgress } = useProjects();
   const { entries: signalEntries, addSignal, deleteSignal, updateSignalKeywords, keywordMap } = useSignal();
   const { entries: knowledgeEntries, addKnowledge, updateKnowledge, deleteKnowledge, filterKnowledge, metadata: knowledgeMetadata } = useKnowledge();
+
+  const { searchModalOpen, searchQuery, searchResults, handleGlobalSearch, closeSearchModal } = useGlobalSearch();
+  const { mergedKeywordMap, mergedEntries } = useMergedSignals(signalEntries, keywordMap, tasks, knowledgeEntries, projects, meetings, budgetEntries, inventoryItems);
 
   // Prevent hydration mismatch — hooks read localStorage data on client
   useEffect(() => {
@@ -169,148 +169,7 @@ function ProtectedApp() {
     });
   };
 
-  const handleGlobalSearch = (query: string) => {
-    setSearchQuery(query);
-    const results: SearchResultItem[] = [];
-    
-    // 제거할 특수문자들 (?, /) 을 지우고 실제 검색할 단어만 추출
-    const cleanQuery = query.replace(/^[/?]+|[/?]+$/g, '').trim().toLowerCase();
-    if (!cleanQuery) return;
-    
-    const terms = cleanQuery.split(/\s+/);
-
-    const matchesTerms = (text: string) => {
-      const lower = text.toLowerCase();
-      return terms.every(t => lower.includes(t));
-    };
-
-    const extractTextFromBlocks = (blocks: unknown[]): string => {
-      if (!Array.isArray(blocks)) return '';
-      let text = '';
-      for (const b of blocks || []) {
-        const block = b as { content?: unknown, children?: unknown[] };
-        if (block.content && Array.isArray(block.content)) {
-          text += block.content.map((c: { text?: string }) => c.text || '').join('') + '\n';
-        } else if (typeof block.content === 'string') {
-          text += block.content + '\n';
-        }
-        if (block.children) text += extractTextFromBlocks(block.children) + '\n';
-      }
-      return text;
-    };
-
-    // Deleted duplicate matchesTerms
-
-    const getContext = (text: string): string => {
-      const firstTerm = terms[0] || '';
-      const matchIndex = firstTerm ? text.toLowerCase().indexOf(firstTerm) : 0;
-      const start = Math.max(0, matchIndex - 200);
-      return (start > 0 ? '... ' : '') + text.slice(start, start + 1000) + (text.length > start + 1000 ? '...' : '');
-    };
-
-    let mapData: MapCustomizationData | null = null;
-    try {
-      mapData = JSON.parse(localStorage.getItem('hchps-map-customization') || '{}') as MapCustomizationData;
-    } catch(e) {}
-
-    // 1. Search Wiki Storage
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith('HCHPS-Wiki-')) {
-        try {
-          const blocks = JSON.parse(localStorage.getItem(key) || '[]');
-          const text = extractTextFromBlocks(blocks);
-          const nodeId = key.replace('HCHPS-Wiki-', '');
-          
-          let nodeLabel = nodeId;
-          if (mapData) {
-            // 1. 커스텀 노드인지 확인
-            const cNode = mapData.customNodes?.find((n) => n.id === nodeId);
-            if (cNode && cNode.label) nodeLabel = cNode.label;
-            
-            // 2. 오버라이드된 이름이 있다면 최우선
-            const overrideLabel = mapData.overrides?.[nodeId]?.customLabel;
-            if (overrideLabel) nodeLabel = overrideLabel;
-          }
-
-          // fallback for auto-generated signal nodes (leaf-tag-XX-LABEL or tag-LABEL)
-          if (nodeLabel === nodeId) {
-            const parts = nodeId.split('-');
-            nodeLabel = parts[parts.length - 1]; // fallback to the last part
-          }
-          
-          const searchableText = `${nodeLabel}\n${text}`;
-          // Debug log removed for production purity
-          if (matchesTerms(searchableText)) {
-            results.push({
-              id: key,
-              title: `온톨로지 문서 (${nodeLabel})`,
-              source: '위키 저장소',
-              context: getContext(searchableText)
-            });
-          }
-        } catch (e) {
-          console.error('[Search Debug] error parsing wiki blocks', e);
-        }
-      }
-    }
-
-    // Chatbot (LLM) is strictly configured to ONLY use Wiki Docs as context.
-    // Tasks and Knowledge entries (raw memos) are explicitly excluded from the RAG pipeline.
-
-    setSearchResults(results);
-    setSearchModalOpen(true);
-  };
-
-  // ── Merge keywords from ALL Modules into Signal Map (Brain Dump) ──
-  const mergedKeywordMap = useMemo(() => {
-    const map: Record<string, number> = { ...keywordMap };
-    
-    const extractAndAdd = (text: string, tags: string[] = []) => {
-      const words = extractKeywords(text);
-      tags.forEach(t => { if (t.length >= 2) words.push(t); });
-      words.forEach(kw => { map[kw] = (map[kw] || 0) + 1; });
-    };
-
-    // 1. 업무 (Tasks)
-    for (const t of tasks) extractAndAdd(t.title + ' ' + (t.description || ''), t.tags);
-    // 2. 지식 (Knowledge)
-    for (const e of (knowledgeEntries || [])) extractAndAdd(e.title + ' ' + e.content, e.tags);
-    // 3. 프로젝트 (Projects)
-    for (const p of projects) extractAndAdd(p.name + ' ' + (p.description || '') + ' ' + p.checklistItems.map(c => c.text).join(' '));
-    // 4. 회의록 (Meetings)
-    for (const m of meetings) extractAndAdd(m.title + ' ' + (m.agenda || '') + ' ' + (m.notes || ''), m.attendees);
-    // 5. 예산/지출 (Budget)
-    for (const b of budgetEntries) extractAndAdd(b.purpose + ' ' + (b.memo || ''));
-    // 6. 재고/비품 (Inventory)
-    for (const i of inventoryItems) extractAndAdd(i.name + ' ' + i.category);
-
-    return map;
-  }, [keywordMap, tasks, knowledgeEntries, projects, meetings, budgetEntries, inventoryItems]);
-
-  const mergedEntries = useMemo(() => {
-    const buildEntry = (idPrefix: string, id: string, text: string, keywordsSource: string, tags: string[], createdAt: string, category: string) => ({
-      id: `${idPrefix}-${id}`,
-      text,
-      keywords: [...extractKeywords(keywordsSource), ...tags.filter(tag => tag.length >= 2)],
-      createdAt,
-      category,
-      tags: tags.filter(tag => tag.length >= 2),
-    });
-
-    const taskMap = tasks.map(t => buildEntry('task', t.id, `[업무] ${t.title}`, t.title + ' ' + (t.description || ''), t.tags, t.createdAt, '업무'));
-    const knowMap = (knowledgeEntries || []).map(e => buildEntry('know', e.id, `[지식] ${e.title}`, e.title + ' ' + e.content, e.tags, e.createdAt, '지식창고'));
-    const projectMap = projects.map(p => buildEntry('proj', p.id, `[프로젝트] ${p.name}`, p.name + ' ' + (p.description || ''), ['프로젝트'], p.createdAt, '프로젝트'));
-    const meetingMap = meetings.map(m => buildEntry('meet', m.id, `[회의] ${m.title}`, m.title + ' ' + (m.agenda || '') + ' ' + (m.notes || ''), ['회의록', ...m.attendees], m.createdAt, '회의록'));
-    const budgetMap = budgetEntries.map(b => buildEntry('budg', b.id, `[지출] ${b.purpose}`, b.purpose + ' ' + (b.memo || ''), ['예산'], b.date, '지출예산'));
-    const inventoryMap = inventoryItems.map(i => buildEntry('inv', i.id, `[비품] ${i.name}`, i.name + ' ' + i.category, ['재고'], i.createdAt, '재고관리'));
-
-    const sigMap = signalEntries.map(s => ({ ...s, category: '내 생각', tags: [] }));
-
-    // Sort by createdAt descending
-    const all = [...sigMap, ...taskMap, ...knowMap, ...projectMap, ...meetingMap, ...budgetMap, ...inventoryMap];
-    return all.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [signalEntries, tasks, knowledgeEntries, projects, meetings, budgetEntries, inventoryItems]);
+  // Global Search and Merged Signals logic extracted to useGlobalSearch and useMergedSignals hooks
 
   const renderContent = () => {
     switch (activeModule) {
@@ -432,7 +291,7 @@ function ProtectedApp() {
 
       <SearchResultModal 
         isOpen={searchModalOpen}
-        onClose={() => setSearchModalOpen(false)}
+        onClose={closeSearchModal}
         query={searchQuery}
         results={searchResults}
       />

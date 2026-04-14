@@ -45,7 +45,7 @@ export function useGoogleSheet<T extends { id: string }>(
         if (rows.length > 0) {
           let finalRows = rows;
           try {
-            const deletedIds = JSON.parse(localStorage.getItem('hchps-deleted-records') || '[]');
+            const deletedIds = JSON.parse(localStorage.getItem('hchps-global-tombstones') || '[]');
             if (deletedIds.length > 0) {
               finalRows = rows.filter(r => !deletedIds.includes(r.id));
             }
@@ -111,10 +111,10 @@ export function useSheetCrud<T extends { id: string }>(sheetName: string) {
 
   const syncDelete = useCallback(async (id: string) => {
     try {
-      const deletedIds = JSON.parse(localStorage.getItem('hchps-deleted-records') || '[]');
+      const deletedIds = JSON.parse(localStorage.getItem('hchps-global-tombstones') || '[]');
       if (!deletedIds.includes(id)) {
         deletedIds.push(id);
-        localStorage.setItem('hchps-deleted-records', JSON.stringify(deletedIds));
+        localStorage.setItem('hchps-global-tombstones', JSON.stringify(deletedIds));
       }
     } catch {}
     await deleteRow(sheetName, id);

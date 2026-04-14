@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { BudgetCategory, BudgetEntry, BudgetActionType, generateId } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { ProgressBar } from '@/components/ui/progress-bar';
@@ -10,6 +10,8 @@ import { replaceAll } from '@/lib/sheets-api';
 import { MultiSelectDropdown } from './ui/MultiSelectDropdown';
 import { PolicyGroupCard, ACTION_TYPE_CONFIG } from './ui/PolicyGroupCard';
 import { useBudgetAI } from './model/useBudgetAI';
+import { BudgetRules } from '@/lib/budget-rules';
+import { LedgerModal } from './ui/LedgerModal';
 
 interface BudgetDashboardProps {
   categories: BudgetCategory[];
@@ -48,7 +50,16 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
   const [catPolicy, setCatPolicy] = useState('');
   const [catUnit, setCatUnit] = useState('');
   const [catDetail, setCatDetail] = useState('');
+  const [catFormation, setCatFormation] = useState('');
   const [catStat, setCatStat] = useState('');
+  const [catBudgetType, setCatBudgetType] = useState<'본예산' | '간주예산' | '추경'>('본예산');
+  const [catFundingSource, setCatFundingSource] = useState('구비(자체)');
+
+  const [showBatchModal, setShowBatchModal] = useState(false);
+  const [batchCats, setBatchCats] = useState<BudgetCategory[]>([]);
+  const [batchFundingSrc, setBatchFundingSrc] = useState('구비(자체)');
+  const [batchBudgetType, setBatchBudgetType] = useState<'본예산'|'간주예산'|'추경'>('본예산');
+  const [batchTitle, setBatchTitle] = useState('');
 
   const [filterPolicy, setFilterPolicy] = useState<string[]>([]);
   const [filterUnit, setFilterUnit] = useState<string[]>([]);
@@ -93,12 +104,26 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
 
   const { isParsingPdf, handlePdfUpload } = useBudgetAI({
     categories,
-    onSuccess: (data) => {
-      if (data.categoryId) setSelectedCatId(data.categoryId);
-      if (data.amount) setEntryAmount(data.amount);
-      if (data.purpose) setEntryPurpose(data.purpose);
-      if (data.docNum) setEntryDocNum(data.docNum);
-      if (data.date) setEntryDate(data.date);
+    onSuccess: (dataArray) => {
+      let addedCount = 0;
+      dataArray.forEach(data => {
+        if (!data.categoryId || !data.amount) return;
+        addEntry({
+          categoryId: data.categoryId,
+          amount: Number(data.amount.replace(/,/g, '')),
+          date: data.date || new Date().toISOString().split('T')[0],
+          purpose: data.purpose || '자동 스캔 예상내역',
+          docRegNum: data.docNum,
+          actionType: actionType, // 모달에서 현재 선택중인 탭의 속성(일반지출/교부/일상경비 등)을 상속
+          isPlanned: true,
+          isSettled: false
+        });
+        addedCount++;
+      });
+      if (addedCount > 0) {
+        // 성공 시 따로 단일 상태(단일 폼)를 채우지 않고 즉시 리스트로 밀어넣음.
+        setShowLedgerModal(true); // 장부 모달을 열어 바로 확인할 수 있게 유도
+      }
     }
   });
 
@@ -133,6 +158,27 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
     setFilterStat([]);
     localStorage.removeItem('hchps-budget-filters-v2');
   };
+
+  const handleSettle = (plannedEntryId: string, actualAmount: number) => {
+    const plannedEntry = entries.find(e => e.id === plannedEntryId);
+    if (!plannedEntry) return;
+
+    updateEntry(plannedEntryId, { isSettled: true });
+    
+    // Create the actual settled entry matching the planned entry details
+    addEntry({
+      categoryId: plannedEntry.categoryId,
+      amount: actualAmount,
+      date: new Date().toISOString().split('T')[0],
+      purpose: plannedEntry.purpose,
+      actionType: plannedEntry.actionType || 'general', // 원본 계획서의 탭 속성을 그대로 물려받음
+      relatedPlanId: plannedEntryId,
+      docRegNum: plannedEntry.docRegNum,
+      isPlanned: false, 
+      isSettled: false
+    });
+  };
+
   const inputClass = "w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition-shadow";
   const handleAddCategory = (e: React.FormEvent) => {
     e.preventDefault();
@@ -143,23 +189,24 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
       const nat = Number(nationalFund);
       const loc = Number(localFund);
       const total = Number(catBudget);
-      if (nat + loc !== total) {
-        alert('Error: 국비와 지방비의 합이 총 예산과 일치하지 않습니다.');
+      
+      const validation = BudgetRules.validateMatchingFund(total, nat, loc);
+      if (!validation.valid && validation.type === 'error') {
+        alert('Error: ' + validation.message);
         return;
       }
-      const natRatio = nat / total;
-      if (Math.abs(natRatio - 0.3) > 0.05) {
-        alert('Warning: 서울시 통합건강증진사업 지침에 따른 [국비 30% : 지방비 70%] 매칭 비율을 충족하지 않습니다. 계속 진행하시겠습니까?');
+      if (validation.type === 'confirm') {
+        if (!window.confirm(validation.message!)) return;
       }
     }
 
     if (editCatId) {
-      updateCategory(editCatId, { name: catName, totalBudget: Number(catBudget), policyProject: catPolicy, unitProject: catUnit, detailedProject: catDetail, statItem: catStat });
+      updateCategory(editCatId, { name: catName, totalBudget: Number(catBudget), policyProject: catPolicy, unitProject: catUnit, detailedProject: catDetail, formationItem: catFormation, statItem: catStat, budgetType: catBudgetType, fundingSource: catFundingSource });
     } else {
-      addCategory({ name: catName, totalBudget: Number(catBudget), color: COLORS[categories.length % COLORS.length], policyProject: catPolicy, unitProject: catUnit, detailedProject: catDetail, statItem: catStat });
+      addCategory({ name: catName, totalBudget: Number(catBudget), color: COLORS[categories.length % COLORS.length], policyProject: catPolicy, unitProject: catUnit, detailedProject: catDetail, formationItem: catFormation, statItem: catStat, budgetType: catBudgetType, fundingSource: catFundingSource });
     }
     setCatName(''); setCatBudget(''); setNationalFund(''); setLocalFund('');
-    setCatPolicy(''); setCatUnit(''); setCatDetail(''); setCatStat('');
+    setCatPolicy(''); setCatUnit(''); setCatDetail(''); setCatFormation(''); setCatStat(''); setCatBudgetType('본예산'); setCatFundingSource('구비(자체)');
     setEditCatId(null); setShowCatModal(false);
   };
 
@@ -216,25 +263,14 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
       }
     }
 
-    // 2. 금지 비목 차단 (블랙리스트)
-    if (entryPurpose.includes('자산취득') || entryPurpose.includes('컴퓨터') || entryPurpose.includes('장비') || targetCat?.name.includes('자산취득비') || targetCat?.name.includes('인건비')) {
-      alert('Error: 통합건강증진사업 지침상 자산취득성 사업비 및 인건비 편성이 불가합니다.');
+    // 예산 지침 컴플라이언스 룰 검증
+    const validation = BudgetRules.validateEntryCompliance(entryPurpose, targetCat?.name || '');
+    if (!validation.valid && validation.type === 'error') {
+      alert('Error: ' + validation.message);
       return;
     }
-
-    // 3. 오분류 방지
-    if (entryPurpose.includes('자문료') || entryPurpose.includes('속기료') || entryPurpose.includes('사례금') || entryPurpose.includes('수수료')) {
-      if (!targetCat?.name.includes('일반수용비') && !targetCat?.name.includes('210-01')) {
-        alert("Error: 지침 위반. 전문가 자문 등은 반드시 '일반수용비(210-01목)'로 집행해야 합니다.");
-        return;
-      }
-    }
-
-    // 4. 편법 지출 방지 경고
-    if (entryPurpose.includes('일용임금') || entryPurpose.includes('행정보조')) {
-      if (!window.confirm("Warning: 계속 고용 금지 및 중복 계상 금지 지침 재확인 요망. 불필요한 일용인력 계속 고용은 감사 대상입니다. 계속 진행할까요?")) {
-        return;
-      }
+    if (validation.type === 'confirm') {
+      if (!window.confirm(validation.message!)) return;
     }
 
     if (editEntryId) {
@@ -265,11 +301,31 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
     setEntryAmount(''); setEntryPurpose(''); setEntryMemo(''); setEntryDocNum(''); setEditEntryId(null); setShowEntryModal(false);
   };
 
-  const openEditCat = (cat: BudgetCategory) => {
-    setCatName(cat.name); setCatBudget(cat.totalBudget.toString());
+  const openEditCat = useCallback((cat: BudgetCategory) => {
+    setCatName(cat.name); setCatBudget(String(cat.totalBudget));
     setCatPolicy(cat.policyProject || ''); setCatUnit(cat.unitProject || '');
-    setCatDetail(cat.detailedProject || ''); setCatStat(cat.statItem || '');
+    setCatDetail(cat.detailedProject || ''); setCatFormation(cat.formationItem || ''); setCatStat(cat.statItem || '');
+    setCatBudgetType(cat.budgetType || '본예산');
+    setCatFundingSource(cat.fundingSource || '구비(자체)');
     setEditCatId(cat.id); setShowCatModal(true);
+  }, []);
+
+  const openBatchEdit = useCallback((title: string, cats: BudgetCategory[]) => {
+    if (!cats.length) return;
+    setBatchCats(cats);
+    setBatchTitle(title);
+    setBatchFundingSrc(cats[0]?.fundingSource || '구비(자체)');
+    setBatchBudgetType(cats[0]?.budgetType || '본예산');
+    setShowBatchModal(true);
+  }, []);
+
+  const handleApplyBatchEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!window.confirm(`선택된 [${batchTitle}] 내 ${batchCats.length}개 과목을 일괄 수정하시겠습니까?`)) return;
+    batchCats.forEach(c => {
+      updateCategory(c.id, { fundingSource: batchFundingSrc, budgetType: batchBudgetType });
+    });
+    setShowBatchModal(false);
   };
 
   const openEntryModal = () => {
@@ -281,7 +337,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
     setShowEntryModal(false);
     setReturnToEntryModal(true);
     setEditCatId(null);
-    setCatName(''); setCatPolicy(''); setCatUnit(''); setCatDetail(''); setCatStat(''); setCatBudget('');
+    setCatName(''); setCatPolicy(''); setCatUnit(''); setCatDetail(''); setCatFormation(''); setCatStat(''); setCatBudget(''); setCatFundingSource('구비(자체)');
     setShowCatModal(true);
   };
 
@@ -388,6 +444,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
     let totalBudget = 0;
     let remaining = 0;
     let totalSpent = 0;
+    let totalPlanned = 0;
 
     let dailyExpenseIssued = 0;
     let dailyExpenseSpent = 0;
@@ -399,13 +456,14 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
         totalBudget += catStats.totalBudget;
         remaining += catStats.remaining;
         totalSpent += catStats.spent;
+        totalPlanned += catStats.planned;
         dailyExpenseIssued += catStats.dailyExpenseIssued;
         dailyExpenseSpent += catStats.dailyExpenseSpent;
         dailyExpenseRemaining += catStats.dailyExpenseRemaining;
       }
     });
 
-    return { totalBudget, remaining, totalSpent, dailyExpenseIssued, dailyExpenseSpent, dailyExpenseRemaining };
+    return { totalBudget, remaining, totalSpent, totalPlanned, dailyExpenseIssued, dailyExpenseSpent, dailyExpenseRemaining };
   }, [filteredCategoriesTree, getCategoryStats, entries]);
 
   return (
@@ -537,6 +595,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
               deleteEntry={deleteEntry}
               openEditCat={openEditCat}
               openEditEntry={openEditEntry}
+              openBatchEdit={openBatchEdit}
             />
           ))}
         </div>
@@ -551,8 +610,32 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
           <div className="grid grid-cols-2 gap-4">
             <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">정책사업명</label><input type="text" value={catPolicy} onChange={e => setCatPolicy(e.target.value)} className={inputClass} placeholder="예: 건강도시조성" /></div>
             <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">단위사업명</label><input type="text" value={catUnit} onChange={e => setCatUnit(e.target.value)} className={inputClass} placeholder="예: 찾아가는 보건소" /></div>
-            <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">세부사업명</label><input type="text" value={catDetail} onChange={e => setCatDetail(e.target.value)} className={inputClass} placeholder="예: 방문간호운영" /></div>
+            <div className="col-span-2"><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">세부사업명</label><input type="text" value={catDetail} onChange={e => setCatDetail(e.target.value)} className={inputClass} placeholder="예: 방문간호운영" /></div>
+            <div>
+              <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">재원 구분</label>
+              <select value={catFundingSource} onChange={e => setCatFundingSource(e.target.value)} className={inputClass}>
+                <option value="구비(자체)">구비(자체)</option>
+                <option value="국비">국비</option>
+                <option value="시비">시비</option>
+                <option value="기금">기금</option>
+                <option value="특교">특교</option>
+                <option value="국비 매칭">국비 매칭</option>
+                <option value="시비 매칭">시비 매칭</option>
+              </select>
+            </div>
+            <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">편성목</label><input type="text" value={catFormation} onChange={e => setCatFormation(e.target.value)} className={inputClass} placeholder="예: 201 일반운영비" /></div>
             <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">통계목</label><input type="text" value={catStat} onChange={e => setCatStat(e.target.value)} className={inputClass} placeholder="예: 일반수용비(210-01)" /></div>
+            <div className="col-span-2">
+              <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">예산 구분</label>
+              <div className="flex gap-4">
+                {['본예산', '간주예산', '추경'].map(type => (
+                  <label key={type} className="flex items-center gap-1.5 text-sm cursor-pointer hover:bg-gray-50 px-2 py-1 rounded-md transition-colors">
+                    <input type="radio" name="catBudgetType" value={type} checked={catBudgetType === type} onChange={() => setCatBudgetType(type as any)} className="text-[var(--color-primary)] border-gray-300 focus:ring-[var(--color-primary)]" />
+                    {type}
+                  </label>
+                ))}
+              </div>
+            </div>
           </div>
           
           <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">별칭명 (단축 과목명) *</label><input type="text" value={catName} onChange={e => setCatName(e.target.value)} className={inputClass} required placeholder="예: 방문간호 일반수용비" /></div>
@@ -566,12 +649,61 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
              </div>
           </div>
 
-          <button type="submit" className="w-full px-4 py-2.5 rounded-lg bg-[var(--color-primary)] text-white text-sm font-medium hover:opacity-90 transition-opacity cursor-pointer">{editCatId ? '수정' : '추가'}</button>
+          <button type="submit" className="px-5 py-2.5 bg-[var(--color-primary)] text-white rounded-lg hover:bg-opacity-90 transition-colors font-bold w-full shadow-md shadow-blue-500/20 cursor-pointer text-sm">
+            {editCatId ? '예산 과목 저장' : '예산 과목 등록'}
+          </button>
+        </form>
+      </Modal>
+
+      {/* Batch Edit Modal */}
+      <Modal isOpen={showBatchModal} onClose={() => setShowBatchModal(false)} title={`[${batchTitle}] 일괄 수정`} size="md">
+        <form onSubmit={handleApplyBatchEdit} className="space-y-4">
+          <div className="bg-blue-50 border border-blue-200 text-blue-700 p-3 rounded-lg text-sm font-medium mb-2 leading-relaxed">
+             해당 그룹에 속한 <b>{batchCats.length}개</b>의 모든 하위 과목 예산/재원 구분을 동일하게 일괄 변경합니다.
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">새로운 예산 구분 적용</label>
+            <select value={batchBudgetType} onChange={e => setBatchBudgetType(e.target.value as any)} className={inputClass}>
+              <option value="본예산">본예산</option>
+              <option value="간주예산">간주예산</option>
+              <option value="추경">추경</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">새로운 재원 구분 적용</label>
+            <select value={batchFundingSrc} onChange={e => setBatchFundingSrc(e.target.value)} className={inputClass}>
+              <option value="구비(자체)">구비(자체)</option>
+              <option value="국비">국비</option>
+              <option value="시비">시비</option>
+              <option value="기금">기금</option>
+              <option value="특교">특교</option>
+              <option value="국비 매칭">국비 매칭</option>
+              <option value="시비 매칭">시비 매칭</option>
+            </select>
+          </div>
+          <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 mt-2">
+            <button type="button" onClick={() => setShowBatchModal(false)} className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium text-sm">취소</button>
+            <button type="submit" className="px-5 py-2.5 bg-[var(--color-primary)] text-white rounded-lg hover:bg-opacity-90 transition-colors font-bold shadow-md shadow-blue-500/20 cursor-pointer text-sm">일괄 적용</button>
+          </div>
         </form>
       </Modal>
 
       {/* Entry Modal */}
-      <Modal isOpen={showEntryModal} onClose={() => setShowEntryModal(false)} title="지출 등록" size="sm">
+      <Modal isOpen={showEntryModal} onClose={() => setShowEntryModal(false)} title="지출 등록" size="sm" footer={(() => {
+              const os = filteredStats;
+              return (
+                <div className="grid grid-cols-2 gap-3 w-full border-t pt-4 mt-2">
+                  <div className="bg-gray-50 p-2 rounded text-center">
+                    <div className="text-[10px] text-gray-500">가배정(품의)</div>
+                    <div className="text-sm font-bold text-amber-600">{formatN(os.totalPlanned)}</div>
+                  </div>
+                  <div className="bg-gray-50 p-2 rounded text-center">
+                    <div className="text-[10px] text-gray-500">실가용 잔액</div>
+                    <div className="text-sm font-bold text-emerald-600">{formatN(os.remaining - os.totalPlanned)}</div>
+                  </div>
+                </div>
+              );
+            })()}>
         <div className="flex bg-gray-100 p-1 rounded-lg mb-4">
           {(Object.keys(ACTION_TYPE_CONFIG) as BudgetActionType[]).map(type => (
             <button
@@ -643,95 +775,14 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
         </form>
       </Modal>
 
-      {/* Ledger Modal Component */}
-      <Modal isOpen={showLedgerModal} onClose={() => setShowLedgerModal(false)} title="일상경비 원장 교차 검증" size="2xl">
-        <div className="space-y-4">
-          <div className="p-4 bg-teal-50 border border-teal-100 rounded-lg text-[15px] text-teal-800 font-medium leading-relaxed">
-            💡 일상경비가 <span className="font-bold underline text-teal-900">한 번이라도 교부되거나 지출된</span> 예산 과목들만 보여줍니다.<br/>
-            좌우 T계정 내역을 대조하여 영수증 처리가 누락되었거나 교부를 받지 못한 건을 찾아내세요.
-          </div>
-          
-          <div className="h-[65vh] overflow-y-auto space-y-4 pr-2 scrollbar-hide">
-            {categories
-              .map(cat => {
-                const stats = getCategoryStats(cat.id);
-                const catEntries = entries.filter(e => e.categoryId === cat.id);
-                const issuances = catEntries.filter(e => e.actionType === 'issuance').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-                const dailyExpenses = catEntries.filter(e => e.actionType === 'daily_expense').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-                return { cat, stats, issuances, dailyExpenses };
-              })
-              .filter(data => data.issuances.length > 0 || data.dailyExpenses.length > 0)
-              .map((data, idx) => (
-                <div key={data.cat.id} className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm hover:shadow transition-shadow">
-                  <details className="group marker:content-['']" open={idx === 0}>
-                    <summary className="flex items-center justify-between p-4 bg-gray-50/50 cursor-pointer hover:bg-gray-100 transition-colors list-none">
-                      <div className="flex flex-col gap-2">
-                        <div className="text-[17px] font-bold text-gray-800">
-                          {data.cat.name} 
-                          <span className="text-[13px] font-medium text-gray-500 ml-2 border border-gray-200 bg-white px-2 py-0.5 rounded">
-                            {data.cat.unitProject}
-                          </span>
-                        </div>
-                        <div className="flex gap-4 text-[14px] font-semibold mt-1">
-                          <span className="text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-100">교부액: {formatN(data.stats?.dailyExpenseIssued || 0)}</span>
-                          <span className="text-teal-600 bg-teal-50 px-2 py-1 rounded border border-teal-100">지출액: {formatN(data.stats?.dailyExpenseSpent || 0)}</span>
-                          <span className={`px-2 py-1 rounded border ${
-                            (data.stats?.dailyExpenseRemaining || 0) < 0 
-                              ? 'text-red-600 bg-red-50 border-red-100' 
-                              : 'text-blue-700 bg-blue-50 border-blue-100'
-                          }`}>
-                            잔액: {formatN(data.stats?.dailyExpenseRemaining || 0)}
-                          </span>
-                        </div>
-                      </div>
-                      <ChevronDown size={24} className="text-gray-400 group-open:rotate-180 transition-transform flex-shrink-0" />
-                    </summary>
-                    <div className="p-4 grid grid-cols-2 gap-6 border-t border-gray-200 bg-white">
-                      {/* Left: Issuance */}
-                      <div>
-                        <div className="text-[14px] font-bold text-amber-700 mb-3 border-b border-amber-200 pb-2 flex justify-between">
-                          <span>교부(입금) 내역</span>
-                          <span className="bg-amber-100 text-amber-800 px-2 rounded-md">{data.issuances.length}건</span>
-                        </div>
-                        <ul className="space-y-2.5">
-                          {data.issuances.length === 0 && <li className="text-[13px] text-gray-400 text-center py-6 bg-gray-50 rounded border border-dashed border-gray-200 font-medium">내역 없음</li>}
-                          {data.issuances.map(e => (
-                            <li key={e.id} className="flex justify-between items-center text-[13px] bg-amber-50/50 hover:bg-amber-50 p-3 rounded-lg border border-amber-100 transition-colors shadow-sm">
-                              <div className="flex flex-col gap-1 truncate pr-2">
-                                <span className="text-gray-500 font-semibold">{e.date.replace(/-/g, '.')}</span>
-                                <span className="font-bold text-gray-800 truncate" title={e.purpose}>{e.purpose}</span>
-                              </div>
-                              <span className="font-bold text-amber-600 shrink-0 text-[14px]">{formatN(e.amount)}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                      {/* Right: Daily Expense */}
-                      <div>
-                        <div className="text-[14px] font-bold text-teal-700 mb-3 border-b border-teal-200 pb-2 flex justify-between">
-                          <span>지출(출금) 내역</span>
-                          <span className="bg-teal-100 text-teal-800 px-2 rounded-md">{data.dailyExpenses.length}건</span>
-                        </div>
-                        <ul className="space-y-2.5">
-                          {data.dailyExpenses.length === 0 && <li className="text-[13px] text-gray-400 text-center py-6 bg-gray-50 rounded border border-dashed border-gray-200 font-medium">내역 없음</li>}
-                          {data.dailyExpenses.map(e => (
-                            <li key={e.id} className="flex justify-between items-center text-[13px] bg-teal-50/50 hover:bg-teal-50 p-3 rounded-lg border border-teal-100 transition-colors shadow-sm">
-                              <div className="flex flex-col gap-1 truncate pr-2">
-                                <span className="text-gray-500 font-semibold">{e.date.replace(/-/g, '.')}</span>
-                                <span className="font-bold text-gray-800 truncate" title={e.purpose}>{e.purpose}</span>
-                              </div>
-                              <span className="font-bold text-teal-600 shrink-0 text-[14px]">{formatN(e.amount)}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-                  </details>
-                </div>
-              ))}
-          </div>
-        </div>
-      </Modal>
+      <LedgerModal 
+        isOpen={showLedgerModal} 
+        onClose={() => setShowLedgerModal(false)}
+        categories={categories}
+        entries={entries}
+        getCategoryStats={getCategoryStats}
+        onSettle={handleSettle}
+      />
     </div>
   );
 }

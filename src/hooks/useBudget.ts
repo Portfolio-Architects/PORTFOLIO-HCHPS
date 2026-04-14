@@ -25,7 +25,7 @@ export function useBudget() {
   const uniqueCategories = useMemo(() => {
     const seen = new Set();
     return rawCategories.filter(c => {
-      const key = `${c.name}-${c.policyProject}-${c.unitProject}-${c.detailedProject}-${c.statItem}-${c.totalBudget}`;
+      const key = `${c.name}-${c.policyProject}-${c.unitProject}-${c.detailedProject}-${c.statItem}-${c.totalBudget}-${c.budgetType || '본예산'}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -155,20 +155,23 @@ export function useBudget() {
     const cat = uniqueCategories.find(c => c.id === categoryId);
     if (!cat) return null;
     const catEntries = entries.filter(e => e.categoryId === categoryId);
-    const generalSpent = catEntries.filter(e => !e.actionType || e.actionType === 'general').reduce((sum, e) => sum + e.amount, 0);
-    const dailyExpenseIssued = catEntries.filter(e => e.actionType === 'issuance').reduce((sum, e) => sum + e.amount, 0);
-    const dailyExpenseSpent = catEntries.filter(e => e.actionType === 'daily_expense').reduce((sum, e) => sum + e.amount, 0);
+    const generalSpent = catEntries.filter(e => !e.isPlanned && (!e.actionType || e.actionType === 'general')).reduce((sum, e) => sum + e.amount, 0);
+    const dailyExpenseIssued = catEntries.filter(e => !e.isPlanned && e.actionType === 'issuance').reduce((sum, e) => sum + e.amount, 0);
+    const dailyExpenseSpent = catEntries.filter(e => !e.isPlanned && e.actionType === 'daily_expense').reduce((sum, e) => sum + e.amount, 0);
+    
+    // 원인행위 (가배정) 한도액 = 진행 중(isSettled==false)인 품의서 금액 총합
+    const planned = catEntries.filter(e => e.isPlanned && !e.isSettled).reduce((sum, e) => sum + e.amount, 0);
     
     const spent = generalSpent + dailyExpenseIssued;
-    const remaining = cat.totalBudget - spent;
+    const remaining = cat.totalBudget - spent - planned; // 남은 진짜 잔액 = 총예산 - 결제완료지출 - 묶인금액(가배정)
     const dailyExpenseRemaining = dailyExpenseIssued - dailyExpenseSpent;
     
-    const usageRate = cat.totalBudget > 0 ? Math.round((spent / cat.totalBudget) * 100) : 0;
+    const usageRate = cat.totalBudget > 0 ? ((spent + planned) / cat.totalBudget) * 100 : 0;
     
     return { 
       totalBudget: cat.totalBudget, 
       spent, 
-      planned: 0, 
+      planned, 
       remaining, 
       usageRate,
       generalSpent,
@@ -180,17 +183,18 @@ export function useBudget() {
 
   const overallStats = useMemo(() => {
     const totalBudget = uniqueCategories.reduce((sum, c) => sum + c.totalBudget, 0);
-    const generalSpent = entries.filter(e => !e.actionType || e.actionType === 'general').reduce((sum, e) => sum + e.amount, 0);
-    const dailyExpenseIssued = entries.filter(e => e.actionType === 'issuance').reduce((sum, e) => sum + e.amount, 0);
-    const dailyExpenseSpent = entries.filter(e => e.actionType === 'daily_expense').reduce((sum, e) => sum + e.amount, 0);
+    const generalSpent = entries.filter(e => !e.isPlanned && (!e.actionType || e.actionType === 'general')).reduce((sum, e) => sum + e.amount, 0);
+    const dailyExpenseIssued = entries.filter(e => !e.isPlanned && e.actionType === 'issuance').reduce((sum, e) => sum + e.amount, 0);
+    const dailyExpenseSpent = entries.filter(e => !e.isPlanned && e.actionType === 'daily_expense').reduce((sum, e) => sum + e.amount, 0);
+    const totalPlanned = entries.filter(e => e.isPlanned && !e.isSettled).reduce((sum, e) => sum + e.amount, 0);
     
     const totalSpent = generalSpent + dailyExpenseIssued;
     
     return { 
       totalBudget, 
       totalSpent, 
-      totalPlanned: 0, 
-      remaining: totalBudget - totalSpent,
+      totalPlanned, 
+      remaining: totalBudget - totalSpent - totalPlanned,
       dailyExpenseIssued,
       dailyExpenseSpent,
       dailyExpenseRemaining: dailyExpenseIssued - dailyExpenseSpent
