@@ -8,7 +8,8 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
-  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'full';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl' | 'full';
+  footer?: React.ReactNode;
 }
 
 const sizeClasses = {
@@ -17,10 +18,12 @@ const sizeClasses = {
   lg: 'max-w-3xl',
   xl: 'max-w-4xl',
   '2xl': 'max-w-5xl',
+  '3xl': 'max-w-6xl',
+  '4xl': 'max-w-7xl',
   'full': 'max-w-[95vw]',
 };
 
-export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalProps) {
+export function Modal({ isOpen, onClose, title, children, size = 'md', footer }: ModalProps) {
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -50,6 +53,11 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
         <div className="px-6 py-4 overflow-y-auto custom-scrollbar flex-1">
           {children}
         </div>
+        {footer && (
+          <div className="px-6 py-4 border-t border-[var(--color-border-light)] bg-gray-50/30 rounded-b-[var(--radius-lg)]">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   );
