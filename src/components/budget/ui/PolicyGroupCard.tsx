@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { BudgetCategory, BudgetEntry, BudgetActionType } from '@/types';
-import { ChevronDown, ChevronUp, Pencil, Trash2, FileCheck, FilePlus2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Pencil, Trash2, FileCheck, FilePlus2, ArrowUp, ArrowDown } from 'lucide-react';
 
 function formatN(n: number) { return n.toLocaleString('ko-KR'); }
 
@@ -17,8 +17,10 @@ export const PolicyGroupCard = React.memo(({
   deleteCategory,
   deleteEntry,
   openEditCat,
+  openAddCat,
   openEditEntry,
-  openBatchEdit
+  openBatchEdit,
+  updateCategory
 }: {
   group: { policyName: string; cats: BudgetCategory[] };
   entries: BudgetEntry[];
@@ -26,12 +28,28 @@ export const PolicyGroupCard = React.memo(({
   deleteCategory: (id: string) => void;
   deleteEntry: (id: string) => void;
   openEditCat: (cat: BudgetCategory) => void;
+  openAddCat?: (template: Partial<BudgetCategory>) => void;
   openEditEntry: (entry: BudgetEntry) => void;
   openBatchEdit?: (title: string, cats: BudgetCategory[]) => void;
+  updateCategory?: (id: string, updates: Partial<BudgetCategory>) => void;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [showAllEntries, setShowAllEntries] = useState(false);
   const { policyName, cats } = group;
+
+  // 편성목 순서 교환 (↑↓)
+  const handleSwapCat = useCallback((sortedCats: BudgetCategory[], idx: number, dir: -1 | 1) => {
+    if (!updateCategory) return;
+    const targetIdx = idx + dir;
+    if (targetIdx < 0 || targetIdx >= sortedCats.length) return;
+    // 현재 배열의 인덱스를 sortOrder로 할당 (교환)
+    sortedCats.forEach((c, i) => {
+      let newOrder = i;
+      if (i === idx) newOrder = targetIdx;
+      else if (i === targetIdx) newOrder = idx;
+      updateCategory(c.id, { sortOrder: newOrder });
+    });
+  }, [updateCategory]);
 
   const { totalBudget, spent, planned, remaining, usageRate, groupEntries, groupedByDetail, groupFunding, groupTypes } = useMemo(() => {
     const tBudget = cats.reduce((s, c) => s + c.totalBudget, 0);
@@ -59,6 +77,10 @@ export const PolicyGroupCard = React.memo(({
         groups.push(g);
       }
       g.cats.push(cat);
+    });
+    // Sort cats within each group by sortOrder
+    groups.forEach(g => {
+      g.cats.sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
     });
 
     const groupFunding = Array.from(new Set(cats.map(c => c.fundingSource).filter(f => f && f !== '구비(자체)')));
@@ -146,12 +168,32 @@ export const PolicyGroupCard = React.memo(({
                       <Pencil size={13} />
                     </button>
                   )}
+                  {openAddCat && (
+                    <button 
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        openAddCat({ 
+                          policyProject: policyName, 
+                          unitProject: detailGroup.cats[0]?.unitProject, 
+                          detailedProject: detailGroup.detailName,
+                          budgetType: detailTypes[0] as any || '본예산',
+                          fundingSource: detailFunding[0] || '구비(자체)'
+                        }); 
+                      }} 
+                      className="p-1 rounded cursor-pointer hover:bg-slate-200 text-gray-500 hover:text-blue-600 transition-colors"
+                      title="이 세부사업에 새 통계목 추가"
+                    >
+                      <FilePlus2 size={13} />
+                    </button>
+                  )}
                 </div>
               </div>
               <div className="space-y-3 pl-2">
-                {detailGroup.cats.map(cat => {
+                {detailGroup.cats.map((cat, catIdx) => {
                   const stats = getCategoryStats(cat.id);
                   if (!stats) return null;
+                  const isFirst = catIdx === 0;
+                  const isLast = catIdx === detailGroup.cats.length - 1;
                   return (
                     <div key={cat.id} className="group/item relative bg-white border border-slate-200 rounded-lg p-3 hover:bg-slate-50 transition-colors duration-150">
                       <div className="flex items-center justify-between mb-3">
@@ -174,6 +216,12 @@ export const PolicyGroupCard = React.memo(({
                           )}
                         </div>
                         <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover/item:opacity-100 transition-opacity flex-shrink-0 absolute right-2 top-2 bg-white rounded-md p-1 border border-slate-200 z-10">
+                          {updateCategory && !isFirst && (
+                            <button onClick={(e) => { e.stopPropagation(); handleSwapCat(detailGroup.cats, catIdx, -1); }} className="p-1 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-600" title="위로 이동"><ArrowUp size={13} /></button>
+                          )}
+                          {updateCategory && !isLast && (
+                            <button onClick={(e) => { e.stopPropagation(); handleSwapCat(detailGroup.cats, catIdx, 1); }} className="p-1 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-600" title="아래로 이동"><ArrowDown size={13} /></button>
+                          )}
                           <button onClick={() => openEditCat(cat)} className="p-1 rounded hover:bg-slate-100 text-gray-500"><Pencil size={13} /></button>
                           <button onClick={() => deleteCategory(cat.id)} className="p-1 rounded hover:bg-red-50 text-gray-500 hover:text-red-500"><Trash2 size={13} /></button>
                         </div>

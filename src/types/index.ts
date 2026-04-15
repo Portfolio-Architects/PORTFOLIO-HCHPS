@@ -36,6 +36,7 @@ export interface BudgetCategory {
   statItem?: string;      // 통계목 (ex: 01 사무관리비)
   budgetType?: '본예산' | '간주예산' | '추경'; // 예산 구분
   fundingSource?: string; // 재원 구분 (구비, 국비, 시비 등)
+  sortOrder?: number; // 편성목 표시 순서 (낮을수록 위)
 }
 
 export interface BudgetEntry {
@@ -135,7 +136,7 @@ export interface KnowledgeEntry {
 }
 
 // ============ Navigation ============
-export type ModuleType = 'workspace' | 'knowledge' | 'mindmap' | 'boss-schedule';
+export type ModuleType = 'workspace' | 'knowledge' | 'mindmap' | 'project-planning';
 
 // ============ Utility ============
 export function generateId(): string {

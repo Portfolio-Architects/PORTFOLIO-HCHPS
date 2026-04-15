@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { ModuleType } from '@/types';
-import { SquareCheck, Archive, Zap, Activity, CalendarDays } from 'lucide-react';
+import { SquareCheck, Archive, Zap, Lightbulb } from 'lucide-react';
 
 interface TopNavProps {
   activeModule: ModuleType;
@@ -13,9 +13,9 @@ interface TopNavProps {
 
 const navItems: { id: ModuleType; label: string; icon: React.ElementType }[] = [
   { id: 'mindmap', label: '시그널', icon: Zap },
-  { id: 'boss-schedule', label: '상사일정', icon: CalendarDays },
   { id: 'workspace', label: '자원관리', icon: Archive },
   { id: 'knowledge', label: '메모장', icon: SquareCheck },
+  { id: 'project-planning', label: '사업기획', icon: Lightbulb },
 ];
 
 export function Sidebar({ activeModule, onModuleChange, taskStats, quickInput }: TopNavProps) {

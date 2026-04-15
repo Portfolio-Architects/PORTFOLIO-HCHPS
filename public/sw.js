@@ -33,6 +33,51 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
+// ============ Push Notification Support ============
+
+// 클라이언트에서 postMessage로 알림 요청 수신
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SHOW_NOTIFICATION') {
+    const { title, body, tag, icon, badge, data, requireInteraction, silent } = event.data.payload;
+    
+    self.registration.showNotification(title, {
+      body: body || '',
+      tag: tag || 'hchps-alert',
+      icon: icon || './icon-192x192.png',
+      badge: badge || './icon-192x192.png',
+      data: data || {},
+      requireInteraction: requireInteraction || false,
+      silent: silent || false,
+      vibrate: [200, 100, 200], // 진동 패턴 (모바일)
+      actions: [
+        { action: 'open', title: '확인' },
+        { action: 'dismiss', title: '닫기' },
+      ],
+    }).catch(() => {
+      // showNotification 실패 시 무시 (권한 미부여 등)
+    });
+  }
+});
+
+// 알림 클릭 시 앱으로 포커스
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  if (event.action === 'dismiss') return;
+
+  // 이미 열려있는 탭이 있으면 포커스, 없으면 새 탭
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      return self.clients.openWindow('./');
+    })
+  );
+});
+
 // Stale-While-Revalidate & Network-First Hybrid Strategy
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;

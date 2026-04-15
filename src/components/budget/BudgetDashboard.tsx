@@ -310,6 +310,15 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
     setEditCatId(cat.id); setShowCatModal(true);
   }, []);
 
+  const openAddCat = useCallback((template: Partial<BudgetCategory>) => {
+    setCatName(''); setCatBudget('');
+    setCatPolicy(template.policyProject || ''); setCatUnit(template.unitProject || '');
+    setCatDetail(template.detailedProject || ''); setCatFormation(template.formationItem || ''); setCatStat('');
+    setCatBudgetType(template.budgetType || '본예산');
+    setCatFundingSource(template.fundingSource || '구비(자체)');
+    setEditCatId(null); setShowCatModal(true);
+  }, []);
+
   const openBatchEdit = useCallback((title: string, cats: BudgetCategory[]) => {
     if (!cats.length) return;
     setBatchCats(cats);
@@ -594,8 +603,10 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
               deleteCategory={deleteCategory}
               deleteEntry={deleteEntry}
               openEditCat={openEditCat}
+              openAddCat={openAddCat}
               openEditEntry={openEditEntry}
               openBatchEdit={openBatchEdit}
+              updateCategory={updateCategory}
             />
           ))}
         </div>
@@ -623,7 +634,6 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
                 <option value="시비 매칭">시비 매칭</option>
               </select>
             </div>
-            <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">편성목</label><input type="text" value={catFormation} onChange={e => setCatFormation(e.target.value)} className={inputClass} placeholder="예: 201 일반운영비" /></div>
             <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">통계목</label><input type="text" value={catStat} onChange={e => setCatStat(e.target.value)} className={inputClass} placeholder="예: 일반수용비(210-01)" /></div>
             <div className="col-span-2">
               <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">예산 구분</label>
@@ -638,7 +648,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
             </div>
           </div>
           
-          <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">별칭명 (단축 과목명) *</label><input type="text" value={catName} onChange={e => setCatName(e.target.value)} className={inputClass} required placeholder="예: 방문간호 일반수용비" /></div>
+          <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">편성목 *</label><input type="text" value={catName} onChange={e => setCatName(e.target.value)} className={inputClass} required placeholder="예: 201 일반운영비" /></div>
           <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">총 예산액 (원) *</label><input type="number" value={catBudget} onChange={e => setCatBudget(e.target.value)} className={inputClass} required placeholder="0" /></div>
           
           <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg space-y-2">

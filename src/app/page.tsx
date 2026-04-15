@@ -9,11 +9,15 @@ import { useMeetings } from '@/hooks/useMeetings';
 import { useProjects } from '@/hooks/useProjects';
 import { useSignal, extractKeywords } from '@/hooks/useSignal';
 import { useKnowledge } from '@/hooks/useKnowledge';
+import { useBossSchedule } from '@/hooks/useBossSchedule';
+import { useScheduleAlerts } from '@/hooks/useScheduleAlerts';
+import { useNotificationAlerts } from '@/hooks/useNotificationAlerts';
+import { ScheduleAlertBanner } from '@/components/mindmap/ui/ScheduleAlertBanner';
 import { Sidebar } from '@/components/Sidebar';
 import { QuickInput } from '@/components/QuickInput';
 import { WorkspaceView } from '@/components/WorkspaceView';
 import { MindMap3D } from '@/components/MindMap3D';
-import { BossScheduleView } from '@/components/BossScheduleView';
+import { PlanningCanvasView } from '@/components/PlanningCanvasView';
 import { TaskKnowledgeView } from '@/components/TaskKnowledgeView';
 import { SearchResultModal } from '@/components/SearchResultModal';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
@@ -67,6 +71,9 @@ function ProtectedApp() {
   const { projects, addProject, updateProject, deleteProject, addChecklistItem, toggleChecklistItem, deleteChecklistItem, getProjectProgress } = useProjects();
   const { entries: signalEntries, addSignal, deleteSignal, updateSignalKeywords, keywordMap } = useSignal();
   const { entries: knowledgeEntries, addKnowledge, updateKnowledge, deleteKnowledge, filterKnowledge, metadata: knowledgeMetadata } = useKnowledge();
+  const { entries: bossEntries } = useBossSchedule();
+  const scheduleAlerts = useScheduleAlerts(tasks, meetings, bossEntries);
+  const { permission: notifPermission, requestPermission: requestNotifPermission } = useNotificationAlerts(scheduleAlerts);
 
   const { searchModalOpen, searchQuery, searchResults, handleGlobalSearch, closeSearchModal } = useGlobalSearch();
   const { mergedKeywordMap, mergedEntries } = useMergedSignals(signalEntries, keywordMap, tasks, knowledgeEntries, projects, meetings, budgetEntries, inventoryItems);
@@ -75,7 +82,7 @@ function ProtectedApp() {
   useEffect(() => {
     setMounted(true);
     const saved = localStorage.getItem('hchps_active_module');
-    if (saved === 'workspace' || saved === 'knowledge' || saved === 'mindmap' || saved === 'boss-schedule') {
+    if (saved === 'workspace' || saved === 'knowledge' || saved === 'mindmap' || saved === 'project-planning') {
       setActiveModule(saved as ModuleType);
     }
   }, []);
@@ -111,7 +118,7 @@ function ProtectedApp() {
     
     // Minimum horizontal swipe distance
     if (Math.abs(distance) > 60) {
-      const order: ModuleType[] = ['mindmap', 'boss-schedule', 'workspace', 'knowledge'];
+      const order: ModuleType[] = ['mindmap', 'workspace', 'knowledge', 'project-planning'];
       const currentIndex = order.indexOf(activeModule);
       
       if (distance > 0 && currentIndex < order.length - 1) {
@@ -225,21 +232,24 @@ function ProtectedApp() {
 
       case 'mindmap':
         return (
-          <MindMapErrorBoundary>
-            <MindMap3D 
-              signalKeywords={mergedKeywordMap} 
-              signalEntries={mergedEntries} 
-              onAddSignal={addSignal} 
-              onDeleteSignal={deleteSignal} 
-              onUpdateKeywords={updateSignalKeywords}
-              onRenameCategory={handleRenameCategory}
-              onDeleteCategory={handleDeleteCategory}
-            />
-          </MindMapErrorBoundary>
+          <>
+            <ScheduleAlertBanner alerts={scheduleAlerts} notificationPermission={notifPermission} onRequestPermission={requestNotifPermission} mergedEntries={mergedEntries} />
+            <MindMapErrorBoundary>
+              <MindMap3D 
+                signalKeywords={mergedKeywordMap} 
+                signalEntries={mergedEntries} 
+                onAddSignal={addSignal} 
+                onDeleteSignal={deleteSignal} 
+                onUpdateKeywords={updateSignalKeywords}
+                onRenameCategory={handleRenameCategory}
+                onDeleteCategory={handleDeleteCategory}
+              />
+            </MindMapErrorBoundary>
+          </>
         );
 
-      case 'boss-schedule':
-        return <BossScheduleView />;
+      case 'project-planning':
+        return <PlanningCanvasView />;
 
       default:
         return null;

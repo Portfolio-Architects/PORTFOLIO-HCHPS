@@ -32,7 +32,7 @@ export function LedgerModal({ isOpen, onClose, categories, entries, getCategoryS
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="원장 교차 검증 (가배정/원인행위 차감)" size="4xl">
+    <Modal isOpen={isOpen} onClose={onClose} title="원장 교차 검증 (가지출/실지출 대조)" size="4xl">
       <div className="space-y-4">
         <div className="p-4 bg-teal-50 border border-teal-100 rounded-lg text-[15px] text-teal-800 font-medium leading-relaxed">
           💡 일상경비가 <span className="font-bold underline text-teal-900">한 번이라도 교부되거나 지출된</span> 예산 과목들만 보여줍니다.<br/>
@@ -51,10 +51,13 @@ export function LedgerModal({ isOpen, onClose, categories, entries, getCategoryS
               
               const leftItems = [...plannedTasks, ...issuances].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-              // 오른쪽 (실제 집행/정산완료) = 모든 실제 지출 (isPlanned:false && actionType !== 'issuance')
-              const rightItems = catEntries.filter(e => !e.isPlanned && e.actionType !== 'issuance').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+              // 오른쪽 (실제 집행/정산완료) = 일상경비 지출 제외
+              const rightItems = catEntries.filter(e => !e.isPlanned && e.actionType !== 'daily_expense').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
               
-              return { cat, stats, leftItems, rightItems };
+              // 왼쪽 하단 (일상경비 지출)
+              const leftBottomItems = catEntries.filter(e => !e.isPlanned && e.actionType === 'daily_expense').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+              return { cat, stats, leftItems, rightItems, leftBottomItems };
             })
             .filter(data => data.leftItems.length > 0 || data.rightItems.length > 0)
             .map((data, idx) => (
@@ -86,8 +89,11 @@ export function LedgerModal({ isOpen, onClose, categories, entries, getCategoryS
                     {/* Left: 품의 및 가배정 */}
                     <div>
                       <div className="text-[14px] font-bold text-amber-700 mb-3 border-b border-amber-200 pb-2 flex justify-between items-center">
-                        <span>결재 대기 (가배정/원인행위 내역)</span>
-                        <span className="bg-amber-100 text-amber-800 px-2 rounded-md">{data.leftItems.length}건</span>
+                        <span>가지출 단계 (원인행위/일상경비 교부)</span>
+                        <div className="flex items-center gap-2">
+                          <span>합계: {formatN(data.leftItems.reduce((acc, e) => acc + e.amount, 0))}</span>
+                          <span className="bg-amber-100 text-amber-800 px-2 rounded-md text-[13px]">{data.leftItems.length}건</span>
+                        </div>
                       </div>
                       <ul className="space-y-2.5">
                         {data.leftItems.length === 0 && <li className="text-[13px] text-gray-400 text-center py-6 bg-gray-50 rounded border border-dashed border-gray-200 font-medium">내역 없음</li>}
@@ -96,7 +102,7 @@ export function LedgerModal({ isOpen, onClose, categories, entries, getCategoryS
                             <div className="flex flex-col gap-1 truncate pr-2 flex-1">
                               <div className="flex items-center gap-1.5">
                                 <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${e.isPlanned ? 'bg-amber-200 text-amber-800' : 'bg-blue-100 text-blue-700'}`}>
-                                  {e.isPlanned ? '계획(품의)' : '일반교부액'}
+                                  {e.isPlanned ? '원인행위(품의)' : '일상경비 교부'}
                                 </span>
                                 <span className="text-gray-500 font-semibold">{e.date.replace(/-/g, '.')}</span>
                               </div>
@@ -129,28 +135,65 @@ export function LedgerModal({ isOpen, onClose, categories, entries, getCategoryS
                           </li>
                         ))}
                       </ul>
+
+                      {/* Left Bottom: 일상경비 실제 지출 */}
+                      {data.leftBottomItems && data.leftBottomItems.length > 0 && (
+                        <div className="mt-5 pt-3 border-t-2 border-dashed border-gray-200">
+                          <div className="text-[13px] font-bold text-purple-700 mb-2 flex justify-between items-center">
+                            <span>일상경비 실제 지출건</span>
+                            <div className="flex items-center gap-2">
+                              <span>합계: {formatN(data.leftBottomItems.reduce((acc, e) => acc + e.amount, 0))}</span>
+                              <span className="bg-purple-100 text-purple-800 px-2 text-[11px] rounded-md">{data.leftBottomItems.length}건</span>
+                            </div>
+                          </div>
+                          <ul className="space-y-2">
+                            {data.leftBottomItems.map(e => (
+                              <li key={e.id} className="flex justify-between items-center text-[12px] bg-purple-50 hover:bg-purple-100 p-2.5 rounded-lg border border-purple-200 transition-colors shadow-sm">
+                                <div className="flex flex-col gap-1 truncate pr-2 flex-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded font-bold bg-purple-100 text-purple-700 border border-purple-200">지출 완료</span>
+                                    <span className="text-gray-500 font-semibold">{e.date.replace(/-/g, '.')}</span>
+                                  </div>
+                                  <span className="font-bold text-purple-900 truncate" title={e.purpose}>{e.purpose}</span>
+                                </div>
+                                <span className="font-bold text-purple-700 shrink-0 text-[13px]">{formatN(e.amount)}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
                     {/* Right: 진성 지출 */}
                     <div>
                       <div className="text-[14px] font-bold text-teal-700 mb-3 border-b border-teal-200 pb-2 flex justify-between items-center">
                         <span>실제 지출 (정산 완료)</span>
-                        <span className="bg-teal-100 text-teal-800 px-2 rounded-md">{data.rightItems.length}건</span>
+                        <div className="flex items-center gap-2">
+                          <span>합계: {formatN(data.rightItems.reduce((acc, e) => acc + e.amount, 0))}</span>
+                          <span className="bg-teal-100 text-teal-800 px-2 rounded-md text-[13px]">{data.rightItems.length}건</span>
+                        </div>
                       </div>
-                      <ul className="space-y-2.5">
-                        {data.rightItems.length === 0 && <li className="text-[13px] text-gray-400 text-center py-6 bg-gray-50 rounded border border-dashed border-gray-200 font-medium">내역 없음</li>}
-                        {data.rightItems.map(e => (
-                          <li key={e.id} className="flex justify-between items-center text-[13px] bg-teal-50 hover:bg-teal-100 p-3 rounded-lg border border-teal-200 transition-colors shadow-sm">
-                            <div className="flex flex-col gap-1 truncate pr-2 flex-1">
-                              <div className="flex items-center gap-1.5">
-                                {e.relatedPlanId && <span className="text-[10px] px-1.5 py-0.5 rounded font-bold bg-green-100 text-green-700">품의 정산건</span>}
-                                <span className="text-gray-500 font-semibold">{e.date.replace(/-/g, '.')}</span>
+                      
+                      {data.rightItems.length === 0 && (
+                        <div className="text-[13px] text-gray-400 text-center py-6 bg-gray-50 rounded border border-dashed border-gray-200 font-medium">내역 없음</div>
+                      )}
+                      
+                      {data.rightItems.length > 0 && (
+                        <ul className="space-y-2">
+                          {data.rightItems.map(e => (
+                            <li key={e.id} className="flex justify-between items-center text-[13px] bg-teal-50 hover:bg-teal-100 p-3 rounded-lg border border-teal-200 transition-colors shadow-sm">
+                              <div className="flex flex-col gap-1 truncate pr-2 flex-1">
+                                <div className="flex items-center gap-1.5">
+                                  {e.relatedPlanId && <span className="text-[10px] px-1.5 py-0.5 rounded font-bold bg-green-100 text-green-700">품의 정산건</span>}
+                                  {e.actionType === 'issuance' && <span className="text-[10px] px-1.5 py-0.5 rounded font-bold bg-blue-100 text-blue-700">일상경비 교부</span>}
+                                  <span className="text-gray-500 font-semibold">{e.date.replace(/-/g, '.')}</span>
+                                </div>
+                                <span className="font-bold text-gray-800 truncate" title={e.purpose}>{e.purpose}</span>
                               </div>
-                              <span className="font-bold text-gray-800 truncate" title={e.purpose}>{e.purpose}</span>
-                            </div>
-                            <span className="font-bold text-teal-700 shrink-0 text-[14px]">{formatN(e.amount)}</span>
-                          </li>
-                        ))}
-                      </ul>
+                              <span className="font-bold text-teal-700 shrink-0 text-[14px]">{formatN(e.amount)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
                   </div>
                 </details>

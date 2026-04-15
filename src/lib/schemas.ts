@@ -37,6 +37,10 @@ export const BudgetCategorySchema = z.object({
   unitProject: z.string().optional().catch('전반'),
   detailedProject: z.string().optional().catch('기본운영'),
   statItem: z.string().optional().catch('일반'),
+  formationItem: z.string().optional().catch(undefined),
+  budgetType: z.enum(['본예산', '간주예산', '추경']).optional().catch(undefined),
+  fundingSource: z.string().optional().catch(undefined),
+  sortOrder: z.number().optional().catch(undefined),
 });
 
 export type BudgetCategoryDto = z.infer<typeof BudgetCategorySchema>;

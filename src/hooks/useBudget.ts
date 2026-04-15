@@ -5,6 +5,18 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { readSheet, addRow, updateRow, deleteRow } from '@/lib/sheets-api';
 import { BudgetCategory, BudgetEntry, generateId } from '@/types';
 
+let kvWriteQueue = Promise.resolve<any>(null);
+
+function enqueueKvWrite<T>(fn: () => Promise<T>): Promise<T> {
+  const p = kvWriteQueue.then(() => 
+    fn()
+      .then(res => new Promise<T>(resolve => setTimeout(() => resolve(res), 300)))
+      .catch(err => new Promise<never>((_, reject) => setTimeout(() => reject(err), 300)))
+  );
+  kvWriteQueue = p.catch(() => null); // Prevent queue from dying on error
+  return p;
+}
+
 export function useBudget() {
   const queryClient = useQueryClient();
 
@@ -48,7 +60,13 @@ export function useBudget() {
   });
 
   const updateCategoryMut = useMutation({
-    mutationFn: ({ id, updates }: { id: string, updates: Partial<BudgetCategory> }) => updateRow('BUDGET_CATEGORIES', id, updates),
+    mutationFn: async ({ id, updates }: { id: string, updates: Partial<BudgetCategory> }) => {
+      // E2EE requires full payload replacement. Merge frontend state first.
+      const existing = queryClient.getQueryData<BudgetCategory[]>(['BUDGET_CATEGORIES'])?.find(c => c.id === id);
+      if (!existing) throw new Error("Item not found in cache");
+      const fullItem = { ...existing, ...updates };
+      return enqueueKvWrite(() => updateRow('BUDGET_CATEGORIES', id, fullItem));
+    },
     onMutate: async ({ id, updates }) => {
       await queryClient.cancelQueries({ queryKey: ['BUDGET_CATEGORIES'] });
       const previous = queryClient.getQueryData<BudgetCategory[]>(['BUDGET_CATEGORIES']);
@@ -91,7 +109,13 @@ export function useBudget() {
   });
 
   const updateEntryMut = useMutation({
-    mutationFn: ({ id, updates }: { id: string, updates: Partial<BudgetEntry> }) => updateRow('BUDGET_ENTRIES', id, updates),
+    mutationFn: async ({ id, updates }: { id: string, updates: Partial<BudgetEntry> }) => {
+      // E2EE requires full payload replacement. Merge frontend state first.
+      const existing = queryClient.getQueryData<BudgetEntry[]>(['BUDGET_ENTRIES'])?.find(e => e.id === id);
+      if (!existing) throw new Error("Item not found in cache");
+      const fullItem = { ...existing, ...updates };
+      return enqueueKvWrite(() => updateRow('BUDGET_ENTRIES', id, fullItem));
+    },
     onMutate: async ({ id, updates }) => {
       await queryClient.cancelQueries({ queryKey: ['BUDGET_ENTRIES'] });
       const previous = queryClient.getQueryData<BudgetEntry[]>(['BUDGET_ENTRIES']);
