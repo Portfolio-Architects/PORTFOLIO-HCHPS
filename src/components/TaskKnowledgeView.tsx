@@ -36,7 +36,6 @@ interface TaskKnowledgeViewProps {
   addSignal?: (text: string) => void;
   updateSignal?: (id: string, text: string) => void;
   deleteSignal?: (id: string) => void;
-  deleteSignal?: (id: string) => void;
 }
 
 type FeedItem = 
