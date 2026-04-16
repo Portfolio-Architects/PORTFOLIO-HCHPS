@@ -50,10 +50,18 @@ export function useNotificationAlerts(
   const sentRef = useRef<Map<string, number>>(new Map());
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const [appEnabled, setAppEnabled] = useState(true);
+
   // 권한 상태 동기화
   useEffect(() => {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      setPermission(Notification.permission);
+    if (typeof window !== 'undefined') {
+      if ('Notification' in window) {
+        setPermission(Notification.permission);
+      }
+      const saved = localStorage.getItem('hchps_notification_enabled');
+      if (saved !== null) {
+        setAppEnabled(saved === 'true');
+      }
     }
   }, []);
 
@@ -63,7 +71,21 @@ export function useNotificationAlerts(
     
     const result = await Notification.requestPermission();
     setPermission(result);
+    if (result === 'granted') {
+      setAppEnabled(true);
+      localStorage.setItem('hchps_notification_enabled', 'true');
+    }
     return result;
+  }, []);
+
+  const toggleAppEnabled = useCallback(() => {
+    setAppEnabled(prev => {
+      const next = !prev;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('hchps_notification_enabled', String(next));
+      }
+      return next;
+    });
   }, []);
 
   // 개별 알림 발송
@@ -125,13 +147,13 @@ export function useNotificationAlerts(
 
   // 주기적 알림 체크
   const checkAndNotify = useCallback(() => {
-    if (!enabled || permission !== 'granted') return;
+    if (!enabled || !appEnabled || permission !== 'granted') return;
 
     const filteredAlerts = alerts.filter(a => urgencyLevels.includes(a.urgency));
     for (const alert of filteredAlerts) {
       sendNotification(alert);
     }
-  }, [alerts, urgencyLevels, enabled, permission, sendNotification]);
+  }, [alerts, urgencyLevels, enabled, appEnabled, permission, sendNotification]);
 
   // 인터벌 설정
   useEffect(() => {
@@ -161,5 +183,7 @@ export function useNotificationAlerts(
     sendNotification,
     /** 수동으로 즉시 알림 체크 트리거 */
     checkNow: checkAndNotify,
+    appEnabled,
+    toggleAppEnabled,
   };
 }

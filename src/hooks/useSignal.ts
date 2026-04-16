@@ -261,6 +261,41 @@ export function useSignal() {
     });
   }, []);
 
+  const updateSignal = useCallback((id: string, newText: string) => {
+    const newKeywords = extractKeywords(newText);
+    setEntries(prev => prev.map(e => 
+      e.id === id ? { ...e, text: newText, keywords: newKeywords, aiCurated: false } : e
+    ));
+    
+    // Background sync
+    updateRow(SHEET_NAME, id, { text: newText, keywords: JSON.stringify(newKeywords), aiCurated: false }).catch(() => {
+      console.warn('시그널 텍스트 업데이트 Sheets 동기화 실패');
+    });
+    
+    // 비동기 AI 재분석(선택적) 또는 키워드 갱신 처리
+    import('@/lib/ai-curation').then(({ curateSignal }) => {
+      setEntries(currentEntries => {
+        const poolTags = new Set<string>();
+        const poolKeywords = new Set<string>();
+        currentEntries.forEach(e => {
+          e.tags?.forEach(t => poolTags.add(t));
+          e.keywords?.forEach(k => poolKeywords.add(k));
+        });
+        
+        curateSignal(newText, Array.from(poolTags), Array.from(poolKeywords)).then((res) => {
+          setEntries(prev => prev.map(e => {
+            if (e.id === id) {
+              return { ...e, aiCurated: true, tags: res.tags, curationData: res };
+            }
+            return e;
+          }));
+        });
+        
+        return currentEntries;
+      });
+    });
+  }, []);
+
   const updateSignalKeywords = useCallback((id: string, keywords: string[]) => {
     setEntries(prev => prev.map(e =>
       e.id === id ? { ...e, keywords } : e
@@ -279,5 +314,5 @@ export function useSignal() {
     return acc;
   }, {}), [entries]);
 
-  return { entries, addSignal, deleteSignal, updateSignalKeywords, keywordMap };
+  return { entries, addSignal, deleteSignal, updateSignal, updateSignalKeywords, keywordMap };
 }

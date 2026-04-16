@@ -18,9 +18,8 @@ function getUrgency(dt: Date, now: Date): ScheduleAlert['urgency'] | null {
   const diffMs = dt.getTime() - now.getTime();
   const diffMin = diffMs / 60000;
 
-  // 이미 지난 일정 (오늘 내 ~ 2시간 이내 경과만)
-  if (diffMin < 0 && diffMin > -120) return 'overdue';
-  if (diffMin < 0) return null; // 2시간 이상 지남 → 숨김
+  // 이미 지난 일정 (모두 지남으로 표시)
+  if (diffMin < 0) return 'overdue';
 
   const todayEnd = new Date(now);
   todayEnd.setHours(23, 59, 59, 999);

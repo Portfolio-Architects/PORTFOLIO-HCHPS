@@ -9,6 +9,8 @@ interface ScheduleAlertBannerProps {
   alerts: ScheduleAlert[];
   notificationPermission?: NotificationPermission;
   onRequestPermission?: () => Promise<NotificationPermission | string>;
+  appEnabled?: boolean;
+  onToggleAppEnabled?: () => void;
   mergedEntries?: any[];
 }
 
@@ -36,7 +38,7 @@ function formatDateShort(dt: Date): string {
   return `${dt.getMonth() + 1}/${dt.getDate()} ${formatTime(dt)}`;
 }
 
-export function ScheduleAlertBanner({ alerts, notificationPermission, onRequestPermission, mergedEntries = [] }: ScheduleAlertBannerProps) {
+export function ScheduleAlertBanner({ alerts, notificationPermission, onRequestPermission, appEnabled = true, onToggleAppEnabled, mergedEntries = [] }: ScheduleAlertBannerProps) {
   const [expanded, setExpanded] = useState(false);
   const { overrides, customNodes } = useGraphCustomization();
 
@@ -54,13 +56,13 @@ export function ScheduleAlertBanner({ alerts, notificationPermission, onRequestP
       const diffMin = diffMs / 60000;
       let urgency: ScheduleAlert['urgency'] | null = null;
 
-      if (diffMin < 0 && diffMin > -120) urgency = 'overdue';
-      else if (diffMin >= 0 && diffMin <= 30) urgency = 'now';
+      if (diffMin < 0) urgency = 'overdue';
+      else if (diffMin <= 30) urgency = 'now';
       else {
         const todayEnd = new Date(now); todayEnd.setHours(23, 59, 59, 999);
         const tomorrowEnd = new Date(todayEnd); tomorrowEnd.setDate(tomorrowEnd.getDate() + 1);
         const weekEnd = new Date(todayEnd); weekEnd.setDate(weekEnd.getDate() + 6);
-        if (dt <= todayEnd && diffMin >= 0) urgency = 'today';
+        if (dt <= todayEnd) urgency = 'today';
         else if (dt <= tomorrowEnd) urgency = 'tomorrow';
         else if (dt <= weekEnd) urgency = 'this-week';
       }
@@ -98,9 +100,8 @@ export function ScheduleAlertBanner({ alerts, notificationPermission, onRequestP
   const isNotifDenied = notificationPermission === 'denied';
 
   if (allAlerts.length === 0) {
-    if (notificationPermission === 'default') {
       return (
-        <div className="mb-3">
+        <div className="mt-3">
           <div className="flex items-center justify-between px-3 py-2 bg-white border border-slate-200 rounded-lg shadow-sm">
             <div className="flex items-center gap-2 min-w-0 text-slate-500">
               <Bell size={14} className="shrink-0" />
@@ -122,7 +123,6 @@ export function ScheduleAlertBanner({ alerts, notificationPermission, onRequestP
       );
     }
     return null;
-  }
 
   const urgent = allAlerts.filter(a => a.urgency === 'overdue' || a.urgency === 'now' || a.urgency === 'today');
   const upcoming = allAlerts.filter(a => a.urgency === 'tomorrow' || a.urgency === 'this-week');
@@ -132,7 +132,7 @@ export function ScheduleAlertBanner({ alerts, notificationPermission, onRequestP
   const hasMore = allAlerts.length > 3;
 
   return (
-    <div className="mb-3">
+    <div className="mt-3">
       {/* Summary Bar */}
       <div
         className="flex items-center justify-between px-3 py-2 bg-white border border-slate-200 rounded-lg shadow-sm cursor-pointer select-none"
@@ -156,23 +156,29 @@ export function ScheduleAlertBanner({ alerts, notificationPermission, onRequestP
         </div>
         <div className="flex items-center gap-1.5 shrink-0 ml-2">
           {/* 알림 권한 토글 버튼 */}
-          {onRequestPermission && !isNotifDenied && (
+          {(onRequestPermission || onToggleAppEnabled) && !isNotifDenied && (
             <button
               className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold transition-all cursor-pointer ${
-                isNotifGranted
+                appEnabled && isNotifGranted
                   ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
                   : 'bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 animate-pulse'
               }`}
               onClick={(e) => {
                 e.stopPropagation();
-                if (!isNotifGranted) onRequestPermission();
+                if (!isNotifGranted && onRequestPermission) {
+                  onRequestPermission();
+                } else if (onToggleAppEnabled) {
+                  onToggleAppEnabled();
+                }
               }}
-              title={isNotifGranted ? '푸시 알림 활성화됨' : '클릭하여 푸시 알림 허용'}
+              title={appEnabled && isNotifGranted ? '푸시 알림 켜짐 (클릭 시 앱 알림 끄기)' : !isNotifGranted ? '클릭하여 푸시 알림 허용' : '푸시 알림 꺼짐 (클릭 시 켜기)'}
             >
-              {isNotifGranted ? (
+              {appEnabled && isNotifGranted ? (
                 <><BellRing size={10} /> 알림 ON</>
-              ) : (
+              ) : !isNotifGranted ? (
                 <><BellOff size={10} /> 알림 허용</>
+              ) : (
+                <><BellOff size={10} /> 알림 OFF</>
               )}
             </button>
           )}

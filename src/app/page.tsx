@@ -69,11 +69,11 @@ function ProtectedApp() {
   const { items: inventoryItems, addItem, updateItem, deleteItem, adjustStock, getItemHistory } = useInventory();
   const { meetings, addMeeting, updateMeeting, deleteMeeting, getUpcomingMeetings, getTodayMeetings } = useMeetings();
   const { projects, addProject, updateProject, deleteProject, addChecklistItem, toggleChecklistItem, deleteChecklistItem, getProjectProgress } = useProjects();
-  const { entries: signalEntries, addSignal, deleteSignal, updateSignalKeywords, keywordMap } = useSignal();
+  const { entries: signalEntries, addSignal, deleteSignal, updateSignal, updateSignalKeywords, keywordMap } = useSignal();
   const { entries: knowledgeEntries, addKnowledge, updateKnowledge, deleteKnowledge, filterKnowledge, metadata: knowledgeMetadata } = useKnowledge();
   const { entries: bossEntries } = useBossSchedule();
   const scheduleAlerts = useScheduleAlerts(tasks, meetings, bossEntries);
-  const { permission: notifPermission, requestPermission: requestNotifPermission } = useNotificationAlerts(scheduleAlerts);
+  const { permission: notifPermission, requestPermission: requestNotifPermission, appEnabled, toggleAppEnabled } = useNotificationAlerts(scheduleAlerts);
 
   const { searchModalOpen, searchQuery, searchResults, handleGlobalSearch, closeSearchModal } = useGlobalSearch();
   const { mergedKeywordMap, mergedEntries } = useMergedSignals(signalEntries, keywordMap, tasks, knowledgeEntries, projects, meetings, budgetEntries, inventoryItems);
@@ -226,14 +226,14 @@ function ProtectedApp() {
             knowledgeMetadata={knowledgeMetadata}
             signalEntries={signalEntries}
             addSignal={addSignal}
+            updateSignal={updateSignal}
             deleteSignal={deleteSignal}
           />
         );
 
       case 'mindmap':
         return (
-          <>
-            <ScheduleAlertBanner alerts={scheduleAlerts} notificationPermission={notifPermission} onRequestPermission={requestNotifPermission} mergedEntries={mergedEntries} />
+          <div className="flex flex-col h-full">
             <MindMapErrorBoundary>
               <MindMap3D 
                 signalKeywords={mergedKeywordMap} 
@@ -245,7 +245,8 @@ function ProtectedApp() {
                 onDeleteCategory={handleDeleteCategory}
               />
             </MindMapErrorBoundary>
-          </>
+            <ScheduleAlertBanner alerts={scheduleAlerts} notificationPermission={notifPermission} onRequestPermission={requestNotifPermission} appEnabled={appEnabled} onToggleAppEnabled={toggleAppEnabled} mergedEntries={mergedEntries} />
+          </div>
         );
 
       case 'project-planning':

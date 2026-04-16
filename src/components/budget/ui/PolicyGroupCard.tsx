@@ -20,7 +20,8 @@ export const PolicyGroupCard = React.memo(({
   openAddCat,
   openEditEntry,
   openBatchEdit,
-  updateCategory
+  updateCategory,
+  hidePolicyHeader = false
 }: {
   group: { policyName: string; cats: BudgetCategory[] };
   entries: BudgetEntry[];
@@ -32,6 +33,7 @@ export const PolicyGroupCard = React.memo(({
   openEditEntry: (entry: BudgetEntry) => void;
   openBatchEdit?: (title: string, cats: BudgetCategory[]) => void;
   updateCategory?: (id: string, updates: Partial<BudgetCategory>) => void;
+  hidePolicyHeader?: boolean;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [showAllEntries, setShowAllEntries] = useState(false);
@@ -90,7 +92,8 @@ export const PolicyGroupCard = React.memo(({
   }, [cats, entries, getCategoryStats]);
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl mb-4 last:mb-0 hover:border-slate-300 transition-colors">
+    <div className={`bg-white rounded-xl mb-4 last:mb-0 transition-colors ${hidePolicyHeader ? '' : 'border border-slate-200 hover:border-slate-300'}`}>
+      {!hidePolicyHeader && (
       <div 
         className="px-5 py-4 flex flex-col gap-3 cursor-pointer group"
         onClick={() => setIsOpen(!isOpen)}
@@ -137,37 +140,29 @@ export const PolicyGroupCard = React.memo(({
           {planned > 0 && <div className="text-[11px] text-amber-700 font-bold bg-amber-50 px-2 py-1 rounded inline-block self-start border border-amber-200">📋 품의 진행/예정: {formatN(planned)}원</div>}
         </div>
       </div>
+      )}
       
-      {isOpen && (
-        <div className="px-5 py-3 divide-y divide-gray-100">
+      {(isOpen || hidePolicyHeader) && (
+        <div className={`px-5 py-3 divide-y divide-gray-100 ${hidePolicyHeader ? 'px-1 pt-1 border border-slate-200 rounded-xl bg-white shadow-sm' : ''}`}>
           {groupedByDetail.map(detailGroup => {
             const detailTotalBudget = detailGroup.cats.reduce((sum, c) => sum + c.totalBudget, 0);
             const detailFunding = Array.from(new Set(detailGroup.cats.map(c => c.fundingSource).filter(f => f && f !== '구비(자체)')));
             const detailTypes = Array.from(new Set(detailGroup.cats.map(c => c.budgetType).filter(t => t && t !== '본예산')));
             return (
             <div key={detailGroup.detailName} className="py-3 first:pt-0">
-              <div className="flex items-center gap-2 mb-2.5">
-                <div className="w-5 h-5 rounded bg-[var(--color-primary)]/10 flex items-center justify-center">
-                  <div className="w-2 h-2 rounded-full bg-[var(--color-primary)]" />
+              <div className={`flex items-center gap-2 ${hidePolicyHeader ? 'mb-4 border-b border-slate-100 pb-4 px-3 pt-2' : 'mb-2.5'}`}>
+                <div className={`${hidePolicyHeader ? 'w-8 h-8' : 'w-5 h-5'} rounded bg-[var(--color-primary)]/10 flex items-center justify-center`}>
+                  <div className={`${hidePolicyHeader ? 'w-3.5 h-3.5' : 'w-2 h-2'} rounded-full bg-[var(--color-primary)]`} />
                 </div>
-                <div className="flex items-center gap-2 text-[14px] font-bold text-gray-800 flex-wrap">
+                <div className={`flex items-center gap-2 font-extrabold text-gray-800 flex-wrap ${hidePolicyHeader ? 'text-xl tracking-tight' : 'text-[15px]'}`}>
                   {detailGroup.detailName}
                   {detailTypes.map(t => (
-                    <span key={t} className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${t === '간주예산' ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>{t}</span>
+                    <span key={t} className={`font-bold rounded border ${hidePolicyHeader ? 'text-xs px-2 py-1' : 'text-[10px] px-1.5 py-0.5'} ${t === '간주예산' ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>{t}</span>
                   ))}
                   {detailFunding.map(f => (
-                    <span key={f} className="text-[10px] font-bold px-1.5 py-0.5 rounded border bg-teal-50 text-teal-700 border-teal-200">{f}</span>
+                    <span key={f} className={`font-bold rounded border bg-teal-50 text-teal-700 border-teal-200 ${hidePolicyHeader ? 'text-xs px-2 py-1' : 'text-[10px] px-1.5 py-0.5'}`}>{f}</span>
                   ))}
-                  <span className="text-[12px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 mr-2">{formatN(detailTotalBudget)}원</span>
-                  {openBatchEdit && (
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); openBatchEdit(detailGroup.detailName, detailGroup.cats); }} 
-                      className="p-1 rounded cursor-pointer hover:bg-slate-200 text-gray-500 hover:text-blue-600 transition-colors"
-                      title="이 세부사업의 하위 과목 일괄 수정"
-                    >
-                      <Pencil size={13} />
-                    </button>
-                  )}
+                  <span className={`font-bold text-blue-700 bg-blue-50 rounded border border-blue-100 mr-2 ${hidePolicyHeader ? 'text-sm px-3 py-1' : 'text-[12px] px-2 py-0.5'}`}>{formatN(detailTotalBudget)}원</span>
                   {openAddCat && (
                     <button 
                       onClick={(e) => { 

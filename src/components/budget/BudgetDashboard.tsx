@@ -5,7 +5,7 @@ import { BudgetCategory, BudgetEntry, BudgetActionType, generateId } from '@/typ
 import { Card, CardContent } from '@/components/ui/card';
 import { ProgressBar } from '@/components/ui/progress-bar';
 import { Modal } from '@/components/ui/modal';
-import { Plus, Pencil, Trash2, CheckCircle2, AlertOctagon, ShieldAlert, RefreshCw, Search, FilePlus2, ChevronDown } from 'lucide-react';
+import { Plus, Pencil, Trash2, CheckCircle2, AlertOctagon, ShieldAlert, RefreshCw, Search, FilePlus2, ChevronDown, X } from 'lucide-react';
 import { replaceAll } from '@/lib/sheets-api';
 import { MultiSelectDropdown } from './ui/MultiSelectDropdown';
 import { PolicyGroupCard, ACTION_TYPE_CONFIG } from './ui/PolicyGroupCard';
@@ -50,10 +50,12 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
   const [catPolicy, setCatPolicy] = useState('');
   const [catUnit, setCatUnit] = useState('');
   const [catDetail, setCatDetail] = useState('');
-  const [catFormation, setCatFormation] = useState('');
-  const [catStat, setCatStat] = useState('');
+  const [catFormationCode, setCatFormationCode] = useState('');
+  const [catFormationName, setCatFormationName] = useState('');
+  const [catStatCode, setCatStatCode] = useState('');
+  const [catStatName, setCatStatName] = useState('');
   const [catBudgetType, setCatBudgetType] = useState<'본예산' | '간주예산' | '추경'>('본예산');
-  const [catFundingSource, setCatFundingSource] = useState('구비(자체)');
+  const [catFundingSplits, setCatFundingSplits] = useState<{source: string, amount: string}[]>([{source: '구비(자체)', amount: ''}]);
 
   const [showBatchModal, setShowBatchModal] = useState(false);
   const [batchCats, setBatchCats] = useState<BudgetCategory[]>([]);
@@ -182,15 +184,15 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
   const inputClass = "w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition-shadow";
   const handleAddCategory = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!catName.trim() || !catBudget) return;
+    const targetBudget = Number(catBudget.replace(/,/g, ''));
+    if (!targetBudget) return;
 
     // 매칭비율 3:7 검증 로직 (전체 예산 입력 & 국비/시비 입력 시)
     if (nationalFund && localFund) {
       const nat = Number(nationalFund);
       const loc = Number(localFund);
-      const total = Number(catBudget);
       
-      const validation = BudgetRules.validateMatchingFund(total, nat, loc);
+      const validation = BudgetRules.validateMatchingFund(targetBudget, nat, loc);
       if (!validation.valid && validation.type === 'error') {
         alert('Error: ' + validation.message);
         return;
@@ -200,13 +202,33 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
       }
     }
 
-    if (editCatId) {
-      updateCategory(editCatId, { name: catName, totalBudget: Number(catBudget), policyProject: catPolicy, unitProject: catUnit, detailedProject: catDetail, formationItem: catFormation, statItem: catStat, budgetType: catBudgetType, fundingSource: catFundingSource });
-    } else {
-      addCategory({ name: catName, totalBudget: Number(catBudget), color: COLORS[categories.length % COLORS.length], policyProject: catPolicy, unitProject: catUnit, detailedProject: catDetail, formationItem: catFormation, statItem: catStat, budgetType: catBudgetType, fundingSource: catFundingSource });
+    const combinedFormation = catFormationCode ? `${catFormationCode} ${catFormationName}`.trim() : catFormationName;
+    const combinedStat = catStatCode ? `${catStatCode} ${catStatName}`.trim() : catStatName;
+    const finalName = combinedStat || combinedFormation || '무명 예산과목';
+    
+    const hasAmounts = catFundingSplits.some(s => s.amount);
+    const totalAmount = catFundingSplits.reduce((sum, s) => sum + Number((s.amount || '0').replace(/,/g, '')), 0);
+    
+    if (hasAmounts && totalAmount > 0 && Math.abs(totalAmount - targetBudget) > 10) {
+      alert(`입력하신 재원 금액 합계(${totalAmount.toLocaleString()}원)가 총 예산액(${targetBudget.toLocaleString()}원)과 일치하지 않습니다.`);
+      return;
     }
-    setCatName(''); setCatBudget(''); setNationalFund(''); setLocalFund('');
-    setCatPolicy(''); setCatUnit(''); setCatDetail(''); setCatFormation(''); setCatStat(''); setCatBudgetType('본예산'); setCatFundingSource('구비(자체)');
+
+    const finalFunding = catFundingSplits.map(s => {
+      const amt = Number((s.amount || '0').replace(/,/g, ''));
+      if (amt === 0) return '';
+      const r = targetBudget > 0 ? (amt / targetBudget) * 100 : 0;
+      const ratioStr = Number.isInteger(r) ? r.toString() : r.toFixed(1);
+      return `${s.source} (${ratioStr}%)`;
+    }).filter(Boolean).join(', ') || '구비(자체)';
+
+    if (editCatId) {
+      updateCategory(editCatId, { name: finalName, totalBudget: targetBudget, policyProject: catPolicy, unitProject: catUnit, detailedProject: catDetail, formationItem: combinedFormation, statItem: combinedStat, budgetType: catBudgetType, fundingSource: finalFunding });
+    } else {
+      addCategory({ name: finalName, totalBudget: targetBudget, color: COLORS[categories.length % COLORS.length], policyProject: catPolicy, unitProject: catUnit, detailedProject: catDetail, formationItem: combinedFormation, statItem: combinedStat, budgetType: catBudgetType, fundingSource: finalFunding });
+    }
+    setCatBudget(''); setNationalFund(''); setLocalFund('');
+    setCatPolicy(''); setCatUnit(''); setCatDetail(''); setCatFormationCode(''); setCatFormationName(''); setCatStatCode(''); setCatStatName(''); setCatBudgetType('본예산'); setCatFundingSplits([{source: '구비(자체)', amount: ''}]);
     setEditCatId(null); setShowCatModal(false);
   };
 
@@ -302,20 +324,84 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
   };
 
   const openEditCat = useCallback((cat: BudgetCategory) => {
-    setCatName(cat.name); setCatBudget(String(cat.totalBudget));
+    setCatBudget(cat.totalBudget ? cat.totalBudget.toLocaleString() : '');
     setCatPolicy(cat.policyProject || ''); setCatUnit(cat.unitProject || '');
-    setCatDetail(cat.detailedProject || ''); setCatFormation(cat.formationItem || ''); setCatStat(cat.statItem || '');
+    setCatDetail(cat.detailedProject || ''); 
+    const formationStr = cat.formationItem || '';
+    const codeMatch = formationStr.match(/^(\d{3})\s*(.+)$/);
+    if (codeMatch) {
+      setCatFormationCode(codeMatch[1]);
+      setCatFormationName(codeMatch[2]);
+    } else {
+      setCatFormationCode(formationStr.slice(0,3).replace(/\D/g, ''));
+      setCatFormationName(formationStr.replace(/^\d+\s*/, '').trim() || formationStr);
+    }
+    const statStr = cat.statItem || '';
+    const statMatch = statStr.match(/^([\d-]+)\s*(.+)$/);
+    if (statMatch) {
+      setCatStatCode(statMatch[1]);
+      setCatStatName(statMatch[2]);
+    } else {
+      setCatStatCode(statStr.replace(/[^\d-]/g, ''));
+      setCatStatName(statStr.replace(/^[\d-]+\s*/, '').trim() || statStr);
+    }
     setCatBudgetType(cat.budgetType || '본예산');
-    setCatFundingSource(cat.fundingSource || '구비(자체)');
+    const rawFunding = cat.fundingSource || '구비(자체)';
+    const parsedSplits = [];
+    const parts = rawFunding.split(',');
+    for (const p of parts) {
+      const match = p.trim().match(/(.+) \((.+)%\)/);
+      if (match) {
+        const ratioObj = Number(match[2]);
+        const computedAmount = cat.totalBudget > 0 ? (cat.totalBudget * ratioObj) / 100 : 0;
+        parsedSplits.push({ source: match[1].trim(), amount: computedAmount > 0 ? Math.round(computedAmount).toLocaleString() : '' });
+      } else if (p.trim()) {
+        parsedSplits.push({ source: p.trim(), amount: cat.totalBudget > 0 ? cat.totalBudget.toLocaleString() : '' });
+      }
+    }
+    if (parsedSplits.length === 0) parsedSplits.push({ source: '구비(자체)', amount: '' });
+    setCatFundingSplits(parsedSplits);
     setEditCatId(cat.id); setShowCatModal(true);
   }, []);
 
   const openAddCat = useCallback((template: Partial<BudgetCategory>) => {
-    setCatName(''); setCatBudget('');
+    setCatBudget(template.totalBudget ? template.totalBudget.toLocaleString() : '');
     setCatPolicy(template.policyProject || ''); setCatUnit(template.unitProject || '');
-    setCatDetail(template.detailedProject || ''); setCatFormation(template.formationItem || ''); setCatStat('');
+    setCatDetail(template.detailedProject || ''); 
+    const formationStr = template.formationItem || '';
+    const codeMatch = formationStr.match(/^(\d{3})\s*(.+)$/);
+    if (codeMatch) {
+      setCatFormationCode(codeMatch[1]);
+      setCatFormationName(codeMatch[2]);
+    } else {
+      setCatFormationCode(formationStr.slice(0,3).replace(/\D/g, ''));
+      setCatFormationName(formationStr.replace(/^\d+\s*/, '').trim() || formationStr);
+    }
+    const statStr = template.statItem || '';
+    const statMatch = statStr.match(/^([\d-]+)\s*(.+)$/);
+    if (statMatch) {
+      setCatStatCode(statMatch[1]);
+      setCatStatName(statMatch[2]);
+    } else {
+      setCatStatCode(statStr.replace(/[^\d-]/g, ''));
+      setCatStatName(statStr.replace(/^[\d-]+\s*/, '').trim() || statStr);
+    }
     setCatBudgetType(template.budgetType || '본예산');
-    setCatFundingSource(template.fundingSource || '구비(자체)');
+    const rawFunding = template.fundingSource || '구비(자체)';
+    const parsedSplits = [];
+    const parts = rawFunding.split(',');
+    for (const p of parts) {
+      const match = p.trim().match(/(.+) \((.+)%\)/);
+      if (match) {
+        const ratioObj = Number(match[2]);
+        const computedAmount = template.totalBudget ? (template.totalBudget * ratioObj) / 100 : 0;
+        parsedSplits.push({ source: match[1].trim(), amount: computedAmount > 0 ? Math.round(computedAmount).toLocaleString() : '' });
+      } else if (p.trim()) {
+        parsedSplits.push({ source: p.trim(), amount: template.totalBudget ? template.totalBudget.toLocaleString() : '' });
+      }
+    }
+    if (parsedSplits.length === 0) parsedSplits.push({ source: '구비(자체)', amount: '' });
+    setCatFundingSplits(parsedSplits);
     setEditCatId(null); setShowCatModal(true);
   }, []);
 
@@ -323,8 +409,8 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
     if (!cats.length) return;
     setBatchCats(cats);
     setBatchTitle(title);
-    setBatchFundingSrc(cats[0]?.fundingSource || '구비(자체)');
-    setBatchBudgetType(cats[0]?.budgetType || '본예산');
+    setBatchFundingSrc('');
+    setBatchBudgetType('');
     setShowBatchModal(true);
   }, []);
 
@@ -332,7 +418,13 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
     e.preventDefault();
     if (!window.confirm(`선택된 [${batchTitle}] 내 ${batchCats.length}개 과목을 일괄 수정하시겠습니까?`)) return;
     batchCats.forEach(c => {
-      updateCategory(c.id, { fundingSource: batchFundingSrc, budgetType: batchBudgetType });
+      const updates: Partial<BudgetCategory> = {};
+      if (batchFundingSrc !== '') Object.assign(updates, { fundingSource: batchFundingSrc });
+      if (batchBudgetType !== '') Object.assign(updates, { budgetType: batchBudgetType });
+      
+      if (Object.keys(updates).length > 0) {
+        updateCategory(c.id, updates);
+      }
     });
     setShowBatchModal(false);
   };
@@ -346,7 +438,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
     setShowEntryModal(false);
     setReturnToEntryModal(true);
     setEditCatId(null);
-    setCatName(''); setCatPolicy(''); setCatUnit(''); setCatDetail(''); setCatFormation(''); setCatStat(''); setCatBudget(''); setCatFundingSource('구비(자체)');
+    setCatPolicy(''); setCatUnit(''); setCatDetail(''); setCatFormationCode(''); setCatFormationName(''); setCatStatCode(''); setCatStatName(''); setCatBudget(''); setCatFundingSplits([{source: '구비(자체)', amount: ''}]);
     setShowCatModal(true);
   };
 
@@ -607,6 +699,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
               openEditEntry={openEditEntry}
               openBatchEdit={openBatchEdit}
               updateCategory={updateCategory}
+              hidePolicyHeader={filterDetail.length > 0}
             />
           ))}
         </div>
@@ -616,26 +709,104 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
       <Modal isOpen={showCatModal} onClose={() => { 
         setShowCatModal(false); 
         if (returnToEntryModal) { setShowEntryModal(true); setReturnToEntryModal(false); } 
-      }} title={editCatId ? '예산 과목 수정' : '새 예산 과목'} size="lg">
+      }} title={editCatId ? '예산 과목 수정' : '새 예산 과목'} size="xl">
         <form onSubmit={handleAddCategory} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">정책사업명</label><input type="text" value={catPolicy} onChange={e => setCatPolicy(e.target.value)} className={inputClass} placeholder="예: 건강도시조성" /></div>
             <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">단위사업명</label><input type="text" value={catUnit} onChange={e => setCatUnit(e.target.value)} className={inputClass} placeholder="예: 찾아가는 보건소" /></div>
             <div className="col-span-2"><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">세부사업명</label><input type="text" value={catDetail} onChange={e => setCatDetail(e.target.value)} className={inputClass} placeholder="예: 방문간호운영" /></div>
-            <div>
-              <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">재원 구분</label>
-              <select value={catFundingSource} onChange={e => setCatFundingSource(e.target.value)} className={inputClass}>
-                <option value="구비(자체)">구비(자체)</option>
-                <option value="국비">국비</option>
-                <option value="시비">시비</option>
-                <option value="기금">기금</option>
-                <option value="특교">특교</option>
-                <option value="국비 매칭">국비 매칭</option>
-                <option value="시비 매칭">시비 매칭</option>
-              </select>
-            </div>
-            <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">통계목</label><input type="text" value={catStat} onChange={e => setCatStat(e.target.value)} className={inputClass} placeholder="예: 일반수용비(210-01)" /></div>
+            
             <div className="col-span-2">
+              <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5 flex justify-between">
+                <span>총 예산액 (원) *</span>
+                <span className="text-xs font-bold text-blue-600 border border-blue-200 bg-blue-50 px-2 rounded-full">수동 입력 필수</span>
+              </label>
+              <input type="text" value={catBudget} onChange={e => {
+                const val = e.target.value.replace(/[^0-9]/g, '');
+                setCatBudget(val ? Number(val).toLocaleString() : '');
+              }} className={`${inputClass} text-lg font-bold text-gray-900 pr-10`} required placeholder="0" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">편성목 *</label>
+              <div className="flex gap-2">
+                <input type="text" value={catFormationCode} onChange={e => setCatFormationCode(e.target.value.replace(/\D/g, '').slice(0, 3))} className={`${inputClass} text-center font-mono`} style={{ width: '80px', flex: '0 0 80px' }} required placeholder="예: 201" maxLength={3} />
+                <input type="text" value={catFormationName} onChange={e => setCatFormationName(e.target.value)} className={inputClass} style={{ flex: 1 }} required placeholder="예: 일반운영비" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">통계목 *</label>
+              <div className="flex gap-2">
+                <input type="text" value={catStatCode} onChange={e => setCatStatCode(e.target.value.replace(/[^0-9-]/g, '').slice(0, 6))} className={`${inputClass} text-center font-mono`} style={{ width: '80px', flex: '0 0 80px' }} required placeholder="예: 01" maxLength={6} />
+                <input type="text" value={catStatName} onChange={e => setCatStatName(e.target.value)} className={inputClass} style={{ flex: 1 }} required placeholder="예: 사무관리비" />
+              </div>
+            </div>
+            
+            <div className="col-span-2 bg-gray-50 p-4 rounded-xl border border-gray-200">
+              <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-2.5 flex justify-between items-center">
+                <span className="font-bold flex items-center gap-1.5"><ShieldAlert size={14} className="text-gray-400"/> 재원 구분 및 금액 분할 *</span>
+                {(() => {
+                  const tb = Number(catBudget.replace(/,/g, ''));
+                  const totalAmt = catFundingSplits.reduce((sum, s) => sum + Number((s.amount || '0').replace(/,/g, '')), 0);
+                  const isMatch = tb > 0 && totalAmt === tb;
+                  return (
+                    <span className={`text-[11px] px-2 py-0.5 rounded font-bold ${isMatch ? 'text-green-700 bg-green-100' : 'text-red-600 bg-red-100'}`}>
+                      {isMatch ? '금액 일치 정상' : `확인중 (${totalAmt.toLocaleString()}원)`}
+                    </span>
+                  );
+                })()}
+              </label>
+              <div className="space-y-2.5">
+                {catFundingSplits.map((split, idx) => (
+                  <div key={idx} className="flex gap-2 items-center">
+                    <select value={split.source} onChange={e => {
+                      const newSplits = [...catFundingSplits];
+                      newSplits[idx].source = e.target.value;
+                      setCatFundingSplits(newSplits);
+                    }} className={`${inputClass} font-medium`} style={{ width: '140px', flex: '0 0 140px' }}>
+                      <option value="구비(자체)">구비(자체)</option>
+                      <option value="국비">국비</option>
+                      <option value="시비">시비</option>
+                      <option value="기금">기금</option>
+                      <option value="특교">특교</option>
+                      <option value="국비 매칭">국비 매칭</option>
+                      <option value="시비 매칭">시비 매칭</option>
+                    </select>
+                    
+                    <div className="relative flex-1">
+                      <input type="text" value={split.amount} onChange={e => {
+                        const val = e.target.value.replace(/[^0-9]/g, '');
+                        const newSplits = [...catFundingSplits];
+                        newSplits[idx].amount = val ? Number(val).toLocaleString() : '';
+                        setCatFundingSplits(newSplits);
+                      }} className={`${inputClass} pr-8 text-right font-bold text-gray-800`} placeholder="금액 입력" />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium pointer-events-none">원</span>
+                    </div>
+
+                    <div className="w-16 shrink-0 flex items-center justify-center">
+                      <span className="text-[13px] font-black text-[var(--color-primary)]">
+                        {(() => {
+                           const a = Number((split.amount || '0').replace(/,/g, ''));
+                           const b = Number(catBudget.replace(/,/g, ''));
+                           if (b === 0) return '0%';
+                           const r = (a / b) * 100;
+                           return (Number.isInteger(r) ? r : r.toFixed(1)) + '%';
+                        })()}
+                      </span>
+                    </div>
+                    {catFundingSplits.length > 1 ? (
+                      <button type="button" onClick={() => {
+                        const newSplits = catFundingSplits.filter((_, i) => i !== idx);
+                        setCatFundingSplits(newSplits);
+                      }} className="p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors" title="이 재원 삭제"><X size={16}/></button>
+                    ) : (
+                      <div className="w-8 shrink-0"></div>
+                    )}
+                  </div>
+                ))}
+                <button type="button" onClick={() => setCatFundingSplits([...catFundingSplits, {source: '구비(자체)', amount: ''}])} className="text-[13px] text-blue-600 font-bold hover:underline flex items-center gap-1 mt-1.5 px-1 py-1 rounded hover:bg-blue-50 transition-colors">+ 재원 추가</button>
+              </div>
+            </div>
+            <div>
               <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">예산 구분</label>
               <div className="flex gap-4">
                 {['본예산', '간주예산', '추경'].map(type => (
@@ -647,9 +818,6 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
               </div>
             </div>
           </div>
-          
-          <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">편성목 *</label><input type="text" value={catName} onChange={e => setCatName(e.target.value)} className={inputClass} required placeholder="예: 201 일반운영비" /></div>
-          <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">총 예산액 (원) *</label><input type="number" value={catBudget} onChange={e => setCatBudget(e.target.value)} className={inputClass} required placeholder="0" /></div>
           
           <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg space-y-2">
              <div className="text-xs font-bold text-gray-600 mb-2">보건복지부 / 수도권 비율 매칭 검증 (선택)</div>
@@ -669,11 +837,13 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
       <Modal isOpen={showBatchModal} onClose={() => setShowBatchModal(false)} title={`[${batchTitle}] 일괄 수정`} size="md">
         <form onSubmit={handleApplyBatchEdit} className="space-y-4">
           <div className="bg-blue-50 border border-blue-200 text-blue-700 p-3 rounded-lg text-sm font-medium mb-2 leading-relaxed">
-             해당 그룹에 속한 <b>{batchCats.length}개</b>의 모든 하위 과목 예산/재원 구분을 동일하게 일괄 변경합니다.
+             해당 그룹에 속한 <b>{batchCats.length}개</b>의 모든 하위 과목 예산/재원 구분을 일괄 변경합니다.<br/>
+             <span className="text-xs text-blue-500 mt-1 block">* 혼합 재원 사업의 경우 '변경 안함'을 선택하면 기존 정보를 유지할 수 있습니다.</span>
           </div>
           <div>
             <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">새로운 예산 구분 적용</label>
             <select value={batchBudgetType} onChange={e => setBatchBudgetType(e.target.value as any)} className={inputClass}>
+              <option value="">(변경 안함 - 개별 정보 유지)</option>
               <option value="본예산">본예산</option>
               <option value="간주예산">간주예산</option>
               <option value="추경">추경</option>
@@ -682,6 +852,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
           <div>
             <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">새로운 재원 구분 적용</label>
             <select value={batchFundingSrc} onChange={e => setBatchFundingSrc(e.target.value)} className={inputClass}>
+              <option value="">(변경 안함 - 개별 정보 유지)</option>
               <option value="구비(자체)">구비(자체)</option>
               <option value="국비">국비</option>
               <option value="시비">시비</option>
@@ -751,7 +922,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
             <div className="flex items-center gap-2">
               <select value={selectedCatId} onChange={e => setSelectedCatId(e.target.value)} className={`${inputClass} flex-1`} required>
                 <option value="">선택</option>
-                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                {categories.map(c => <option key={c.id} value={c.id}>[{c.fundingSource || '자체'}] {c.name}</option>)}
               </select>
               <button type="button" onClick={handleInlineAddCat} className="p-2.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors" title="과목 추가">
                 <Plus size={16} />

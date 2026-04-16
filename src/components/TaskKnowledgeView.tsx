@@ -34,6 +34,8 @@ interface TaskKnowledgeViewProps {
   knowledgeMetadata?: { categories: string[]; tags: string[] };
   signalEntries?: SignalEntry[];
   addSignal?: (text: string) => void;
+  updateSignal?: (id: string, text: string) => void;
+  deleteSignal?: (id: string) => void;
   deleteSignal?: (id: string) => void;
 }
 
@@ -70,6 +72,10 @@ export function TaskKnowledgeView(props: TaskKnowledgeViewProps) {
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [editingWikiNode, setEditingWikiNode] = useState<{id: string; title: string; initialBlocks?: any[]} | null>(null);
   const [extractingId, setExtractingId] = useState<string | null>(null);
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editContent, setEditContent] = useState('');
 
   const openTaskModal = (task?: Task, status?: TaskStatus) => {
     setEditTask(task || null);
@@ -205,7 +211,7 @@ ${rawContent}
     return (
       <div 
         key={`feed-${item.type}-${itemId}`}
-        onClick={() => { setSelectedItemId(itemId); setEditingWikiNode(null); }}
+        onClick={() => { setSelectedItemId(itemId); setEditingWikiNode(null); setIsEditing(false); }}
         className={`p-3.5 rounded-xl border cursor-pointer transition-all ${isSelected ? 'border-primary bg-primary/5 ring-1 ring-primary/30 shadow-sm' : 'border-[var(--color-border)] bg-white hover:border-[var(--color-primary-light)]'}`}
       >
         <div className="flex justify-between items-start mb-1.5 gap-2">
@@ -316,6 +322,61 @@ ${rawContent}
 
     const Icon = categoryObj?.icon || Tag;
 
+    if (isEditing) {
+      return (
+        <div className="flex flex-col h-full bg-white relative">
+          <div className="p-5 sm:p-7 border-b border-gray-100 shadow-[0_4px_10px_-10px_rgba(0,0,0,0.1)] relative z-10 shrink-0">
+            <div className="flex justify-between items-start mb-3">
+               <div className={`flex items-center gap-1.5 px-2 py-1 rounded text-[11px] font-bold ${categoryObj?.color}`}>
+                 <Icon size={12} /> {categoryObj?.text} 수정 편집 중...
+               </div>
+            </div>
+            {activeItem.type === 'knowledge' && (
+              <input 
+                type="text" 
+                value={editTitle} 
+                onChange={e => setEditTitle(e.target.value)} 
+                className="w-full text-[20px] font-black text-gray-900 bg-gray-50 border border-gray-200 rounded px-3 py-2 outline-none focus:border-blue-500" 
+                placeholder="제목을 입력하세요"
+              />
+            )}
+            {activeItem.type !== 'knowledge' && (
+              <h1 className="text-[20px] font-black text-gray-900 leading-snug mb-3">{titleStr}</h1>
+            )}
+          </div>
+          <div className="p-5 sm:p-7 flex-1 flex flex-col bg-gray-50/20">
+            <textarea 
+              value={editContent} 
+              onChange={e => setEditContent(e.target.value)} 
+              className="flex-1 w-full min-h-[300px] text-[14px] text-gray-700 leading-[1.8] bg-white border border-gray-200 rounded-lg p-4 outline-none focus:border-blue-500 resize-none shadow-inner"
+              placeholder="내용을 입력하세요"
+            />
+            <div className="flex justify-end gap-2 mt-4 shrink-0">
+              <button 
+                onClick={() => setIsEditing(false)} 
+                className="px-5 py-2.5 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors cursor-pointer"
+              >
+                취소
+              </button>
+              <button 
+                onClick={() => {
+                  if (activeItem.type === 'knowledge') {
+                    props.updateKnowledge(itemId, { title: editTitle, content: editContent });
+                  } else if (activeItem.type === 'signal') {
+                    props.updateSignal?.(itemId, editContent);
+                  }
+                  setIsEditing(false);
+                }}
+                className="px-5 py-2.5 text-sm font-bold text-white bg-[var(--color-primary)] hoverOpacity-90 rounded-lg transition-opacity cursor-pointer shadow-sm"
+              >
+                저장하기
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="flex flex-col h-full bg-white relative">
         <div className="p-5 sm:p-7 border-b border-gray-100 shadow-[0_4px_10px_-10px_rgba(0,0,0,0.1)] relative z-10 shrink-0">
@@ -355,6 +416,20 @@ ${rawContent}
                )}
                
                <div className="w-px h-4 bg-gray-200 mx-1"></div>
+               
+               {(activeItem.type === 'knowledge' || activeItem.type === 'signal') && (
+                 <button 
+                   onClick={() => {
+                     setEditTitle(titleStr);
+                     setEditContent(contentStr);
+                     setIsEditing(true);
+                   }} 
+                   className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors cursor-pointer"
+                   title="수정하기"
+                 >
+                   <Edit2 size={16} />
+                 </button>
+               )}
                
                <button 
                  onClick={() => {
