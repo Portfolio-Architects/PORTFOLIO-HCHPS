@@ -59,8 +59,8 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
 
   const [showBatchModal, setShowBatchModal] = useState(false);
   const [batchCats, setBatchCats] = useState<BudgetCategory[]>([]);
-  const [batchFundingSrc, setBatchFundingSrc] = useState('구비(자체)');
-  const [batchBudgetType, setBatchBudgetType] = useState<'본예산'|'간주예산'|'추경'>('본예산');
+  const [batchFundingSplits, setBatchFundingSplits] = useState<{source: string, ratio: string}[]>([{source: '', ratio: ''}]);
+  const [batchBudgetType, setBatchBudgetType] = useState('');
   const [batchTitle, setBatchTitle] = useState('');
 
   const [filterPolicy, setFilterPolicy] = useState<string[]>([]);
@@ -68,9 +68,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
   const [filterDetail, setFilterDetail] = useState<string[]>([]);
   const [filterStat, setFilterStat] = useState<string[]>([]);
 
-  const [nationalFund, setNationalFund] = useState('');
-  const [localFund, setLocalFund] = useState('');
-  
+
   const [entryAmount, setEntryAmount] = useState('');
   const [entryPurpose, setEntryPurpose] = useState('');
   const [entryDocNum, setEntryDocNum] = useState('');
@@ -187,21 +185,6 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
     const targetBudget = Number(catBudget.replace(/,/g, ''));
     if (!targetBudget) return;
 
-    // 매칭비율 3:7 검증 로직 (전체 예산 입력 & 국비/시비 입력 시)
-    if (nationalFund && localFund) {
-      const nat = Number(nationalFund);
-      const loc = Number(localFund);
-      
-      const validation = BudgetRules.validateMatchingFund(targetBudget, nat, loc);
-      if (!validation.valid && validation.type === 'error') {
-        alert('Error: ' + validation.message);
-        return;
-      }
-      if (validation.type === 'confirm') {
-        if (!window.confirm(validation.message!)) return;
-      }
-    }
-
     const combinedFormation = catFormationCode ? `${catFormationCode} ${catFormationName}`.trim() : catFormationName;
     const combinedStat = catStatCode ? `${catStatCode} ${catStatName}`.trim() : catStatName;
     const finalName = combinedStat || combinedFormation || '무명 예산과목';
@@ -218,16 +201,22 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
       const amt = Number((s.amount || '0').replace(/,/g, ''));
       if (amt === 0) return '';
       const r = targetBudget > 0 ? (amt / targetBudget) * 100 : 0;
-      const ratioStr = Number.isInteger(r) ? r.toString() : r.toFixed(1);
+      const ratioStr = r.toFixed(2);
       return `${s.source} (${ratioStr}%)`;
     }).filter(Boolean).join(', ') || '구비(자체)';
 
+    const finalSplitsArray = catFundingSplits.map(s => ({
+      source: s.source,
+      amount: Number((s.amount || '0').replace(/,/g, ''))
+    })).filter(s => s.amount > 0);
+
     if (editCatId) {
-      updateCategory(editCatId, { name: finalName, totalBudget: targetBudget, policyProject: catPolicy, unitProject: catUnit, detailedProject: catDetail, formationItem: combinedFormation, statItem: combinedStat, budgetType: catBudgetType, fundingSource: finalFunding });
+      updateCategory(editCatId, { name: finalName, totalBudget: targetBudget, policyProject: catPolicy, unitProject: catUnit, detailedProject: catDetail, formationItem: combinedFormation, statItem: combinedStat, budgetType: catBudgetType, fundingSource: finalFunding, fundingSplits: finalSplitsArray });
     } else {
-      addCategory({ name: finalName, totalBudget: targetBudget, color: COLORS[categories.length % COLORS.length], policyProject: catPolicy, unitProject: catUnit, detailedProject: catDetail, formationItem: combinedFormation, statItem: combinedStat, budgetType: catBudgetType, fundingSource: finalFunding });
+      addCategory({ name: finalName, totalBudget: targetBudget, color: COLORS[categories.length % COLORS.length], policyProject: catPolicy, unitProject: catUnit, detailedProject: catDetail, formationItem: combinedFormation, statItem: combinedStat, budgetType: catBudgetType, fundingSource: finalFunding, fundingSplits: finalSplitsArray });
     }
-    setCatBudget(''); setNationalFund(''); setLocalFund('');
+    setCatBudget('');
+
     setCatPolicy(''); setCatUnit(''); setCatDetail(''); setCatFormationCode(''); setCatFormationName(''); setCatStatCode(''); setCatStatName(''); setCatBudgetType('본예산'); setCatFundingSplits([{source: '구비(자체)', amount: ''}]);
     setEditCatId(null); setShowCatModal(false);
   };
@@ -346,21 +335,26 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
       setCatStatName(statStr.replace(/^[\d-]+\s*/, '').trim() || statStr);
     }
     setCatBudgetType(cat.budgetType || '본예산');
-    const rawFunding = cat.fundingSource || '구비(자체)';
-    const parsedSplits = [];
-    const parts = rawFunding.split(',');
-    for (const p of parts) {
-      const match = p.trim().match(/(.+) \((.+)%\)/);
-      if (match) {
-        const ratioObj = Number(match[2]);
-        const computedAmount = cat.totalBudget > 0 ? (cat.totalBudget * ratioObj) / 100 : 0;
-        parsedSplits.push({ source: match[1].trim(), amount: computedAmount > 0 ? Math.round(computedAmount).toLocaleString() : '' });
-      } else if (p.trim()) {
-        parsedSplits.push({ source: p.trim(), amount: cat.totalBudget > 0 ? cat.totalBudget.toLocaleString() : '' });
+    
+    if (cat.fundingSplits && cat.fundingSplits.length > 0) {
+      setCatFundingSplits(cat.fundingSplits.map(s => ({ source: s.source, amount: s.amount ? s.amount.toLocaleString() : '' })));
+    } else {
+      const rawFunding = cat.fundingSource || '구비(자체)';
+      const parsedSplits = [];
+      const parts = rawFunding.split(',');
+      for (const p of parts) {
+        const match = p.trim().match(/(.+) \((.+)%\)/);
+        if (match) {
+          const ratioObj = Number(match[2]);
+          const computedAmount = cat.totalBudget > 0 ? (cat.totalBudget * ratioObj) / 100 : 0;
+          parsedSplits.push({ source: match[1].trim(), amount: computedAmount > 0 ? Math.round(computedAmount).toLocaleString() : '' });
+        } else if (p.trim()) {
+          parsedSplits.push({ source: p.trim(), amount: cat.totalBudget > 0 ? cat.totalBudget.toLocaleString() : '' });
+        }
       }
+      if (parsedSplits.length === 0) parsedSplits.push({ source: '구비(자체)', amount: '' });
+      setCatFundingSplits(parsedSplits);
     }
-    if (parsedSplits.length === 0) parsedSplits.push({ source: '구비(자체)', amount: '' });
-    setCatFundingSplits(parsedSplits);
     setEditCatId(cat.id); setShowCatModal(true);
   }, []);
 
@@ -387,21 +381,26 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
       setCatStatName(statStr.replace(/^[\d-]+\s*/, '').trim() || statStr);
     }
     setCatBudgetType(template.budgetType || '본예산');
-    const rawFunding = template.fundingSource || '구비(자체)';
-    const parsedSplits = [];
-    const parts = rawFunding.split(',');
-    for (const p of parts) {
-      const match = p.trim().match(/(.+) \((.+)%\)/);
-      if (match) {
-        const ratioObj = Number(match[2]);
-        const computedAmount = template.totalBudget ? (template.totalBudget * ratioObj) / 100 : 0;
-        parsedSplits.push({ source: match[1].trim(), amount: computedAmount > 0 ? Math.round(computedAmount).toLocaleString() : '' });
-      } else if (p.trim()) {
-        parsedSplits.push({ source: p.trim(), amount: template.totalBudget ? template.totalBudget.toLocaleString() : '' });
+    
+    if (template.fundingSplits && template.fundingSplits.length > 0) {
+      setCatFundingSplits(template.fundingSplits.map(s => ({ source: s.source, amount: s.amount ? s.amount.toLocaleString() : '' })));
+    } else {
+      const rawFunding = template.fundingSource || '구비(자체)';
+      const parsedSplits = [];
+      const parts = rawFunding.split(',');
+      for (const p of parts) {
+        const match = p.trim().match(/(.+) \((.+)%\)/);
+        if (match) {
+          const ratioObj = Number(match[2]);
+          const computedAmount = template.totalBudget ? (template.totalBudget * ratioObj) / 100 : 0;
+          parsedSplits.push({ source: match[1].trim(), amount: computedAmount > 0 ? Math.round(computedAmount).toLocaleString() : '' });
+        } else if (p.trim()) {
+          parsedSplits.push({ source: p.trim(), amount: template.totalBudget ? template.totalBudget.toLocaleString() : '' });
+        }
       }
+      if (parsedSplits.length === 0) parsedSplits.push({ source: '구비(자체)', amount: '' });
+      setCatFundingSplits(parsedSplits);
     }
-    if (parsedSplits.length === 0) parsedSplits.push({ source: '구비(자체)', amount: '' });
-    setCatFundingSplits(parsedSplits);
     setEditCatId(null); setShowCatModal(true);
   }, []);
 
@@ -409,7 +408,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
     if (!cats.length) return;
     setBatchCats(cats);
     setBatchTitle(title);
-    setBatchFundingSrc('');
+    setBatchFundingSplits([{source: '', ratio: ''}]);
     setBatchBudgetType('');
     setShowBatchModal(true);
   }, []);
@@ -417,15 +416,39 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
   const handleApplyBatchEdit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!window.confirm(`선택된 [${batchTitle}] 내 ${batchCats.length}개 과목을 일괄 수정하시겠습니까?`)) return;
+
+    const hasBatchRatios = batchFundingSplits.some(s => s.ratio);
+    const totalRatio = batchFundingSplits.reduce((sum, s) => sum + Number(s.ratio || 0), 0);
+
+    if (hasBatchRatios && Math.abs(totalRatio - 100) > 0.01) {
+      alert(`입력하신 전체 재원 비율의 합계(${totalRatio.toFixed(2)}%)가 100%가 되지 않습니다. 정확히 100%로 분할해주세요.`);
+      return;
+    }
+
     batchCats.forEach(c => {
       const updates: Partial<BudgetCategory> = {};
-      if (batchFundingSrc !== '') Object.assign(updates, { fundingSource: batchFundingSrc });
       if (batchBudgetType !== '') Object.assign(updates, { budgetType: batchBudgetType });
+      
+      if (hasBatchRatios) {
+         // Apply exact ratio to child category precise amounts
+         const newSplitsArray = batchFundingSplits.map(br => ({
+            source: br.source,
+            amount: Math.round(c.totalBudget * (Number(br.ratio) / 100))
+         })).filter(s => s.amount > 0);
+         
+         const newFundingString = newSplitsArray.map(s => {
+            const r = c.totalBudget > 0 ? (s.amount / c.totalBudget) * 100 : 0;
+            return `${s.source} (${r.toFixed(2)}%)`;
+         }).filter(Boolean).join(', ') || '구비(자체)';
+         
+         Object.assign(updates, { fundingSource: newFundingString, fundingSplits: newSplitsArray });
+      }
       
       if (Object.keys(updates).length > 0) {
         updateCategory(c.id, updates);
       }
     });
+
     setShowBatchModal(false);
   };
 
@@ -789,7 +812,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
                            const b = Number(catBudget.replace(/,/g, ''));
                            if (b === 0) return '0%';
                            const r = (a / b) * 100;
-                           return (Number.isInteger(r) ? r : r.toFixed(1)) + '%';
+                           return r.toFixed(2) + '%';
                         })()}
                       </span>
                     </div>
@@ -818,15 +841,6 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
               </div>
             </div>
           </div>
-          
-          <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg space-y-2">
-             <div className="text-xs font-bold text-gray-600 mb-2">보건복지부 / 수도권 비율 매칭 검증 (선택)</div>
-             <div className="grid grid-cols-2 gap-2">
-                <div><label className="block text-[11px] text-gray-500 mb-1">국비 (30%)</label><input type="number" value={nationalFund} onChange={e => setNationalFund(e.target.value)} className={inputClass} placeholder="입력" /></div>
-                <div><label className="block text-[11px] text-gray-500 mb-1">지방비 (70%)</label><input type="number" value={localFund} onChange={e => setLocalFund(e.target.value)} className={inputClass} placeholder="입력" /></div>
-             </div>
-          </div>
-
           <button type="submit" className="px-5 py-2.5 bg-[var(--color-primary)] text-white rounded-lg hover:bg-opacity-90 transition-colors font-bold w-full shadow-md shadow-blue-500/20 cursor-pointer text-sm">
             {editCatId ? '예산 과목 저장' : '예산 과목 등록'}
           </button>
@@ -849,18 +863,58 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
               <option value="추경">추경</option>
             </select>
           </div>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center mb-4">
+               <div className="text-sm font-semibold text-blue-800">일괄 적용 대상 총 예산액</div>
+               <div className="text-xl font-black text-blue-900 mt-1">{batchCats.reduce((sum, c) => sum + c.totalBudget, 0).toLocaleString()} <span className="text-sm font-bold text-blue-700">원</span></div>
+               <div className="text-[11px] text-blue-600 mt-1 text-left bg-blue-100/50 p-2 rounded">일괄 적용 기능은 총 예산액을 몰라도 쉽게 입력할 수 있도록 <b>퍼센트(%)</b>로 입력받습니다. 여기서 입력하신 비율이 하위 {batchCats.length}개 단위/통계목들의 각 예산액 규모에 비례해 정확한 금액으로 자동 하향 분배 지정됩니다. 변경을 원하지 않으면 비워두세요.</div>
+          </div>
           <div>
-            <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">새로운 재원 구분 적용</label>
-            <select value={batchFundingSrc} onChange={e => setBatchFundingSrc(e.target.value)} className={inputClass}>
-              <option value="">(변경 안함 - 개별 정보 유지)</option>
-              <option value="구비(자체)">구비(자체)</option>
-              <option value="국비">국비</option>
-              <option value="시비">시비</option>
-              <option value="기금">기금</option>
-              <option value="특교">특교</option>
-              <option value="국비 매칭">국비 매칭</option>
-              <option value="시비 매칭">시비 매칭</option>
-            </select>
+            <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5 bg-slate-100 p-2 rounded flex justify-between items-center">
+              <span>새로운 재원 구분 및 퍼센트 분할 (옵션)</span>
+            </label>
+            <div className="space-y-2 mt-2">
+              {batchFundingSplits.map((split, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <select 
+                    value={split.source}
+                    onChange={(e) => {
+                      const newSplits = [...batchFundingSplits];
+                      newSplits[i].source = e.target.value;
+                      setBatchFundingSplits(newSplits);
+                    }}
+                    className={inputClass}
+                    style={{ flex: 1 }}
+                  >
+                    <option value="">필요시 선택</option>
+                    <option value="기금">기금</option>
+                    <option value="시비">시비</option>
+                    <option value="구비(자체)">구비(자체)</option>
+                    <option value="국비">국비</option>
+                    <option value="특교">특교</option>
+                  </select>
+                  <div className="relative" style={{ flex: 2 }}>
+                    <input 
+                      type="number" 
+                      step="0.01"
+                      value={split.ratio}
+                      onChange={(e) => {
+                         const newSplits = [...batchFundingSplits];
+                         newSplits[i].ratio = e.target.value;
+                         setBatchFundingSplits(newSplits);
+                      }}
+                      className={`${inputClass} pr-10 text-right font-bold`}
+                      placeholder="(기존 비율 유지)" 
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[15px] font-black text-blue-500">%</span>
+                  </div>
+                  {i === batchFundingSplits.length - 1 ? (
+                     <button type="button" onClick={() => setBatchFundingSplits([...batchFundingSplits, {source: '시비', ratio: ''}])} className="text-blue-500 p-1 hover:bg-blue-50 rounded"><Plus size={16}/></button>
+                  ) : (
+                     <button type="button" onClick={() => setBatchFundingSplits(batchFundingSplits.filter((_, idx) => idx !== i))} className="text-red-400 p-1 hover:bg-red-50 rounded"><X size={16}/></button>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
           <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 mt-2">
             <button type="button" onClick={() => setShowBatchModal(false)} className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium text-sm">취소</button>

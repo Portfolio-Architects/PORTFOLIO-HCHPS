@@ -85,7 +85,17 @@ export const PolicyGroupCard = React.memo(({
       g.cats.sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
     });
 
-    const groupFunding = Array.from(new Set(cats.map(c => c.fundingSource).filter(f => f && f !== '구비(자체)')));
+    const groupFundingSet = new Set<string>();
+    cats.forEach(c => {
+       if (c.fundingSource) {
+          const clean = c.fundingSource.replace(/\([^)]+\)/g, '');
+          clean.split(',').forEach(p => {
+             const t = p.trim();
+             if (t && t !== '구비(자체)' && t !== '구비') groupFundingSet.add(t);
+          });
+       }
+    });
+    const groupFunding = Array.from(groupFundingSet);
     const groupTypes = Array.from(new Set(cats.map(c => c.budgetType).filter(t => t && t !== '본예산')));
 
     return { totalBudget: tBudget, spent: tSpent, planned: tPlanned, remaining: tRemaining, usageRate: rate, groupEntries: gEntries, groupedByDetail: groups, groupFunding, groupTypes };
@@ -146,7 +156,17 @@ export const PolicyGroupCard = React.memo(({
         <div className={`px-5 py-3 divide-y divide-gray-100 ${hidePolicyHeader ? 'px-1 pt-1 border border-slate-200 rounded-xl bg-white shadow-sm' : ''}`}>
           {groupedByDetail.map(detailGroup => {
             const detailTotalBudget = detailGroup.cats.reduce((sum, c) => sum + c.totalBudget, 0);
-            const detailFunding = Array.from(new Set(detailGroup.cats.map(c => c.fundingSource).filter(f => f && f !== '구비(자체)')));
+            const detailFundingSet = new Set<string>();
+            detailGroup.cats.forEach(c => {
+               if (c.fundingSource) {
+                  const clean = c.fundingSource.replace(/\([^)]+\)/g, '');
+                  clean.split(',').forEach(p => {
+                     const t = p.trim();
+                     if (t && t !== '구비(자체)' && t !== '구비') detailFundingSet.add(t);
+                  });
+               }
+            });
+            const detailFunding = Array.from(detailFundingSet);
             const detailTypes = Array.from(new Set(detailGroup.cats.map(c => c.budgetType).filter(t => t && t !== '본예산')));
             return (
             <div key={detailGroup.detailName} className="py-3 first:pt-0">
@@ -181,6 +201,18 @@ export const PolicyGroupCard = React.memo(({
                       <FilePlus2 size={13} />
                     </button>
                   )}
+                  {openBatchEdit && (
+                    <button 
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        openBatchEdit(detailGroup.detailName, detailGroup.cats);
+                      }} 
+                      className="ml-1 text-[11px] font-extrabold px-2 py-0.5 rounded border bg-indigo-50 text-indigo-700 border-indigo-200 cursor-pointer hover:bg-indigo-100 transition-colors flex items-center gap-1 shadow-sm"
+                      title="이 세부사업 내 모든 통계목에 동일한 재원비율 일괄 할당"
+                    >
+                      <Pencil size={11} /> 비율 모괄 설정
+                    </button>
+                  )}
                 </div>
               </div>
               <div className="space-y-3 pl-2">
@@ -198,7 +230,6 @@ export const PolicyGroupCard = React.memo(({
                             {cat.formationItem && <span className="text-gray-500 font-medium mr-1.5 opacity-90">[{cat.formationItem}]</span>}
                             {cat.statItem || cat.name}
                           </div>
-                          <span className="text-[11px] text-gray-400 font-normal truncate hidden sm:block max-w-[200px]">({cat.name})</span>
                           {cat.budgetType && cat.budgetType !== '본예산' && (
                             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ml-1 flex-shrink-0 border ${cat.budgetType === '간주예산' ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
                               {cat.budgetType}
@@ -221,21 +252,21 @@ export const PolicyGroupCard = React.memo(({
                           <button onClick={() => deleteCategory(cat.id)} className="p-1 rounded hover:bg-red-50 text-gray-500 hover:text-red-500"><Trash2 size={13} /></button>
                         </div>
                       </div>
-                      <div className="flex items-center justify-between text-[12px] bg-gray-50 rounded-lg p-2.5 mb-2.5">
+                      <div className="flex items-center justify-between bg-gray-50 rounded-lg p-3 mb-3">
                         <div className="flex flex-col">
-                           <span className="text-gray-500 font-medium mb-0.5">사용 (집행+품의)</span>
-                           <span className="text-gray-800 font-bold tracking-tight">{formatN(stats.spent + stats.planned)} / {formatN(stats.totalBudget)}</span>
+                           <span className="text-gray-500 font-bold mb-1 text-[12px]">사용 (집행+품의)</span>
+                           <span className="text-gray-800 font-extrabold tracking-tight text-[15px]">{formatN(stats.spent + stats.planned)} <span className="text-gray-400 font-medium mx-0.5">/</span> {formatN(stats.totalBudget)}</span>
                         </div>
                         <div className="flex flex-col items-end">
-                           <span className="text-gray-500 font-medium mb-0.5">잔여금액</span>
-                           <span className="text-blue-600 font-black tracking-tight">{formatN(stats.remaining)}</span>
+                           <span className="text-gray-500 font-bold mb-1 text-[12px]">잔여금액</span>
+                           <span className="text-blue-600 font-black tracking-tight text-[16px]">{formatN(stats.remaining)}</span>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2.5">
-                         <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden flex">
+                      <div className="flex items-center gap-3 px-1 mb-1">
+                         <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden flex shadow-inner">
                             <div className="h-full w-full rounded-full transition-transform duration-300" style={{ transform: `translateX(-${100 - Math.min(100, stats.usageRate || 0)}%)`, backgroundColor: cat.color || '#4A6CF7' }} />
                          </div>
-                         <span className="text-[11px] font-bold text-gray-500 w-11 text-right tracking-tighter">{(stats.usageRate || 0).toFixed(2)}%</span>
+                         <span className="text-[13px] font-extrabold text-gray-600 w-12 text-right tracking-tight">{(stats.usageRate || 0).toFixed(2)}%</span>
                       </div>
                     </div>
                   )

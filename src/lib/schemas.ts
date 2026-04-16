@@ -40,6 +40,10 @@ export const BudgetCategorySchema = z.object({
   formationItem: z.string().optional().catch(undefined),
   budgetType: z.enum(['본예산', '간주예산', '추경']).optional().catch(undefined),
   fundingSource: z.string().optional().catch(undefined),
+  fundingSplits: z.array(z.object({
+    source: z.string(),
+    amount: z.number()
+  })).optional().catch(undefined),
   sortOrder: z.number().optional().catch(undefined),
 });
 
