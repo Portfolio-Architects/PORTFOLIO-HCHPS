@@ -45,11 +45,11 @@ export async function readSheet<T>(sheetName: string): Promise<T[]> {
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
         // E2EE Decryption
-        const decryptedPromises = json.data.map(async (row: any) => {
+        const decryptedPromises = json.data.map(async (row: Record<string, unknown>) => {
           if (row._enc) {
             try {
-              const dec = await decryptPayload(row._enc);
-              return { id: row.id, ...(dec as any) };
+              const dec = await decryptPayload(row._enc as string);
+              return { id: row.id, ...(dec as Record<string, unknown>) };
             } catch (e) {
               console.error('Decryption failed for row', row.id, e);
               return row; // Return base object if decryption fails
@@ -67,7 +67,7 @@ export async function readSheet<T>(sheetName: string): Promise<T[]> {
         
         // Zod Runtimes Validation (Fail-Safe)
         const schema = getDomainSchema(sheetName);
-        const validRows: any[] = [];
+        const validRows: Record<string, unknown>[] = [];
         for (const row of rawRows) {
           if (deletedIds.includes(row.id)) continue; // 🚀 Kill Zombies
           if ('safeParse' in schema) {
@@ -107,7 +107,7 @@ async function writeData(sheetName: string, action: string, data?: unknown, id?:
           return { id, _enc };
         }));
       } else {
-        const { id, ...rest } = data as any;
+        const { id, ...rest } = data as Record<string, unknown>;
         if (id) {
           const _enc = await encryptPayload(rest);
           payload = { id, _enc };
@@ -155,7 +155,7 @@ export async function addRow<T>(sheetName: string, data: T): Promise<boolean> {
  * @param data - 변경할 내용의 객체 (재암호화 수행됨)
  * @returns 성공 여부 (true/false)
  */
-export async function updateRow<T = any>(sheetName: string, id: string, data: T): Promise<boolean> {
+export async function updateRow<T = Record<string, unknown>>(sheetName: string, id: string, data: T): Promise<boolean> {
   return writeData(sheetName, 'update', data, id);
 }
 

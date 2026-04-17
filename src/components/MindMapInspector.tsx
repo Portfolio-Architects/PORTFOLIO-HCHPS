@@ -1,12 +1,19 @@
 import React from 'react';
 import { OrbitalNode, OntologyEdge, GROUP_COLORS, GROUP_LABELS, OntologyGroup } from '@/lib/ontology.types';
+import { NodeOverride } from '@/hooks/useGraphCustomization';
 import { Edit2, Waypoints, CheckCircle, Trash2, Link2, Radio, X, Crosshair, Activity, Bot } from 'lucide-react';
+
+interface ForceGraphEngine {
+  nodes: OrbitalNode[];
+  edges: OntologyEdge[];
+  needsRedraw?: boolean;
+}
 
 interface MindMapInspectorProps {
   activeNode: OrbitalNode | null;
-  engineRef: React.MutableRefObject<any>;
-  overrides: Record<string, any>;
-  setNodeOverride: (id: string, options: any) => void;
+  engineRef: React.MutableRefObject<ForceGraphEngine | null | undefined>;
+  overrides: Record<string, NodeOverride>;
+  setNodeOverride: (id: string, options: Partial<NodeOverride>) => void;
   setActiveNode: React.Dispatch<React.SetStateAction<OrbitalNode | null>>;
   onRenameCategory?: (oldName: string, newName: string) => void;
   onDeleteCategory?: (name: string) => void;

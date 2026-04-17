@@ -36,6 +36,7 @@ export const BudgetCategorySchema = z.object({
   policyProject: z.string().optional().catch('기타'),
   unitProject: z.string().optional().catch('전반'),
   detailedProject: z.string().optional().catch('기본운영'),
+  managementProject: z.string().optional().catch(undefined),
   statItem: z.string().optional().catch('일반'),
   formationItem: z.string().optional().catch(undefined),
   budgetType: z.enum(['본예산', '간주예산', '추경']).optional().catch(undefined),
@@ -43,6 +44,27 @@ export const BudgetCategorySchema = z.object({
   fundingSplits: z.array(z.object({
     source: z.string(),
     amount: z.number()
+  })).optional().catch(undefined),
+  subItems: z.array(z.object({
+    prefix: z.string().optional(),
+    name: z.string(),
+    calculation: z.string().optional(),
+    amount: z.number(),
+    isCustomFunding: z.boolean().optional(),
+    fundingSplits: z.array(z.object({
+      source: z.string(),
+      amount: z.number()
+    })).optional(),
+    calculations: z.array(z.object({
+      name: z.string().optional(),
+      calculation: z.string(),
+      amount: z.number(),
+      isCustomFunding: z.boolean().optional(),
+      fundingSplits: z.array(z.object({
+        source: z.string(),
+        amount: z.number()
+      })).optional()
+    })).optional()
   })).optional().catch(undefined),
   sortOrder: z.number().optional().catch(undefined),
 });

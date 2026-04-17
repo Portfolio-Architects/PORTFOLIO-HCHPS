@@ -6,8 +6,8 @@ interface UIState {
   setSidebarOpen: (isOpen: boolean) => void;
   
   activeModal: string | null;
-  activeModalData: any | null;
-  openModal: (modalName: string, data?: any) => void;
+  activeModalData: Record<string, unknown> | null;
+  openModal: (modalName: string, data?: Record<string, unknown> | null) => void;
   closeModal: () => void;
   
   activeTab: string;

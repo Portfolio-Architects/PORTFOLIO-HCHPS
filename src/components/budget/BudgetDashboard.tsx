@@ -5,7 +5,7 @@ import { BudgetCategory, BudgetEntry, BudgetActionType, generateId } from '@/typ
 import { Card, CardContent } from '@/components/ui/card';
 import { ProgressBar } from '@/components/ui/progress-bar';
 import { Modal } from '@/components/ui/modal';
-import { Plus, Pencil, Trash2, CheckCircle2, AlertOctagon, ShieldAlert, RefreshCw, Search, FilePlus2, ChevronDown, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, CheckCircle2, AlertOctagon, ShieldAlert, RefreshCw, Search, FilePlus2, ChevronDown, ChevronLeft, ChevronRight, X, FileCheck } from 'lucide-react';
 import { replaceAll } from '@/lib/sheets-api';
 import { MultiSelectDropdown } from './ui/MultiSelectDropdown';
 import { PolicyGroupCard, ACTION_TYPE_CONFIG } from './ui/PolicyGroupCard';
@@ -50,12 +50,14 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
   const [catPolicy, setCatPolicy] = useState('');
   const [catUnit, setCatUnit] = useState('');
   const [catDetail, setCatDetail] = useState('');
+  const [catManagement, setCatManagement] = useState('');
   const [catFormationCode, setCatFormationCode] = useState('');
   const [catFormationName, setCatFormationName] = useState('');
   const [catStatCode, setCatStatCode] = useState('');
   const [catStatName, setCatStatName] = useState('');
   const [catBudgetType, setCatBudgetType] = useState<'본예산' | '간주예산' | '추경'>('본예산');
-  const [catFundingSplits, setCatFundingSplits] = useState<{source: string, amount: string}[]>([{source: '구비(자체)', amount: ''}]);
+  const [catFundingSplits, setCatFundingSplits] = useState<{source: string, amount: string}[]>([{source: '구비', amount: ''}]);
+  const [catSubItems, setCatSubItems] = useState<{prefix: string, name: string, calculation: string, amount: string, isCustomFunding: boolean, fundingSplits: {source: string, amount: string}[], calculations: {name?: string, calculation: string, amount: string, isCustomFunding?: boolean, fundingSplits?: {source: string, amount: string}[]}[]}[]>([{prefix: '', name: '', calculation: '', amount: '', isCustomFunding: false, fundingSplits: [{source: '구비', amount: ''}], calculations: []}]);
 
   const [showBatchModal, setShowBatchModal] = useState(false);
   const [batchCats, setBatchCats] = useState<BudgetCategory[]>([]);
@@ -203,21 +205,53 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
       const r = targetBudget > 0 ? (amt / targetBudget) * 100 : 0;
       const ratioStr = r.toFixed(2);
       return `${s.source} (${ratioStr}%)`;
-    }).filter(Boolean).join(', ') || '구비(자체)';
+    }).filter(Boolean).join(', ') || '구비';
 
     const finalSplitsArray = catFundingSplits.map(s => ({
       source: s.source,
       amount: Number((s.amount || '0').replace(/,/g, ''))
     })).filter(s => s.amount > 0);
 
+
+    const finalSubItemsArray = catSubItems.map(s => {
+      const calcArray = (s.calculations || []).map(calc => {
+        const res: {name?: string, calculation: string, amount: number, isCustomFunding?: boolean, fundingSplits?: {source: string, amount: number}[]} = {
+          calculation: calc.calculation,
+          amount: Number((calc.amount || '0').replace(/,/g, ''))
+        };
+        if (calc.name) res.name = calc.name;
+        if (calc.isCustomFunding) {
+          res.isCustomFunding = true;
+          res.fundingSplits = calc.fundingSplits && calc.fundingSplits.length > 0 ? calc.fundingSplits.map(fs => ({source: fs.source, amount: Number((fs.amount || '0').replace(/,/g, ''))})).filter(fs => fs.amount > 0) : undefined;
+        }
+        return res;
+      }).filter(c => c.calculation.trim() !== '' || c.amount > 0);
+      
+      const isParent = calcArray.length > 0;
+      const computedAmount = isParent ? calcArray.reduce((sum, c) => sum + c.amount, 0) : Number((s.amount || '0').replace(/,/g, ''));
+
+      return {
+        prefix: s.prefix || undefined,
+        name: s.name,
+        calculation: isParent ? undefined : s.calculation,
+        amount: computedAmount,
+        isCustomFunding: s.isCustomFunding,
+        calculations: isParent ? calcArray : undefined,
+        fundingSplits: s.isCustomFunding && s.fundingSplits && s.fundingSplits.length > 0 ? s.fundingSplits.map(fs => ({
+          source: fs.source,
+          amount: Number((fs.amount || '0').replace(/,/g, ''))
+        })).filter(fs => fs.amount > 0) : undefined
+      };
+    }).filter(s => s.name.trim() !== '' || (s.prefix && s.prefix.trim() !== '') || s.amount > 0 || (s.calculations && s.calculations.length > 0) || (s.calculation && s.calculation.trim() !== ''));
+
     if (editCatId) {
-      updateCategory(editCatId, { name: finalName, totalBudget: targetBudget, policyProject: catPolicy, unitProject: catUnit, detailedProject: catDetail, formationItem: combinedFormation, statItem: combinedStat, budgetType: catBudgetType, fundingSource: finalFunding, fundingSplits: finalSplitsArray });
+      updateCategory(editCatId, { name: finalName, totalBudget: targetBudget, policyProject: catPolicy, unitProject: catUnit, detailedProject: catDetail, managementProject: catManagement || undefined, subItems: finalSubItemsArray, formationItem: combinedFormation, statItem: combinedStat, budgetType: catBudgetType, fundingSource: finalFunding, fundingSplits: finalSplitsArray });
     } else {
-      addCategory({ name: finalName, totalBudget: targetBudget, color: COLORS[categories.length % COLORS.length], policyProject: catPolicy, unitProject: catUnit, detailedProject: catDetail, formationItem: combinedFormation, statItem: combinedStat, budgetType: catBudgetType, fundingSource: finalFunding, fundingSplits: finalSplitsArray });
+      addCategory({ name: finalName, totalBudget: targetBudget, color: COLORS[categories.length % COLORS.length], policyProject: catPolicy, unitProject: catUnit, detailedProject: catDetail, managementProject: catManagement || undefined, subItems: finalSubItemsArray, formationItem: combinedFormation, statItem: combinedStat, budgetType: catBudgetType, fundingSource: finalFunding, fundingSplits: finalSplitsArray });
     }
     setCatBudget('');
 
-    setCatPolicy(''); setCatUnit(''); setCatDetail(''); setCatFormationCode(''); setCatFormationName(''); setCatStatCode(''); setCatStatName(''); setCatBudgetType('본예산'); setCatFundingSplits([{source: '구비(자체)', amount: ''}]);
+    setCatPolicy(''); setCatUnit(''); setCatDetail(''); setCatManagement(''); setCatFormationCode(''); setCatFormationName(''); setCatStatCode(''); setCatStatName(''); setCatBudgetType('본예산'); setCatFundingSplits([{source: '구비', amount: ''}]); setCatSubItems([{prefix: '', name: '', calculation: '', amount: '', isCustomFunding: false, fundingSplits: [{source: '구비', amount: ''}], calculations: []}]);
     setEditCatId(null); setShowCatModal(false);
   };
 
@@ -316,6 +350,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
     setCatBudget(cat.totalBudget ? cat.totalBudget.toLocaleString() : '');
     setCatPolicy(cat.policyProject || ''); setCatUnit(cat.unitProject || '');
     setCatDetail(cat.detailedProject || ''); 
+    setCatManagement(cat.managementProject || '');
     const formationStr = cat.formationItem || '';
     const codeMatch = formationStr.match(/^(\d{3})\s*(.+)$/);
     if (codeMatch) {
@@ -339,7 +374,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
     if (cat.fundingSplits && cat.fundingSplits.length > 0) {
       setCatFundingSplits(cat.fundingSplits.map(s => ({ source: s.source, amount: s.amount ? s.amount.toLocaleString() : '' })));
     } else {
-      const rawFunding = cat.fundingSource || '구비(자체)';
+      const rawFunding = cat.fundingSource || '구비';
       const parsedSplits = [];
       const parts = rawFunding.split(',');
       for (const p of parts) {
@@ -352,9 +387,24 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
           parsedSplits.push({ source: p.trim(), amount: cat.totalBudget > 0 ? cat.totalBudget.toLocaleString() : '' });
         }
       }
-      if (parsedSplits.length === 0) parsedSplits.push({ source: '구비(자체)', amount: '' });
+      if (parsedSplits.length === 0) parsedSplits.push({ source: '구비', amount: '' });
       setCatFundingSplits(parsedSplits);
     }
+    
+    if (cat.subItems && cat.subItems.length > 0) {
+      setCatSubItems(cat.subItems.map(s => ({ 
+        prefix: s.prefix || '', 
+        name: s.name, 
+        calculation: s.calculation || '', 
+        amount: s.amount ? s.amount.toLocaleString() : '', 
+        isCustomFunding: s.isCustomFunding || false,
+        fundingSplits: s.fundingSplits && s.fundingSplits.length > 0 ? s.fundingSplits.map(fs => ({ source: fs.source, amount: fs.amount ? fs.amount.toLocaleString() : '' })) : [{source: '구비', amount: ''}],
+        calculations: s.calculations ? s.calculations.map(c => ({ name: c.name || undefined, calculation: c.calculation || "", amount: c.amount ? c.amount.toLocaleString() : "", isCustomFunding: c.isCustomFunding || false, fundingSplits: c.fundingSplits && c.fundingSplits.length > 0 ? c.fundingSplits.map(fs => ({source: fs.source, amount: fs.amount ? fs.amount.toLocaleString() : ""})) : [{source: "구비", amount: ""}] })) : []
+      })));
+    } else {
+      setCatSubItems([{prefix: '', name: '', calculation: '', amount: '', isCustomFunding: false, fundingSplits: [{source: '구비', amount: ''}], calculations: []}]);
+    }
+    
     setEditCatId(cat.id); setShowCatModal(true);
   }, []);
 
@@ -362,6 +412,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
     setCatBudget(template.totalBudget ? template.totalBudget.toLocaleString() : '');
     setCatPolicy(template.policyProject || ''); setCatUnit(template.unitProject || '');
     setCatDetail(template.detailedProject || ''); 
+    setCatManagement(template.managementProject || '');
     const formationStr = template.formationItem || '';
     const codeMatch = formationStr.match(/^(\d{3})\s*(.+)$/);
     if (codeMatch) {
@@ -385,7 +436,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
     if (template.fundingSplits && template.fundingSplits.length > 0) {
       setCatFundingSplits(template.fundingSplits.map(s => ({ source: s.source, amount: s.amount ? s.amount.toLocaleString() : '' })));
     } else {
-      const rawFunding = template.fundingSource || '구비(자체)';
+      const rawFunding = template.fundingSource || '구비';
       const parsedSplits = [];
       const parts = rawFunding.split(',');
       for (const p of parts) {
@@ -398,9 +449,24 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
           parsedSplits.push({ source: p.trim(), amount: template.totalBudget ? template.totalBudget.toLocaleString() : '' });
         }
       }
-      if (parsedSplits.length === 0) parsedSplits.push({ source: '구비(자체)', amount: '' });
+      if (parsedSplits.length === 0) parsedSplits.push({ source: '구비', amount: '' });
       setCatFundingSplits(parsedSplits);
     }
+    
+    if (template.subItems && template.subItems.length > 0) {
+      setCatSubItems(template.subItems.map(s => ({ 
+        prefix: s.prefix || '', 
+        name: s.name, 
+        calculation: s.calculation || '', 
+        amount: s.amount ? s.amount.toLocaleString() : '', 
+        isCustomFunding: s.isCustomFunding || false,
+        fundingSplits: s.fundingSplits && s.fundingSplits.length > 0 ? s.fundingSplits.map(fs => ({ source: fs.source, amount: fs.amount ? fs.amount.toLocaleString() : '' })) : [{source: '구비', amount: ''}],
+        calculations: s.calculations ? s.calculations.map(c => ({ name: c.name || undefined, calculation: c.calculation || "", amount: c.amount ? c.amount.toLocaleString() : "", isCustomFunding: c.isCustomFunding || false, fundingSplits: c.fundingSplits && c.fundingSplits.length > 0 ? c.fundingSplits.map(fs => ({source: fs.source, amount: fs.amount ? fs.amount.toLocaleString() : ""})) : [{source: "구비", amount: ""}] })) : []
+      })));
+    } else {
+      setCatSubItems([{prefix: '', name: '', calculation: '', amount: '', isCustomFunding: false, fundingSplits: [{source: '구비', amount: ''}], calculations: []}]);
+    }
+    
     setEditCatId(null); setShowCatModal(true);
   }, []);
 
@@ -439,7 +505,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
          const newFundingString = newSplitsArray.map(s => {
             const r = c.totalBudget > 0 ? (s.amount / c.totalBudget) * 100 : 0;
             return `${s.source} (${r.toFixed(2)}%)`;
-         }).filter(Boolean).join(', ') || '구비(자체)';
+         }).filter(Boolean).join(', ') || '구비';
          
          Object.assign(updates, { fundingSource: newFundingString, fundingSplits: newSplitsArray });
       }
@@ -461,7 +527,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
     setShowEntryModal(false);
     setReturnToEntryModal(true);
     setEditCatId(null);
-    setCatPolicy(''); setCatUnit(''); setCatDetail(''); setCatFormationCode(''); setCatFormationName(''); setCatStatCode(''); setCatStatName(''); setCatBudget(''); setCatFundingSplits([{source: '구비(자체)', amount: ''}]);
+    setCatPolicy(''); setCatUnit(''); setCatDetail(''); setCatManagement(''); setCatFormationCode(''); setCatFormationName(''); setCatStatCode(''); setCatStatName(''); setCatBudget(''); setCatFundingSplits([{source: '구비', amount: ''}]); setCatSubItems([{prefix: '', name: '', calculation: '', amount: '', isCustomFunding: false, fundingSplits: [{source: '구비', amount: ''}], calculations: []}]);
     setShowCatModal(true);
   };
 
@@ -737,7 +803,20 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
           <div className="grid grid-cols-2 gap-4">
             <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">정책사업명</label><input type="text" value={catPolicy} onChange={e => setCatPolicy(e.target.value)} className={inputClass} placeholder="예: 건강도시조성" /></div>
             <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">단위사업명</label><input type="text" value={catUnit} onChange={e => setCatUnit(e.target.value)} className={inputClass} placeholder="예: 찾아가는 보건소" /></div>
-            <div className="col-span-2"><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">세부사업명</label><input type="text" value={catDetail} onChange={e => setCatDetail(e.target.value)} className={inputClass} placeholder="예: 방문간호운영" /></div>
+            <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">세부사업명</label><input type="text" value={catDetail} onChange={e => setCatDetail(e.target.value)} className={inputClass} placeholder="예: 방문간호운영" /></div>
+            <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">관리사업명 (선택)</label><input type="text" value={catManagement} onChange={e => setCatManagement(e.target.value)} className={inputClass} placeholder="예: 구강보건 (재원분리용)" /></div>
+
+            <div className="col-span-2 mb-2">
+              <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-2">예산 구분</label>
+              <div className="flex gap-4">
+                {['본예산', '간주예산', '추경'].map(type => (
+                  <label key={type} className="flex items-center gap-1.5 text-sm cursor-pointer hover:bg-gray-50 px-2 py-1 rounded-md transition-colors">
+                    <input type="radio" name="catBudgetType" value={type} checked={catBudgetType === type} onChange={() => setCatBudgetType(type as any)} className="text-[var(--color-primary)] border-gray-300 focus:ring-[var(--color-primary)]" />
+                    {type}
+                  </label>
+                ))}
+              </div>
+            </div>
             
             <div className="col-span-2">
               <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5 flex justify-between">
@@ -786,13 +865,11 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
                       newSplits[idx].source = e.target.value;
                       setCatFundingSplits(newSplits);
                     }} className={`${inputClass} font-medium`} style={{ width: '140px', flex: '0 0 140px' }}>
-                      <option value="구비(자체)">구비(자체)</option>
                       <option value="국비">국비</option>
-                      <option value="시비">시비</option>
-                      <option value="기금">기금</option>
-                      <option value="특교">특교</option>
-                      <option value="국비 매칭">국비 매칭</option>
-                      <option value="시비 매칭">시비 매칭</option>
+<option value="기금">기금</option>
+<option value="시비">시비</option>
+<option value="구비">구비</option>
+<option value="특교">특교</option>
                     </select>
                     
                     <div className="relative flex-1">
@@ -826,18 +903,331 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
                     )}
                   </div>
                 ))}
-                <button type="button" onClick={() => setCatFundingSplits([...catFundingSplits, {source: '구비(자체)', amount: ''}])} className="text-[13px] text-blue-600 font-bold hover:underline flex items-center gap-1 mt-1.5 px-1 py-1 rounded hover:bg-blue-50 transition-colors">+ 재원 추가</button>
+                <button type="button" onClick={() => setCatFundingSplits([...catFundingSplits, {source: '구비', amount: ''}])} className="text-[13px] text-blue-600 font-bold hover:underline flex items-center gap-1 mt-1.5 px-1 py-1 rounded hover:bg-blue-50 transition-colors">+ 재원 추가</button>
               </div>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">예산 구분</label>
-              <div className="flex gap-4">
-                {['본예산', '간주예산', '추경'].map(type => (
-                  <label key={type} className="flex items-center gap-1.5 text-sm cursor-pointer hover:bg-gray-50 px-2 py-1 rounded-md transition-colors">
-                    <input type="radio" name="catBudgetType" value={type} checked={catBudgetType === type} onChange={() => setCatBudgetType(type as any)} className="text-[var(--color-primary)] border-gray-300 focus:ring-[var(--color-primary)]" />
-                    {type}
-                  </label>
-                ))}
+<div className="col-span-2 bg-indigo-50 p-4 rounded-xl border border-indigo-100 mt-2">
+              <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-2.5 flex justify-between items-center">
+                <span className="font-bold flex items-center gap-1.5 text-indigo-800"><FileCheck size={14} className="text-indigo-400"/> 세부 산출 내역 (옵션)</span>
+                {(() => {
+                  const tb = Number(catBudget.replace(/,/g, ''));
+                  const totalSub = catSubItems.reduce((sum, s) => {
+                    if (s.calculations && s.calculations.length > 0) {
+                      return sum + s.calculations.reduce((subSum, c) => subSum + Number((c.amount || '0').replace(/,/g, '')), 0);
+                    }
+                    return sum + Number((s.amount || '0').replace(/,/g, ''));
+                  }, 0);
+                  const isMatch = tb > 0 && totalSub === tb;
+                  if (totalSub === 0 && catSubItems.length <= 1 && (!catSubItems[0] || !catSubItems[0].amount)) return null;
+                  return (
+                    <span className={`text-[11px] px-2 py-0.5 rounded font-bold ${isMatch ? 'text-green-700 bg-green-100' : 'text-amber-600 bg-amber-100'}`}>
+                      {isMatch ? '총액 일치 정상' : `부분 합산중 (${totalSub.toLocaleString()}원)`}
+                    </span>
+                  );
+                })()}
+              </label>
+              <div className="space-y-2.5">
+{catSubItems.map((sub, idx) => {
+                  const hasCalculations = sub.calculations && sub.calculations.length > 0;
+                  const autoComputedAmount = hasCalculations ? sub.calculations.reduce((s, c) => s + Number((c.amount || '0').replace(/,/g, '')), 0) : null;
+                  const displayAmount = hasCalculations ? autoComputedAmount?.toLocaleString() : sub.amount;
+
+                  return (
+                  <div key={idx} className="flex flex-col gap-2 transition-all duration-200 bg-white p-2.5 rounded-lg border border-gray-200 shadow-sm relative mb-2">
+                    <div className="flex gap-2 items-center">
+                      <input type="text" value={sub.prefix} onChange={e => {
+                          const newSubs = [...catSubItems];
+                          newSubs[idx].prefix = e.target.value;
+                          setCatSubItems(newSubs);
+                      }} onBlur={e => {
+                          const val = e.target.value.trim();
+                          if (/^\d+$/.test(val)) {
+                              const newSubs = [...catSubItems];
+                              newSubs[idx].prefix = val + ')';
+                              setCatSubItems(newSubs);
+                          }
+                      }} className={`${inputClass} text-center font-bold text-[12px] px-1 shadow-inner`} style={{ flex: '0 0 45px' }} placeholder="1)" />
+                      
+                      <input type="text" value={sub.name} onChange={e => {
+                          const newSubs = [...catSubItems];
+                          newSubs[idx].name = e.target.value;
+                          setCatSubItems(newSubs);
+                      }} className={`${inputClass} text-[13px] font-bold outline-none ring-0 shadow-inner`} style={{ flex: 1 }} placeholder="항목 본명칭 (예: 어린이신체활동증진)" />
+                      
+                      {!hasCalculations && (
+                        <input type="text" value={sub.calculation || ''} onChange={e => {
+                            const newSubs = [...catSubItems];
+                            newSubs[idx].calculation = e.target.value;
+                            setCatSubItems(newSubs);
+                        }} onBlur={e => {
+                            const calcStr = e.target.value;
+                            if (!calcStr || !calcStr.includes('*')) return;
+                            const parts = calcStr.split('*');
+                            let total = 1; let valid = false;
+                            for (const p of parts) {
+                               const isPct = p.includes('%');
+                               const numStr = p.replace(/[^0-9.]/g, '');
+                               if (numStr) {
+                                  const num = parseFloat(numStr);
+                                  total *= isPct ? (num / 100) : num;
+                                  valid = true;
+                               }
+                            }
+                            if (valid) {
+                               const newSubs = [...catSubItems];
+                               newSubs[idx].amount = Math.round(total).toLocaleString();
+                               setCatSubItems(newSubs);
+                            }
+                        }} className={`${inputClass} text-[12px] font-mono shadow-inner`} style={{ flex: '0 0 160px' }} placeholder="단일 산출식 (선택)" />
+                      )}
+
+                      <div className="relative shrink-0" style={{ flex: '0 0 110px' }}>
+                        <input type="text" value={displayAmount || ''} onChange={e => {
+                          if (hasCalculations) return; // ReadOnly
+                          const val = e.target.value.replace(/[^0-9]/g, '');
+                          const newSubs = [...catSubItems];
+                          newSubs[idx].amount = val ? Number(val).toLocaleString() : '';
+                          setCatSubItems(newSubs);
+                        }} className={`${inputClass} pr-7 text-right font-bold transition-colors ${hasCalculations ? 'bg-indigo-50/50 text-indigo-700 pointer-events-none cursor-default shadow-none border-indigo-100' : 'text-gray-900 bg-white shadow-inner'}`} placeholder={hasCalculations ? "자동 합산" : "금액"} readOnly={hasCalculations || false} />
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-[11px] font-bold pointer-events-none">원</span>
+                      </div>
+
+                      <label className="flex items-center gap-1 cursor-pointer shrink-0 ml-1 bg-gray-50 px-2 py-1.5 rounded border border-gray-100 hover:bg-gray-100 transition-colors">
+                         <input type="checkbox" checked={sub.isCustomFunding || false} onChange={e => {
+                             const newSubs = [...catSubItems];
+                             newSubs[idx].isCustomFunding = e.target.checked;
+                             if (e.target.checked && (!newSubs[idx].fundingSplits || newSubs[idx].fundingSplits.length === 0)) {
+                               newSubs[idx].fundingSplits = [{source: '구비', amount: ''}];
+                             }
+                             setCatSubItems(newSubs);
+                         }} className="w-3.5 h-3.5 text-teal-600 rounded border-gray-300 focus:ring-teal-500 cursor-pointer" title="이 항목 전체를 개별재원으로 지정" />
+                         <span className={`text-[11px] font-extrabold tracking-tight ${sub.isCustomFunding ? 'text-teal-600' : 'text-gray-400'}`}>개별재원</span>
+                      </label>
+
+                      {catSubItems.length > 1 ? (
+                        <button type="button" onClick={() => {
+                          const newSubs = catSubItems.filter((_, i) => i !== idx);
+                          setCatSubItems(newSubs);
+                        }} className="p-1 px-1.5 text-red-400 hover:bg-red-50 hover:text-red-600 rounded transition-colors ml-1 border border-transparent hover:border-red-100" title="이 최상위 항목 완전 삭제"><X size={16}/></button>
+                      ) : (
+                        <div className="w-[30px] shrink-0 ml-1"></div>
+                      )}
+                    </div>
+
+                    {/* Sub-calculations Area */}
+                    <div className="ml-[53px] pl-2.5 border-l-[3px] border-indigo-100 py-1 flex flex-col gap-1.5 min-h-[30px]">
+                       {sub.calculations && sub.calculations.map((calc, cIdx) => (
+                         <div key={cIdx} className="flex flex-col gap-1 w-full border-b border-indigo-50 border-dashed pb-2 mb-1 last:border-0 last:pb-0 last:mb-0">
+                           <div className="flex gap-2 items-center group relative w-full">
+                             <span className="text-indigo-200 text-[11px] shrink-0 font-bold ml-1 select-none pr-1">↳</span>
+                             
+                             <input type="text" value={calc.name || ''} onChange={e => {
+                                const newSubs = [...catSubItems];
+                                newSubs[idx].calculations[cIdx].name = e.target.value;
+                                setCatSubItems(newSubs);
+                             }} className={`${inputClass} text-[12px] bg-white border-transparent focus:border-indigo-300 shadow-sm`} style={{ flex: '1 0 auto', maxWidth: '200px' }} placeholder="세부 산출명 (예: 식비)" />
+                             
+                             <input type="text" value={calc.calculation || ''} onChange={e => {
+                                const newSubs = [...catSubItems];
+                                newSubs[idx].calculations[cIdx].calculation = e.target.value;
+                                setCatSubItems(newSubs);
+                             }} onBlur={e => {
+                                const calcStr = e.target.value;
+                                if (!calcStr || !calcStr.includes('*')) return;
+                                const parts = calcStr.split('*');
+                                let total = 1; let valid = false;
+                                for (const p of parts) {
+                                   const isPct = p.includes('%');
+                                   const numStr = p.replace(/[^0-9.]/g, '');
+                                   if (numStr) {
+                                      const num = parseFloat(numStr);
+                                      total *= isPct ? (num / 100) : num;
+                                      valid = true;
+                                   }
+                                }
+                                if (valid) {
+                                   const newSubs = [...catSubItems];
+                                   newSubs[idx].calculations[cIdx].amount = Math.round(total).toLocaleString();
+                                   setCatSubItems(newSubs);
+                                }
+                             }} className={`${inputClass} text-[12px] font-mono bg-white border-transparent focus:border-indigo-300 shadow-sm`} style={{ flex: '1' }} placeholder="상세식 (예: 8,000*30)" />
+                             
+                             <div className="relative shrink-0" style={{ flex: '0 0 130px' }}>
+                               <input type="text" value={calc.amount || ''} onChange={e => {
+                                 const val = e.target.value.replace(/[^0-9]/g, '');
+                                 const newSubs = [...catSubItems];
+                                 newSubs[idx].calculations[cIdx].amount = val ? Number(val).toLocaleString() : '';
+                                 setCatSubItems(newSubs);
+                               }} className={`${inputClass} pr-7 text-[15px] text-right font-extrabold text-slate-700 bg-white border-transparent focus:border-indigo-300 shadow-sm tracking-tight`} placeholder="금액" />
+                               <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 text-[11px] font-bold pointer-events-none">원</span>
+                             </div>
+
+                             <label className="flex items-center gap-1 cursor-pointer shrink-0 ml-1 whitespace-nowrap">
+                                <input type="checkbox" checked={calc.isCustomFunding || false} onChange={e => {
+                                    const newSubs = [...catSubItems];
+                                    newSubs[idx].calculations[cIdx].isCustomFunding = e.target.checked;
+                                    if (e.target.checked && (!newSubs[idx].calculations[cIdx].fundingSplits || newSubs[idx].calculations[cIdx].fundingSplits.length === 0)) {
+                                      newSubs[idx].calculations[cIdx].fundingSplits = [{source: '구비', amount: ''}];
+                                    }
+                                    setCatSubItems(newSubs);
+                                }} className="w-3.5 h-3.5 text-teal-600 rounded border-gray-300 focus:ring-teal-500 cursor-pointer" title="이 세부 항목을 개별재원으로 지정" />
+                                <span className={`text-[11px] font-extrabold tracking-tight ${calc.isCustomFunding ? 'text-teal-600' : 'text-gray-400'}`}>재원구분</span>
+                             </label>
+                             
+                             <button type="button" onClick={() => {
+                                const newSubs = [...catSubItems];
+                                newSubs[idx].calculations = newSubs[idx].calculations.filter((_, i) => i !== cIdx);
+                                setCatSubItems(newSubs);
+                             }} className="p-1 text-slate-300 hover:bg-red-50 hover:text-red-500 rounded transition-colors ml-1" title="상세 산출내역 삭제"><X size={14}/></button>
+                           </div>
+
+                           {calc.isCustomFunding && (
+                             <div className="ml-[25px] flex flex-col gap-1.5 mt-0.5 pb-1">
+                               {calc.fundingSplits && calc.fundingSplits.map((split, fIdx) => (
+                                 <div key={fIdx} className="flex items-center gap-1.5 bg-teal-50/50 p-1.5 rounded-md border border-teal-100 w-max shrink-0">
+                                   <select value={split.source} onChange={e => {
+                                     const newSubs = [...catSubItems];
+                                     newSubs[idx].calculations[cIdx].fundingSplits![fIdx].source = e.target.value;
+                                     setCatSubItems(newSubs);
+                                   }} className="px-2 py-1 text-[12px] bg-white border border-teal-200 rounded font-medium text-teal-800 w-[80px] outline-none">
+                                     <option value="국비">국비</option>
+                                     <option value="기금">기금</option>
+                                     <option value="시비">시비</option>
+                                     <option value="구비">구비</option>
+                                     <option value="특교">특교</option>
+                                   </select>
+                                   <div className="relative w-[130px]">
+                                     <input type="text" value={split.amount} onChange={e => {
+                                       const val = e.target.value.replace(/[^0-9]/g, '');
+                                       const newSubs = [...catSubItems];
+                                       newSubs[idx].calculations[cIdx].fundingSplits![fIdx].amount = val ? Number(val).toLocaleString() : '';
+                                       setCatSubItems(newSubs);
+                                     }} className="w-full px-2 py-1.5 text-[12px] text-right bg-white border border-teal-200 rounded font-bold text-teal-900 pr-5 outline-none shadow-sm" placeholder="금액" />
+                                     <span className="absolute right-2 top-1/2 -translate-y-1/2 text-teal-500 text-[10px] pointer-events-none">원</span>
+                                   </div>
+                                   <span className="text-[11px] font-bold text-teal-600 ml-1 w-[40px] inline-block text-right pr-1">
+                                     {(() => {
+                                        const itemAmt = Number((String(calc.amount) || '0').replace(/,/g, ''));
+                                        const fAmt = Number((split.amount || '0').replace(/,/g, ''));
+                                        if (itemAmt === 0) return '0%';
+                                        return ((fAmt / itemAmt) * 100).toFixed(0) + '%';
+                                     })()}
+                                   </span>
+                                   {(calc.fundingSplits && calc.fundingSplits.length > 1) ? (
+                                     <button type="button" onClick={() => {
+                                       const newSubs = [...catSubItems];
+                                       newSubs[idx].calculations[cIdx].fundingSplits = newSubs[idx].calculations[cIdx].fundingSplits!.filter((_, i) => i !== fIdx);
+                                       setCatSubItems(newSubs);
+                                     }} className="text-red-400 hover:text-red-600 rounded transition-colors ml-1 p-0.5" title="재원 삭제"><X size={14}/></button>
+                                   ) : (
+                                     <div className="w-[18px] ml-1"></div>
+                                   )}
+                                 </div>
+                               ))}
+                               <div className="flex items-center w-full max-w-[215px] mt-0.5">
+                                 <button type="button" onClick={() => {
+                                    const newSubs = [...catSubItems];
+                                    if (!newSubs[idx].calculations[cIdx].fundingSplits) newSubs[idx].calculations[cIdx].fundingSplits = [];
+                                    newSubs[idx].calculations[cIdx].fundingSplits.push({source: '구비', amount: ''});
+                                    setCatSubItems(newSubs);
+                                 }} className="text-[10px] text-teal-600 font-bold hover:bg-teal-50 px-1.5 py-1 rounded transition-colors flex-shrink-0">+ 비율 추가</button>
+
+                                 <div className="ml-auto text-[10px] font-bold text-right pl-2">
+                                    {(() => {
+                                      const itemAmt = Number((String(calc.amount) || '0').replace(/,/g, ''));
+                                      const fTotal = (calc.fundingSplits || []).reduce((sum, f) => sum + Number((f.amount || '0').replace(/,/g, '')), 0);
+                                      if (itemAmt > 0 && fTotal === itemAmt) return <span className="text-teal-600">금액 일치 정상</span>;
+                                      return <span className="text-red-500">진행중 ({fTotal.toLocaleString()}원)</span>;
+                                    })()}
+                                 </div>
+                               </div>
+                             </div>
+                           )}
+                         </div>
+                       ))}
+                       <div className="flex">
+                         <button type="button" onClick={() => {
+                            const newSubs = [...catSubItems];
+                            if (!newSubs[idx].calculations) newSubs[idx].calculations = [];
+                            newSubs[idx].calculations.push({ name: '', calculation: '', amount: '' });
+                            setCatSubItems(newSubs);
+                         }} className="text-[11px] text-indigo-500 font-bold hover:bg-indigo-50 px-2 py-1 rounded transition-colors flex items-center gap-1">+ 종속 산출내역 한 줄 추가</button>
+                       </div>
+                    </div>
+
+                    {/* Custom Funding Block */}
+                    {sub.isCustomFunding && (
+                      <div className="mt-1 pt-2 border-t border-gray-100 flex flex-col pl-[53px]">
+                        <div className="text-[11px] text-teal-700 font-bold mb-1.5 flex items-center gap-1">
+                          ↳ 이 항목(총 {displayAmount || '0'}원)에 대한 개별 재원 매칭
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 items-center">
+                          {sub.fundingSplits && sub.fundingSplits.map((split, fIdx) => (
+                            <div key={fIdx} className="flex flex-col gap-0.5 relative group bg-teal-50/50 p-1 rounded border border-teal-100">
+                              <div className="flex items-center gap-1">
+                                <select value={split.source} onChange={e => {
+                                  const newSubs = [...catSubItems];
+                                  newSubs[idx].fundingSplits[fIdx].source = e.target.value;
+                                  setCatSubItems(newSubs);
+                                }} className="px-1.5 py-1 text-[11px] bg-white border border-teal-200 rounded font-medium text-teal-800 w-[70px] outline-none">
+                                  <option value="국비">국비</option>
+<option value="기금">기금</option>
+<option value="시비">시비</option>
+<option value="구비">구비</option>
+<option value="특교">특교</option>
+                                </select>
+                                <div className="relative w-[100px]">
+                                  <input type="text" value={split.amount} onChange={e => {
+                                    const val = e.target.value.replace(/[^0-9]/g, '');
+                                    const newSubs = [...catSubItems];
+                                    newSubs[idx].fundingSplits[fIdx].amount = val ? Number(val).toLocaleString() : '';
+                                    setCatSubItems(newSubs);
+                                  }} className="w-full px-2 py-1 text-[11px] text-right bg-white border border-teal-200 rounded font-bold text-teal-900 pr-5 outline-none shadow-sm" placeholder="분할 금액" />
+                                  <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-teal-500 text-[9px] pointer-events-none">원</span>
+                                </div>
+                                <span className="text-[10px] font-bold text-teal-600 ml-0.5 w-[30px] inline-block text-right pr-1">
+                                  {(() => {
+                                     const itemAmt = Number((String(displayAmount) || '0').replace(/,/g, ''));
+                                     const fAmt = Number((split.amount || '0').replace(/,/g, ''));
+                                     if (itemAmt === 0) return '0%';
+                                     return ((fAmt / itemAmt) * 100).toFixed(1) + '%';
+                                  })()}
+                                </span>
+                                {(sub.fundingSplits && sub.fundingSplits.length > 1) ? (
+                                  <button type="button" onClick={() => {
+                                    const newSubs = [...catSubItems];
+                                    newSubs[idx].fundingSplits = newSubs[idx].fundingSplits.filter((_, i) => i !== fIdx);
+                                    setCatSubItems(newSubs);
+                                  }} className="p-1 text-red-400 hover:bg-white rounded transition-colors" title="재원 삭제"><X size={12}/></button>
+                                ) : (
+                                  <div className="w-[20px]"></div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                          
+                          <button type="button" onClick={() => {
+                             const newSubs = [...catSubItems];
+                             if (!newSubs[idx].fundingSplits) newSubs[idx].fundingSplits = [];
+                             newSubs[idx].fundingSplits.push({source: '구비', amount: ''});
+                             setCatSubItems(newSubs);
+                          }} className="text-[10px] text-teal-600 font-bold hover:bg-teal-50 px-2 py-1.5 rounded transition-colors h-[28px]">+ 비율 추가</button>
+
+                          <div className="ml-auto text-[10px] font-bold">
+                             {(() => {
+                               const itemAmt = Number((String(displayAmount) || '0').replace(/,/g, ''));
+                               const fTotal = (sub.fundingSplits || []).reduce((sum, f) => sum + Number((f.amount || '0').replace(/,/g, '')), 0);
+                               if (itemAmt > 0 && fTotal === itemAmt) return <span className="text-teal-600 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-100">결과 정상 일치</span>;
+                               return <span className="text-red-500 bg-red-50 px-1.5 py-0.5 rounded border border-red-100">합산 진행중 ({fTotal.toLocaleString()}원)</span>;
+                             })()}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  );
+                })}
+                <button type="button" onClick={() => setCatSubItems([...catSubItems, {prefix: '', name: '', calculation: '', amount: '', isCustomFunding: false, fundingSplits: [{source: '구비', amount: ''}], calculations: []}])} className="text-[13px] text-indigo-600 font-bold hover:underline flex items-center gap-1 mt-1.5 px-1 py-1 rounded hover:bg-indigo-100 transition-colors">+ 산출내역 한 줄 추가</button>
               </div>
             </div>
           </div>
@@ -886,10 +1276,10 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
                     style={{ flex: 1 }}
                   >
                     <option value="">필요시 선택</option>
+                    <option value="국비">국비</option>
                     <option value="기금">기금</option>
                     <option value="시비">시비</option>
-                    <option value="구비(자체)">구비(자체)</option>
-                    <option value="국비">국비</option>
+                    <option value="구비">구비</option>
                     <option value="특교">특교</option>
                   </select>
                   <div className="relative" style={{ flex: 2 }}>

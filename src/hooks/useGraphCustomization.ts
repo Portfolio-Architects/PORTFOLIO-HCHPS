@@ -410,7 +410,7 @@ export function useGraphCustomization() {
       const res = await replaceAll('MAP_CUSTOMIZATION', [{ id: 'singleton', ...latestData }]);
       if (res && !silent) alert('☁️ 성공적으로 클라우드에 동기화되었습니다!');
       else if (!res && !silent) alert('저장에 실패했습니다.');
-    } catch (e) {
+    } catch (e: unknown) {
       console.error(e);
       if (!silent) alert('동기화 중 오류가 발생했습니다.');
     }
@@ -420,7 +420,7 @@ export function useGraphCustomization() {
     if (!silent && !confirm('클라우드에서 최신 데이터를 불러오시겠습니까? (현재 로컬의 캔버스 내용은 모두 덮어씌워집니다)')) return;
     try {
       const { readSheet } = await import('@/lib/sheets-api');
-      const rows = await readSheet<any>('MAP_CUSTOMIZATION');
+      const rows = await readSheet<MapCustomizationData & { id: string }>('MAP_CUSTOMIZATION');
       if (rows && rows.length > 0 && rows[0].id === 'singleton') {
         const cloudData = rows[0];
         ydoc.transact(() => {
@@ -430,15 +430,15 @@ export function useGraphCustomization() {
           });
           
           if (cloudData.overrides) Object.entries(cloudData.overrides).forEach(([k, v]) => ydoc.getMap('overrides').set(k, v));
-          if (cloudData.customNodes) cloudData.customNodes.forEach((n: any) => ydoc.getMap('customNodesMap').set(n.id, n));
-          if (cloudData.customEdges) cloudData.customEdges.forEach((e: any) => ydoc.getMap('customEdgesMap').set(`${e.source}|||${e.target}`, e));
-          if (cloudData.deletedEdges) cloudData.deletedEdges.forEach((e: any) => ydoc.getMap('deletedEdgesMap').set(e, true));
+          if (cloudData.customNodes) cloudData.customNodes.forEach((n: OntologyNode) => ydoc.getMap('customNodesMap').set(n.id, n));
+          if (cloudData.customEdges) cloudData.customEdges.forEach((e: OntologyEdge) => ydoc.getMap('customEdgesMap').set(`${e.source}|||${e.target}`, e));
+          if (cloudData.deletedEdges) cloudData.deletedEdges.forEach((e: string) => ydoc.getMap('deletedEdgesMap').set(e, true));
         });
         if (!silent) alert('☁️ 성공적으로 클라우드에서 데이터를 불러왔습니다!');
       } else {
         if (!silent) alert('클라우드에 저장된 백업 데이터가 없습니다.');
       }
-    } catch (e) {
+    } catch (e: unknown) {
       console.error(e);
       if (!silent) alert('불러오기 중 오류가 발생했습니다.');
     }

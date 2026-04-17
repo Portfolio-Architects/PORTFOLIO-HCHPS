@@ -49,7 +49,7 @@ export function WeeklyReportView({ addSignal }: WeeklyReportViewProps) {
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const textContent = await page.getTextContent();
-        const pageText = textContent.items.map((item: any) => item.str).join(' ');
+        const pageText = textContent.items.map((item) => (item as { str?: string }).str || '').join(' ');
         extractedText += pageText + '\n\n';
       }
 

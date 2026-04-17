@@ -187,9 +187,12 @@ export async function askLlama(
     }
     
     return fullContent;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('LLM Inference Error:', error);
-    throw error;
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error(String(error));
   }
 }
 

@@ -85,9 +85,9 @@ export function SearchResultModal({ isOpen, onClose, query, results: localResult
             vectorizeError = errData.error || `HTTP ${searchRes.status}`;
             console.warn(`Vectorize search failed: ${vectorizeError}`);
           }
-        } catch (e: any) {
+        } catch (e: unknown) {
           console.error("Vectorize search failed", e);
-          vectorizeError = e.message || 'Unknown network error';
+          vectorizeError = e instanceof Error ? e.message : 'Unknown network error';
         }
 
         if (!isMounted) return;

@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { useGraphCustomization } from '@/hooks/useGraphCustomization';
+import { useGraphCustomization, NodeOverride } from '@/hooks/useGraphCustomization';
 import { askLlama, ChatMessage } from '@/lib/llm-client';
+
+type PersonEntity = NodeOverride & { id: string; label: string; group: string; };
 import { Activity } from 'lucide-react';
 import { OntologyNode, CRM_ApprovalLog, GROUP_COLORS, OntologyGroup } from '@/lib/ontology.types';
 
@@ -38,11 +40,11 @@ export function CrmDashboardView() {
           label,
           group,
           ...config
-        } as any;
+        } as PersonEntity;
       });
   }, [overrides, customNodes]);
 
-  const handleRunAiPrediction = async (personId: string, personInfo: any) => {
+  const handleRunAiPrediction = async (personId: string, personInfo: PersonEntity) => {
     if (isGenerating[personId]) return;
 
     setIsGenerating(prev => ({ ...prev, [personId]: true }));
@@ -170,7 +172,7 @@ ${logsInfo}
                   <select 
                     className="flex-1 text-[11px] font-medium bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-slate-700 outline-none focus:border-slate-400 focus:bg-white transition-colors"
                     value={person.leadershipStyle || 'UNKNOWN'}
-                    onChange={(e) => setNodeOverride(person.id, { leadershipStyle: e.target.value as any })}
+                    onChange={(e) => setNodeOverride(person.id, { leadershipStyle: e.target.value as "MICROMANAGER" | "VISIONARY" | "UNKNOWN" | null })}
                   >
                     <option value="UNKNOWN">리더십 선택</option>
                     <option value="MICROMANAGER">마이크로매니저</option>
@@ -180,7 +182,7 @@ ${logsInfo}
                   <select 
                     className="flex-1 text-[11px] font-medium bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-slate-700 outline-none focus:border-slate-400 focus:bg-white transition-colors"
                     value={person.chronotype || 'UNKNOWN'}
-                    onChange={(e) => setNodeOverride(person.id, { chronotype: e.target.value as any })}
+                    onChange={(e) => setNodeOverride(person.id, { chronotype: e.target.value as "LARK" | "OWL" | "UNKNOWN" | null })}
                   >
                     <option value="UNKNOWN">생체리듬 선택</option>
                     <option value="LARK">아침형 (종달새)</option>

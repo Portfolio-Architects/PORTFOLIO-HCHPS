@@ -11,7 +11,7 @@ interface ScheduleAlertBannerProps {
   onRequestPermission?: () => Promise<NotificationPermission | string>;
   appEnabled?: boolean;
   onToggleAppEnabled?: () => void;
-  mergedEntries?: any[];
+  mergedEntries?: { id: string; text: string; [key: string]: unknown }[];
 }
 
 const URGENCY_STYLE: Record<string, { bg: string; text: string; badge: string; label: string }> = {

@@ -223,7 +223,7 @@ export function usePlanningGraph() {
       const latestData = store.getSnapshot();
       const res = await replaceAll('PLANNING_MAP_CUSTOMIZATION', [{ id: 'singleton', ...latestData }]);
       if (res && !silent) alert('☁️ 사업기획 캔버스가 클라우드에 저장되었습니다!');
-    } catch (e) {
+    } catch (e: unknown) {
       console.error(e);
       if (!silent) alert('동기화 중 오류가 발생했습니다.');
     }
@@ -233,7 +233,7 @@ export function usePlanningGraph() {
     if (!silent && !confirm('클라우드에서 사업기획 데이터를 불러오시겠습니까?')) return;
     try {
       const { readSheet } = await import('@/lib/sheets-api');
-      const rows = await readSheet<any>('PLANNING_MAP_CUSTOMIZATION');
+      const rows = await readSheet<MapCustomizationData & { id: string }>('PLANNING_MAP_CUSTOMIZATION');
       if (rows && rows.length > 0 && rows[0].id === 'singleton') {
         const cloudData = rows[0];
         ydoc.transact(() => {
@@ -242,15 +242,15 @@ export function usePlanningGraph() {
             Array.from(m.keys()).forEach(k => m.delete(k));
           });
           if (cloudData.overrides) Object.entries(cloudData.overrides).forEach(([k, v]) => ydoc.getMap(`${PREFIX}overrides`).set(k, v));
-          if (cloudData.customNodes) cloudData.customNodes.forEach((n: any) => ydoc.getMap(`${PREFIX}customNodesMap`).set(n.id, n));
-          if (cloudData.customEdges) cloudData.customEdges.forEach((e: any) => ydoc.getMap(`${PREFIX}customEdgesMap`).set(`${e.source}|||${e.target}`, e));
-          if (cloudData.deletedEdges) cloudData.deletedEdges.forEach((e: any) => ydoc.getMap(`${PREFIX}deletedEdgesMap`).set(e, true));
+          if (cloudData.customNodes) cloudData.customNodes.forEach((n) => { const node = n as OntologyNode; ydoc.getMap(`${PREFIX}customNodesMap`).set(node.id, node); });
+          if (cloudData.customEdges) cloudData.customEdges.forEach((e) => { const edge = e as OntologyEdge; ydoc.getMap(`${PREFIX}customEdgesMap`).set(`${edge.source}|||${edge.target}`, edge); });
+          if (cloudData.deletedEdges) cloudData.deletedEdges.forEach((e) => { const edgeId = e as string; ydoc.getMap(`${PREFIX}deletedEdgesMap`).set(edgeId, true); });
         });
         if (!silent) alert('☁️ 사업기획 데이터를 불러왔습니다!');
       } else {
         if (!silent) alert('클라우드에 저장된 사업기획 백업이 없습니다.');
       }
-    } catch (e) {
+    } catch (e: unknown) {
       console.error(e);
       if (!silent) alert('불러오기 중 오류가 발생했습니다.');
     }

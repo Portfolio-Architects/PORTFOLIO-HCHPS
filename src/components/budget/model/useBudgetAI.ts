@@ -54,29 +54,21 @@ ${categoryOptions}
       ]);
 
       let jsonStr = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
-      let result: any = null;
+      let parsedData: unknown = null;
 
       try {
-        result = JSON.parse(jsonStr);
-      } catch (e1) {
-        // 단일 객체 매칭 (첫번째 { } 블록)
-        const objMatch = jsonStr.match(/\{[\s\S]*?\}/);
-        // 배열 매칭 (첫번째 [ ] 블록)
-        const arrMatch = jsonStr.match(/\[[\s\S]*?\]/);
+        parsedData = JSON.parse(jsonStr);
+      } catch (e) {
+        console.warn('1차 파싱 실패. 복구 시도:', e);
         
         let parsed = false;
-        if (arrMatch) {
+        const arrayStart = jsonStr.indexOf('[');
+        const arrayEnd = jsonStr.lastIndexOf(']');
+        if (arrayStart !== -1 && arrayEnd !== -1) {
           try {
-            result = JSON.parse(arrMatch[0]);
+            parsedData = JSON.parse(jsonStr.substring(arrayStart, arrayEnd + 1));
             parsed = true;
-          } catch(e) {}
-        }
-        
-        if (!parsed && objMatch) {
-          try {
-            result = JSON.parse(objMatch[0]);
-            parsed = true;
-          } catch(e) {}
+          } catch (e2) {}
         }
         
         if (!parsed) {
@@ -84,21 +76,32 @@ ${categoryOptions}
           const startIdx = jsonStr.indexOf('{');
           const endIdx = jsonStr.lastIndexOf('}');
           if (startIdx !== -1 && endIdx !== -1) {
-            result = JSON.parse(jsonStr.substring(startIdx, endIdx + 1));
+            parsedData = JSON.parse(jsonStr.substring(startIdx, endIdx + 1));
           } else {
             throw new Error('유효한 JSON 묶음을 찾을 수 없습니다.');
           }
         }
       }
 
-      if (!Array.isArray(result)) {
-        result = [result]; // 강제 배열화
+      let result: Record<string, unknown>[] = [];
+      if (!Array.isArray(parsedData)) {
+        if (parsedData) result = [parsedData as Record<string, unknown>];
+      } else {
+        result = parsedData as Record<string, unknown>[];
       }
 
       const extractedArray: Parameters<typeof onSuccess>[0] = [];
 
-      for (let item of result) {
-        const extractedData: any = { isPlanned: true };
+      for (let rawItem of result) {
+        const item = rawItem as Record<string, string | undefined>;
+        const extractedData: {
+          categoryId?: string;
+          amount?: string;
+          purpose?: string;
+          docNum?: string;
+          date?: string;
+          isPlanned?: boolean;
+        } = { isPlanned: true };
 
         if (item.categoryId) {
           let matchedCat = categories.find(c => c.id === String(item.categoryId).trim());
@@ -180,9 +183,9 @@ ${categoryOptions}
 
       onSuccess(extractedArray);
       alert(`✅ AI가 지출 품의서를 성공적으로 분석하여 ${extractedArray.length}건의 예정 내역을 스캔했습니다.`);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('PDF 파싱 오류:', err);
-      alert('문서 분석에 실패했습니다. 형식 오류 또는 네트워크 문제일 수 있습니다.\n상세오류: ' + (err.message || '알 수 없는 오류'));
+      alert('문서 분석에 실패했습니다. 형식 오류 또는 네트워크 문제일 수 있습니다.\n상세오류: ' + (err instanceof Error ? err.message : '알 수 없는 오류'));
     } finally {
       setIsParsingPdf(false);
       e.target.value = '';

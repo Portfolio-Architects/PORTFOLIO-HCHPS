@@ -18,8 +18,11 @@ const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), {
   ),
 });
 
-const DynamicForceGraph = forwardRef((props: any, ref) => {
-  return <ForceGraph2D {...props} ref={ref} />;
+type ForceGraph2DType = typeof import('react-force-graph-2d').default;
+type DynamicForceGraphProps = React.ComponentProps<ForceGraph2DType>;
+
+const DynamicForceGraph = forwardRef<unknown, DynamicForceGraphProps>((props, ref) => {
+  return <ForceGraph2D {...props} ref={ref as any} />;
 });
 
 DynamicForceGraph.displayName = 'DynamicForceGraph';

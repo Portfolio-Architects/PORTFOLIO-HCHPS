@@ -69,7 +69,7 @@ export function TaskKnowledgeView(props: TaskKnowledgeViewProps) {
   // Master-Detail State
   const [activeFeedTab, setActiveFeedTab] = useState<'all' | 'memo' | 'pdf' | 'knowledge'>('all');
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
-  const [editingWikiNode, setEditingWikiNode] = useState<{id: string; title: string; initialBlocks?: any[]} | null>(null);
+  const [editingWikiNode, setEditingWikiNode] = useState<{id: string; title: string; initialBlocks?: Record<string, unknown>[]} | null>(null);
   const [extractingId, setExtractingId] = useState<string | null>(null);
 
   const [isEditing, setIsEditing] = useState(false);
@@ -172,12 +172,12 @@ ${rawContent}
   };
 
   const renderLeftFeedItem = (item: FeedItem) => {
-    const isSelected = selectedItemId === (item.data as any).id;
+    const isSelected = selectedItemId === (item.data as { id: string }).id;
     let titleStr = '';
     let previewStr = '';
     let categoryBadge = null;
     let timeStr = formatRelativeTime(item.data.createdAt);
-    const itemId = (item.data as any).id;
+    const itemId = (item.data as { id: string }).id;
 
     if (item.type === 'signal') {
       const sig = item.data as SignalEntry;
@@ -273,11 +273,11 @@ ${rawContent}
 
     // 3. Detail View Render
     let titleStr = '';
-    let categoryObj: { text: string; icon: any; color: string } | null = null;
+    let categoryObj: { text: string; icon: React.ElementType; color: string } | null = null;
     let contentStr = '';
     let extraMeta: React.ReactNode = null;
     
-    const itemId = (activeItem.data as any).id;
+    const itemId = (activeItem.data as { id: string }).id;
     const hasWiki = localStorage.getItem(`HCHPS-Wiki-${itemId}`);
 
     if (activeItem.type === 'signal') {

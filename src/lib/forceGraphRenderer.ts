@@ -1,3 +1,19 @@
+import { OntologyNode, OntologyEdge } from '@/lib/ontology.types';
+
+export type ForceGraphNode = OntologyNode & {
+  x: number;
+  y: number;
+  vx?: number;
+  vy?: number;
+  orbitIndex?: number;
+  calculatedColors?: string[];
+};
+
+export type ForceGraphLink = Omit<OntologyEdge, 'source' | 'target'> & {
+  source: ForceGraphNode;
+  target: ForceGraphNode;
+};
+
 export const GROUP_COLORS: Record<string, string> = {
   STRATEGIC_PLANNING: '#3B82F6',   // Blue-500
   PUBLIC_HEALTH: '#10B981',        // Emerald-500
@@ -39,7 +55,7 @@ function lightenColor(hex: string, percent: number): string {
     return `#${(0x1000000 + max(R) * 0x10000 + max(G) * 0x100 + max(B)).toString(16).slice(1)}`;
 }
 
-export function drawNode(node: any, ctx: CanvasRenderingContext2D, globalScale: number, activeTreeSet: Set<string>, activeNodeId: string | null, hoveredNodeId: string | null) {
+export function drawNode(node: ForceGraphNode, ctx: CanvasRenderingContext2D, globalScale: number, activeTreeSet: Set<string>, activeNodeId: string | null, hoveredNodeId: string | null) {
   const r = 16;
   const isCenter = node.orbitIndex === 0;
   const isActive = node.id === activeNodeId;
@@ -147,7 +163,7 @@ export function drawNode(node: any, ctx: CanvasRenderingContext2D, globalScale: 
   ctx.restore();
 }
 
-export function drawEdge(edge: any, ctx: CanvasRenderingContext2D, globalScale: number, activeTreeSet: Set<string>, activeNodeId: string | null) {
+export function drawEdge(edge: ForceGraphLink, ctx: CanvasRenderingContext2D, globalScale: number, activeTreeSet: Set<string>, activeNodeId: string | null) {
   const src = edge.source;
   const tgt = edge.target;
   const isConnected = activeNodeId && activeTreeSet.has(src.id) && activeTreeSet.has(tgt.id);

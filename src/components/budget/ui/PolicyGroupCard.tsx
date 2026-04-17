@@ -4,7 +4,7 @@ import { ChevronDown, ChevronUp, Pencil, Trash2, FileCheck, FilePlus2, ArrowUp, 
 
 function formatN(n: number) { return n.toLocaleString('ko-KR'); }
 
-export const ACTION_TYPE_CONFIG: Record<BudgetActionType, { label: string; badge: string; badgeBg: string; icon: any }> = {
+export const ACTION_TYPE_CONFIG: Record<BudgetActionType, { label: string; badge: string; badgeBg: string; icon: React.ElementType }> = {
   general: { label: '일반 지출', badge: '일반', badgeBg: 'bg-blue-100 text-blue-700', icon: FileCheck },
   issuance: { label: '일상경비 교부', badge: '교부', badgeBg: 'bg-amber-100 text-amber-700', icon: FilePlus2 },
   daily_expense: { label: '일상경비 지출', badge: '경비지출', badgeBg: 'bg-teal-100 text-teal-700', icon: FileCheck },
@@ -37,6 +37,7 @@ export const PolicyGroupCard = React.memo(({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [showAllEntries, setShowAllEntries] = useState(false);
+  const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({});
   const { policyName, cats } = group;
 
   // 편성목 순서 교환 (↑↓)
@@ -91,7 +92,7 @@ export const PolicyGroupCard = React.memo(({
           const clean = c.fundingSource.replace(/\([^)]+\)/g, '');
           clean.split(',').forEach(p => {
              const t = p.trim();
-             if (t && t !== '구비(자체)' && t !== '구비') groupFundingSet.add(t);
+             if (t && t !== '구비' && t !== '구비') groupFundingSet.add(t);
           });
        }
     });
@@ -159,10 +160,10 @@ export const PolicyGroupCard = React.memo(({
             const detailFundingSet = new Set<string>();
             detailGroup.cats.forEach(c => {
                if (c.fundingSource) {
-                  const clean = c.fundingSource.replace(/\([^)]+\)/g, '');
+                  const clean = c.fundingSource.replace(/구비\(자체\)/g, '구비').replace(/\([^)]+\)/g, '');
                   clean.split(',').forEach(p => {
                      const t = p.trim();
-                     if (t && t !== '구비(자체)' && t !== '구비') detailFundingSet.add(t);
+                     if (t && t !== '구비' && t !== '구비') detailFundingSet.add(t);
                   });
                }
             });
@@ -191,8 +192,8 @@ export const PolicyGroupCard = React.memo(({
                           policyProject: policyName, 
                           unitProject: detailGroup.cats[0]?.unitProject, 
                           detailedProject: detailGroup.detailName,
-                          budgetType: detailTypes[0] as any || '본예산',
-                          fundingSource: detailFunding[0] || '구비(자체)'
+                          budgetType: (detailTypes[0] as '본예산' | '추경') || '본예산',
+                          fundingSource: detailFunding[0] || '구비'
                         }); 
                       }} 
                       className="p-1 rounded cursor-pointer hover:bg-slate-200 text-gray-500 hover:text-blue-600 transition-colors"
@@ -224,20 +225,24 @@ export const PolicyGroupCard = React.memo(({
                   return (
                     <div key={cat.id} className="group/item relative bg-white border border-slate-200 rounded-lg p-3 hover:bg-slate-50 transition-colors duration-150">
                       <div className="flex items-center justify-between mb-3">
-                        <div className="text-[14px] font-bold flex items-center gap-2.5 text-gray-800">
+                        <div className="text-[14px] font-bold flex items-center gap-2.5 text-gray-800 cursor-pointer hover:text-[var(--color-primary)] transition-colors select-none" onClick={() => { setExpandedCats(prev => ({ ...prev, [cat.id]: !prev[cat.id] })) }}>
                           <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color || '#4A6CF7' }}/>
-                          <div className="line-clamp-1">
-                            {cat.formationItem && <span className="text-gray-500 font-medium mr-1.5 opacity-90">[{cat.formationItem}]</span>}
-                            {cat.statItem || cat.name}
+                          <div className="line-clamp-1 flex items-center gap-1.5">
+                            {cat.formationItem && <span className="text-gray-500 font-medium opacity-90">[{cat.formationItem}]</span>}
+                            <span>{cat.statItem || cat.name}</span>
+                            {cat.managementProject && <span className="text-gray-600 font-bold">({cat.managementProject})</span>}
+                            <div className={`text-gray-400 transition-transform ${expandedCats[cat.id] ? 'rotate-180' : ''}`}>
+                               <ChevronDown size={14} />
+                            </div>
                           </div>
                           {cat.budgetType && cat.budgetType !== '본예산' && (
                             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ml-1 flex-shrink-0 border ${cat.budgetType === '간주예산' ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
                               {cat.budgetType}
                             </span>
                           )}
-                          {cat.fundingSource && cat.fundingSource !== '구비(자체)' && (
+                          {cat.fundingSource && cat.fundingSource.replace(/구비\(자체\)/g, '구비') !== '구비' && (
                             <span className="text-[10px] font-bold px-1.5 py-0.5 rounded ml-0.5 flex-shrink-0 border bg-teal-50 text-teal-700 border-teal-200">
-                              {cat.fundingSource}
+                              {cat.fundingSource.replace(/구비\(자체\)/g, '구비')}
                             </span>
                           )}
                         </div>
@@ -268,6 +273,95 @@ export const PolicyGroupCard = React.memo(({
                          </div>
                          <span className="text-[13px] font-extrabold text-gray-600 w-12 text-right tracking-tight">{(stats.usageRate || 0).toFixed(2)}%</span>
                       </div>
+
+                      {expandedCats[cat.id] && (
+                        <div className="mt-3 space-y-2">
+                           {cat.subItems && cat.subItems.length > 0 && (
+                             <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm">
+                               <div className="text-[12px] font-bold text-gray-800 mb-2.5 flex items-center gap-1.5"><div className="w-1.5 h-1.5 bg-gray-400 rounded-full"/> 산출 기초 (세부 항목)</div>
+                               <div className="space-y-2 pl-2">
+                                 {cat.subItems.map((sub, subIdx) => (
+                                    <div key={subIdx} className="flex flex-col gap-1.5 border-b border-gray-100 border-dashed pb-3 last:border-0 last:pb-0 transition-all">
+                                      <div className="flex flex-col">
+                                        <div className="flex justify-between items-start">
+                                          <div className="flex items-center gap-1.5">
+                                             {sub.prefix && <span className="text-[11px] bg-gray-100 border border-gray-200 text-gray-500 font-bold px-1 rounded">{sub.prefix}</span>}
+                                             <span className="text-[13px] text-gray-800 font-extrabold tracking-tight">{sub.name}</span>
+                                          </div>
+                                          {sub.amount > 0 && <span className="font-extrabold text-blue-700 tracking-tight">{formatN(sub.amount)}원</span>}
+                                        </div>
+                                        
+                                        {!sub.calculations || sub.calculations.length === 0 ? (
+                                          sub.calculation && <div className="text-[11px] text-gray-500 font-mono tracking-tight mt-0.5 ml-1">{sub.calculation}</div>
+                                        ) : (
+                                          <div className="mt-1.5 mb-0.5 bg-slate-50 border-l-[2px] border-slate-200 py-1 flex flex-col gap-1 ml-[5px]">
+                                            {sub.calculations.map((calc, cIdx) => (
+                                              <div key={cIdx} className="flex flex-col pl-2 pr-1 pb-1 border-b border-slate-100 border-dashed last:border-0 last:pb-0">
+                                                <div className="flex justify-between items-center pt-0.5">
+                                                  <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                                                    <div className="flex gap-1.5 items-center flex-1 min-w-0">
+                                                      {calc.name && <span className="text-[11.5px] text-slate-700 font-bold shrink-0">{calc.name}</span>}
+                                                      {calc.calculation && <span className="text-[11px] text-slate-500 font-mono truncate">{calc.calculation}</span>}
+                                                    </div>
+                                                  </div>
+                                                  <span className="text-[11.5px] font-bold text-slate-700 shrink-0 tracking-tight ml-2">{formatN(calc.amount)}원</span>
+                                                </div>
+                                                {calc.isCustomFunding && calc.fundingSplits && calc.fundingSplits.length > 0 && (
+                                                  <div className="flex flex-wrap gap-1 mt-1 bg-teal-50/50 p-1 rounded-sm border border-teal-100/50 mr-1 max-w-[250px]">
+                                                    <span className="text-[9px] text-teal-600 font-extrabold bg-white px-1 py-0.5 rounded shadow-sm mr-0.5 border border-teal-100">개별재원</span>
+                                                    {calc.fundingSplits.map((fs, fsIdx) => (
+                                                      <span key={fsIdx} className="text-[10px] text-teal-700 flex items-center gap-1 border-r border-teal-200/60 last:border-0 pr-1.5 last:pr-0">
+                                                        <span className="opacity-80 font-medium">{fs.source.replace('구비(자체)', '구비')}</span>
+                                                        <span className="font-extrabold">{formatN(fs.amount)}</span>
+                                                      </span>
+                                                    ))}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      {sub.isCustomFunding && sub.fundingSplits && sub.fundingSplits.length > 0 && (
+                                        <div className="flex flex-wrap gap-1 mt-0.5 bg-teal-50/50 p-1.5 rounded-sm border border-teal-100/50">
+                                          <span className="text-[10px] text-teal-600 font-extrabold bg-white px-1.5 py-0.5 rounded shadow-sm mr-1 border border-teal-100">개별재원</span>
+                                          {sub.fundingSplits.map((fs, fsIdx) => (
+                                            <span key={fsIdx} className="text-[10.5px] text-teal-700 flex items-center gap-1 border-r border-teal-200/60 last:border-0 pr-1.5 last:pr-0">
+                                              <span className="opacity-80 font-medium">{fs.source.replace('구비(자체)', '구비')}</span>
+                                              <span className="font-extrabold">{formatN(fs.amount)}</span>
+                                            </span>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                 ))}
+                               </div>
+                             </div>
+                           )}
+
+                           {cat.fundingSplits && cat.fundingSplits.length > 0 && (
+                             <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 shadow-inner">
+                               <div className="text-[11px] font-bold text-slate-600 mb-2.5 flex items-center gap-1"><FileCheck size={12}/> 재원 분할 내역</div>
+                               <div className="space-y-1.5 pl-1">
+                                 {cat.fundingSplits.map((split, splitIdx) => {
+                                    const splitRatio = cat.totalBudget > 0 ? (split.amount / cat.totalBudget) * 100 : 0;
+                                    return (
+                                     <div key={splitIdx} className="flex justify-between items-center text-[12px] border-b border-slate-200 border-dashed pb-1.5 last:border-0 last:pb-0">
+                                       <div className="flex items-center gap-2">
+                                          <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                                          <span className="font-bold text-gray-700">{split.source.replace('구비(자체)', '구비')}</span>
+                                          <span className="text-[10px] bg-white border border-slate-200 text-slate-500 px-1.5 py-0.5 rounded font-mono">{splitRatio.toFixed(1)}%</span>
+                                       </div>
+                                       <span className="font-extrabold text-gray-900 tracking-tight">{formatN(split.amount)}원</span>
+                                     </div>
+                                    );
+                                 })}
+                               </div>
+                             </div>
+                           )}
+                        </div>
+                      )}
                     </div>
                   )
                 })}
