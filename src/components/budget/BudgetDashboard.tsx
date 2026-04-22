@@ -104,6 +104,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
     });
     if (migrated) console.info('[Migration] Legacy category nomenclature updated.');
   }, [categories, updateCategory]);
+
   useEffect(() => {
     try {
       const saved = localStorage.getItem('hchps-budget-filters-v2');
@@ -116,7 +117,30 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
       }
     } catch (e) {}
     setIsLoaded(true);
-  }, []);
+    
+    // [Migration] 자동 정산 전 누락된 가지출 건 복구 스크립트
+    if (entries.length > 0 && categories.length > 0) {
+      let needsMigration = false;
+      entries.forEach(plan => {
+        if (plan.isPlanned && !plan.isSettled) {
+          // 같은 과목 & 같은 금액의 실지출 건이 있는지 탐색
+          const matchedActual = entries.find(actual => 
+            !actual.isPlanned && 
+            actual.amount === plan.amount && 
+            actual.categoryId === plan.categoryId &&
+            actual.actionType !== 'issuance'
+          );
+          if (matchedActual) {
+            updateEntry(plan.id, { isSettled: true });
+            needsMigration = true;
+          }
+        }
+      });
+      if (needsMigration) {
+        console.info('[Migration] 누락된 과거 가지출(품의) 건이 자동 정산 백그라운드 처리되었습니다.');
+      }
+    }
+  }, [entries, categories, updateEntry]);
 
   const handleSaveFilters = () => {
     localStorage.setItem('hchps-budget-filters-v2', JSON.stringify({
@@ -305,6 +329,23 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
         docRegNum: entryDocNum,
       });
     } else {
+      let linkedPlanId = undefined;
+      
+      // 자동 정산(Auto-settle) 로직: 동일 과목, 동일 금액의 미정산 원인행위(품의)가 있다면 자동으로 연결하고 정산 완료 처리
+      const matchingPlan = entries.find(e => 
+        e.categoryId === selectedCatId && 
+        e.isPlanned && 
+        !e.isSettled && 
+        e.amount === reqAmount
+      );
+      
+      if (matchingPlan) {
+        updateEntry(matchingPlan.id, { isSettled: true });
+        linkedPlanId = matchingPlan.id;
+        // 사용자에게 자동 정산되었음을 작게 알림
+        console.log(`[Auto-Settle] 원인행위(${matchingPlan.purpose})가 자동 정산 및 연결되었습니다.`);
+      }
+
       addEntry({
         categoryId: selectedCatId,
         amount: reqAmount,
@@ -313,6 +354,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
         memo: entryMemo,
         actionType,
         docRegNum: entryDocNum,
+        relatedPlanId: linkedPlanId,
       });
     }
     closeEntryModal();
