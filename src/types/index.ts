@@ -38,7 +38,7 @@ export interface BudgetCategory {
   budgetType?: '본예산' | '간주예산' | '추경'; // 예산 구분
   fundingSource?: string; // 재원 구분 (구비, 국비, 시비 등)
   fundingSplits?: { source: string; amount: number }[]; // 정확한 분할 금액을 저장하기 위한 원본 데이터 보존용
-  subItems?: { prefix?: string; name: string; calculation?: string; amount: number; isCustomFunding?: boolean; fundingSplits?: { source: string; amount: number }[]; isLocked?: boolean; calculations?: { name?: string; calculation: string; amount: number; isCustomFunding?: boolean; fundingSplits?: { source: string; amount: number }[]; isLocked?: boolean; }[] }[]; // 세부 산출내역 (산출근거)
+  subItems?: { id?: string; prefix?: string; name: string; calculation?: string; amount: number; isCustomFunding?: boolean; fundingSplits?: { source: string; amount: number }[]; isLocked?: boolean; calculations?: { id?: string; name?: string; calculation: string; amount: number; isCustomFunding?: boolean; fundingSplits?: { source: string; amount: number }[]; isLocked?: boolean; }[] }[]; // 세부 산출내역 (산출근거)
   sortOrder?: number; // 편성목 표시 순서 (낮을수록 위)
 }
 
@@ -59,6 +59,7 @@ export interface BudgetEntry {
   actionType?: BudgetActionType; // 일반품의, 일상경비 교부, 일상경비 지출
   inventoryItemId?: string;
   docRegNum?: string; // 시행 문서 번호 (보건행정과-00000)
+  linkedSubItemId?: string; // 세부 산출내역(통제 항목) 연결 ID
 }
 
 // ============ Inventory Module ============

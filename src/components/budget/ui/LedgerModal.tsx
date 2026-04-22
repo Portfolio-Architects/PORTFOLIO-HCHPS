@@ -31,6 +31,19 @@ export function LedgerModal({ isOpen, onClose, categories, entries, getCategoryS
     }
   };
 
+  const getSubItemName = (cat: BudgetCategory, subItemId?: string) => {
+    if (!subItemId || !cat.subItems) return null;
+    for (const s of cat.subItems) {
+      if (s.id === subItemId) return s.name;
+      if (s.calculations) {
+        for (const c of s.calculations) {
+          if (c.id === subItemId) return c.name || s.name;
+        }
+      }
+    }
+    return null;
+  };
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="원장 교차 검증 (가지출/실지출 대조)" size="4xl">
       <div className="space-y-4">
@@ -103,7 +116,10 @@ export function LedgerModal({ isOpen, onClose, categories, entries, getCategoryS
                                 </span>
                                 <span className="text-gray-500 font-semibold">{e.date.replace(/-/g, '.')}</span>
                               </div>
-                              <span className="font-bold text-gray-800 truncate" title={e.purpose}>{e.purpose}</span>
+                              <div className="flex items-center mt-1">
+                                {getSubItemName(data.cat, e.linkedSubItemId) && <span className="text-[11px] px-1.5 py-0.5 rounded font-bold bg-teal-100 text-teal-800 border border-teal-200 mr-1.5 shrink-0 flex items-center gap-0.5">↳ {getSubItemName(data.cat, e.linkedSubItemId)}</span>}
+                                <span className="font-bold text-gray-800 truncate" title={e.purpose}>{e.purpose}</span>
+                              </div>
                             </div>
                             
                             <div className="flex flex-col items-end gap-2 shrink-0">
@@ -157,7 +173,10 @@ export function LedgerModal({ isOpen, onClose, categories, entries, getCategoryS
                                   {e.actionType === 'daily_expense' && <span className="text-[10px] px-1.5 py-0.5 rounded font-bold bg-teal-100 text-teal-700 border border-teal-200">일상경비 지출</span>}
                                   <span className="text-gray-500 font-semibold">{e.date.replace(/-/g, '.')}</span>
                                 </div>
-                                <span className="font-bold text-gray-800 truncate" title={e.purpose}>{e.purpose}</span>
+                                <div className="flex items-center mt-1">
+                                  {getSubItemName(data.cat, e.linkedSubItemId) && <span className="text-[11px] px-1.5 py-0.5 rounded font-bold bg-teal-100 text-teal-800 border border-teal-200 mr-1.5 shrink-0 flex items-center gap-0.5">↳ {getSubItemName(data.cat, e.linkedSubItemId)}</span>}
+                                  <span className="font-bold text-gray-800 truncate" title={e.purpose}>{e.purpose}</span>
+                                </div>
                               </div>
                               <span className="font-bold text-teal-700 shrink-0 text-[14px]">{formatN(e.amount)}</span>
                             </li>

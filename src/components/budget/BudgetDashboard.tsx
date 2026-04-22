@@ -58,7 +58,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
   const [catStatName, setCatStatName] = useState('');
   const [catBudgetType, setCatBudgetType] = useState<'본예산' | '간주예산' | '추경'>('본예산');
   const [catFundingSplits, setCatFundingSplits] = useState<{source: string, amount: string}[]>([{source: '구비', amount: ''}]);
-  const [catSubItems, setCatSubItems] = useState<{prefix: string, name: string, calculation: string, amount: string, isCustomFunding: boolean, fundingSplits: {source: string, amount: string}[], calculations: {name?: string, calculation: string, amount: string, isCustomFunding?: boolean, fundingSplits?: {source: string, amount: string}[]}[]}[]>([{prefix: '', name: '', calculation: '', amount: '', isCustomFunding: false, fundingSplits: [{source: '구비', amount: ''}], calculations: []}]);
+  const [catSubItems, setCatSubItems] = useState<{id?: string, prefix: string, name: string, calculation: string, amount: string, isCustomFunding: boolean, isLocked?: boolean, fundingSplits: {source: string, amount: string}[], calculations: {id?: string, name?: string, calculation: string, amount: string, isCustomFunding?: boolean, isLocked?: boolean, fundingSplits?: {source: string, amount: string}[]}[]}[]>([{prefix: '', name: '', calculation: '', amount: '', isCustomFunding: false, fundingSplits: [{source: '구비', amount: ''}], calculations: []}]);
 
   const [showBatchModal, setShowBatchModal] = useState(false);
   const [batchCats, setBatchCats] = useState<BudgetCategory[]>([]);
@@ -82,6 +82,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
   const [returnToEntryModal, setReturnToEntryModal] = useState(false);
   const [showLedgerModal, setShowLedgerModal] = useState(false);
   const [actionType, setActionType] = useState<BudgetActionType>('general');
+  const [entryLinkedSubItemId, setEntryLinkedSubItemId] = useState('');
 
   const [isLoaded, setIsLoaded] = useState(false);
   const migrationRan = React.useRef({ legacy: false, settle: false });
@@ -225,11 +226,13 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
 
     const finalSubItemsArray = catSubItems.map(s => {
       const calcArray = (s.calculations || []).map(calc => {
-        const res: {name?: string, calculation: string, amount: number, isCustomFunding?: boolean, fundingSplits?: {source: string, amount: number}[]} = {
+        const res: {id: string, name?: string, calculation: string, amount: number, isCustomFunding?: boolean, fundingSplits?: {source: string, amount: number}[], isLocked?: boolean} = {
+          id: (calc as any).id || crypto.randomUUID(),
           calculation: calc.calculation,
           amount: Number((calc.amount || '0').replace(/,/g, ''))
         };
         if (calc.name) res.name = calc.name;
+        if (calc.isLocked !== undefined) res.isLocked = calc.isLocked;
         if (calc.isCustomFunding) {
           res.isCustomFunding = true;
           res.fundingSplits = calc.fundingSplits && calc.fundingSplits.length > 0 ? calc.fundingSplits.map(fs => ({source: fs.source, amount: Number((fs.amount || '0').replace(/,/g, ''))})).filter(fs => fs.amount > 0) : undefined;
@@ -241,11 +244,13 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
       const computedAmount = isParent ? calcArray.reduce((sum, c) => sum + c.amount, 0) : Number((s.amount || '0').replace(/,/g, ''));
 
       return {
+        id: (s as any).id || crypto.randomUUID(),
         prefix: s.prefix || undefined,
         name: s.name,
         calculation: isParent ? undefined : s.calculation,
         amount: computedAmount,
         isCustomFunding: s.isCustomFunding,
+        isLocked: s.isLocked,
         calculations: isParent ? calcArray : undefined,
         fundingSplits: s.isCustomFunding && s.fundingSplits && s.fundingSplits.length > 0 ? s.fundingSplits.map(fs => ({
           source: fs.source,
@@ -261,7 +266,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
     }
     setCatBudget('');
 
-    setCatPolicy(''); setCatUnit(''); setCatDetail(''); setCatManagement(''); setCatFormationCode(''); setCatFormationName(''); setCatStatCode(''); setCatStatName(''); setCatBudgetType('본예산'); setCatFundingSplits([{source: '구비', amount: ''}]); setCatSubItems([{prefix: '', name: '', calculation: '', amount: '', isCustomFunding: false, fundingSplits: [{source: '구비', amount: ''}], calculations: []}]);
+    setCatPolicy(''); setCatUnit(''); setCatDetail(''); setCatManagement(''); setCatFormationCode(''); setCatFormationName(''); setCatStatCode(''); setCatStatName(''); setCatBudgetType('본예산'); setCatFundingSplits([{source: '구비', amount: ''}]); setCatSubItems([{prefix: '', name: '', calculation: '', amount: '', isCustomFunding: false, isLocked: false, fundingSplits: [{source: '구비', amount: ''}], calculations: []}]);
     setEditCatId(null); setShowCatModal(false);
   };
 
@@ -317,6 +322,46 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
           return;
         }
       }
+
+      // 2. 세부 항목 1:1 잔액 통제 검증 (Sub-Item Strict Tracking)
+      if (entryLinkedSubItemId && targetCat?.subItems) {
+        let subItemName = '';
+        let targetAmount = 0;
+        let isLocked = false;
+        
+        for (const sub of targetCat.subItems) {
+          if (sub.id === entryLinkedSubItemId) {
+            subItemName = sub.name; targetAmount = sub.amount; isLocked = sub.isLocked || false;
+            break;
+          }
+          if (sub.calculations) {
+            for (const calc of sub.calculations) {
+              if (calc.id === entryLinkedSubItemId) {
+                subItemName = calc.name || sub.name; targetAmount = calc.amount; isLocked = calc.isLocked || sub.isLocked || false;
+                break;
+              }
+            }
+          }
+          if (subItemName) break;
+        }
+
+        if (subItemName) {
+           if (isLocked) {
+             alert(`Error: [${subItemName}] 항목은 예산 잠금(사용 불가) 상태이므로 지출할 수 없습니다.`);
+             return;
+           }
+
+           const spentOnSubItem = entries.filter(e => e.categoryId === selectedCatId && e.linkedSubItemId === entryLinkedSubItemId && !e.isPlanned && e.id !== editEntryId).reduce((sum, e) => sum + e.amount, 0);
+           const plannedOnSubItem = entries.filter(e => e.categoryId === selectedCatId && e.linkedSubItemId === entryLinkedSubItemId && e.isPlanned && !e.isSettled && e.id !== editEntryId).reduce((sum, e) => sum + e.amount, 0);
+           
+           const subItemRemaining = targetAmount - spentOnSubItem - plannedOnSubItem;
+           
+           if (reqAmount > subItemRemaining) {
+             alert(`Error: [${subItemName}] 항목의 예산 한도가 부족합니다.\n\n해당 세부 항목 배정액: ${formatN(targetAmount)}원\n세부 항목 가용 잔액: ${formatN(subItemRemaining)}원\n\n(참고: 통계목 전체 잔액이 남아있더라도 세부 항목 예산을 섞어 쓸 수 없습니다)`);
+             return;
+           }
+        }
+      }
     }
 
     // 예산 지침 컴플라이언스 룰 검증
@@ -338,6 +383,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
         memo: entryMemo,
         actionType,
         docRegNum: entryDocNum,
+        linkedSubItemId: entryLinkedSubItemId || undefined,
       });
     } else {
       let linkedPlanId = undefined;
@@ -347,7 +393,8 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
         e.categoryId === selectedCatId && 
         e.isPlanned && 
         !e.isSettled && 
-        e.amount === reqAmount
+        e.amount === reqAmount &&
+        (!entryLinkedSubItemId || e.linkedSubItemId === entryLinkedSubItemId)
       );
       
       if (matchingPlan) {
@@ -366,13 +413,14 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
         actionType,
         docRegNum: entryDocNum,
         relatedPlanId: linkedPlanId,
+        linkedSubItemId: entryLinkedSubItemId || undefined,
       });
     }
     closeEntryModal();
   };
 
   const closeEntryModal = () => {
-    setEntryAmount(''); setEntryPurpose(''); setEntryMemo(''); setEntryDocNum(''); setEditEntryId(null); setShowEntryModal(false);
+    setEntryAmount(''); setEntryPurpose(''); setEntryMemo(''); setEntryDocNum(''); setEntryLinkedSubItemId(''); setEditEntryId(null); setShowEntryModal(false);
   };
 
   const openEditCat = useCallback((cat: BudgetCategory) => {
@@ -422,13 +470,15 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
     
     if (cat.subItems && cat.subItems.length > 0) {
       setCatSubItems(cat.subItems.map(s => ({ 
+        id: s.id,
         prefix: s.prefix || '', 
         name: s.name, 
         calculation: s.calculation || '', 
         amount: s.amount ? s.amount.toLocaleString() : '', 
         isCustomFunding: s.isCustomFunding || false,
+        isLocked: s.isLocked || false,
         fundingSplits: s.fundingSplits && s.fundingSplits.length > 0 ? s.fundingSplits.map(fs => ({ source: fs.source, amount: fs.amount ? fs.amount.toLocaleString() : '' })) : [{source: '구비', amount: ''}],
-        calculations: s.calculations ? s.calculations.map(c => ({ name: c.name || undefined, calculation: c.calculation || "", amount: c.amount ? c.amount.toLocaleString() : "", isCustomFunding: c.isCustomFunding || false, fundingSplits: c.fundingSplits && c.fundingSplits.length > 0 ? c.fundingSplits.map(fs => ({source: fs.source, amount: fs.amount ? fs.amount.toLocaleString() : ""})) : [{source: "구비", amount: ""}] })) : []
+        calculations: s.calculations ? s.calculations.map(c => ({ id: c.id, name: c.name || undefined, calculation: c.calculation || "", amount: c.amount ? c.amount.toLocaleString() : "", isCustomFunding: c.isCustomFunding || false, isLocked: c.isLocked || false, fundingSplits: c.fundingSplits && c.fundingSplits.length > 0 ? c.fundingSplits.map(fs => ({source: fs.source, amount: fs.amount ? fs.amount.toLocaleString() : ""})) : [{source: "구비", amount: ""}] })) : []
       })));
     } else {
       setCatSubItems([{prefix: '', name: '', calculation: '', amount: '', isCustomFunding: false, fundingSplits: [{source: '구비', amount: ''}], calculations: []}]);
@@ -556,7 +606,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
     setShowEntryModal(false);
     setReturnToEntryModal(true);
     setEditCatId(null);
-    setCatPolicy(''); setCatUnit(''); setCatDetail(''); setCatManagement(''); setCatFormationCode(''); setCatFormationName(''); setCatStatCode(''); setCatStatName(''); setCatBudget(''); setCatFundingSplits([{source: '구비', amount: ''}]); setCatSubItems([{prefix: '', name: '', calculation: '', amount: '', isCustomFunding: false, fundingSplits: [{source: '구비', amount: ''}], calculations: []}]);
+    setCatPolicy(''); setCatUnit(''); setCatDetail(''); setCatManagement(''); setCatFormationCode(''); setCatFormationName(''); setCatStatCode(''); setCatStatName(''); setCatBudget(''); setCatFundingSplits([{source: '구비', amount: ''}]); setCatSubItems([{prefix: '', name: '', calculation: '', amount: '', isCustomFunding: false, isLocked: false, fundingSplits: [{source: '구비', amount: ''}], calculations: []}]);
     setShowCatModal(true);
   };
 
@@ -584,6 +634,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
     setEntryPurpose(entry.purpose);
     setEntryMemo(entry.memo || '');
     setEntryDocNum(entry.docRegNum || '');
+    setEntryLinkedSubItemId(entry.linkedSubItemId || '');
     setActionType(entry.actionType || 'general');
     setShowEntryModal(true);
   };
@@ -1277,7 +1328,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
                   </div>
                   );
                 })}
-                <button type="button" onClick={() => setCatSubItems([...catSubItems, {prefix: '', name: '', calculation: '', amount: '', isCustomFunding: false, fundingSplits: [{source: '구비', amount: ''}], calculations: []}])} className="text-[13px] text-indigo-600 font-bold hover:underline flex items-center gap-1 mt-1.5 px-1 py-1 rounded hover:bg-indigo-100 transition-colors">+ 산출내역 한 줄 추가</button>
+                <button type="button" onClick={() => setCatSubItems([...catSubItems, {prefix: '', name: '', calculation: '', amount: '', isCustomFunding: false, isLocked: false, fundingSplits: [{source: '구비', amount: ''}], calculations: []}])} className="text-[13px] text-indigo-600 font-bold hover:underline flex items-center gap-1 mt-1.5 px-1 py-1 rounded hover:bg-indigo-100 transition-colors">+ 산출내역 한 줄 추가</button>
               </div>
             </div>
           </div>
@@ -1479,6 +1530,38 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
               </button>
             </div>
           </div>
+
+          {(() => {
+            const cat = categories.find(c => c.id === selectedCatId);
+            const hasSubItems = cat?.subItems && cat.subItems.some(sub => (sub.name && sub.name.trim() !== '') || (sub.calculations && sub.calculations.length > 0));
+            if (!hasSubItems) return null;
+
+            const options: {id: string, name: string, isLocked: boolean, amount: number}[] = [];
+            cat.subItems!.forEach(sub => {
+              if (sub.calculations && sub.calculations.length > 0) {
+                sub.calculations.forEach(calc => {
+                  if (calc.id) options.push({ id: calc.id, name: calc.name || sub.name, isLocked: calc.isLocked || sub.isLocked || false, amount: calc.amount });
+                });
+              } else if (sub.id) {
+                options.push({ id: sub.id, name: sub.name, isLocked: sub.isLocked || false, amount: sub.amount });
+              }
+            });
+
+            return (
+              <div className="bg-teal-50 p-3 rounded-lg border border-teal-200 mb-4 shadow-sm">
+                <label className="block text-xs font-bold text-teal-800 mb-1.5 flex items-center gap-1">✨ 세부 예산 집중 통제</label>
+                <select value={entryLinkedSubItemId} onChange={e => setEntryLinkedSubItemId(e.target.value)} className={`${inputClass} flex-1 border-teal-300 focus:ring-teal-500`} required>
+                  <option value="">-- 어느 '세부 항목' 예산에서 지출하시겠습니까? --</option>
+                  {options.map(opt => (
+                    <option key={opt.id} value={opt.id} disabled={opt.isLocked}>
+                      {opt.isLocked ? `🔒 ` : ''}{opt.name} (배정액: {opt.amount.toLocaleString()}원)
+                    </option>
+                  ))}
+                </select>
+              </div>
+            );
+          })()}
+
           <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">금액 (원) *</label>
              <input type="text" value={entryAmount} onChange={e => {
                const raw = e.target.value.replace(/[^0-9]/g, '');
