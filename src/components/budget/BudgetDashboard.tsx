@@ -84,9 +84,13 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
   const [actionType, setActionType] = useState<BudgetActionType>('general');
 
   const [isLoaded, setIsLoaded] = useState(false);
+  const migrationRan = React.useRef({ legacy: false, settle: false });
 
   // Auto-Migration for Legacy Nomenclature
   useEffect(() => {
+    if (migrationRan.current.legacy) return;
+    if (categories.length === 0) return;
+    
     let migrated = false;
     categories.forEach(cat => {
       let updatedName = cat.name;
@@ -102,7 +106,10 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
         migrated = true;
       }
     });
-    if (migrated) console.info('[Migration] Legacy category nomenclature updated.');
+    if (migrated) {
+      console.info('[Migration] Legacy category nomenclature updated.');
+    }
+    migrationRan.current.legacy = true;
   }, [categories, updateCategory]);
 
   useEffect(() => {
@@ -120,6 +127,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
   }, []); // Run ONLY once on mount
 
   useEffect(() => {
+    if (migrationRan.current.settle) return;
     // [Migration] 자동 정산 전 누락된 가지출 건 복구 스크립트
     if (entries.length > 0 && categories.length > 0) {
       let needsMigration = false;
@@ -141,6 +149,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
       if (needsMigration) {
         console.info('[Migration] 누락된 과거 가지출(품의) 건이 자동 정산 백그라운드 처리되었습니다.');
       }
+      migrationRan.current.settle = true;
     }
   }, [entries, categories, updateEntry]);
 
