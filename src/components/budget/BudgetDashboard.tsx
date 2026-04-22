@@ -1350,9 +1350,23 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
                 }
                 
                 // 보조 지표: 문서 내용을 품의 내용에 일부 채워줌
+                // 보조 지표: 문서 내용을 품의 내용에 채워줌 (기안/결재선 제외 정책)
                 if (!entryPurpose) {
-                   const firstLine = text.split('\n').map(l => l.trim()).filter(l => l.length > 5 && !l.includes('결재') && !l.includes('날짜'))[0];
-                   if (firstLine) setEntryPurpose(firstLine.slice(0, 40));
+                   const excludeKeywords = ['결재', '날짜', '팀장', '과장', '소장', '전결', '대결', '기안자', '협조자', '결 재', '수신', '발신', '담당자', '문서번호', '시행일자', '공개여부', '건강증진'];
+                   const titleCandidates = text.split('\n').map(l => l.trim()).filter(l => 
+                     l.length > 5 && 
+                     !excludeKeywords.some(kw => l.includes(kw))
+                   );
+                   
+                   // 보통 공문서/품의서 제목은 이런 단어로 끝나는 경향이 큼
+                   let bestTitle = titleCandidates.find(l => 
+                     l.endsWith('건') || l.endsWith('계획') || l.endsWith('보고') || 
+                     l.endsWith('지급') || l.endsWith('요청') || l.endsWith('안내') || 
+                     l.endsWith('품의') || l.endsWith('결과')
+                   );
+                   
+                   if (!bestTitle) bestTitle = titleCandidates[0]; // 없으면 유효한 첫 문장
+                   if (bestTitle) setEntryPurpose(bestTitle.slice(0, 50));
                 }
                 if (!entryMemo) {
                    setEntryMemo("PDF 스캔 데이터 적용 완료");
