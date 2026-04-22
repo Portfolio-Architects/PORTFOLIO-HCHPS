@@ -117,7 +117,9 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
       }
     } catch (e) {}
     setIsLoaded(true);
-    
+  }, []); // Run ONLY once on mount
+
+  useEffect(() => {
     // [Migration] 자동 정산 전 누락된 가지출 건 복구 스크립트
     if (entries.length > 0 && categories.length > 0) {
       let needsMigration = false;
