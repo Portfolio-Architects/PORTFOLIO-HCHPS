@@ -1419,7 +1419,11 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
                 // 파싱: 예산과목 추출
                 if (!selectedCatId && text.trim().length >= 2) {
                   const sortedCats = [...categories].sort((a,b) => b.name.length - a.name.length);
-                  const matchedCat = sortedCats.find(c => text.includes(c.name) || (c.detailedProject && text.includes(c.detailedProject)));
+                  const matchedCat = sortedCats.find(c => 
+                    text.includes(c.name) || 
+                    (c.statItem && text.includes(c.statItem)) ||
+                    (c.subItems && c.subItems.some(sub => sub.name && sub.name.length >= 3 && text.includes(sub.name)))
+                  );
                   if (matchedCat) setSelectedCatId(matchedCat.id);
                 }
                 
@@ -1495,7 +1499,11 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
             if (!selectedCatId && val.trim().length >= 2) {
               // 가장 긴 매칭을 우선시하도록 내림차순 정렬 검색
               const sortedCats = [...categories].sort((a,b) => b.name.length - a.name.length);
-              const matchedCat = sortedCats.find(c => val.includes(c.name) || (c.detailedProject && val.includes(c.detailedProject)));
+              const matchedCat = sortedCats.find(c => 
+                 val.includes(c.name) || 
+                 (c.statItem && val.includes(c.statItem)) ||
+                 (c.subItems && c.subItems.some(sub => sub.name && sub.name.length >= 3 && val.includes(sub.name)))
+              );
               if (matchedCat) {
                 setSelectedCatId(matchedCat.id);
               }
