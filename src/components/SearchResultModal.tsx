@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, X, Bot, Sparkles, FileText, ChevronRight } from 'lucide-react';
-import { askLlama } from '@/lib/llm-client';
+import { Search, X, FileText } from 'lucide-react';
 
 export interface SearchResultItem {
   id: string;      
@@ -26,19 +25,8 @@ interface SearchResultModalProps {
 
 export function SearchResultModal({ isOpen, onClose, query, results: localResults }: SearchResultModalProps) {
   const [semanticResults, setSemanticResults] = useState<VectorResult[]>([]);
-  const [messages, setMessages] = useState<{ role: 'user' | 'assistant', content: string }[]>([]);
-  const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [phase, setPhase] = useState<'idle' | 'searching' | 'thinking' | 'done'>('idle');
-
-  // scroll to bottom ref
-  const scrollRef = React.useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages, phase]);
+  const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
     if (!isOpen || !query) return;
@@ -48,140 +36,50 @@ export function SearchResultModal({ isOpen, onClose, query, results: localResult
 
     let isMounted = true;
     
-    const runRagPipeline = async () => {
-      setPhase('searching');
+    const runSearch = async () => {
       setIsLoading(true);
       setSemanticResults([]);
-      setMessages([]);
+      setErrorMsg('');
 
       try {
         const apiBase = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
           ? '' : 'https://portfolio-hchps.pages.dev';
 
         // 1. Vectorize Semantic Search
-        let retrievedDocs: VectorResult[] = [];
-        let vectorizeError = '';
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
         try {
-          const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-          try {
-            const { getAuthToken } = await import('@/lib/crypto');
-            headers['Authorization'] = `Bearer ${getAuthToken()}`;
-          } catch {
-             // ignore
-          }
-
-          const searchRes = await fetch(`${apiBase}/api/semantic-search`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({ query, limit: 3 })
-          });
-          if (searchRes.ok) {
-            const searchData = await searchRes.json();
-            if (searchData.success && searchData.matches) {
-              retrievedDocs = searchData.matches;
-            }
-          } else {
-            const errData = await searchRes.json().catch(() => ({}));
-            vectorizeError = errData.error || `HTTP ${searchRes.status}`;
-            console.warn(`Vectorize search failed: ${vectorizeError}`);
-          }
-        } catch (e: unknown) {
-          console.error("Vectorize search failed", e);
-          vectorizeError = e instanceof Error ? e.message : 'Unknown network error';
+          const { getAuthToken } = await import('@/lib/crypto');
+          headers['Authorization'] = `Bearer ${getAuthToken()}`;
+        } catch {
+           // ignore
         }
 
-        if (!isMounted) return;
-        setSemanticResults(retrievedDocs);
-        setPhase('thinking');
-
-        // 2. Llama 3 RAG Generation - Apply truncation to prevent Cloudflare AI Error 1031 (Max Context Tokens exceeded)
-        const truncateText = (text: string, maxLen: number) => 
-          text && text.length > maxLen ? text.substring(0, maxLen) + '...' : (text || '');
-
-        let contextText = retrievedDocs.slice(0, 3).map(doc => 
-          `[Source: ${doc.id}]\n${truncateText(doc.metadata?.text || '', 1500)}`
-        ).join('\n\n');
-
-        // Fallback to local exact match results if Vectorize is empty (e.g. dev mode without Wrangler)
-        if (retrievedDocs.length === 0 && localResults.length > 0) {
-          contextText = localResults.slice(0, 3).map(r => `[Source: ${r.title}]\n${truncateText(r.context, 1500)}`).join('\n\n');
-        }
-
-        if (retrievedDocs.length === 0 && localResults.length === 0) {
-          if (isMounted) {
-            setMessages([
-              { role: 'user', content: query },
-              { role: 'assistant', content: vectorizeError ? `[오류] Vectorize API 통신에 실패했습니다: ${vectorizeError}` : '아직 위키에 관련 문서가 등록되지 않았습니다.' }
-            ]);
-            setPhase('done');
-            setIsLoading(false);
-          }
-          return;
-        }
-
-        // Hard cap the entire RAG context injection to ~4500 chars to guarantee it stays below Llama-3's CF limit
-        if (contextText.length > 4500) {
-          contextText = contextText.substring(0, 4500) + '\n... (이하 생략)';
-        }
-
-        const prompt = `사용자 질문: "${query}"
-
-[관련 문서]
-${contextText}
-
-[절대 가이드라인]
-1. 당신은 제공된 [관련 문서] 바탕으로만 답변하는 엄격한 내부 위키 AI입니다.
-2. [관련 문서]에 없는 사전 지식이나 외부 데이터를 절대로 섞어서 답변하지 마시오.
-3. [관련 문서]에 대상의 이름이나 제목만 존재하고 구체적인 내용이 없다면, "해당 명칭의 노드(문서)는 존재하지만, 세부 내용이 아직 작성되지 않았습니다."라고 안내하십시오.
-4. [관련 문서]에서 아예 아무런 단서도 찾을 수 없다면, "아직 위키에 해당 내용이 등록되지 않았습니다."라고만 답변하십시오.
-5. 마크다운 형식으로 가독성 좋고 전문적으로 작성하시오.`;
-
-        if (isMounted) {
-          // Streaming 모드 지원을 위해 먼저 빈 답변 블록을 넣음
-          setMessages([
-            { role: 'user', content: query },
-            { role: 'assistant', content: '' }
-          ]);
-        }
-
-        await askLlama([
-          { 
-            role: 'system', 
-            content: '당신은 HCHPS 시스템의 엄격한 내부 지식 관리 비서(WikiBot)입니다. 제공된 [관련 문서] 바탕으로만 대답하며, 절대 외부 지식이나 환각을 섞지 마십시오. 모든 답변은 반드시 100% 한국어로만 작성해야 합니다. 문맥에 답이 없다면 오직 "아직 위키에 해당 내용이 등록되지 않았습니다."라고만 대답하십시오.' 
-          },
-          { role: 'user', content: prompt }
-        ], (chunk) => {
-          if (isMounted) {
-            setMessages(prev => {
-              const newMsgs = [...prev];
-              // React Strict Mode 더블 실행 버그 방지를 위해 반드시 객체를 새로 생성(Clone)해야 합니다.
-              const lastMsg = { ...newMsgs[newMsgs.length - 1] };
-              lastMsg.content += chunk;
-              newMsgs[newMsgs.length - 1] = lastMsg;
-              return newMsgs;
-            });
-          }
+        const searchRes = await fetch(`${apiBase}/api/semantic-search`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ query, limit: 5 })
         });
-
-        if (isMounted) {
-          setPhase('done');
+        
+        if (searchRes.ok) {
+          const searchData = await searchRes.json();
+          if (searchData.success && searchData.matches && isMounted) {
+            setSemanticResults(searchData.matches);
+          }
+        } else {
+          const errData = await searchRes.json().catch(() => ({}));
+          const vectorizeError = errData.error || `HTTP ${searchRes.status}`;
+          console.warn(`Vectorize search failed: ${vectorizeError}`);
+          if (isMounted) setErrorMsg(vectorizeError);
         }
-      } catch (error) {
-        const err = error as Error;
-        console.error("RAG pipeline failed", err);
-        if (isMounted) {
-          setMessages([
-            { role: 'user', content: query },
-            { role: 'assistant', content: `[오류 발생] Llama 3 호출에 실패했습니다: ${err.message}` }
-          ]);
-          setPhase('done');
-        }
+      } catch (e: unknown) {
+        console.error("Vectorize search failed", e);
+        if (isMounted) setErrorMsg(e instanceof Error ? e.message : 'Unknown network error');
       } finally {
         if (isMounted) setIsLoading(false);
       }
     };
 
-    runRagPipeline();
+    runSearch();
 
     return () => { isMounted = false; };
   }, [isOpen, query, localResults]);
@@ -191,21 +89,20 @@ ${contextText}
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-black/60" onClick={onClose}>
       <div 
-        className="pointer-events-auto bg-[var(--color-card)] rounded-xl shadow-xl w-full max-w-6xl overflow-hidden border border-[var(--color-border-light)] flex flex-col max-h-[90vh]"
+        className="pointer-events-auto bg-[var(--color-card)] rounded-xl shadow-xl w-full max-w-4xl overflow-hidden border border-[var(--color-border-light)] flex flex-col max-h-[90vh]"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border-light)] bg-gradient-to-r from-blue-50/50 to-indigo-50/50 flex-shrink-0">
           <div className="flex items-center gap-3 text-[var(--color-primary)]">
             <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg text-white shadow-sm">
-              <Bot size={22} />
+              <Search size={22} />
             </div>
             <div>
               <h3 className="font-bold text-[16px] text-gray-900 flex items-center gap-2">
-                HCHPS WikiBot
-                <Sparkles size={14} className="text-yellow-500" />
+                HCHPS 통합 검색
               </h3>
-              <p className="text-[12px] text-gray-500 font-medium tracking-wide">LLAMA 3.1 NATIVE RAG ENGINE</p>
+              <p className="text-[12px] text-gray-500 font-medium tracking-wide">" {query} " 검색 결과</p>
             </div>
           </div>
           <button 
@@ -216,233 +113,95 @@ ${contextText}
           </button>
         </div>
 
-        {/* Content Splitter */}
-        <div className="flex flex-col lg:flex-row flex-1 overflow-hidden min-h-0">
+        {/* Content Area */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-gray-50/30 custom-scrollbar flex flex-col gap-4">
           
-          {/* Left Panel: Chat Area */}
-          <div className="flex-1 flex flex-col overflow-hidden min-w-0 bg-white">
-            <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 custom-scrollbar flex flex-col gap-6">
-              
-              {messages.map((msg, idx) => (
-                msg.role === 'user' ? (
-                  <div key={idx} className="flex justify-end">
-                    <div className="bg-[var(--color-primary)] text-white px-5 py-3 rounded-2xl rounded-tr-sm shadow-sm max-w-[85%] text-[15px] font-medium break-words">
-                      {msg.content}
-                    </div>
-                  </div>
-                ) : (
-                  <div key={idx} className="flex gap-4">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-sm mt-1">
-                      <Bot size={18} className="text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="bg-gray-50 border border-gray-100 px-5 py-4 rounded-2xl rounded-tl-sm shadow-sm text-[15px] text-gray-800 leading-relaxed whitespace-pre-wrap">
-                        {msg.content}
-                      </div>
-                    </div>
-                  </div>
-                )
-              ))}
+          {isLoading && (
+            <div className="flex flex-col items-center justify-center p-12 text-gray-500 gap-3">
+              <span className="w-6 h-6 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin"/>
+              <span className="text-sm font-medium">Vector DB에서 문서 탐색 중...</span>
+            </div>
+          )}
+          
+          {!isLoading && errorMsg && localResults.length === 0 && (
+            <div className="text-sm font-medium text-red-500 bg-red-50 p-4 rounded-lg flex items-center gap-2">
+              <X size={16} /> 오류 발생: {errorMsg}
+            </div>
+          )}
 
-              {/* Loading Indicators */}
-              {(phase === 'searching' || phase === 'thinking') && (
-                <div className="flex gap-4">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-sm mt-1">
-                    <Bot size={18} className="text-white" />
-                  </div>
-                  <div className="flex-1 flex flex-col gap-2">
-                    {phase === 'searching' && (
-                      <div className="flex items-center gap-2 text-gray-500 text-[14px] bg-gray-50 px-4 py-3 rounded-2xl rounded-tl-sm w-fit animate-pulse">
-                        <Search size={16} /> Vector DB(지식창고)에서 유사 문서 검색 중...
-                      </div>
-                    )}
-                    {phase === 'thinking' && (
-                      <>
-                        <div className="flex items-center gap-2 text-indigo-500 text-[14px] bg-indigo-50 px-4 py-3 rounded-2xl rounded-tl-sm w-fit animate-pulse font-medium">
-                          <Sparkles size={16} /> Llama 3.1 8B Instruct가 답변을 생성 중입니다...
+          {!isLoading && semanticResults.length === 0 && localResults.length === 0 && !errorMsg && (
+            <div className="flex flex-col items-center justify-center p-12 text-gray-400 gap-3">
+              <Search size={40} className="opacity-20 mb-2"/>
+              <p className="text-[14px] font-medium text-gray-500 ml-1">관련 문서가 없습니다.</p>
+            </div>
+          )}
+
+          {!isLoading && (semanticResults.length > 0 || localResults.length > 0) && (
+            <div className="flex flex-col gap-3">
+              {semanticResults.length > 0 
+                ? semanticResults.map((doc, idx) => {
+                    const nodeId = doc.id.replace('HCHPS-Wiki-', '');
+                    return (
+                      <button 
+                        key={`sem-${idx}`} 
+                        onClick={() => {
+                          window.dispatchEvent(new CustomEvent('wiki:openNode', {
+                            detail: { id: nodeId, label: nodeId }
+                          }));
+                          onClose();
+                        }}
+                        className="text-left flex flex-col gap-2 p-5 bg-white border border-gray-200 rounded-xl shadow-sm hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer group"
+                      >
+                        <div className="flex items-center justify-between w-full">
+                          <span className="text-[15px] font-bold text-[var(--color-primary)] group-hover:text-indigo-600 transition-colors">
+                            <FileText size={16} className="inline mr-1" /> {nodeId}
+                          </span>
+                          <span className="text-[12px] font-bold text-gray-500 bg-gray-50 px-2.5 py-1 rounded-md group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors whitespace-nowrap">
+                            열기 📄
+                          </span>
                         </div>
-                        {semanticResults.length > 0 && (
-                          <div className="text-[12px] text-gray-400 mt-1 pl-1 flex items-center gap-1">
-                            <FileText size={12} /> {semanticResults.length}개의 관련 문서를 처음 참조했습니다.
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
+                        <p className="text-[14px] text-gray-600 line-clamp-3 leading-relaxed mt-1">
+                          {doc.metadata?.text || '(텍스트 없음)'}
+                        </p>
+                      </button>
+                    );
+                  })
+                : localResults.map((res, idx) => {
+                    const nodeId = res.id.replace('HCHPS-Wiki-', '');
+                    const displayTitle = res.title.replace('온톨로지 문서 (', '').replace(')', '');
+                    return (
+                      <button 
+                        key={`loc-${idx}`} 
+                        onClick={() => {
+                          window.dispatchEvent(new CustomEvent('wiki:openNode', {
+                            detail: { id: nodeId, label: displayTitle }
+                          }));
+                          onClose();
+                        }}
+                        className="text-left flex flex-col gap-2 p-5 bg-white border border-gray-200 rounded-xl shadow-sm hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer group"
+                      >
+                        <div className="flex items-center justify-between w-full">
+                          <span className="text-[15px] font-bold text-[var(--color-primary)] group-hover:text-indigo-600 transition-colors">
+                            <FileText size={16} className="inline mr-1" /> {displayTitle}
+                          </span>
+                          <span className="text-[12px] font-bold text-orange-500 bg-orange-50 px-2.5 py-1 rounded-md group-hover:bg-orange-100 group-hover:text-orange-600 transition-colors whitespace-nowrap">
+                            로컬 결과 📄
+                          </span>
+                        </div>
+                        <p className="text-[14px] text-gray-600 line-clamp-3 leading-relaxed mt-1">
+                          {res.context}
+                        </p>
+                      </button>
+                    );
+                  })
+              }
+
+              {/* Local Fallback Warning */}
+              {semanticResults.length === 0 && localResults.length > 0 && (
+                <div className="mt-2 text-[12px] text-orange-500 bg-orange-50 p-3 rounded-lg border border-orange-100/80 leading-relaxed font-medium">
+                  Vectorize 검색 기록이 없어 브라우저 로컬 데이터(Fallback)를 반환했습니다.
                 </div>
               )}
-            </div>
-
-            {/* Input Form */}
-            <div className="px-5 py-4 border-t border-[var(--color-border-light)] bg-gray-50/50 flex items-center gap-3 flex-shrink-0">
-              <form 
-                className="flex-1 relative flex items-center"
-                onSubmit={async (e) => {
-                  e.preventDefault();
-                  if (!inputText.trim() || isLoading) return;
-                  
-                  const newText = inputText.trim();
-                  setInputText('');
-                  setMessages(prev => [...prev, { role: 'user', content: newText }]);
-                  setPhase('thinking');
-                  setIsLoading(true);
-
-                  try {
-                    let contextText = semanticResults.map(doc => 
-                      `[Source: ${doc.id}]\n${doc.metadata?.text || 'No text content available'}`
-                    ).join('\n\n');
-
-                    if (semanticResults.length === 0 && localResults.length > 0) {
-                      contextText = localResults.slice(0, 3).map(r => `[Source: ${r.title}]\n${r.context}`).join('\n\n');
-                    }
-
-                    const systemPrompt = `[관련 가이드 문서]
-${contextText || '(관련 문서가 없습니다.)'}
-====================
-위 지식 문서의 내용과 이전 대화를 기반으로 사용자에게 전문적이고 자연스럽게 답변하시오. 당신은 조직 통합 시스템의 엄격한 WikiBot입니다. 문서에 없는 외부 지식(환각)은 절대 대답에 섞지 마십시오. 만약 지식 문서에 제목 혹은 짧은 단어만 존재한다면 "문서는 생성되어 있으나 아직 세부 내용이 없습니다"라고 친절히 안내하십시오.`;
-
-                    const chatParams = [
-                      { role: 'system', content: systemPrompt },
-                      ...messages,
-                      { role: 'user', content: newText }
-                    ] as Parameters<typeof askLlama>[0];
-
-                    setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
-
-                    await askLlama(chatParams, (chunk) => {
-                      setMessages(prev => {
-                        const newMsgs = [...prev];
-                        // React Strict Mode 더블 실행 버그 방지 (객체 Clone)
-                        const lastMsg = { ...newMsgs[newMsgs.length - 1] };
-                        lastMsg.content += chunk;
-                        newMsgs[newMsgs.length - 1] = lastMsg;
-                        return newMsgs;
-                      });
-                    });
-                    
-                    setPhase('done');
-                  } catch (error) {
-                    const err = error as Error;
-                    setMessages(prev => {
-                      const newMsgs = [...prev];
-                      newMsgs[newMsgs.length - 1].content = `[오류 발생] ${err.message}`;
-                      return newMsgs;
-                    });
-                    setPhase('done');
-                  } finally {
-                    setIsLoading(false);
-                  }
-                }}
-              >
-                <input 
-                  type="text"
-                  value={inputText}
-                  onChange={e => setInputText(e.target.value)}
-                  placeholder={isLoading ? "생성하는 중..." : "위키 내용을 바탕으로 이어서 질문하기..."}
-                  disabled={isLoading}
-                  className="w-full bg-white border border-gray-300 rounded-lg pl-4 pr-12 py-3 text-[14px] outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all shadow-sm"
-                />
-                <button 
-                  type="submit"
-                  disabled={!inputText.trim() || isLoading}
-                  className="absolute right-2 p-1.5 bg-indigo-500/10 text-indigo-600 rounded-md hover:bg-indigo-500 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <ChevronRight size={18} className="translate-x-0.5" />
-                </button>
-              </form>
-              <button 
-                type="button"
-                onClick={onClose}
-                className="px-5 py-3 text-[14px] font-semibold tracking-wide text-gray-500 bg-white border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors whitespace-nowrap"
-              >
-                닫기
-              </button>
-            </div>
-          </div>
-
-          {/* Right Panel: Sources Area */}
-          {(phase === 'done' && (semanticResults.length > 0 || localResults.length > 0)) && (
-            <div className="lg:w-[350px] xl:w-[400px] max-h-[30vh] lg:max-h-none border-t lg:border-t-0 lg:border-l border-[var(--color-border-light)] bg-gray-50 flex flex-col flex-shrink-0">
-              <div className="px-5 py-4 border-b border-[var(--color-border-light)] bg-white sticky top-0 z-10 hidden lg:block">
-                <h4 className="text-[14px] font-semibold text-gray-700 flex items-center gap-2">
-                  <FileText size={16} className="text-indigo-500" /> 참조된 원본 문서
-                </h4>
-              </div>
-              <div className="flex-1 overflow-y-auto p-4 custom-scrollbar lg:bg-gray-50/30">
-                {/* Mobile Header (Shown only on small screens when stacked) */}
-                <h4 className="text-[13px] font-semibold text-gray-500 mb-3 flex items-center gap-1 lg:hidden">
-                  <FileText size={14} /> 참조된 문서 출처
-                </h4>
-                
-                <div className="flex flex-col gap-3">
-                  {semanticResults.length > 0 
-                    ? semanticResults.map((doc, idx) => {
-                        const nodeId = doc.id.replace('HCHPS-Wiki-', '');
-                        return (
-                          <button 
-                            key={`sem-${idx}`} 
-                            onClick={() => {
-                              window.dispatchEvent(new CustomEvent('wiki:openNode', {
-                                detail: { id: nodeId, label: nodeId }
-                              }));
-                              onClose();
-                            }}
-                            className="text-left flex flex-col gap-2 p-4 bg-white border border-gray-200 rounded-xl shadow-sm hover:border-indigo-300 cursor-pointer group"
-                            style={{ animationFillMode: 'both' }}
-                          >
-                            <div className="flex items-center justify-between w-full">
-                              <span className="text-[14px] font-bold text-[var(--color-primary)] group-hover:text-indigo-600 transition-colors line-clamp-1">
-                                {nodeId}
-                              </span>
-                              <span className="text-[11px] text-gray-400 font-medium bg-gray-50 px-2 py-1 rounded-md group-hover:bg-indigo-50 group-hover:text-indigo-500 transition-colors whitespace-nowrap">
-                                열기 📄
-                              </span>
-                            </div>
-                            <p className="text-[13px] text-gray-500 line-clamp-3 leading-relaxed">
-                              {doc.metadata?.text || '(텍스트 없음)'}
-                            </p>
-                          </button>
-                        );
-                      })
-                    : localResults.slice(0, 3).map((res, idx) => {
-                        const nodeId = res.id.replace('HCHPS-Wiki-', '');
-                        const displayTitle = res.title.replace('온톨로지 문서 (', '').replace(')', '');
-                        return (
-                          <button 
-                            key={`loc-${idx}`} 
-                            onClick={() => {
-                              window.dispatchEvent(new CustomEvent('wiki:openNode', {
-                                detail: { id: nodeId, label: displayTitle }
-                              }));
-                              onClose();
-                            }}
-                            className="text-left flex flex-col gap-2 p-4 bg-white border border-gray-200 rounded-xl shadow-sm hover:border-indigo-300 cursor-pointer group"
-                            style={{ animationFillMode: 'both' }}
-                          >
-                            <div className="flex items-center justify-between w-full">
-                              <span className="text-[14px] font-bold text-[var(--color-primary)] group-hover:text-indigo-600 transition-colors line-clamp-1">
-                                {displayTitle}
-                              </span>
-                              <span className="text-[11px] text-orange-400 font-medium bg-orange-50 px-2 py-1 rounded-md group-hover:bg-orange-100 group-hover:text-orange-500 transition-colors whitespace-nowrap">
-                                로컬 연결 📄
-                              </span>
-                            </div>
-                            <p className="text-[13px] text-gray-500 line-clamp-3 leading-relaxed">
-                              {res.context}
-                            </p>
-                          </button>
-                        );
-                      })
-                  }
-
-                  {/* Local Fallback Warning */}
-                  {semanticResults.length === 0 && localResults.length > 0 && (
-                    <div className="mt-2 text-[12px] text-orange-500 bg-orange-50 p-3 rounded-lg border border-orange-100/80 leading-relaxed font-medium">
-                      Vectorize 연결이 불완전하여 브라우저 로컬 데이터(Fallback)를 기반으로 답변했습니다.
-                    </div>
-                  )}
-                </div>
-              </div>
             </div>
           )}
         </div>

@@ -9,7 +9,6 @@ import { Plus, Pencil, Trash2, CheckCircle2, AlertOctagon, ShieldAlert, RefreshC
 import { replaceAll } from '@/lib/sheets-api';
 import { MultiSelectDropdown } from './ui/MultiSelectDropdown';
 import { PolicyGroupCard, ACTION_TYPE_CONFIG } from './ui/PolicyGroupCard';
-import { useBudgetAI } from './model/useBudgetAI';
 import { BudgetRules } from '@/lib/budget-rules';
 import { LedgerModal } from './ui/LedgerModal';
 
@@ -103,32 +102,6 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
     });
     if (migrated) console.info('[Migration] Legacy category nomenclature updated.');
   }, [categories, updateCategory]);
-
-  const { isParsingPdf, handlePdfUpload } = useBudgetAI({
-    categories,
-    onSuccess: (dataArray) => {
-      let addedCount = 0;
-      dataArray.forEach(data => {
-        if (!data.categoryId || !data.amount) return;
-        addEntry({
-          categoryId: data.categoryId,
-          amount: Number(data.amount.replace(/,/g, '')),
-          date: data.date || new Date().toISOString().split('T')[0],
-          purpose: data.purpose || '자동 스캔 예상내역',
-          docRegNum: data.docNum,
-          actionType: actionType, // 모달에서 현재 선택중인 탭의 속성(일반지출/교부/일상경비 등)을 상속
-          isPlanned: true,
-          isSettled: false
-        });
-        addedCount++;
-      });
-      if (addedCount > 0) {
-        // 성공 시 따로 단일 상태(단일 폼)를 채우지 않고 즉시 리스트로 밀어넣음.
-        setShowLedgerModal(true); // 장부 모달을 열어 바로 확인할 수 있게 유도
-      }
-    }
-  });
-
   useEffect(() => {
     try {
       const saved = localStorage.getItem('hchps-budget-filters-v2');
@@ -1343,25 +1316,6 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
         </div>
         <form onSubmit={handleAddEntry} className="space-y-4">
           
-          {/* AI Parser Widget */}
-          <div className="relative border border-dashed border-blue-200 bg-blue-50/50 rounded-xl p-4 text-center hover:bg-blue-50 transition-colors">
-             <input type="file" accept="application/pdf" onChange={handlePdfUpload} disabled={isParsingPdf} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed" />
-             <div className="flex flex-col items-center justify-center pointer-events-none">
-                {isParsingPdf ? (
-                   <div className="flex flex-col items-center gap-2">
-                     <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                     <span className="text-xs text-blue-600 font-bold animate-pulse">AI 모델로 실시간 분석 중...</span>
-                   </div>
-                ) : (
-                   <>
-                     <div className="text-blue-400 mb-1.5"><FilePlus2 size={24} className="mx-auto" /></div>
-                     <div className="text-[13px] font-bold text-blue-800">스마트 파일 인식 (PDF 업로드)</div>
-                     <div className="text-[11px] text-blue-600/70">이곳에 품의서를 끌어다 놓으면 폼이 자동으로 채워집니다.</div>
-                   </>
-                )}
-             </div>
-          </div>
-
           <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">예산 과목 *</label>
             <div className="flex items-center gap-2">
               <select value={selectedCatId} onChange={e => setSelectedCatId(e.target.value)} className={`${inputClass} flex-1`} required>

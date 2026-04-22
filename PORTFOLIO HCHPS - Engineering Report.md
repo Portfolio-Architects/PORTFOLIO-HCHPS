@@ -1,5 +1,5 @@
 # PORTFOLIO HCHPS - Engineering Report
-**날짜:** 2026-04-14
+**날짜:** 2026-04-22
 **주제:** 실시간 협업 온톨로지 캔버스 기반 통합 워크스페이스 관리 시스템
 
 ---
@@ -40,9 +40,9 @@
 
 | 지표 | 수치 |
 |------|------|
-| TypeScript/TSX 파일 수 | **62개** |
-| 총 코드 라인 수 | **~12,000줄** |
-| 총 커밋 수 | **128** |
+| TypeScript/TSX 파일 수 | **73개** |
+| 총 코드 라인 수 | **~13,000줄** |
+| 총 커밋 수 | **189** |
 | 컴포넌트 모듈 | **6개** (budget, inventory, knowledge, report, ui, workspace — 총 22개 컴포넌트) |
 | 서버리스 함수 | **4개** (chat, data, embeddings, semantic-search) |
 | 커스텀 훅 | **11개** |
@@ -265,14 +265,13 @@ sequenceDiagram
 - **영속성:** 이중 트랙 — PartyKit Durable Objects(클라우드) + y-indexeddb(로컬 오프라인).
 - **상태 관리:** `useGraphCustomization` 훅이 Yjs 맵(`overrides`, `customNodesMap`, `customEdgesMap`, `deletedEdgesMap`)을 반응형 외부 스토어로 노출.
 
-### 7-3. AI 통합 계층 (Dual-LLM 하이브리드 아키텍처)
+### 7-3. 클라우드 전용 AI 인프라망 (Edge Native AI)
 
 | 기능 | 백엔드 | 모델 | 활용 사례 |
 |------|--------|------|----------|
-| 대화형 채팅 | `/api/chat` | Llama 3.1 8B Instruct | 지식 질의를 위한 인앱 AI 어시스턴트 |
-| 엣지 AI 폴백 | 로컬 Ollama | Llama 3 | 오프라인 및 로컬 환경 대비 하이브리드 폴백 시스템 |
+| 대화형 비서 및 이어쓰기 | `/api/chat` | Llama 3.1 8B Instruct | 인앱 AI 어시스턴트 및 위키(Wiki) 커맨드 자동완성 |
 | 텍스트 임베딩 | `/api/embeddings` | Workers AI Embedding | 시맨틱 인덱싱을 위한 벡터 표현 생성 |
-| 시맨틱 검색 | `/api/semantic-search` | 임베딩 + 코사인 유사도 | 지식 코퍼스 대상 자연어 검색 |
+| 시맨틱 검색 | `/api/semantic-search` | 임베딩 + 코사인 유사도 | 지식 코퍼스 대상 벡터 자연어 검색 |
 
 ---
 
@@ -282,9 +281,9 @@ sequenceDiagram
 - **상태 관리 단일화(SSOT) 및 타입 방어벽:** 파편화된 로컬 상태를 `TanStack Query`와 Zod 런타임 스키마 레벨로 통합 제어. 컴포넌트는 FSD(Feature-Sliced Design) 패턴에 따라 모듈화되어 비즈니스 로직과 UI 관심사를 완벽하게 분리.
 - **실시간 렌더링 최적화:** `useSyncExternalStore` 채택 및 16ms 디바운스, `needsRedraw` 기반의 Dirty Flag 렌더링 파이프라인을 구축해 유휴 상태 CPU 점유율 0% 유지. 다중 기기(PartyKit + Yjs) 동시 편집 시 발생하는 UI 정지(Freeze) 현상을 영구 소거.
 
-### 🧠 클라우드 및 하이브리드 AI
-- **Dual-LLM 엣지 파이프라인:** Cloudflare Workers AI(Llama 3.1) 스트리밍 인프라 및 로컬 Edge LLM 연동을 통해 레이턴시를 최소화하고 지식 인프라 오프라인 폴백/프라이버시 대응력 확보.
-- **RAG 위키/보고서 자동화 추출:** CJK 폰트를 지원하는 고정밀 PDF/문서 파서(Parser)를 도입해, 복잡한 메타데이터 손실 없이 AI 요약 정보를 `WeeklyReportView`로 즉각 매핑.
+### 🧠 클라우드 AI 인프라 유지 및 성능 최적화
+- **Edge Native AI 아키텍처 확립:** 클라이언트 자원(GPU)을 소모하는 로컬 AI 연동 및 무거운 의존성 코드를 전면 폐기하고, 오로지 **Cloudflare Workers AI (Llama 3.1 8B)** 클라우드 통신만 유지하여 오프라인 앱 퍼포먼스를 극대화. 필수적인 'Wiki 자동 텍스트 완성' 및 '지식베이스 요약' 파이프라인만 선택적으로 UI에 복원하여 성능과 유용성 간의 타협점 도출.
+- **RAG 위키 자동화 추출:** CJK 폰트를 지원하는 고정밀 PDF/문서 파서(Parser)를 도입해, 복잡한 메타데이터 손실 없이 AI 요약 정보를 클라우드 Llama 3.1 8B를 통해 즉각 매핑.
 
 ### 💸 예산 분배 및 데이터 파이프라인
 - **무손실 정밀 Batch-Editor (예산 배분):** % 비율 기반의 비례 배분을 통해 소수점 부동오차를 원천 차단하는 이산적 `fundingSplits` 정밀 연산 알고리즘 도입. 단수 차이 없는 정교한 재원 크로스-분할 자동화 달성.

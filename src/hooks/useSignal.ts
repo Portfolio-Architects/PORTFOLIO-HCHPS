@@ -210,37 +210,6 @@ export function useSignal() {
       console.warn('시그널 Sheets 동기화 실패 (로컬 저장 완료)');
     });
 
-    // --- Phase 3: AI 기반 자동 큐레이션 백그라운드 호출 ---
-    import('@/lib/ai-curation').then(({ curateSignal }) => {
-      // 시스템 전체 태그 풀(Tag Pool) 및 키워드 추출 (단순화를 위해 로컬 entries 배열 사용)
-      setEntries(currentEntries => {
-        const poolTags = new Set<string>();
-        const poolKeywords = new Set<string>();
-        currentEntries.forEach(e => {
-          e.tags?.forEach(t => poolTags.add(t));
-          e.keywords?.forEach(k => poolKeywords.add(k));
-        });
-        
-        curateSignal(text, Array.from(poolTags), Array.from(poolKeywords)).then((res) => {
-          // 비동기 AI 분석 완료 시, 해당 Entry에 Curation 결과 덮어씌움
-          setEntries(prev => prev.map(e => {
-            if (e.id === entryId) {
-              const updatedEntry = {
-                ...e,
-                aiCurated: true,
-                tags: res.tags, // AI가 추천한 태그로 교체
-                curationData: res,
-              };
-              // Note: Google Sheets에도 메타데이터 형태로 반영하려면 updateRow 추가 구현 필요(일단 생략/옵션)
-              return updatedEntry;
-            }
-            return e;
-          }));
-        });
-        
-        return currentEntries;
-      });
-    });
 
     return entry;
   }, []);
@@ -271,29 +240,7 @@ export function useSignal() {
     updateRow(SHEET_NAME, id, { text: newText, keywords: JSON.stringify(newKeywords), aiCurated: false }).catch(() => {
       console.warn('시그널 텍스트 업데이트 Sheets 동기화 실패');
     });
-    
-    // 비동기 AI 재분석(선택적) 또는 키워드 갱신 처리
-    import('@/lib/ai-curation').then(({ curateSignal }) => {
-      setEntries(currentEntries => {
-        const poolTags = new Set<string>();
-        const poolKeywords = new Set<string>();
-        currentEntries.forEach(e => {
-          e.tags?.forEach(t => poolTags.add(t));
-          e.keywords?.forEach(k => poolKeywords.add(k));
-        });
-        
-        curateSignal(newText, Array.from(poolTags), Array.from(poolKeywords)).then((res) => {
-          setEntries(prev => prev.map(e => {
-            if (e.id === id) {
-              return { ...e, aiCurated: true, tags: res.tags, curationData: res };
-            }
-            return e;
-          }));
-        });
-        
-        return currentEntries;
-      });
-    });
+
   }, []);
 
   const updateSignalKeywords = useCallback((id: string, keywords: string[]) => {

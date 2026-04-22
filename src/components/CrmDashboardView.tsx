@@ -2,7 +2,6 @@
 
 import React, { useState, useMemo } from 'react';
 import { useGraphCustomization, NodeOverride } from '@/hooks/useGraphCustomization';
-import { askLlama, ChatMessage } from '@/lib/llm-client';
 
 type PersonEntity = NodeOverride & { id: string; label: string; group: string; };
 import { Activity } from 'lucide-react';
@@ -18,8 +17,6 @@ const MOODS = [
 export function CrmDashboardView() {
   const { overrides, setNodeOverride, customNodes } = useGraphCustomization();
   
-  const [aiResponses, setAiResponses] = useState<Record<string, string>>({});
-  const [isGenerating, setIsGenerating] = useState<Record<string, boolean>>({});
 
   const personEntities = useMemo(() => {
     return Object.entries(overrides).filter(([id, config]) => config.isPerson === true)
@@ -44,77 +41,6 @@ export function CrmDashboardView() {
       });
   }, [overrides, customNodes]);
 
-  const handleRunAiPrediction = async (personId: string, personInfo: PersonEntity) => {
-    if (isGenerating[personId]) return;
-
-    setIsGenerating(prev => ({ ...prev, [personId]: true }));
-    setAiResponses(prev => ({ ...prev, [personId]: '' }));
-
-    const logs = personInfo.approvalLogs || [];
-    const logsInfo = logs.length > 0 
-      ? logs.map((l: CRM_ApprovalLog) => `[${l.date}] | ${l.status} | 메모: ${l.memo}`).join('\n')
-      : '과거 결재 기록이 없습니다.';
-
-    const leadershipStyle = personInfo.leadershipStyle || '알 수 없음';
-    const chronotype = personInfo.chronotype || '알 수 없음';
-    const currentMood = personInfo.currentMood 
-      ? MOODS.find(m => m.value === personInfo.currentMood)?.label || personInfo.currentMood
-      : '할당 안됨';
-    const scheduleMemo = personInfo.scheduleMemo || '특별한 일정 정보 없음';
-    
-    const customContextInfo = (personInfo.useCustomContext && personInfo.customContextText) 
-      ? `\n[개별 특수 변수: ${personInfo.customContextText}]\n해당 대상자는 현재 위와 같은 특수한 상황이나 극도의 스트레스를 받고 있을 수 있습니다. 이 요인이 의사결정 및 시간적 여유에 미치는 영향을 최우선으로 고려하여 전략과 타이밍을 제안하세요.`
-      : '';
-
-    const systemPrompt: ChatMessage = {
-      role: 'system',
-      content: `당신은 조직 심리학 및 행동경제학에 기반하여 최적의 의사결정 타이밍을 예측하는 'Personal CRM 전략가'입니다.
-
-<context_integration>
-[데이터 로드]
-- 대상 인물 성향: 생체리듬(${chronotype}), 리더십 스타일(${leadershipStyle})
-- 현재 기상도(기분 상태): ${currentMood}
-- 상사 일정/스케줄 변수: ${scheduleMemo}${customContextInfo}
-- 과거 결재 이력:
-${logsInfo}
-</context_integration>
-
-<task>
-위 Context를 분석하여 사용자에게 이번 주 결재를 받기 가장 좋은 **구체적인 시간대(예: 수요일 오후 3시)**와 **맞춤형 접근 전략**을 3문장 이내의 짧은 텍스트로 추천하세요.
-</task>
-
-<anti_pattern>
-다음과 같은 형식적인 조언은 절대 피하십시오:
-- "상사의 기분이 좋을 때 가세요." (X)
-- 과거 이력(memo)이나 스케줄과 무관한 일반적인 직장생활 팁 (X)
-- "안타깝게도 결재 기록이 없습니다" 같은 기계적인 서사의 반복 (X)
-
-반드시 제공된 '과거 결재 이력의 메모'와 '인물 성향(리더십/생체리듬)' 데이터를 연결하여 결론을 도출해야 합니다.
-</anti_pattern>`
-    };
-
-    const userPrompt: ChatMessage = {
-      role: 'user',
-      content: `상무님(${personInfo.label})에게 이번 기획안 결재를 올리려고 합니다. 언제, 어떻게 접근하는게 좋을까요?`
-    };
-
-    try {
-      await askLlama([systemPrompt, userPrompt], (chunk) => {
-        setAiResponses(prev => ({
-          ...prev,
-          [personId]: (prev[personId] || '') + chunk
-        }));
-      });
-    } catch (e) {
-      console.error(e);
-      setAiResponses(prev => ({
-        ...prev,
-        [personId]: (prev[personId] || '') + '\n[오류] 추론 중 통신 문제가 발생했습니다.'
-      }));
-    } finally {
-      setIsGenerating(prev => ({ ...prev, [personId]: false }));
-    }
-  };
 
   const getMoodColor = (mood?: string | null) => {
     switch(mood) {
@@ -250,39 +176,7 @@ ${logsInfo}
                 )}
               </div>
 
-              {/* AI Strategy Pane */}
-              <div className="p-3 bg-slate-50 flex-1 flex flex-col justify-end min-h-[90px]">
-                {aiResponses[person.id] ? (
-                  <div className="relative group flex-1 flex flex-col">
-                    <div className="text-[10px] font-semibold text-slate-500 mb-1.5 flex justify-between">
-                      <span>AI 전략 분석</span>
-                      <button
-                        onClick={() => handleRunAiPrediction(person.id, person)}
-                        disabled={isGenerating[person.id]}
-                        className="text-[10px] font-medium text-indigo-500 hover:text-indigo-700 disabled:opacity-50"
-                      >
-                        {isGenerating[person.id] ? '실행중...' : '재실행'}
-                      </button>
-                    </div>
-                    <div className="p-2.5 bg-white border border-slate-200 rounded text-[11px] leading-relaxed text-slate-700 whitespace-pre-wrap flex-1 shadow-sm overflow-y-auto custom-scrollbar max-h-[140px]">
-                      {aiResponses[person.id]}
-                      {isGenerating[person.id] && <span className="inline-block w-1 h-2.5 ml-1 bg-slate-400 animate-pulse" />}
-                    </div>
-                  </div>
-                ) : (
-                  <button 
-                    onClick={() => handleRunAiPrediction(person.id, person)}
-                    disabled={isGenerating[person.id]}
-                    className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded text-[11px] font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-                  >
-                    {isGenerating[person.id] ? (
-                      <><span className="w-3 h-3 rounded-full border border-slate-300 border-t-slate-600 animate-spin" /> 분석 진행 중...</>
-                    ) : (
-                      <>전략 분석 요청</>
-                    )}
-                  </button>
-                )}
-              </div>
+
             </div>
           ))}
         </div>

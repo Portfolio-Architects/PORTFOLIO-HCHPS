@@ -70,7 +70,6 @@ export function TaskKnowledgeView(props: TaskKnowledgeViewProps) {
   const [activeFeedTab, setActiveFeedTab] = useState<'all' | 'memo' | 'pdf' | 'knowledge'>('all');
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [editingWikiNode, setEditingWikiNode] = useState<{id: string; title: string; initialBlocks?: Record<string, unknown>[]} | null>(null);
-  const [extractingId, setExtractingId] = useState<string | null>(null);
 
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState('');
@@ -127,49 +126,7 @@ export function TaskKnowledgeView(props: TaskKnowledgeViewProps) {
     ) || null;
   }, [filteredFeed, selectedItemId]);
 
-  const handleExtractWiki = async (e: React.MouseEvent, nodeId: string, itemType: string, itemTitle: string, rawContent: string) => {
-    e.stopPropagation();
-    if (extractingId) return;
-    
-    try {
-      setExtractingId(nodeId);
-      const { askLlama } = await import('@/lib/llm-client');
-      
-      const prompt = `다음은 사용자가 남긴 '${itemType}' 형태의 RAW 데이터입니다:
-제목: ${itemTitle}
-원문:
-${rawContent}
 
-[지시사항]
-이 본문에 포함된 모든 디테일(세세한 항목, 설명, 수치, 문장 등)을 절대로 누락하거나 임의로 '요약'하지 마십시오. 분량을 축소시키지 말고, 원문에 있는 내용을 가급적 '충분한 길이의 서술형 문장'과 풍부한 텍스트로 보존하십시오. 
-단순 명사형 단답이나 지나친 요약식 글머리기호 사용을 지양하고, 원문의 깊이를 100% 살려 공식적인 마크다운(Markdown) 위키 문서 형태로 구조화(대제목, 중제목 등)만 수행하여 작성해 주십시오.
-인사말이나 부가 설명은 절대 출력하지 마십시오.`;
-      
-      const response = await askLlama([
-        { role: 'system', content: '당신은 입력된 텍스트의 분량과 디테일을 완벽하게 보존하면서 구조만 마크다운(Markdown) 백과사전 형태로 다듬는 수석 지식 큐레이터입니다. 내용을 요약하여 짧게 만들면 안 됩니다.' },
-        { role: 'user', content: prompt }
-      ]);
-
-      const lines = response.split('\n');
-      const blocks = lines.map(line => ({ type: 'paragraph', content: line }));
-      
-      localStorage.setItem(`HCHPS-Wiki-${nodeId}`, JSON.stringify(blocks));
-      const { replaceAll } = await import('@/lib/sheets-api');
-      await replaceAll(`WIKI_DOC_${nodeId}`, [{ id: 'singleton', blocks }]);
-
-      alert('✨ 지정된 RAW 데이터가 위키 문서로 정제되어 연동 전송되었습니다!');
-      
-      // Auto open wiki if selected
-      setEditingWikiNode({ id: nodeId, title: itemType, initialBlocks: blocks });
-      setSelectedItemId(nodeId);
-      
-    } catch (err) {
-      console.error(err);
-      alert('위키 변환 중 오류가 발생했습니다.');
-    } finally {
-      setExtractingId(null);
-    }
-  };
 
   const renderLeftFeedItem = (item: FeedItem) => {
     const isSelected = selectedItemId === (item.data as { id: string }).id;
@@ -394,23 +351,16 @@ ${rawContent}
                    >
                      ✅ 위키 열람/수정
                    </button>
-                   <button 
-                     onClick={(e) => {
-                       if (window.confirm('기존 위키 내용이 초기화되고 AI가 전체 원문으로 다시 정제합니다. 진행하시겠습니까?')) {
-                         handleExtractWiki(e, itemId, categoryObj?.text || '문서', titleStr, contentStr);
-                       }
-                     }}
-                     className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 text-gray-600 hover:bg-gray-100 rounded-lg text-[11px] font-bold transition-colors cursor-pointer border border-gray-200"
-                   >
-                     🔄 AI 갱신
-                   </button>
                  </>
                ) : (
                  <button 
-                   onClick={(e) => handleExtractWiki(e, itemId, categoryObj?.text || '문서', titleStr, contentStr)}
+                   onClick={(e) => {
+                     e.stopPropagation();
+                     setEditingWikiNode({ id: itemId, title: categoryObj?.text || '문서', initialBlocks: [] });
+                   }}
                    className="flex items-center gap-1.5 px-4 py-1.5 bg-primary text-white hover:bg-primary/90 rounded-lg text-[12px] font-bold transition-colors shadow-sm cursor-pointer"
                  >
-                   {extractingId === itemId ? '⏳ LLM 분석중...' : '✨ 위키 정제(LLM)'}
+                   📝 빈 위키 생성
                  </button>
                )}
                
