@@ -1033,6 +1033,18 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
                          <span className={`text-[11px] font-extrabold tracking-tight ${sub.isCustomFunding ? 'text-teal-600' : 'text-gray-400'}`}>개별재원</span>
                       </label>
 
+                      <label className={`flex items-center gap-1 cursor-pointer shrink-0 ml-1 px-2 py-1.5 rounded transition-colors border ${sub.isLocked ? 'bg-red-50 border-red-200 hover:bg-red-100' : 'bg-gray-50 border-gray-100 hover:bg-gray-100'}`}>
+                         <input type="checkbox" checked={sub.isLocked || false} onChange={e => {
+                             const newSubs = [...catSubItems];
+                             newSubs[idx].isLocked = e.target.checked;
+                             if (e.target.checked && newSubs[idx].calculations) {
+                               newSubs[idx].calculations.forEach(c => c.isLocked = false);
+                             }
+                             setCatSubItems(newSubs);
+                         }} className="w-3.5 h-3.5 rounded border-red-300 focus:ring-red-500 cursor-pointer text-red-500" title="이 항목 예산 지출 방지(잠금) 설정" />
+                         <span className={`text-[11px] font-extrabold tracking-tight ${sub.isLocked ? 'text-red-600' : 'text-gray-400'}`}>🔒 잠금</span>
+                      </label>
+
                       {catSubItems.length > 1 ? (
                         <button type="button" onClick={() => {
                           const newSubs = catSubItems.filter((_, i) => i !== idx);
@@ -1101,6 +1113,15 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
                                     setCatSubItems(newSubs);
                                 }} className="w-3.5 h-3.5 text-teal-600 rounded border-gray-300 focus:ring-teal-500 cursor-pointer" title="이 세부 항목을 개별재원으로 지정" />
                                 <span className={`text-[11px] font-extrabold tracking-tight ${calc.isCustomFunding ? 'text-teal-600' : 'text-gray-400'}`}>재원구분</span>
+                             </label>
+                             
+                             <label className={`flex items-center gap-1 cursor-pointer shrink-0 ml-1 px-1.5 py-1 rounded transition-colors border ${calc.isLocked ? 'bg-red-50 border-red-200 hover:bg-red-100' : 'bg-transparent border-transparent hover:bg-gray-100'}`}>
+                                <input type="checkbox" checked={calc.isLocked || false} onChange={e => {
+                                    const newSubs = [...catSubItems];
+                                    newSubs[idx].calculations[cIdx].isLocked = e.target.checked;
+                                    setCatSubItems(newSubs);
+                                }} disabled={sub.isLocked} className="w-3.5 h-3.5 text-red-500 rounded border-red-300 focus:ring-red-500 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed" title={sub.isLocked ? "상위 그룹이 이미 잠겨 있습니다" : "이 상세 내역 지출 방지(잠금) 설정"} />
+                                <span className={`text-[11px] font-extrabold tracking-tight ${calc.isLocked ? 'text-red-600' : 'text-gray-400'} ${sub.isLocked ? 'opacity-50' : ''}`}>🔒 잠금</span>
                              </label>
                              
                              <button type="button" onClick={() => {

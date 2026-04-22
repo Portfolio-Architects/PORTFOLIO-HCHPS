@@ -187,7 +187,22 @@ export function useBudget() {
     const planned = catEntries.filter(e => e.isPlanned && !e.isSettled).reduce((sum, e) => sum + e.amount, 0);
     
     const spent = generalSpent + dailyExpenseIssued;
-    const remaining = cat.totalBudget - spent - planned; // 남은 진짜 잔액 = 총예산 - 결제완료지출 - 묶인금액(가배정)
+    // 예산 차단(사용 방지)된 세부 산출내역 금액 계산
+    let lockedAmount = 0;
+    if (cat.subItems) {
+      cat.subItems.forEach(sub => {
+         if (sub.isLocked) {
+           lockedAmount += sub.amount;
+         } else if (sub.calculations) {
+           sub.calculations.forEach(calc => {
+             if (calc.isLocked) lockedAmount += calc.amount;
+           });
+         }
+      });
+    }
+    
+    // 남은 진짜 잔액 = 총예산 - 결제완료지출 - 묶인금액(가배정) - 사용불가/잠김 금액(lockedAmount)
+    const remaining = cat.totalBudget - spent - planned - lockedAmount; 
     const dailyExpenseRemaining = dailyExpenseIssued - dailyExpenseSpent;
     
     const usageRate = cat.totalBudget > 0 ? ((spent + planned) / cat.totalBudget) * 100 : 0;
@@ -196,6 +211,7 @@ export function useBudget() {
       totalBudget: cat.totalBudget, 
       spent, 
       planned, 
+      locked: lockedAmount,
       remaining, 
       usageRate,
       generalSpent,
@@ -214,11 +230,27 @@ export function useBudget() {
     
     const totalSpent = generalSpent + dailyExpenseIssued;
     
+    let totalLocked = 0;
+    uniqueCategories.forEach(cat => {
+      if (cat.subItems) {
+        cat.subItems.forEach(sub => {
+           if (sub.isLocked) {
+             totalLocked += sub.amount;
+           } else if (sub.calculations) {
+             sub.calculations.forEach(calc => {
+               if (calc.isLocked) totalLocked += calc.amount;
+             });
+           }
+        });
+      }
+    });
+    
     return { 
       totalBudget, 
       totalSpent, 
       totalPlanned, 
-      remaining: totalBudget - totalSpent - totalPlanned,
+      totalLocked,
+      remaining: totalBudget - totalSpent - totalPlanned - totalLocked,
       dailyExpenseIssued,
       dailyExpenseSpent,
       dailyExpenseRemaining: dailyExpenseIssued - dailyExpenseSpent
