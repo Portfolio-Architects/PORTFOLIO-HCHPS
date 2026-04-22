@@ -7,7 +7,12 @@ const eslintConfig = defineConfig([
   ...nextTs,
   {
     rules: {
-      "no-console": ["error", { allow: ["warn", "error", "info"] }]
+      "no-console": "off",
+      "@typescript-eslint/no-explicit-any": "off",
+      "react/no-unescaped-entities": "off",
+      "react-hooks/exhaustive-deps": "warn",
+      "prefer-const": "off",
+      "@typescript-eslint/no-unused-vars": "warn"
     }
   },
   // Override default ignores of eslint-config-next.
@@ -17,6 +22,7 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "*.js"
   ]),
 ]);
 

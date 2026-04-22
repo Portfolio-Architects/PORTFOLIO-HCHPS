@@ -74,7 +74,7 @@ export function QuickInput({ onCreateTask, onCreateKnowledge, onAddSignal, onSea
     setText('');
     setJustCreated(true);
     setTimeout(() => setJustCreated(false), 2500);
-  }, [parsed, text, onCreateTask, onCreateKnowledge, onNavigate]);
+  }, [parsed, text, onCreateTask, onCreateKnowledge, onAddSignal, onSearch, onNavigate]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {

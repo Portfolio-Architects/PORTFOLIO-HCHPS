@@ -133,7 +133,7 @@ export function TaskKnowledgeView(props: TaskKnowledgeViewProps) {
     let titleStr = '';
     let previewStr = '';
     let categoryBadge = null;
-    let timeStr = formatRelativeTime(item.data.createdAt);
+    const timeStr = formatRelativeTime(item.data.createdAt);
     const itemId = (item.data as { id: string }).id;
 
     if (item.type === 'signal') {

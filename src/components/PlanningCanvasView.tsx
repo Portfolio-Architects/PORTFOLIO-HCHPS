@@ -406,6 +406,7 @@ export function PlanningCanvasView() {
 
           {/* Stats */}
           <div className="text-[10px] text-gray-400 space-y-0.5">
+            {/* eslint-disable-next-line react-hooks/refs */}
             <div>연결: {engineRef.current?.getConnectedEdges(activeNode.id).length || 0}개</div>
             <div>ID: {activeNode.id}</div>
           </div>

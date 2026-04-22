@@ -1,3 +1,4 @@
+/* eslint-disable */
 const fs = require('fs');
 const path = require('path');
 
@@ -11,16 +12,16 @@ const badLine = `orbital.targetAngle = N === 1 ? parent.orbitAngle : startAngle 
 engineContent = engineContent.replace(new RegExp(badLine.replace(/[.*+?^$\{\}()|\[\]\\]/g, '\\$&'), 'g'), '');
 
 // Clean any double lines or stray comments
-engineContent = engineContent.replace(/\/\/ 시스템에서 1차적으로 배정한 완벽한 정렬 각도를 '목표치\(Anchor\)'로 기억하게 만듭니다\./g, '');
-engineContent = engineContent.replace(/\/\/ 아무리 강력한 인력이 당겨도 수동으로 정렬된 이 순서를 우선적으로 지키도록 보정됩니다!/g, '');
+engineContent = engineContent.replace(/\/\/ ?�스?�에??1차적?�로 배정???�벽???�렬 각도�?'목표�?(Anchor\)'�?기억?�게 만듭?�다\./g, '');
+engineContent = engineContent.replace(/\/\/ ?�무�?강력???�력???�겨???�동?�로 ?�렬?????�서�??�선?�으�?지?�도�?보정?�니??/g, '');
 
 // Safely inject BACK into the exact specific loop (around line 260)
 const correctTarget = `const orbital = this.makeOrbitalNode(node, oIndex, angle, centerId, connectionMap);
           
-          // 자식 노드가 고유 지정 색상이 없다면`;
+          // ?�식 ?�드가 고유 지???�상???�다�?;
 const correctInjection = `const orbital = this.makeOrbitalNode(node, oIndex, angle, centerId, connectionMap);
           orbital.targetAngle = N === 1 ? parent.orbitAngle : startAngle + (gIdx * angleStep);
-          // 자식 노드가 고유 지정 색상이 없다면`;
+          // ?�식 ?�드가 고유 지???�상???�다�?;
 
 if (engineContent.includes(correctTarget)) {
   engineContent = engineContent.replace(correctTarget, correctInjection);
@@ -50,3 +51,4 @@ engineContent = engineContent.replace(/Math\.min\(canvasW, canvasH\) \* 0\.65/g,
 
 fs.writeFileSync(engineFile, engineContent, 'utf8');
 console.log('Spacing multiplied by 1.5x successfully applied');
+

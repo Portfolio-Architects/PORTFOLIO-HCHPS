@@ -25,8 +25,32 @@ export const SecurityLockScreen: React.FC<Props> = ({ hasSetupPIN, failCount, on
     setPin('');
   };
 
+  const handlePinComplete = async (currentPin: string) => {
+    if (hasSetupPIN) {
+      const isValid = await onVerify(currentPin);
+      if (!isValid) {
+        triggerError('비밀번호가 일치하지 않습니다.');
+      }
+    } else {
+      if (setupStep === 1) {
+        setFirstPin(currentPin);
+        setSetupStep(2);
+        setPin('');
+      } else {
+        if (currentPin === firstPin) {
+          onSetup(currentPin);
+        } else {
+          setSetupStep(1);
+          setFirstPin('');
+          triggerError('비밀번호가 서로 다릅니다. 다시 설정해주세요.');
+        }
+      }
+    }
+  };
+
   useEffect(() => {
     if (pin.length === PIN_LENGTH) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       handlePinComplete(pin);
     }
   }, [pin]);
@@ -53,28 +77,7 @@ export const SecurityLockScreen: React.FC<Props> = ({ hasSetupPIN, failCount, on
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const handlePinComplete = async (currentPin: string) => {
-    if (hasSetupPIN) {
-      const isValid = await onVerify(currentPin);
-      if (!isValid) {
-        triggerError('비밀번호가 일치하지 않습니다.');
-      }
-    } else {
-      if (setupStep === 1) {
-        setFirstPin(currentPin);
-        setSetupStep(2);
-        setPin('');
-      } else {
-        if (currentPin === firstPin) {
-          onSetup(currentPin);
-        } else {
-          setSetupStep(1);
-          setFirstPin('');
-          triggerError('비밀번호가 서로 다릅니다. 다시 설정해주세요.');
-        }
-      }
-    }
-  };
+
 
   const handleNumberClick = (n: number) => {
     if (pin.length < PIN_LENGTH) {

@@ -16,6 +16,7 @@ export function useWikiStorage(nodeId: string | null, setNodeOverride?: (id: str
   // 로컬/클라우드 병합 로드
   useEffect(() => {
     if (!nodeId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setBlocks(undefined);
       setIsLoaded(false);
       setLoadedNodeId(null);

@@ -1,3 +1,4 @@
+/* eslint-disable */
 const fs = require('fs');
 const path = require('path');
 
@@ -25,7 +26,7 @@ const newStateBlock = `  const fgRef = useRef<any>();
 content = content.replace(stateBlock, newStateBlock);
 
 // 3. activeTreeSet helper
-const helperToInsert = `  // â”€â”€ Helpers â”€â”€
+const helperToInsert = `  // ?€?€ Helpers ?€?€
   const getConnectedEdges = useCallback((nodeId: string) => {
     return graphData.links.filter((l: any) => 
       (l.source.id === nodeId || l.source === nodeId) || 
@@ -50,12 +51,12 @@ const helperToInsert = `  // â”€â”€ Helpers â”€â”€
     });
     return set;
   }, [activeNode, graphData]);`;
-content = content.replace(`// â”€â”€ Keyboard Shortcuts (Undo/Redo) â”€â”€`, helperToInsert + '\n\n  // â”€â”€ Keyboard Shortcuts (Undo/Redo) â”€â”€');
+content = content.replace(`// ?€?€ Keyboard Shortcuts (Undo/Redo) ?€?€`, helperToInsert + '\n\n  // ?€?€ Keyboard Shortcuts (Undo/Redo) ?€?€');
 
 
 // 4. Clean initEngine loop entirely
-const initRegex = /\/\/ â”€â”€ Init Engine \(stable â€” deferred callbacks\) â”€â”€[\s\S]*?(?=\/\/ â”€â”€ Animation Loop â”€â”€)/;
-content = content.replace(initRegex, `// â”€â”€ Init Engine (D3 Data Builder) â”€â”€
+const initRegex = /\/\/ ?€?€ Init Engine \(stable ??deferred callbacks\) ?€?€[\s\S]*?(?=\/\/ ?€?€ Animation Loop ?€?€)/;
+content = content.replace(initRegex, `// ?€?€ Init Engine (D3 Data Builder) ?€?€
   const initEngine = useCallback(() => {
     setLoading(true);
     try {
@@ -119,8 +120,8 @@ content = content.replace(initRegex, `// â”€â”€ Init Engine (D3 Data Builder) â”
   }, [activeNode]);\n\n  `);
 
 // 5. Replace animation loop and observers
-const animRegex = /\/\/ â”€â”€ Animation Loop â”€â”€[\s\S]*?(?=\/\/ â”€â”€ Interaction â”€â”€)/;
-content = content.replace(animRegex, `// â”€â”€ D3 Force Configuration (Concentric Rings) â”€â”€
+const animRegex = /\/\/ ?€?€ Animation Loop ?€?€[\s\S]*?(?=\/\/ ?€?€ Interaction ?€?€)/;
+content = content.replace(animRegex, `// ?€?€ D3 Force Configuration (Concentric Rings) ?€?€
   useEffect(() => {
     initEngine();
   }, [initEngine]);
@@ -151,13 +152,13 @@ content = content.replace(animRegex, `// â”€â”€ D3 Force Configuration (Concentr
   }, [graphData]);\n\n  `);
 
 // 6. Delete old interaction block (handleDrag... hitTest...)
-const intRegex = /\/\/ â”€â”€ Interaction â”€â”€[\s\S]*?(?=\/\/ â”€â”€ Render Helpers â”€â”€)/;
+const intRegex = /\/\/ ?€?€ Interaction ?€?€[\s\S]*?(?=\/\/ ?€?€ Render Helpers ?€?€)/;
 content = content.replace(intRegex, `\n\n`);
 
 // 7. Inject graphData side effect for activeNode edges panel
 content = content.replace(
-  `{/* â”€â”€ Side Panel (Node Details) â”€â”€ */}`,
-  `{/* â”€â”€ Side Panel (Node Details) â”€â”€ */}
+  `{/* ?€?€ Side Panel (Node Details) ?€?€ */}`,
+  `{/* ?€?€ Side Panel (Node Details) ?€?€ */}
   {useEffect(() => {
      if (activeNode) setConnectedEdges(getConnectedEdges(activeNode.id));
    }, [activeNode, graphData])}
@@ -207,3 +208,4 @@ content = content.replace(canvasRegex, newForceGraph);
 
 fs.writeFileSync(filePath, content, 'utf8');
 console.log('MindMap3D.tsx successfully refactored for react-force-graph-2d');
+

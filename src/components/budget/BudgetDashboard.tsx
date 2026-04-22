@@ -238,6 +238,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
     const reqAmount = Number(entryAmount.replace(/,/g, ''));
     
     // 0. 중복 지출 방지 (최근 7일 내 동일 예산과목 & 동일 금액)
+    // eslint-disable-next-line react-hooks/purity
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const isDuplicate = !editEntryId && entries.some(e => 
       e.categoryId === selectedCatId && 

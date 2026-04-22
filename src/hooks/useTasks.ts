@@ -19,7 +19,7 @@ function calculateNextDueDate(currentDueDate?: string, recurrence?: string): str
   const baseDate = currentDueDate ? new Date(currentDueDate) : new Date();
   
   if (recurrence === '매일') {
-    let nextDate = new Date(baseDate);
+    const nextDate = new Date(baseDate);
     do {
       nextDate.setDate(nextDate.getDate() + 1);
     } while (isHoliday(nextDate));
@@ -33,7 +33,7 @@ function calculateNextDueDate(currentDueDate?: string, recurrence?: string): str
     const allowedIndices = allowedDays.map(d => WEEKDAYS_MAP[d]).filter(i => i !== undefined);
     
     if (allowedIndices.length > 0) {
-      let nextDate = new Date(baseDate);
+      const nextDate = new Date(baseDate);
       let baseAdjDay = adjustedDay(baseDate.getDay());
       let weeksSkipped = false;
       
@@ -61,7 +61,7 @@ function calculateNextDueDate(currentDueDate?: string, recurrence?: string): str
   }
 
   // Monthly or simple weekly fallback
-  let nextDate = new Date(baseDate);
+  const nextDate = new Date(baseDate);
   if (recurrence.includes('월') || recurrence.includes('달')) {
     nextDate.setMonth(nextDate.getMonth() + 1);
     while (isHoliday(nextDate)) nextDate.setDate(nextDate.getDate() + 1);

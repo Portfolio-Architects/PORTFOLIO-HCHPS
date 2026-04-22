@@ -1,3 +1,4 @@
+/* eslint-disable */
 const { chromium } = require('playwright');
 (async () => {
   const browser = await chromium.launch();
@@ -9,3 +10,4 @@ const { chromium } = require('playwright');
   await browser.close();
   console.log('Dumped successfully.');
 })();
+

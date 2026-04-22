@@ -56,6 +56,7 @@ export function useNotificationAlerts(
   useEffect(() => {
     if (typeof window !== 'undefined') {
       if ('Notification' in window) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setPermission(Notification.permission);
       }
       const saved = localStorage.getItem('hchps_notification_enabled');

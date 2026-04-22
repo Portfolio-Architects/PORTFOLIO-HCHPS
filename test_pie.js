@@ -1,15 +1,16 @@
+/* eslint-disable */
 const GROUP_COLORS = { MACRO_RESEARCH: 'green', DATA_PIPELINE: 'yellow', OTHER: 'grey' };
 
 class Engine {
   constructor() {
     this.nodes = [
       { id: '1', label: '김미경', group: 'MACRO_RESEARCH', orbitIndex: 4, customColor: undefined },
-      { id: '2', label: '용품구매', group: 'DATA_PIPELINE', orbitIndex: 2, customColor: undefined },
-      { id: '3', label: '측정장비', group: 'OTHER', orbitIndex: 3, customColor: undefined }
+      { id: '2', label: '?�품구매', group: 'DATA_PIPELINE', orbitIndex: 2, customColor: undefined },
+      { id: '3', label: '측정?�비', group: 'OTHER', orbitIndex: 3, customColor: undefined }
     ];
     this.edges = [
       { source: '2', target: '3', type: 'DEPENDENCY' },
-      { source: '1', target: '3', type: 'DEPENDENCY' }  // 김미경 -> 측정장비
+      { source: '1', target: '3', type: 'DEPENDENCY' }  // 김미경 -> 측정?�비
     ];
   }
   
@@ -42,6 +43,7 @@ class Engine {
 }
 
 const e = new Engine();
-console.log('측정장비', e.getNodeColors('3'));
+console.log('측정?�비', e.getNodeColors('3'));
 console.log('김미경', e.getNodeColors('1'));
-console.log('용품구매', e.getNodeColors('2'));
+console.log('?�품구매', e.getNodeColors('2'));
+

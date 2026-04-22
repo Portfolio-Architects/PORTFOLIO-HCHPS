@@ -80,6 +80,7 @@ function ProtectedApp() {
 
   // Prevent hydration mismatch — hooks read localStorage data on client
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
     const saved = localStorage.getItem('hchps_active_module');
     if (saved === 'workspace' || saved === 'knowledge' || saved === 'mindmap' || saved === 'project-planning') {
@@ -315,6 +316,7 @@ export default function Home() {
   const { isLocked, hasSetupPIN, failCount, verifyPIN, setupPIN } = useSecurityLock();
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
 

@@ -267,7 +267,7 @@ export function buildSignalGraph(
 
     // Remap any ghost customParent references to their merged ALIVE IDs
     Object.keys(customData.overrides).forEach(key => {
-      let override = customData.overrides[key];
+      const override = customData.overrides[key];
       if (override && override.customParent && mergedIdMap.has(override.customParent)) {
         // 재귀적 고스트가 발생하지 않도록 대체된 ID를 주입
         override.customParent = mergedIdMap.get(override.customParent)!;
