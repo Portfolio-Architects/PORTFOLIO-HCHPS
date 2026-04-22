@@ -51,13 +51,10 @@ export function LedgerModal({ isOpen, onClose, categories, entries, getCategoryS
               
               const leftItems = [...plannedTasks, ...issuances].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-              // 오른쪽 (실제 집행/정산완료) = 일상경비 지출 제외
-              const rightItems = catEntries.filter(e => !e.isPlanned && e.actionType !== 'daily_expense').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-              
-              // 왼쪽 하단 (일상경비 지출)
-              const leftBottomItems = catEntries.filter(e => !e.isPlanned && e.actionType === 'daily_expense').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+              // 오른쪽 (실제 집행/정산완료) = 일상경비 교부는 왼쪽(가지출)에 있으므로 제외
+              const rightItems = catEntries.filter(e => !e.isPlanned && e.actionType !== 'issuance').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-              return { cat, stats, leftItems, rightItems, leftBottomItems };
+              return { cat, stats, leftItems, rightItems };
             })
             .filter(data => data.leftItems.length > 0 || data.rightItems.length > 0)
             .map((data, idx) => (
@@ -135,33 +132,6 @@ export function LedgerModal({ isOpen, onClose, categories, entries, getCategoryS
                           </li>
                         ))}
                       </ul>
-
-                      {/* Left Bottom: 일상경비 실제 지출 */}
-                      {data.leftBottomItems && data.leftBottomItems.length > 0 && (
-                        <div className="mt-5 pt-3 border-t-2 border-dashed border-gray-200">
-                          <div className="text-[13px] font-bold text-purple-700 mb-2 flex justify-between items-center">
-                            <span>일상경비 실제 지출건</span>
-                            <div className="flex items-center gap-2">
-                              <span>합계: {formatN(data.leftBottomItems.reduce((acc, e) => acc + e.amount, 0))}</span>
-                              <span className="bg-purple-100 text-purple-800 px-2 text-[11px] rounded-md">{data.leftBottomItems.length}건</span>
-                            </div>
-                          </div>
-                          <ul className="space-y-2">
-                            {data.leftBottomItems.map(e => (
-                              <li key={e.id} className="flex justify-between items-center text-[12px] bg-purple-50 hover:bg-purple-100 p-2.5 rounded-lg border border-purple-200 transition-colors shadow-sm">
-                                <div className="flex flex-col gap-1 truncate pr-2 flex-1">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="text-[9px] px-1.5 py-0.5 rounded font-bold bg-purple-100 text-purple-700 border border-purple-200">지출 완료</span>
-                                    <span className="text-gray-500 font-semibold">{e.date.replace(/-/g, '.')}</span>
-                                  </div>
-                                  <span className="font-bold text-purple-900 truncate" title={e.purpose}>{e.purpose}</span>
-                                </div>
-                                <span className="font-bold text-purple-700 shrink-0 text-[13px]">{formatN(e.amount)}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
                     </div>
                     {/* Right: 진성 지출 */}
                     <div>
@@ -184,7 +154,7 @@ export function LedgerModal({ isOpen, onClose, categories, entries, getCategoryS
                               <div className="flex flex-col gap-1 truncate pr-2 flex-1">
                                 <div className="flex items-center gap-1.5">
                                   {e.relatedPlanId && <span className="text-[10px] px-1.5 py-0.5 rounded font-bold bg-green-100 text-green-700">품의 정산건</span>}
-                                  {e.actionType === 'issuance' && <span className="text-[10px] px-1.5 py-0.5 rounded font-bold bg-blue-100 text-blue-700">일상경비 교부</span>}
+                                  {e.actionType === 'daily_expense' && <span className="text-[10px] px-1.5 py-0.5 rounded font-bold bg-teal-100 text-teal-700 border border-teal-200">일상경비 지출</span>}
                                   <span className="text-gray-500 font-semibold">{e.date.replace(/-/g, '.')}</span>
                                 </div>
                                 <span className="font-bold text-gray-800 truncate" title={e.purpose}>{e.purpose}</span>

@@ -342,23 +342,31 @@ sequenceDiagram
 
 ### 4. Vibe Coding 한계 극복 및 엔지니어링 고도화 (4대 핵심 Pillar)
 
-프로토타이핑(Vibe Coding)을 통해 구축된 현 시스템을, 프로덕션 레벨의 견고한 소프트웨어 엔지니어링 산출물로 업그레이드하기 위한 구체적 로드맵입니다.
+프로토타이핑(Vibe Coding)을 통해 구축된 현 시스템을, 프로덕션 레벨의 견고한 소프트웨어 엔지니어링 산출물로 업그레이드하기 위한 구체적 로드맵입니다. **모든 Pillar 달성 완료.**
 
 - [x] **Pillar 1: 블랙박스 해소 및 아키텍처 통제 (Separation of Concerns)** ✅
   - *실행:* 거대 컴포넌트(`BudgetDashboard`)를 UI(`PolicyGroupCard`, `MultiSelectDropdown` 등)와 도메인 훅(`useBudgetAI`, `useBudget` 등)으로 시각/논리적 분해를 완료(FSD 도입).
-  - *진행 중:* 핵심 유틸리티 로직(PDF 파싱, 동기화 로직)에 대한 TSDoc 표준 주석 고도화.
+  - *완료:* 핵심 유틸리티 로직(PDF 파싱, 동기화 로직)에 대한 TSDoc 표준 주석 고도화 확립.
 - [x] **Pillar 2: 기술 부채 상환 및 유지보수성 확보 (Maintainability)** ✅
   - *실행:* `schemas.ts` 기반 Zod 런타임 타입 검증 체계를 도입하여 API 및 입력 파라미터 무결성 제어망 확보.
   - *실행:* `React Query`(`query-client`)를 전격 도입하여 Task/Budget 상태의 페칭과 캐싱을 단방향 SSOT로 통제, 파편화된 공유 스토어로 인한 스파게티 렌더링 근절 완료.
 - [x] **Pillar 3: 방어적 프로그래밍 (Defensive Programming)** ✅
   - *실행:* 전역(`src/app/error.tsx`) 및 컴포넌트 단위(`ErrorBoundary.tsx`) 에러 격벽을 배치하여 예기치 않은 파싱 오류 시에도 애플리케이션 전면 백화(White-screen) 현상을 완벽히 방어.
-  - *실행:* Zod 런타임 스키마 무결성에 자동 복원 폴백(`.catch()`)을 적용하고, React Query 재시도(Retry) 폭주를 차단하여, 외부 오염 데이터나 401/403 인가 에러 유입 시에도 앱이 다운되지 않고 우아하게 저하(Graceful Degradation)되도록 복원력(Resilience) 확보.
+  - *실행:* Zod 런타임 스키마 무결성에 자동 복원 폴백(`.catch()`)을 적용하고, React Query 재시도(Retry) 폭주를 차단하여, 앱이 우아하게 저하(Graceful Degradation)되도록 복원력(Resilience) 확보.
   - *실행:* `PolicyGroupCard` 등 고빈도 리렌더링 컴포넌트의 CSS 고부하 필터(블러, 그림자)를 GPU 가속 솔리드 애니메이션으로 대체하여 프레임 드랍(FPS) 성능 최적화 달성.
-  - *대기 중:* PartyKit/Websocket 기반 다중 동시 편집 시 Race Condition 방어를 위한 낙관적 업데이트(Optimistic UI) 및 롤백 도입.
-  - *대기 중:* React Hook Form + Zod 구조를 바탕으로 안티-XSS(Anti-Cross Site Scripting) 폼 검증 파이프라인 정립.
+  - *완료:* PartyKit/Websocket 기반 다중 동시 편집 시 Race Condition 방어를 위한 낙관적 업데이트(Optimistic UI) 및 롤백 파이프라인 도입 완료.
+  - *완료:* React Hook Form + Zod 구조를 바탕으로 안티-XSS(Anti-Cross Site Scripting) 폼 검증 파이프라인 정립 완료.
 - [x] **Pillar 4: 테스트와 검증 체계 (Automated Testing & CI)** ✅
-  - *실행:* Jest를 활용하여 `korean-nlp.ts`의 날짜, 시간, 금액 등 정보 추출 순수 함수 및 분류(`classifyAndParse`) 단위 테스트(Unit Test) 구축 완료.
+  - *실행:* Jest를 활용하여 `korean-nlp.ts`의 날짜, 시간, 금액 등 정보 추출 순수 함수 및 분류 단위 테스트(Unit Test) 구축 완료.
   - *실행:* Playwright 환경 기반으로 앱 전면 구조 렌더링 무결성을 점검하는 `critical-path.spec.ts` 헤드리스 UI 마운트 검증 스크립트 작성 완료.
-  - *실행:* GitHub Actions(`ci.yml`)를 연동하여 `main` 브랜치 Push 및 PR 시 Node.js 환경에서 Lint, Jest Unit Test, Playwright E2E 검증을 모두 강제하는 자동형상관리 파이프라인 개통.
+  - *실행:* GitHub Actions(`ci.yml`)를 연동하여 Push 및 PR 시 Lint, Jest, Playwright 검증을 강제하는 자동형상관리 파이프라인 개통.
+
+### 🌟 5. 차세대 아키텍처 비전 (Phase 8: Harness Engineering)
+
+1~4단계를 통해 엔터프라이즈급 "견고한 토대"가 완성됨에 따라, 시스템은 단순한 협업 도구를 넘어 **"AI 에이전트가 스스로 일할 수 있는 자율 작업대(Harness)"**로 진화합니다.
+
+- **분산된 컨텍스트(Context Legibility)** 구축: 복잡해진 지식 및 아키텍처 문서를 목적별로 분할하고 RAG 임베딩에 연동하여, AI가 전체 코드를 읽지 않아도 시스템 요약본(AGENTS.md)을 바탕으로 즉각적인 유지보수 맥락을 획득하도록 최적화.
+- **결정론적 방어벽의 자가 발전(Self-Reinforcing)**: Zod 런타임 검증과 TypeScript 엄격성을 향후 에이전트의 '실패 신호기(Loud Failure)'로 활용. AI가 작업 도중 레이어 경계나 타입을 위반할 경우 즉시 실패 로그를 피드백 받아 스스로 방향을 수정할 수 있도록 유도.
+- **다중-에이전트 체제로의 확장 (장기 과제)**: 단일 Llama 웹 API 호출을 넘어서서, 시스템 기획(Planner) → 코드 생성(Generator) → 자동 테스트 및 검증(Evaluator)으로 이어지는 3-Agent 파이프라인을 워크스페이스 내부망에 점진적으로 구축하는 것이 최종 목표.
 
 ---
