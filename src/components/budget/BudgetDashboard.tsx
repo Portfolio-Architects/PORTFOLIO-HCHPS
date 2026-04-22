@@ -5,12 +5,14 @@ import { BudgetCategory, BudgetEntry, BudgetActionType, generateId } from '@/typ
 import { Card, CardContent } from '@/components/ui/card';
 import { ProgressBar } from '@/components/ui/progress-bar';
 import { Modal } from '@/components/ui/modal';
-import { Plus, Pencil, Trash2, CheckCircle2, AlertOctagon, ShieldAlert, RefreshCw, Search, FilePlus2, ChevronDown, ChevronLeft, ChevronRight, X, FileCheck } from 'lucide-react';
+import { Plus, Pencil, Trash2, CheckCircle2, AlertOctagon, ShieldAlert, RefreshCw, Search, FilePlus2, ChevronDown, ChevronLeft, ChevronRight, X, FileCheck, Upload } from 'lucide-react';
 import { replaceAll } from '@/lib/sheets-api';
 import { MultiSelectDropdown } from './ui/MultiSelectDropdown';
 import { PolicyGroupCard, ACTION_TYPE_CONFIG } from './ui/PolicyGroupCard';
 import { BudgetRules } from '@/lib/budget-rules';
 import { LedgerModal } from './ui/LedgerModal';
+import { extractAmount } from '@/lib/korean-nlp';
+import { extractTextFromPdfBuffer } from '@/lib/pdf-parser';
 
 interface BudgetDashboardProps {
   categories: BudgetCategory[];
@@ -1315,13 +1317,64 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
             </button>
           ))}
         </div>
+        
+        <div className="flex items-center justify-between bg-blue-50/50 p-2.5 rounded-lg border border-blue-100 mb-4 cursor-pointer hover:bg-blue-50 transition-colors" onClick={() => document.getElementById('expense-pdf-upload')?.click()}>
+          <div className="flex items-center gap-2">
+            <div className="bg-blue-100 p-1.5 rounded-md text-blue-600"><Upload size={16} /></div>
+            <div>
+              <div className="text-xs font-bold text-blue-900">📄 영수증/결재문서 PDF 자동 인식 (AI 파싱)</div>
+              <div className="text-[10px] text-blue-600 mt-0.5">파일을 첨부하면 금액과 예산과목을 자동으로 추출합니다.</div>
+            </div>
+          </div>
+          <input 
+            id="expense-pdf-upload"
+            type="file" 
+            accept=".pdf" 
+            className="hidden" 
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              try {
+                const arrBuf = await file.arrayBuffer();
+                const text = await extractTextFromPdfBuffer(arrBuf);
+                
+                // 파싱: 금액 추출
+                const amtMatch = extractAmount(text);
+                if (amtMatch && !entryAmount) setEntryAmount(amtMatch.amount.toLocaleString('ko-KR'));
+                
+                // 파싱: 예산과목 추출
+                if (!selectedCatId && text.trim().length >= 2) {
+                  const sortedCats = [...categories].sort((a,b) => b.name.length - a.name.length);
+                  const matchedCat = sortedCats.find(c => text.includes(c.name) || (c.detailedProject && text.includes(c.detailedProject)));
+                  if (matchedCat) setSelectedCatId(matchedCat.id);
+                }
+                
+                // 보조 지표: 문서 내용을 품의 내용에 일부 채워줌
+                if (!entryPurpose) {
+                   const firstLine = text.split('\n').map(l => l.trim()).filter(l => l.length > 5 && !l.includes('결재') && !l.includes('날짜'))[0];
+                   if (firstLine) setEntryPurpose(firstLine.slice(0, 40));
+                }
+                if (!entryMemo) {
+                   setEntryMemo("PDF 스캔 데이터 적용 완료");
+                }
+                
+                alert("PDF 로드 및 파싱 완료!");
+              } catch (err) {
+                alert("PDF 파싱 에러: " + err);
+              }
+              // input 초기화 (같은 파일 재업로드시 동작 보장)
+              if (e.target) e.target.value = '';
+            }}
+          />
+        </div>
+        
         <form onSubmit={handleAddEntry} className="space-y-4">
           
           <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">예산 과목 *</label>
             <div className="flex items-center gap-2">
               <select value={selectedCatId} onChange={e => setSelectedCatId(e.target.value)} className={`${inputClass} flex-1`} required>
                 <option value="">선택</option>
-                {categories.map(c => <option key={c.id} value={c.id}>[{c.fundingSource || '자체'}] {c.name}</option>)}
+                {categories.map(c => <option key={c.id} value={c.id}>[{c.fundingSource || '자체'}] {c.detailedProject ? `${c.detailedProject} - ` : ''}{c.name}</option>)}
               </select>
               <button type="button" onClick={handleInlineAddCat} className="p-2.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors" title="과목 추가">
                 <Plus size={16} />
@@ -1340,7 +1393,26 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
                setEntryAmount(raw ? Number(raw).toLocaleString('ko-KR') : '');
              }} className={inputClass} required placeholder="0" />
           </div>
-          <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">품의 내용 *</label><input type="text" value={entryPurpose} onChange={e => setEntryPurpose(e.target.value)} className={inputClass} required placeholder="어떤 지출을 승인받을 건지" /></div>
+          <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">품의 내용 *</label><input type="text" value={entryPurpose} onChange={e => {
+            const val = e.target.value;
+            setEntryPurpose(val);
+            
+            // 파싱: 금액 자동 추출
+            const amtMatch = extractAmount(val);
+            if (amtMatch && !entryAmount) {
+              setEntryAmount(amtMatch.amount.toLocaleString('ko-KR'));
+            }
+            
+            // 파싱: 예산 과목 자동 추출
+            if (!selectedCatId && val.trim().length >= 2) {
+              // 가장 긴 매칭을 우선시하도록 내림차순 정렬 검색
+              const sortedCats = [...categories].sort((a,b) => b.name.length - a.name.length);
+              const matchedCat = sortedCats.find(c => val.includes(c.name) || (c.detailedProject && val.includes(c.detailedProject)));
+              if (matchedCat) {
+                setSelectedCatId(matchedCat.id);
+              }
+            }
+          }} className={inputClass} required placeholder="예: 행사운영비 15000원 결제" /></div>
           <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">시행 문서 번호</label><input type="text" value={entryDocNum} onChange={e => setEntryDocNum(e.target.value)} className={inputClass} placeholder="예: 찾아가는보건팀-1234 (선택)" /></div>
           <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">날짜</label><input type="date" value={entryDate} onChange={e => setEntryDate(e.target.value)} className={inputClass} /></div>
           <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">메모</label><input type="text" value={entryMemo} onChange={e => setEntryMemo(e.target.value)} className={inputClass} placeholder="추가 메모 (선택)" /></div>
