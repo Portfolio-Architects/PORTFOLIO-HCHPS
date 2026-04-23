@@ -44,6 +44,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
   const { categories, entries, addCategory, updateCategory, deleteCategory, addEntry, updateEntry, deleteEntry, getCategoryStats, overallStats } = props;
   const [showCatModal, setShowCatModal] = useState(false);
   const [showEntryModal, setShowEntryModal] = useState(false);
+  const [entryError, setEntryError] = useState<string | null>(null);
   const [selectedCatId, setSelectedCatId] = useState<string>('');
   const [catName, setCatName] = useState('');
   const [catBudget, setCatBudget] = useState('');
@@ -313,12 +314,12 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
 
       if (actionType === 'general' || actionType === 'issuance') {
         if (reqAmount > adjRemaining) {
-          alert(`Error: 일반 예산 잔액이 부족합니다. (현재 가용 실 잔액: ${formatN(adjRemaining)}원)`);
+          setEntryError(`일반 예산 잔액이 부족합니다. (현재 가용 실 잔액: ${formatN(adjRemaining)}원)`.trim());
           return;
         }
       } else if (actionType === 'daily_expense') {
         if (reqAmount > adjDailyRemaining) {
-          alert(`Error: 일상경비 통장 가용 잔액이 부족합니다. (현재 가용 잔액: ${formatN(adjDailyRemaining)}원)`);
+          setEntryError(`일상경비 통장 가용 잔액이 부족합니다. (현재 가용 잔액: ${formatN(adjDailyRemaining)}원)`.trim());
           return;
         }
       }
@@ -347,7 +348,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
 
         if (subItemName) {
            if (isLocked) {
-             alert(`Error: [${subItemName}] 항목은 예산 잠금(사용 불가) 상태이므로 지출할 수 없습니다.`);
+             setEntryError(`[${subItemName}] 항목은 예산 잠금(사용 불가) 상태이므로 지출할 수 없습니다.`.trim());
              return;
            }
 
@@ -357,7 +358,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
            const subItemRemaining = targetAmount - spentOnSubItem - plannedOnSubItem;
            
            if (reqAmount > subItemRemaining) {
-             alert(`Error: [${subItemName}] 항목의 예산 한도가 부족합니다.\n\n해당 세부 항목 배정액: ${formatN(targetAmount)}원\n세부 항목 가용 잔액: ${formatN(subItemRemaining)}원\n\n(참고: 통계목 전체 잔액이 남아있더라도 세부 항목 예산을 섞어 쓸 수 없습니다)`);
+             setEntryError(`[${subItemName}] 항목의 예산 한도가 부족합니다.\n\n해당 세부 항목 배정액: ${formatN(targetAmount)}원\n세부 항목 가용 잔액: ${formatN(subItemRemaining)}원\n\n(참고: 통계목 전체 잔액이 남아있더라도 세부 항목 예산을 섞어 쓸 수 없습니다)`.trim());
              return;
            }
         }
@@ -367,7 +368,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
     // 예산 지침 컴플라이언스 룰 검증
     const validation = BudgetRules.validateEntryCompliance(entryPurpose, targetCat?.name || '');
     if (!validation.valid && validation.type === 'error') {
-      alert('Error: ' + validation.message);
+      setEntryError(validation.message || "요청을 처리할 수 없습니다.");
       return;
     }
     if (validation.type === 'confirm') {
@@ -420,6 +421,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
   };
 
   const closeEntryModal = () => {
+    setEntryError(null);
     setEntryAmount(''); setEntryPurpose(''); setEntryMemo(''); setEntryDocNum(''); setEntryLinkedSubItemId(''); setEditEntryId(null); setShowEntryModal(false);
   };
 
@@ -1511,6 +1513,11 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
           />
         </div>
         
+        {entryError && (
+          <div className="bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 rounded-xl text-sm font-bold shadow-sm flex items-center justify-between mb-4">
+            <div>{entryError.split('\n').map((line, i) => <span key={i}>{line}<br/></span>)}</div>
+          </div>
+        )}
         <form onSubmit={handleAddEntry} className="space-y-4">
           
           <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">예산 과목 *</label>
