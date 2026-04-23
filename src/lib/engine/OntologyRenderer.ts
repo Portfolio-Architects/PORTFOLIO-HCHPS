@@ -204,26 +204,34 @@ export class OntologyRenderer {
 
       const labelText = node.label || '';
       
+      // 버퍼링 최적화 1: 텍스트 측정을 줌 레벨 1.0(12px) 기준으로 1회만 캐싱하여 매 프레임 발생하는 엄청난 연산 부하 제거
+      const weightStyle = (isActive || isTreeActive) ? '600' : '500';
+      const cacheKey = weightStyle;
+      if (!(node as any)._cachedTextWidth) (node as any)._cachedTextWidth = {};
+      if (!(node as any)._cachedTextWidth[cacheKey]) {
+          ctx.font = `${weightStyle} 12px 'Pretendard', sans-serif`;
+          (node as any)._cachedTextWidth[cacheKey] = ctx.measureText(labelText).width;
+      }
+      const textWidth = (node as any)._cachedTextWidth[cacheKey] * zoom;
+
       // NotebookLM 스타일: 콤팩트한 노드 사이즈
       const fontSize = 12 * zoom;
-      ctx.font = `${(isActive || isTreeActive) ? '600' : '500'} ${fontSize}px 'Pretendard', sans-serif`;
+      ctx.font = `${weightStyle} ${fontSize}px 'Pretendard', sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
       const paddingX = 14 * zoom; // 좌우 여백 (기존 24 -> 14)
       const paddingY = 10 * zoom; // 상하 여백 (기존 16 -> 10)
-      const textWidth = ctx.measureText(labelText).width;
       
       // Node Dimensions
       const boxW = Math.max(60 * zoom, textWidth + paddingX * 2); // 100 -> 60
       const boxH = Math.max(28 * zoom, fontSize + paddingY * 2);  // 40 -> 28
 
-      
       const themeColor = node.isCompleted ? '#CBD5E1' : (node.themeColor || '#94A3B8'); // 완료된 노드는 회색 처리
 
-      // Shadow and Glow setup
+      // Shadow and Glow setup (버퍼링 최적화 2: 캔버스 성능을 갉아먹는 무의미한 미세 그림자 연산 제거)
       if (node.isHighlighted) {
-        ctx.shadowColor = 'rgba(245, 158, 11, 0.6)'; // Amber-500 glow (통일된 하이라이트)
+        ctx.shadowColor = 'rgba(245, 158, 11, 0.6)'; // Amber-500 glow 
         ctx.shadowBlur = 8 * zoom;
         ctx.shadowOffsetY = 0;
       } else if (isActive || isHovered) {
@@ -231,9 +239,10 @@ export class OntologyRenderer {
         ctx.shadowBlur = 8 * zoom;
         ctx.shadowOffsetY = 3 * zoom;
       } else {
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.03)';
-        ctx.shadowBlur = 4 * zoom;
-        ctx.shadowOffsetY = 1 * zoom;
+        // 일반 평상시 노드의 그림자는 가장 무거운 렌더링 부하를 일으키므로 생략 (Flat UI 강화)
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
       }
 
       // Box Draw (Clean White Background)

@@ -791,6 +791,16 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
             isFullscreen={isFullscreen}
             onToggleFullscreen={() => setIsFullscreen(!isFullscreen)}
             onPrintPdf={handlePrintPdf}
+            onCollapseAll={() => {
+              if (engineRef.current) {
+                engineRef.current.collapseAll();
+              }
+            }}
+            onExpandAll={() => {
+              if (engineRef.current) {
+                engineRef.current.expandAll();
+              }
+            }}
           />
 
 

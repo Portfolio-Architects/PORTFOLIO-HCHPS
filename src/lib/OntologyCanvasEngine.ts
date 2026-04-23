@@ -563,6 +563,35 @@ export class OntologyCanvasEngine {
     this.callbacks.onActiveNodeChange?.(this.activeNode);
   }
 
+  expandAll(): void {
+    this.collapsedNodeIds.clear();
+    this.needsRedraw = true;
+  }
+
+  collapseAll(): void {
+    if (!this.centerNode) return;
+    this.collapsedNodeIds.clear();
+    
+    // 1차 카테고리들(centerChildren)을 모두 찾아 그 녀석들을 닫는다. (2차, 3차 숨김)
+    const treeChildrenMap = OntologyLayout.lastTreeChildrenMap;
+    const centerChildren = treeChildrenMap.get(this.centerNode.id) || [];
+    
+    for (const childId of centerChildren) {
+       this.collapsedNodeIds.add(childId);
+       
+       // 모든 자손들도 다 닫힘 상태로 세팅 (다시 열 때 서브트리가 닫혀있도록)
+       const q = [childId];
+       while(q.length > 0) {
+         const curr = q.shift()!;
+         this.collapsedNodeIds.add(curr);
+         for (const kid of treeChildrenMap.get(curr) || []) {
+            q.push(kid);
+         }
+       }
+    }
+    this.needsRedraw = true;
+  }
+
   handleHover(mx: number, my: number): void {
     const hit = this.hitTest(mx, my);
     if (hit?.id !== this.hoveredNode?.id) {

@@ -383,7 +383,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
         memo: entryMemo,
         actionType,
         docRegNum: entryDocNum,
-        linkedSubItemId: entryLinkedSubItemId || undefined,
+        linkedSubItemId: (entryLinkedSubItemId && entryLinkedSubItemId !== 'UNLINKED') ? entryLinkedSubItemId : undefined,
       });
     } else {
       let linkedPlanId = undefined;
@@ -413,7 +413,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
         actionType,
         docRegNum: entryDocNum,
         relatedPlanId: linkedPlanId,
-        linkedSubItemId: entryLinkedSubItemId || undefined,
+        linkedSubItemId: (entryLinkedSubItemId && entryLinkedSubItemId !== 'UNLINKED') ? entryLinkedSubItemId : undefined,
       });
     }
     closeEntryModal();
@@ -1540,10 +1540,12 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
             cat.subItems!.forEach(sub => {
               if (sub.calculations && sub.calculations.length > 0) {
                 sub.calculations.forEach(calc => {
-                  if (calc.id) options.push({ id: calc.id, name: calc.name || sub.name, isLocked: calc.isLocked || sub.isLocked || false, amount: calc.amount });
+                  const cId = calc.id || calc.name || sub.name;
+                  if (cId) options.push({ id: cId, name: calc.name || sub.name, isLocked: calc.isLocked || sub.isLocked || false, amount: calc.amount });
                 });
-              } else if (sub.id) {
-                options.push({ id: sub.id, name: sub.name, isLocked: sub.isLocked || false, amount: sub.amount });
+              } else {
+                const sId = sub.id || sub.name;
+                if (sId) options.push({ id: sId, name: sub.name, isLocked: sub.isLocked || false, amount: sub.amount });
               }
             });
 
@@ -1552,11 +1554,10 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
                 <label className="block text-xs font-bold text-teal-800 mb-1.5 flex items-center gap-1">✨ 세부 예산 집중 통제</label>
                 <select value={entryLinkedSubItemId} onChange={e => setEntryLinkedSubItemId(e.target.value)} className={`${inputClass} flex-1 border-teal-300 focus:ring-teal-500`} required>
                   <option value="">-- 어느 '세부 항목' 예산에서 지출하시겠습니까? --</option>
-                  {options.map(opt => (
-                    <option key={opt.id} value={opt.id} disabled={opt.isLocked}>
-                      {opt.isLocked ? `🔒 ` : ''}{opt.name} (배정액: {opt.amount.toLocaleString()}원)
-                    </option>
-                  ))}
+                  <option value="UNLINKED" className="text-gray-500 font-bold bg-gray-50">
+                    {actionType === 'daily_expense' || actionType === 'issuance' ? '-- (일상경비 전용) 해당 과목 일상경비 집행 원장으로 연결 --' : '-- (미지정) 통계목 일반 전체 공통 예산으로 지출 --'}
+                  </option>
+                  {options.map(opt => <option key={opt.id} value={opt.id}>{opt.name}</option>)}
                 </select>
               </div>
             );

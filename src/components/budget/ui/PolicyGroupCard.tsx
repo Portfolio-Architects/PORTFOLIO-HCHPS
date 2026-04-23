@@ -102,6 +102,25 @@ export const PolicyGroupCard = React.memo(({
     return { totalBudget: tBudget, spent: tSpent, planned: tPlanned, remaining: tRemaining, usageRate: rate, groupEntries: gEntries, groupedByDetail: groups, groupFunding, groupTypes };
   }, [cats, entries, getCategoryStats]);
 
+  const renderMatchedEntries = useCallback((matchedEntries: BudgetEntry[]) => {
+    if (matchedEntries.length === 0) return null;
+    return (
+      <div className="mt-1.5 pt-1.5 border-t border-slate-100 flex flex-col gap-1 w-full bg-slate-50/50 rounded lg:p-1.5 p-1 mb-1">
+        {matchedEntries.map(e => (
+           <div key={e.id} className="flex justify-between items-center text-[13px] hover:bg-slate-100 px-1.5 py-1 rounded transition-colors group/entry cursor-pointer" onClick={(evt) => { evt.stopPropagation(); openEditEntry(e); }}>
+              <div className="flex gap-2 items-center truncate">
+                 <span className="text-slate-400 font-medium tracking-tight shrink-0 bg-white border border-slate-200 px-1 rounded-sm">{e.date.replace(/-/g, '.')}</span>
+                 {e.actionType === 'daily_expense' && <span className="text-[10px] bg-teal-50 text-teal-700 border border-teal-200 px-1 py-0.5 rounded font-extrabold shrink-0">일상경비</span>}
+                 {e.actionType === 'issuance' && <span className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 px-1 py-0.5 rounded font-extrabold shrink-0">교부액</span>}
+                 <span className="text-slate-600 truncate font-semibold">{e.purpose}</span>
+              </div>
+              <span className="font-bold text-teal-700 tabular-nums shrink-0">{formatN(e.amount)}원</span>
+           </div>
+        ))}
+      </div>
+    );
+  }, [openEditEntry]);
+
   return (
     <div className={`bg-white rounded-xl mb-4 last:mb-0 transition-colors ${hidePolicyHeader ? '' : 'border border-slate-200 hover:border-slate-300'}`}>
       {!hidePolicyHeader && (
@@ -222,6 +241,23 @@ export const PolicyGroupCard = React.memo(({
                   if (!stats) return null;
                   const isFirst = catIdx === 0;
                   const isLast = catIdx === detailGroup.cats.length - 1;
+                  
+                  const catEntries = groupEntries.filter(e => e.categoryId === cat.id);
+                  const linkedSubItemIds = new Set<string>();
+                  cat.subItems?.forEach(s => {
+                    if (s.id) linkedSubItemIds.add(s.id);
+                    if (s.name) linkedSubItemIds.add(s.name);
+                    s.calculations?.forEach(c => { 
+                      if (c.id) linkedSubItemIds.add(c.id); 
+                      if (c.name) linkedSubItemIds.add(c.name);
+                    });
+                  });
+                  const unlinkedGeneralEntries = catEntries.filter(e => (!e.linkedSubItemId || !linkedSubItemIds.has(e.linkedSubItemId)) && e.actionType !== 'issuance' && e.actionType !== 'daily_expense');
+                  const issuanceEntries = catEntries.filter(e => e.actionType === 'issuance');
+                  const dailyExpenseEntries = catEntries.filter(e => e.actionType === 'daily_expense');
+                  const totalIssuance = issuanceEntries.reduce((acc, e) => acc + e.amount, 0);
+                  const totalDailyExpense = dailyExpenseEntries.reduce((acc, e) => acc + e.amount, 0);
+                  const dailyRemaining = totalIssuance - totalDailyExpense;
                   return (
                     <div key={cat.id} className="group/item relative bg-white border border-slate-200 rounded-lg p-3 hover:bg-slate-50 transition-colors duration-150">
                       <div className="flex items-center justify-between mb-3">
@@ -280,32 +316,64 @@ export const PolicyGroupCard = React.memo(({
                              <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm">
                                <div className="text-[12px] font-bold text-gray-800 mb-2.5 flex items-center gap-1.5"><div className="w-1.5 h-1.5 bg-gray-400 rounded-full"/> 산출 기초 (세부 항목)</div>
                                <div className="space-y-2 pl-2">
-                                 {cat.subItems.map((sub, subIdx) => (
+                                 {cat.subItems.map((sub, subIdx) => {
+                                    const subEntries = catEntries.filter(e => e.linkedSubItemId && (e.linkedSubItemId === sub.id || e.linkedSubItemId === sub.name || (sub.calculations && sub.calculations.some(c => e.linkedSubItemId === c.id || e.linkedSubItemId === c.name))));
+                                    const subSpent = subEntries.filter(e => e.actionType !== 'issuance').reduce((acc, e) => acc + e.amount, 0);
+                                    const subRemaining = sub.amount - subSpent;
+                                    const subOverbudget = subRemaining < 0;
+                                    return (
                                     <div key={subIdx} className="flex flex-col gap-1.5 border-b border-gray-100 border-dashed pb-3 last:border-0 last:pb-0 transition-all">
                                       <div className="flex flex-col">
                                         <div className="flex justify-between items-start">
                                           <div className="flex items-center gap-1.5">
-                                             {sub.prefix && <span className="text-[11px] bg-gray-100 border border-gray-200 text-gray-500 font-bold px-1 rounded">{sub.prefix}</span>}
-                                             <span className="text-[13px] text-gray-800 font-extrabold tracking-tight">{sub.name}</span>
+                                             {sub.prefix && <span className="text-[12px] bg-gray-100 border border-gray-200 text-gray-500 font-bold px-1 rounded">{sub.prefix}</span>}
+                                             <span className="text-[14px] text-gray-800 font-extrabold tracking-tight">{sub.name}</span>
                                           </div>
-                                          {sub.amount > 0 && <span className="font-extrabold text-blue-700 tracking-tight">{formatN(sub.amount)}원</span>}
+                                          <div className="flex flex-col items-end gap-0.5 shrink-0 ml-3">
+                                            {sub.amount > 0 && <span className="font-extrabold text-blue-700 tracking-tight">{formatN(sub.amount)}원</span>}
+                                            {sub.amount > 0 && subSpent > 0 && (
+                                              <div className="flex gap-1.5 text-[10px] tabular-nums tracking-tight">
+                                                 <span className="text-teal-600 font-bold">지출: {formatN(subSpent)}</span>
+                                                 <span className="text-gray-300">|</span>
+                                                 <span className={`font-bold ${subOverbudget ? 'text-rose-600' : 'text-blue-600'}`}>잔액: {formatN(subRemaining)}</span>
+                                              </div>
+                                            )}
+                                          </div>
                                         </div>
                                         
                                         {!sub.calculations || sub.calculations.length === 0 ? (
-                                          sub.calculation && <div className="text-[11px] text-gray-500 font-mono tracking-tight mt-0.5 ml-1">{sub.calculation}</div>
+                                          <>
+                                            {sub.calculation && <div className="text-[11px] text-gray-500 font-mono tracking-tight mt-0.5 ml-1">{sub.calculation}</div>}
+                                            {renderMatchedEntries(subEntries)}
+                                          </>
                                         ) : (
                                           <div className="mt-1.5 mb-0.5 bg-slate-50 border-l-[2px] border-slate-200 py-1 flex flex-col gap-1 ml-[5px]">
-                                            {sub.calculations.map((calc, cIdx) => (
-                                              <div key={cIdx} className="flex flex-col pl-2 pr-1 pb-1 border-b border-slate-100 border-dashed last:border-0 last:pb-0">
+                                            {sub.calculations.map((calc, cIdx) => {
+                                              const calcEntries = catEntries.filter(e => e.linkedSubItemId && (e.linkedSubItemId === calc.id || e.linkedSubItemId === calc.name || e.linkedSubItemId === sub.name));
+                                              const calcSpent = calcEntries.filter(e => e.actionType !== 'issuance').reduce((acc, e) => acc + e.amount, 0);
+                                              const calcRemaining = calc.amount - calcSpent;
+                                              const cOverbudget = calcRemaining < 0;
+                                              return (
+                                                <div key={cIdx} className="flex flex-col pl-2 pr-1 pb-1 border-b border-slate-100 border-dashed last:border-0 last:pb-0">
                                                 <div className="flex justify-between items-center pt-0.5">
                                                   <div className="flex items-center gap-1.5 flex-1 min-w-0">
                                                     <div className="flex gap-1.5 items-center flex-1 min-w-0">
-                                                      {calc.name && <span className="text-[11.5px] text-slate-700 font-bold shrink-0">{calc.name}</span>}
+                                                      {calc.name && <span className="text-[12.5px] text-slate-700 font-bold shrink-0">{calc.name}</span>}
                                                       {calc.calculation && <span className="text-[11px] text-slate-500 font-mono truncate">{calc.calculation}</span>}
                                                     </div>
                                                   </div>
-                                                  <span className="text-[11.5px] font-bold text-slate-700 shrink-0 tracking-tight ml-2">{formatN(calc.amount)}원</span>
+                                                  <div className="flex flex-col items-end shrink-0 ml-3">
+                                                    <span className="text-[12.5px] font-bold text-slate-700 tracking-tight">{formatN(calc.amount)}원</span>
+                                                    {calc.amount > 0 && calcSpent > 0 && (
+                                                       <div className="flex gap-1 text-[9px] tabular-nums tracking-tight mt-0.5">
+                                                          <span className="text-teal-600 font-bold">지출: {formatN(calcSpent)}</span>
+                                                          <span className="text-gray-300">|</span>
+                                                          <span className={`font-bold ${cOverbudget ? 'text-rose-600' : 'text-blue-600'}`}>잔액: {formatN(calcRemaining)}</span>
+                                                       </div>
+                                                    )}
+                                                  </div>
                                                 </div>
+                                                {renderMatchedEntries(calcEntries)}
                                                 {calc.isCustomFunding && calc.fundingSplits && calc.fundingSplits.length > 0 && (
                                                   <div className="flex flex-wrap gap-1 mt-1 bg-teal-50/50 p-1 rounded-sm border border-teal-100/50 mr-1 max-w-[250px]">
                                                     <span className="text-[9px] text-teal-600 font-extrabold bg-white px-1 py-0.5 rounded shadow-sm mr-0.5 border border-teal-100">개별재원</span>
@@ -318,7 +386,8 @@ export const PolicyGroupCard = React.memo(({
                                                   </div>
                                                 )}
                                               </div>
-                                            ))}
+                                            );
+                                          })}
                                           </div>
                                         )}
                                       </div>
@@ -335,12 +404,67 @@ export const PolicyGroupCard = React.memo(({
                                         </div>
                                       )}
                                     </div>
-                                 ))}
+                                 );
+                                 })}
                                </div>
                              </div>
                            )}
 
-                           {cat.fundingSplits && cat.fundingSplits.length > 0 && (
+                           
+                            {unlinkedGeneralEntries.length > 0 && (
+                              <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm border-dashed mb-3">
+                                 <div className="text-[13px] font-bold text-gray-500 mb-2 flex items-center gap-1.5">
+                                    <div className="w-1.5 h-1.5 bg-gray-300 rounded-full"/> 산출기초 미지정 항목 (통계목 공통 지출)
+                                    <span className="text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded ml-auto">{unlinkedGeneralEntries.length}건</span>
+                                 </div>
+                                 <div className="space-y-1">
+                                    {unlinkedGeneralEntries.map(e => (
+                                       <div key={e.id} className="flex justify-between items-center text-[13.5px] hover:bg-slate-50 p-1.5 rounded transition-colors group/entry cursor-pointer border border-transparent hover:border-slate-200" onClick={(evt) => { evt.stopPropagation(); openEditEntry(e); }}>
+                                          <div className="flex gap-2 items-center truncate">
+                                             <span className="text-slate-400 font-medium tracking-tight shrink-0 bg-white border border-slate-200 px-1 rounded-sm">{e.date.replace(/-/g, '.')}</span>
+                                             <span className="text-slate-700 font-semibold truncate">{e.purpose}</span>
+                                          </div>
+                                          <span className="font-bold text-gray-800 tabular-nums shrink-0">{formatN(e.amount)}원</span>
+                                       </div>
+                                    ))}
+                                 </div>
+                              </div>
+                            )}
+
+                            {(totalIssuance > 0 || totalDailyExpense > 0) && (
+                              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 shadow-sm mb-3">
+                                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-2.5">
+                                   <div className="text-[13px] font-bold text-emerald-800 flex items-center gap-1.5">
+                                      <div className="w-2 h-2 bg-emerald-500 rounded-full"/> 일상경비 (교부액) 집행 현황
+                                   </div>
+                                   <div className="flex bg-white px-2.5 py-1 rounded-md border border-emerald-100 shadow-sm text-[11px] gap-2 items-center flex-wrap">
+                                      <span className="text-emerald-700 font-bold">총 교부액: {formatN(totalIssuance)}</span>
+                                      <span className="text-gray-300">|</span>
+                                      <span className="text-rose-600 font-bold">집행액: {formatN(totalDailyExpense)}</span>
+                                      <span className="text-gray-300">|</span>
+                                      <span className="text-blue-700 font-extrabold text-[12px]">교부잔액: {formatN(dailyRemaining)}</span>
+                                   </div>
+                                 </div>
+                                 
+                                 <div className="space-y-1">
+                                    {[...issuanceEntries, ...dailyExpenseEntries]
+                                      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                                      .map(e => (
+                                       <div key={e.id} className="flex justify-between items-center text-[13.5px] hover:bg-white/60 p-1.5 rounded transition-colors cursor-pointer border border-transparent hover:border-emerald-200" onClick={(evt) => { evt.stopPropagation(); openEditEntry(e); }}>
+                                          <div className="flex gap-2 items-center truncate">
+                                             <span className={`font-bold px-1.5 py-0.5 rounded text-[10px] ${e.actionType === 'issuance' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
+                                                {e.actionType === 'issuance' ? '교부' : '지출'}
+                                             </span>
+                                             <span className="text-emerald-700/70 font-medium tracking-tight shrink-0 bg-white border border-emerald-100 px-1 rounded-sm">{e.date.replace(/-/g, '.')}</span>
+                                             <span className="text-emerald-900 font-semibold truncate">{e.purpose}</span>
+                                          </div>
+                                          <span className="font-bold text-emerald-900 tabular-nums shrink-0">{formatN(e.amount)}원</span>
+                                       </div>
+                                    ))}
+                                 </div>
+                              </div>
+                            )}
+{cat.fundingSplits && cat.fundingSplits.length > 0 && (
                              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 shadow-inner">
                                <div className="text-[11px] font-bold text-slate-600 mb-2.5 flex items-center gap-1"><FileCheck size={12}/> 재원 분할 내역</div>
                                <div className="space-y-1.5 pl-1">
