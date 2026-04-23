@@ -265,12 +265,33 @@ export function buildSignalGraph(
       nodes.push(cn);
     });
 
-    // Remap any ghost customParent references to their merged ALIVE IDs
+    // Remap any ghost customParent references to their merged ALIVE IDs or self-heal dynamically generated data node IDs
     Object.keys(customData.overrides).forEach(key => {
       const override = customData.overrides[key];
-      if (override && override.customParent && mergedIdMap.has(override.customParent)) {
-        // 재귀적 고스트가 발생하지 않도록 대체된 ID를 주입
-        override.customParent = mergedIdMap.get(override.customParent)!;
+      if (override && override.customParent) {
+        if (mergedIdMap.has(override.customParent)) {
+          // 재귀적 고스트가 발생하지 않도록 대체된 ID를 주입
+          override.customParent = mergedIdMap.get(override.customParent)!;
+        } else {
+          // Self-heal: If customParent refers to a generated node ID that no longer exists,
+          // extract the label and try to find a newly generated node with the same label.
+          const isNodeExists = nodes.some(n => n.id === override.customParent) || customData.customNodes.some(cn => cn.id === override.customParent);
+          if (!isNodeExists) {
+            let originalLabel = '';
+            if (override.customParent.startsWith('tag-')) {
+              originalLabel = override.customParent.slice(4);
+            } else if (override.customParent.startsWith('leaf-')) {
+              const parts = override.customParent.split('-');
+              if (parts.length >= 4) {
+                originalLabel = parts.slice(3).join('-');
+              }
+            }
+            
+            if (originalLabel && dataLabels.has(originalLabel)) {
+              override.customParent = dataLabels.get(originalLabel)!;
+            }
+          }
+        }
       }
     });
 
@@ -371,13 +392,20 @@ export function buildSignalGraph(
     
     // Find root-HCHPS which is ALWAYS the original source of Category edges in the stateless generator
     finalEdges.forEach(e => {
-      // Transfer all foundational driving branches from the default root to the new forced center
+      // Transfer foundational driving branches from the default root to the new forced center,
+      // EXCEPT for explicitly custom-attached nodes or edges (they should stay on the old root)
       if (e.source === 'root-HCHPS') {
-        e.source = forcedCenterNode.id;
+        const isCustomParent = customData?.overrides[e.target]?.customParent === 'root-HCHPS';
+        const isCustomEdge = (e as PartialOntologyEdge).isCustom;
+        if (!isCustomParent && !isCustomEdge) {
+          e.source = forcedCenterNode.id;
+        }
       }
-      // Remove incoming edges targeting the New Center to prevent structural loops
+      // Remove incoming structural edges targeting the New Center to prevent loops
       if (e.target === forcedCenterNode.id) {
-        e.source = forcedCenterNode.id; // Mark as self-loop to be filtered out
+        if (!(e as PartialOntologyEdge).isCustom) {
+          e.source = forcedCenterNode.id; // Mark as self-loop to be filtered out
+        }
       }
     });
     
