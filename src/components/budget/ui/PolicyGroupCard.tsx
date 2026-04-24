@@ -336,7 +336,7 @@ export const PolicyGroupCard = React.memo(({
                                               <div className="flex gap-1.5 text-[12px] tabular-nums tracking-tight">
                                                  <span className="text-teal-600 font-bold">지출: {formatN(subSpent)}</span>
                                                  <span className="text-gray-300">|</span>
-                                                 <span className={`font-bold ${subOverbudget ? 'text-rose-600' : 'text-blue-600'}`}>잔액: {formatN(subRemaining)}</span>
+                                                 {subRemaining < 0 ? <span className="font-bold text-rose-500">초과지출: {formatN(Math.abs(subRemaining))}</span> : <span className="font-bold text-blue-600">잔액: {formatN(subRemaining)}</span>}
                                               </div>
                                             )}
                                           </div>
@@ -369,7 +369,7 @@ export const PolicyGroupCard = React.memo(({
                                                        <div className="flex gap-1 text-[11.5px] tabular-nums tracking-tight mt-0.5">
                                                           <span className="text-teal-600 font-bold">지출: {formatN(calcSpent)}</span>
                                                           <span className="text-gray-300">|</span>
-                                                          <span className={`font-bold ${cOverbudget ? 'text-rose-600' : 'text-blue-600'}`}>잔액: {formatN(calcRemaining)}</span>
+                                                          {calcRemaining < 0 ? <span className="font-bold text-rose-500">초과지출: {formatN(Math.abs(calcRemaining))}</span> : <span className="font-bold text-blue-600">잔액: {formatN(calcRemaining)}</span>}
                                                        </div>
                                                     )}
                                                   </div>

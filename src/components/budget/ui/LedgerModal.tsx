@@ -75,11 +75,13 @@ export function LedgerModal({ isOpen, onClose, categories, entries, getCategoryS
                 <details className="group marker:content-['']" open={idx === 0}>
                   <summary className="flex items-center justify-between p-4 bg-gray-50/50 cursor-pointer hover:bg-gray-100 transition-colors list-none">
                     <div className="flex flex-col gap-2">
-                      <div className="text-[17px] font-bold text-gray-800">
-                        {data.cat.name} 
-                        <span className="text-[13px] font-medium text-gray-500 ml-2 border border-gray-200 bg-white px-2 py-0.5 rounded">
-                          {data.cat.unitProject}
-                        </span>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="text-[18px] font-extrabold text-slate-800 tracking-tight">
+                          {data.cat.detailedProject || data.cat.unitProject || '미지정 사업'}
+                        </div>
+                        <div className="text-[14px] font-bold text-slate-600 bg-white border border-slate-200 shadow-sm px-2.5 py-0.5 rounded">
+                          {data.cat.formationItem ? `[${data.cat.formationItem}] ` : ''}{data.cat.statItem || data.cat.name}
+                        </div>
                       </div>
                       <div className="flex gap-4 text-[14px] font-semibold mt-1 flex-wrap">
                         <span className="text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-100">계획(가배정): {formatN(data.stats?.planned || 0)}</span>
