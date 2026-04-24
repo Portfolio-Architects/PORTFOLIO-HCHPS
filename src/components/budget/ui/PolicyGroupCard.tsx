@@ -25,7 +25,7 @@ export const PolicyGroupCard = React.memo(({
 }: {
   group: { policyName: string; cats: BudgetCategory[] };
   entries: BudgetEntry[];
-  getCategoryStats: (id: string) => { totalBudget: number; spent: number; planned: number; remaining: number; usageRate: number } | null;
+  getCategoryStats: (id: string) => { totalBudget: number; spent: number; planned: number; remaining: number; usageRate: number; generalSpent?: number; dailyExpenseIssued?: number; dailyExpenseSpent?: number; dailyExpenseRemaining?: number; } | null;
   deleteCategory: (id: string) => void;
   deleteEntry: (id: string) => void;
   openEditCat: (cat: BudgetCategory) => void;

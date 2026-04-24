@@ -807,9 +807,9 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
         
         {/* Card 2: General Account */}
         <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col h-full justify-between">
-          <div className="text-[13px] font-bold text-blue-600 mb-3 tracking-wide flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div> 일반 계좌</div>
+          <div className="text-[13px] font-bold text-blue-600 mb-3 tracking-wide flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div> 일반 계좌 (일상경비 제외)</div>
           <div>
-            <div className="text-2xl sm:text-3xl font-extrabold text-gray-800 tracking-tight mb-1">{formatN(filteredStats.remaining)}<span className="text-base font-bold text-gray-500 ml-1">잔여</span></div>
+            <div className="text-2xl sm:text-3xl font-extrabold text-gray-800 tracking-tight mb-1">{formatN(filteredStats.remaining - filteredStats.dailyExpenseRemaining)}<span className="text-base font-bold text-gray-500 ml-1">잔여</span></div>
             <div className="flex flex-col gap-1 mt-3">
               <div className="flex justify-between items-center text-[13px] bg-gray-50 px-3 py-2 rounded border border-gray-100">
                 <span className="text-gray-500 font-medium">일반 지출</span>
@@ -820,33 +820,37 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
         </div>
 
         {/* Card 3: Daily Expense Issuance */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col h-full justify-between">
-          <div className="text-[13px] font-bold text-amber-600 mb-3 tracking-wide flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-500"></div> 일상경비 이체내역</div>
-          <div className="flex flex-col gap-2 mt-1">
-            <div className="bg-gray-50 rounded p-3 border border-gray-100">
-              <div className="text-[11px] text-amber-600 font-bold mb-0.5">교부액 (이체원금)</div>
-              <div className="text-lg font-black text-gray-800 tracking-tight">{formatN(filteredStats.dailyExpenseIssued)}<span className="text-xs font-semibold text-gray-500 ml-1">원</span></div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col h-full justify-between">
+          <div className="text-[13px] font-bold text-amber-600 mb-2 tracking-wide flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-500"></div> 일상경비 이체내역</div>
+          <div className="flex flex-col gap-1.5 mt-1">
+            <div className="bg-gray-50 rounded p-2.5 border border-gray-100 flex justify-between items-center">
+              <div className="text-[11px] text-gray-500 font-bold">교부액 (원금)</div>
+              <div className="text-[13px] font-bold text-gray-700">{formatN(filteredStats.dailyExpenseIssued)}원</div>
             </div>
-            <div className="bg-gray-50 rounded p-3 border border-gray-100 flex justify-between items-end">
-              <div className="text-[11px] text-gray-500 font-bold mb-0.5">실지출액</div>
-              <div className="text-[15px] font-bold text-gray-700">{formatN(filteredStats.dailyExpenseSpent)}<span className="text-[10px] text-gray-400 ml-1">원</span></div>
+            <div className="bg-gray-50 rounded p-2.5 border border-gray-100 flex justify-between items-center">
+              <div className="text-[11px] text-gray-500 font-bold">실지출액</div>
+              <div className="text-[13px] font-bold text-gray-700">{formatN(filteredStats.dailyExpenseSpent)}원</div>
+            </div>
+            <div className="bg-amber-50 rounded p-2.5 border border-amber-200 flex justify-between items-center shadow-sm">
+              <div className="text-[11px] text-amber-800 font-bold">가용 잔액</div>
+              <div className="text-[14px] font-black text-amber-700">{formatN(filteredStats.dailyExpenseRemaining)}원</div>
             </div>
           </div>
         </div>
 
-        {/* Card 4: Daily Expense Remaining */}
-        <div className="bg-teal-700 rounded-xl border border-teal-800 p-5 flex flex-col h-full justify-between">
+        {/* Card 4: Total Available Remaining */}
+        <div className="bg-teal-700 rounded-xl border border-teal-800 p-5 flex flex-col h-full justify-between shadow-sm">
           <div className="flex items-center justify-between mb-4">
-            <div className="text-[13px] font-bold text-teal-50 tracking-wide flex items-center gap-1.5">
-              <div className="w-1.5 h-1.5 rounded-full bg-teal-300"></div> 가용 잔액
+            <div className="text-[14px] font-bold text-teal-50 tracking-wide flex items-center gap-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-teal-300"></div> 총 가용 잔액
             </div>
-            <button onClick={() => setShowLedgerModal(true)} className="flex items-center gap-1.5 text-[12px] bg-teal-800 hover:bg-teal-900 text-white px-3 py-1.5 rounded transition-colors font-bold border border-teal-600">
+            <button onClick={() => setShowLedgerModal(true)} className="flex items-center gap-1.5 text-[12px] bg-teal-800 hover:bg-teal-900 text-white px-3 py-1.5 rounded transition-colors font-bold border border-teal-600 shadow-sm">
               <Search size={14} /> 상세 대조
             </button>
           </div>
           <div>
-            <div className="text-3xl font-black text-white tracking-tight">{formatN(filteredStats.dailyExpenseRemaining)}<span className="text-base font-semibold text-teal-100 ml-1">원</span></div>
-            <div className="mt-2 text-[11px] text-teal-200 font-medium">원장대조 버튼으로 영수증 누락을 확인하세요.</div>
+            <div className="text-3xl sm:text-4xl font-black text-white tracking-tight drop-shadow-sm">{formatN(filteredStats.remaining)}<span className="text-xl font-semibold text-teal-100 ml-1">원</span></div>
+            <div className="mt-3 text-[11px] text-teal-100 font-medium bg-teal-800/50 p-2 rounded border border-teal-600/50 border-dashed">원장대조 버튼으로 영수증 누락을 확인하세요.</div>
           </div>
         </div>
       </div>
