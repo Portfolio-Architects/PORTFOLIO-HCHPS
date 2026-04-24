@@ -46,20 +46,24 @@ export const BudgetCategorySchema = z.object({
     amount: z.number()
   })).optional().catch(undefined),
   subItems: z.array(z.object({
+    id: z.string().optional(),
     prefix: z.string().optional(),
     name: z.string(),
     calculation: z.string().optional(),
     amount: z.number(),
     isCustomFunding: z.boolean().optional(),
+    isLocked: z.boolean().optional(),
     fundingSplits: z.array(z.object({
       source: z.string(),
       amount: z.number()
     })).optional(),
     calculations: z.array(z.object({
+      id: z.string().optional(),
       name: z.string().optional(),
       calculation: z.string(),
       amount: z.number(),
       isCustomFunding: z.boolean().optional(),
+      isLocked: z.boolean().optional(),
       fundingSplits: z.array(z.object({
         source: z.string(),
         amount: z.number()
@@ -79,6 +83,9 @@ export const BudgetEntrySchema = z.object({
   purpose: z.string().catch('내역 없음'),
   memo: z.string().optional().catch(''),
   isPlanned: z.boolean().optional().catch(false),
+  isSettled: z.boolean().optional().catch(false),
+  relatedPlanId: z.string().optional().catch(undefined),
+  linkedSubItemId: z.string().optional().catch(undefined),
   entryType: z.literal('approval').optional().catch(undefined),
   actionType: BudgetActionTypeSchema.optional().catch(undefined),
   inventoryItemId: z.string().optional().catch(undefined),
