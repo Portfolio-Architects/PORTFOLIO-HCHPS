@@ -110,7 +110,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries 
         <div className="xl:col-span-6 flex flex-col gap-6">
           
           {/* Asset Allocation Card */}
-          <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-200 relative overflow-hidden flex flex-col h-[400px]">
+          <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-200 relative overflow-hidden flex flex-col h-[460px]">
             <div className="flex justify-between items-center z-10">
               <h2 className="text-lg font-bold text-slate-900 flex items-center gap-3">
                 예산 현황 (Budget Allocation)
@@ -127,7 +127,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries 
               </select>
             </div>
             
-            <div className="mt-4 flex items-center h-[280px]">
+            <div className="mt-6 flex-1 w-full flex items-center min-h-[320px]">
               <div className="w-1/2 h-full relative">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
