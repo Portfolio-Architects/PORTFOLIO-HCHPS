@@ -8,7 +8,7 @@ test.describe('HCHPS UI Critical Path', () => {
     await page.context().addCookies([
       {
         name: 'hchps_session',
-        value: 'authenticated',
+        value: 'authenticated-secure-session-token',
         domain: 'localhost',
         path: '/',
       }
@@ -31,7 +31,7 @@ test.describe('HCHPS UI Critical Path', () => {
     await page.context().addCookies([
       {
         name: 'hchps_session',
-        value: 'authenticated',
+        value: 'authenticated-secure-session-token',
         domain: 'localhost',
         path: '/',
       }
