@@ -77,14 +77,13 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries 
 
   // 4. Growth Trend (Budget Execution Trend by Month)
   const trendData = useMemo(() => {
-    // Generate mock trend for visual similarity to the screenshot
-    // Using actual budget dates to build a cumulative line chart
-    const dataMap: Record<string, number> = {};
+    // Generate mock trend for visual similarity to the screenshot using deterministic data
     const months = ['2025.01', '2025.02', '2025.03', '2025.04', '2025.05', '2025.06'];
+    const mockIncrements = [12000000, 35000000, 18000000, 42000000, 25000000, 50000000];
     let cumulative = 0;
-    return months.map(m => {
-      cumulative += Math.floor(Math.random() * 50000000) + 10000000; // Simulated growth for visuals
-      return { name: m, amount: cumulative, growth: (cumulative / totalBudget) * 100 };
+    return months.map((m, i) => {
+      cumulative += mockIncrements[i];
+      return { name: m, amount: cumulative, growth: totalBudget > 0 ? (cumulative / totalBudget) * 100 : 0 };
     });
   }, [totalBudget]);
 
