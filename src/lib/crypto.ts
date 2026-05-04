@@ -29,10 +29,8 @@ export const initCryptoContext = async (pin: string) => {
   );
   sessionAuthToken = Array.from(new Uint8Array(tokenBits)).map(b => b.toString(16).padStart(2, '0')).join('');
   
-  // Set to local storage explicitly to cross-share token to WebSockets if needed, but not the key itself
-  // However, sharing token in memory only is safer.
+  // Sharing token in memory only is safer.
   if (typeof window !== 'undefined') {
-    (window as any).__HCHPS_AUTH_TOKEN = sessionAuthToken;
     window.dispatchEvent(new Event('crypto-ready'));
   }
 };
@@ -123,7 +121,4 @@ export const getAuthToken = () => {
 export const clearCryptoContext = () => {
   masterKey = null;
   sessionAuthToken = null;
-  if (typeof window !== 'undefined') {
-    delete (window as any).__HCHPS_AUTH_TOKEN;
-  }
 };

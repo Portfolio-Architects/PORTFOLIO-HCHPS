@@ -139,8 +139,7 @@ export interface KnowledgeEntry {
   updatedAt: string;
 }
 
-// ============ Navigation ============
-export type ModuleType = 'workspace' | 'knowledge' | 'mindmap' | 'project-planning';
+export type ModuleType = 'workspace' | 'knowledge' | 'mindmap' | 'dashboard';
 
 // ============ Utility ============
 export function generateId(): string {

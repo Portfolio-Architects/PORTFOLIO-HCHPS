@@ -17,10 +17,10 @@ import { Sidebar } from '@/components/Sidebar';
 import { QuickInput } from '@/components/QuickInput';
 import { WorkspaceView } from '@/components/WorkspaceView';
 import { MindMap3D } from '@/components/MindMap3D';
-import { PlanningCanvasView } from '@/components/PlanningCanvasView';
+import { PortfolioDashboardView } from '@/components/dashboard/PortfolioDashboardView';
 import { TaskKnowledgeView } from '@/components/TaskKnowledgeView';
 import { SearchResultModal } from '@/components/SearchResultModal';
-import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { AlertTriangle, RefreshCw, LogOut } from 'lucide-react';
 import { useSecurityLock } from '@/hooks/useSecurityLock';
 import { SecurityLockScreen } from '@/components/SecurityLockScreen';
 import { useGlobalSearch } from '@/hooks/useGlobalSearch';
@@ -61,7 +61,7 @@ class MindMapErrorBoundary extends React.Component<
 }
 
 function ProtectedApp() {
-  const [activeModule, setActiveModule] = useState<ModuleType>('mindmap');
+  const [activeModule, setActiveModule] = useState<ModuleType>('dashboard');
   const [mounted, setMounted] = useState(false);
   // Hooks
   const { tasks, addTask, updateTask, deleteTask, moveTask, stats: taskStats } = useTasks();
@@ -82,11 +82,18 @@ function ProtectedApp() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
-    const saved = localStorage.getItem('hchps_active_module');
-    if (saved === 'workspace' || saved === 'knowledge' || saved === 'mindmap' || saved === 'project-planning') {
-      setActiveModule(saved as ModuleType);
-    }
+    // 항상 대시보드를 첫 화면으로 띄우기 위해 로컬스토리지 복원 로직 제거
+    setActiveModule('dashboard');
   }, []);
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth', { method: 'DELETE' });
+      window.location.href = '/login';
+    } catch (e) {
+      console.error('Logout failed', e);
+    }
+  };
 
   // Swipe gesture state
   const touchStartX = useRef<number | null>(null);
@@ -119,7 +126,7 @@ function ProtectedApp() {
     
     // Minimum horizontal swipe distance
     if (Math.abs(distance) > 60) {
-      const order: ModuleType[] = ['mindmap', 'workspace', 'knowledge', 'project-planning'];
+      const order: ModuleType[] = ['dashboard', 'mindmap', 'workspace', 'knowledge'];
       const currentIndex = order.indexOf(activeModule);
       
       if (distance > 0 && currentIndex < order.length - 1) {
@@ -250,8 +257,8 @@ function ProtectedApp() {
           </div>
         );
 
-      case 'project-planning':
-        return <PlanningCanvasView />;
+      case 'dashboard':
+        return <PortfolioDashboardView tasks={tasks} budgetCategories={budgetCategories} budgetEntries={budgetEntries} />;
 
       default:
         return null;
@@ -307,6 +314,15 @@ function ProtectedApp() {
         query={searchQuery}
         results={searchResults}
       />
+
+      {/* Logout Button (Fixed Bottom Right) */}
+      <button
+        onClick={handleLogout}
+        className="fixed bottom-8 right-8 p-3.5 bg-white hover:bg-slate-50 text-slate-500 hover:text-red-500 rounded-full shadow-[0_4px_20px_rgb(0,0,0,0.08)] border border-slate-200 transition-all z-50 flex items-center justify-center group"
+        title="로그아웃"
+      >
+        <LogOut className="w-5 h-5 group-hover:scale-110 transition-transform" />
+      </button>
     </div>
   );
 }

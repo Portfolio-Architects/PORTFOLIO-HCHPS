@@ -3,14 +3,27 @@ interface Env {
   AI: any; // Cloudflare AI Binding
 }
 
-function jsonResponse(data: unknown, status = 200): Response {
+function getCorsHeaders(request?: Request): Record<string, string> {
+  let allowedOrigin = 'https://portfolio-hchps.pages.dev';
+  if (request) {
+    const origin = request.headers.get('Origin') || '';
+    if (origin === 'http://localhost:3001' || origin === 'http://127.0.0.1:3001' || origin.startsWith('http://192.168.')) {
+      allowedOrigin = origin;
+    }
+  }
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-API-Key',
+  };
+}
+
+function jsonResponse(data: unknown, status = 200, request?: Request): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
       'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      ...getCorsHeaders(request)
     },
   });
 }
@@ -26,27 +39,26 @@ function authenticate(request: Request, env: Env): boolean {
   const authHeader = request.headers.get('Authorization');
   if (authHeader && authHeader.startsWith('Bearer ')) {
     token = authHeader.substring(7);
-  } else {
-    const url = new URL(request.url);
-    token = url.searchParams.get('token');
   }
 
   return !!token && token === configuredKey;
 }
 
-export const onRequestOptions: PagesFunction<Env> = async () => {
+export const onRequestOptions: PagesFunction<Env> = async (context) => {
   return new Response(null, {
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    },
+    headers: getCorsHeaders(context.request),
   });
 };
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
   if (!authenticate(context.request, context.env)) {
-    return jsonResponse({ success: false, error: 'Unauthorized' }, 401);
+    return jsonResponse({ success: false, error: 'Unauthorized' }, 401, context.request);
+  }
+
+  // Security: Payload Size Limit (1MB) to prevent OOM
+  const contentLength = parseInt(context.request.headers.get('Content-Length') || '0', 10);
+  if (contentLength > 1048576) {
+    return jsonResponse({ success: false, error: 'Payload Too Large' }, 413, context.request);
   }
 
   try {
@@ -56,7 +68,14 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     };
 
     if (!body || !Array.isArray(body.messages)) {
-      return jsonResponse({ success: false, error: 'Missing or invalid messages array' }, 400);
+      return jsonResponse({ success: false, error: 'Missing or invalid messages array' }, 400, context.request);
+    }
+
+    // Security: Validate message lengths
+    for (const msg of body.messages) {
+      if (typeof msg.content !== 'string' || msg.content.length > 5000) {
+         return jsonResponse({ success: false, error: 'Message content exceeds maximum allowed length' }, 400, context.request);
+      }
     }
 
     // Cloudflare Workers AI - Request stream if specified
@@ -83,16 +102,14 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       return new Response(response, {
         headers: {
           'Content-Type': 'text/event-stream',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, X-API-Key',
+          ...getCorsHeaders(context.request)
         }
       });
     }
 
     // Fallback to legacy full JSON response if not streaming
-    return jsonResponse({ success: true, response: response.response });
+    return jsonResponse({ success: true, response: response.response }, 200, context.request);
   } catch (error: any) {
-    return jsonResponse({ success: false, error: error.message || 'Internal AI Error' }, 500);
+    return jsonResponse({ success: false, error: error.message || 'Internal AI Error' }, 500, context.request);
   }
 };

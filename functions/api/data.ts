@@ -28,15 +28,26 @@ function kvKey(sheet: string): string {
   return `sheet:${sheet}`;
 }
 
-function jsonResponse(data: unknown, status = 200): Response {
+function getCorsHeaders(request: Request): Record<string, string> {
+  let allowedOrigin = 'https://portfolio-hchps.pages.dev';
+  const origin = request.headers.get('Origin') || '';
+  if (origin === 'http://localhost:3001' || origin === 'http://127.0.0.1:3001' || origin.startsWith('http://192.168.')) {
+    allowedOrigin = origin;
+  }
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, Cache-Control, Pragma, X-API-Key',
+  };
+}
+
+function jsonResponse(request: Request, data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
       'Content-Type': 'application/json',
       'Cache-Control': 'no-cache, no-store, must-revalidate',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, Cache-Control, Pragma',
+      ...getCorsHeaders(request)
     },
   });
 }
@@ -56,10 +67,6 @@ function authenticate(request: Request, env: Env): boolean {
   const authHeader = request.headers.get('Authorization');
   if (authHeader && authHeader.startsWith('Bearer ')) {
     token = authHeader.substring(7);
-  } else {
-    // WebSocket 연결 등 쿼리스트링 Fallback이 필요한 경우만 예외적 허용 (?token=)
-    const url = new URL(request.url);
-    token = url.searchParams.get('token');
   }
 
   return !!token && token === configuredKey;
@@ -71,46 +78,48 @@ function validateSheet(sheet: string): boolean {
 }
 
 // Handle CORS preflight
-export const onRequestOptions: PagesFunction<Env> = async () => {
+export const onRequestOptions: PagesFunction<Env> = async (context) => {
   return new Response(null, {
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, Cache-Control, Pragma',
-    },
+    headers: getCorsHeaders(context.request),
   });
 };
 
 // GET: Read all data for a sheet
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   if (!authenticate(context.request, context.env)) {
-    return jsonResponse({ success: false, error: 'Unauthorized' }, 401);
+    return jsonResponse(context.request,{ success: false, error: 'Unauthorized' }, 401);
   }
 
   const url = new URL(context.request.url);
   const sheet = url.searchParams.get('sheet');
 
   if (!sheet) {
-    return jsonResponse({ success: false, error: 'Missing sheet parameter' }, 400);
+    return jsonResponse(context.request,{ success: false, error: 'Missing sheet parameter' }, 400);
   }
 
   if (!validateSheet(sheet)) {
-    return jsonResponse({ success: false, error: 'Invalid sheet name' }, 400);
+    return jsonResponse(context.request,{ success: false, error: 'Invalid sheet name' }, 400);
   }
 
   try {
     const raw = await context.env.HCHPS_DATA.get(kvKey(sheet));
     const data = raw ? JSON.parse(raw) : [];
-    return jsonResponse({ success: true, data });
+    return jsonResponse(context.request,{ success: true, data });
   } catch {
-    return jsonResponse({ success: false, error: 'Internal error' }, 500);
+    return jsonResponse(context.request,{ success: false, error: 'Internal error' }, 500);
   }
 };
 
 // POST: Write data (add, update, delete, replace)
 export const onRequestPost: PagesFunction<Env> = async (context) => {
   if (!authenticate(context.request, context.env)) {
-    return jsonResponse({ success: false, error: 'Unauthorized' }, 401);
+    return jsonResponse(context.request,{ success: false, error: 'Unauthorized' }, 401);
+  }
+
+  // Security: Payload Size Limit (5MB) to prevent OOM
+  const contentLength = parseInt(context.request.headers.get('Content-Length') || '0', 10);
+  if (contentLength > 5242880) {
+    return jsonResponse(context.request, { success: false, error: 'Payload Too Large' }, 413);
   }
 
   try {
@@ -123,11 +132,11 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
     const { sheet, action, data, id } = body;
     if (!sheet || !action) {
-      return jsonResponse({ success: false, error: 'Missing sheet or action' }, 400);
+      return jsonResponse(context.request,{ success: false, error: 'Missing sheet or action' }, 400);
     }
 
     if (!validateSheet(sheet)) {
-      return jsonResponse({ success: false, error: 'Invalid sheet name' }, 400);
+      return jsonResponse(context.request,{ success: false, error: 'Invalid sheet name' }, 400);
     }
 
     const key = kvKey(sheet);
@@ -137,7 +146,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     switch (action) {
       case 'add': {
         if (!data || Array.isArray(data)) {
-          return jsonResponse({ success: false, error: 'Invalid data for add' }, 400);
+          return jsonResponse(context.request,{ success: false, error: 'Invalid data for add' }, 400);
         }
         rows.push(data);
         break;
@@ -145,11 +154,11 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
       case 'update': {
         if (!id || !data || Array.isArray(data)) {
-          return jsonResponse({ success: false, error: 'Missing id or data for update' }, 400);
+          return jsonResponse(context.request,{ success: false, error: 'Missing id or data for update' }, 400);
         }
         const idx = rows.findIndex(r => r.id === id);
         if (idx === -1) {
-          return jsonResponse({ success: false, error: 'ID not found' }, 404);
+          return jsonResponse(context.request,{ success: false, error: 'ID not found' }, 404);
         }
         rows[idx] = { ...rows[idx], ...data };
         break;
@@ -157,12 +166,12 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
       case 'delete': {
         if (!id) {
-          return jsonResponse({ success: false, error: 'Missing id for delete' }, 400);
+          return jsonResponse(context.request,{ success: false, error: 'Missing id for delete' }, 400);
         }
         const before = rows.length;
         rows = rows.filter(r => r.id !== id);
         if (rows.length === before) {
-          return jsonResponse({ success: false, error: 'ID not found' }, 404);
+          return jsonResponse(context.request,{ success: false, error: 'ID not found' }, 404);
         }
         break;
       }
@@ -173,13 +182,13 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       }
 
       default:
-        return jsonResponse({ success: false, error: 'Unknown action' }, 400);
+        return jsonResponse(context.request,{ success: false, error: 'Unknown action' }, 400);
     }
 
     await context.env.HCHPS_DATA.put(key, JSON.stringify(rows));
-    return jsonResponse({ success: true });
+    return jsonResponse(context.request,{ success: true });
 
   } catch {
-    return jsonResponse({ success: false, error: 'Internal error' }, 500);
+    return jsonResponse(context.request,{ success: false, error: 'Internal error' }, 500);
   }
 };
