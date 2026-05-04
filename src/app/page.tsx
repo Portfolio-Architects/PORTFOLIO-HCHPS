@@ -20,7 +20,7 @@ import { MindMap3D } from '@/components/MindMap3D';
 import { PortfolioDashboardView } from '@/components/dashboard/PortfolioDashboardView';
 import { TaskKnowledgeView } from '@/components/TaskKnowledgeView';
 import { SearchResultModal } from '@/components/SearchResultModal';
-import { AlertTriangle, RefreshCw, LogOut } from 'lucide-react';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { useSecurityLock } from '@/hooks/useSecurityLock';
 import { SecurityLockScreen } from '@/components/SecurityLockScreen';
 import { useGlobalSearch } from '@/hooks/useGlobalSearch';
@@ -258,7 +258,7 @@ function ProtectedApp() {
         );
 
       case 'dashboard':
-        return <PortfolioDashboardView tasks={tasks} budgetCategories={budgetCategories} budgetEntries={budgetEntries} />;
+        return <PortfolioDashboardView tasks={tasks} budgetCategories={budgetCategories} budgetEntries={budgetEntries} onLogout={handleLogout} />;
 
       default:
         return null;
@@ -315,14 +315,7 @@ function ProtectedApp() {
         results={searchResults}
       />
 
-      {/* Logout Button (Fixed Bottom Right) */}
-      <button
-        onClick={handleLogout}
-        className="fixed bottom-8 right-8 p-3.5 bg-white hover:bg-slate-50 text-slate-500 hover:text-red-500 rounded-full shadow-[0_4px_20px_rgb(0,0,0,0.08)] border border-slate-200 transition-all z-50 flex items-center justify-center group"
-        title="로그아웃"
-      >
-        <LogOut className="w-5 h-5 group-hover:scale-110 transition-transform" />
-      </button>
+
     </div>
   );
 }

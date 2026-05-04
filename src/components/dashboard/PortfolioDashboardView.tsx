@@ -8,11 +8,12 @@ interface DashboardProps {
   tasks: Task[];
   budgetCategories: BudgetCategory[];
   budgetEntries: BudgetEntry[];
+  onLogout?: () => void;
 }
 
 const COLORS = ['#3B82F6', '#1E3A8A', '#93C5FD', '#1D4ED8', '#60A5FA', '#DBEAFE'];
 
-export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries }: DashboardProps) {
+export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries, onLogout }: DashboardProps) {
   const [trendTab, setTrendTab] = useState('Growth');
   const [timeFilter, setTimeFilter] = useState('ALL');
   const [expanded, setExpanded] = useState(false);
@@ -64,14 +65,14 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries 
         const rate = total > 0 ? (executed / total) * 100 : 0;
         return { name: dp, total, executed, rate };
       });
-      return projectsData.sort((a, b) => b.total - a.total).slice(0, 4);
+      return projectsData.sort((a, b) => a.name.localeCompare(b.name)).slice(0, 4);
     } else {
       const cats = budgetCategories.filter(c => c.detailedProject === selectedProject);
       return cats.map(cat => {
         const executed = budgetEntries.filter(e => e.categoryId === cat.id && !e.isPlanned).reduce((s, e) => s + e.amount, 0);
         const rate = cat.totalBudget > 0 ? (executed / cat.totalBudget) * 100 : 0;
         return { name: cat.name, total: cat.totalBudget, executed, rate };
-      }).sort((a, b) => b.total - a.total).slice(0, 4);
+      }).sort((a, b) => a.name.localeCompare(b.name)).slice(0, 4);
     }
   }, [budgetCategories, budgetEntries, selectedProject, detailedProjects]);
 
@@ -107,36 +108,34 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 mt-4">
         
         {/* Left Panel: Asset Allocation & Mini Cards */}
-        <div className="xl:col-span-6 flex flex-col gap-6">
+        {/* Left Panel: Asset Allocation & Mini Cards */}
+        <div className="xl:col-span-6 bg-white rounded-[2rem] p-8 shadow-sm border border-slate-100/60 h-full flex flex-col min-h-[500px]">
+          <div className="flex justify-between items-center z-10 mb-6">
+            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-3">
+              예산 현황 (Budget Allocation)
+            </h2>
+            <select
+              value={selectedProject}
+              onChange={(e) => setSelectedProject(e.target.value)}
+              className="bg-slate-50 border border-slate-200 text-slate-600 text-xs font-bold uppercase rounded-lg px-3 py-1.5 outline-none focus:border-blue-500 transition-all cursor-pointer shadow-sm"
+            >
+              <option value="ALL">세부사업명 전체</option>
+              {detailedProjects.map(dp => (
+                <option key={dp} value={dp}>{dp}</option>
+              ))}
+            </select>
+          </div>
           
-          {/* Asset Allocation Card */}
-          <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-200 relative overflow-hidden flex flex-col h-[460px]">
-            <div className="flex justify-between items-center z-10">
-              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-3">
-                예산 현황 (Budget Allocation)
-              </h2>
-              <select
-                value={selectedProject}
-                onChange={(e) => setSelectedProject(e.target.value)}
-                className="bg-slate-50 border border-slate-300 text-slate-800 text-sm font-semibold rounded-lg px-3 py-1.5 outline-none focus:border-blue-500 transition-all cursor-pointer shadow-sm"
-              >
-                <option value="ALL">세부사업명 전체</option>
-                {detailedProjects.map(dp => (
-                  <option key={dp} value={dp}>{dp}</option>
-                ))}
-              </select>
-            </div>
-            
-            <div className="mt-6 flex-1 w-full flex items-center min-h-[320px]">
-              <div className="w-1/2 h-full relative">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={pieData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius="70%"
-                      outerRadius="90%"
+          <div className="flex-1 w-full flex flex-col sm:flex-row items-center justify-between mb-8 gap-8 sm:gap-4">
+            <div className="flex-none w-[240px] h-[240px] relative shrink-0 mx-auto sm:mx-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={pieData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={90}
+                    outerRadius={120}
                       paddingAngle={0}
                       dataKey="value"
                       stroke="none"
@@ -156,71 +155,90 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries 
                 </ResponsiveContainer>
                 {/* Center Text */}
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none mt-1">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">TOTAL BUDGET</span>
-                  <div className="flex items-end gap-1">
-                    <span className="text-[22px] font-bold text-slate-900 leading-none tracking-tight">{totalBudget.toLocaleString()}</span>
-                    <span className="text-[11px] font-semibold text-slate-600 leading-none mb-[2px]">KRW</span>
+                  <span className="text-[12px] font-extrabold text-slate-800 uppercase tracking-widest mb-1">TOTAL BUDGET</span>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-[18px] font-black text-slate-900 leading-none tracking-tight">{totalBudget.toLocaleString()}</span>
+                    <span className="text-[11px] font-bold text-slate-400 leading-none">KRW</span>
                   </div>
                 </div>
               </div>
+            </div>
 
-              <div className="w-1/2 pl-4 flex flex-col gap-5 justify-center h-full">
-                {breakdownData.map((item, idx) => (
-                  <div key={idx} className="flex flex-col gap-2">
-                    <div className="flex justify-between items-end">
-                      <span className="text-sm font-semibold text-slate-800 truncate pr-2" title={item.name}>{item.name}</span>
-                      <span className="text-sm font-semibold text-slate-600 shrink-0">{item.total.toLocaleString()}</span>
-                    </div>
-                    {/* Mini Progress Bar */}
-                    <div className="w-full h-2.5 bg-slate-200 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-blue-500 rounded-full transition-all duration-500" 
-                        style={{ width: `${Math.min(100, item.rate)}%` }} 
-                      />
-                    </div>
+            <div className="flex-1 w-full sm:pl-4 flex flex-col gap-5 justify-center min-w-0">
+              {breakdownData.map((item, idx) => (
+                <div 
+                  key={idx} 
+                  className="flex items-center justify-between gap-4 p-2.5 -ml-2.5 rounded-xl hover:bg-slate-50 transition-colors w-full cursor-default"
+                >
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className="w-3.5 h-3.5 rounded-full shrink-0" style={{ backgroundColor: pieData[idx]?.color || '#cbd5e1' }} />
+                    <span className="text-[15px] font-bold text-slate-600 uppercase tracking-wide truncate" title={item.name}>{item.name}</span>
                   </div>
-                ))}
-                {breakdownData.length === 0 && (
-                  <span className="text-xs text-slate-400 text-center">세부 항목이 없습니다.</span>
-                )}
-              </div>
+                  <div className="flex flex-col items-end shrink-0 opacity-80 group-hover:opacity-100 transition-opacity">
+                    <span className="text-[14px] font-black text-slate-800 leading-none">{item.total.toLocaleString()}</span>
+                    <span className="text-[9px] font-bold text-slate-400 mt-0.5">KRW</span>
+                  </div>
+                </div>
+              ))}
+              {breakdownData.length === 0 && (
+                <span className="text-xs font-bold text-slate-400 text-center">세부 항목이 없습니다.</span>
+              )}
             </div>
           </div>
 
           {/* KPI Mini Cards Grid */}
-          <div className="grid grid-cols-2 gap-4 h-full min-h-[200px]">
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col justify-between h-[110px]">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">오늘의 할 일</span>
-              <div className="flex items-end justify-between">
-                <span className="text-3xl font-bold text-blue-600 leading-none">{todayTasks.length}<span className="text-base font-semibold text-slate-500 ml-1">건</span></span>
-                <div className="w-8 h-8 rounded-full border-2 border-blue-100 border-t-blue-500 animate-spin-slow" />
+          <div className="grid grid-cols-2 gap-3 mt-auto">
+            {/* 1. Execution Rate */}
+            <div className="bg-slate-50/80 rounded-[1.25rem] p-5 flex items-center justify-between border border-slate-100">
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest">집행률 (EXECUTION)</span>
+                <span className="text-xl font-bold text-blue-600 leading-none">{executionRate.toFixed(1)}%</span>
+              </div>
+              <div 
+                className="w-6 h-6 rounded-full shrink-0 flex items-center justify-center shadow-sm"
+                style={{ background: `conic-gradient(#3b82f6 ${executionRate}%, #e2e8f0 0)` }}
+              >
+                <div className="w-[14px] h-[14px] bg-[#f8fafc] rounded-full" />
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col justify-between h-[110px]">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">집행률 (EXECUTION)</span>
-              <div className="flex items-end justify-between">
-                <span className="text-3xl font-bold text-slate-900 leading-none">{executionRate.toFixed(1)}%</span>
-                <div className="w-8 h-8 rounded-full border-2 border-slate-200 border-t-slate-800" />
+            {/* 2. Remaining Budget */}
+            <div className="bg-slate-50/80 rounded-[1.25rem] p-5 flex items-center justify-between border border-slate-100">
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest">잔여 예산 (REMAINING)</span>
+                <span className="text-xl font-bold text-slate-900 leading-none">{remainingBudget.toLocaleString()}</span>
+              </div>
+              <div 
+                className="w-6 h-6 rounded-full shrink-0 flex items-center justify-center shadow-sm"
+                style={{ background: `conic-gradient(#94a3b8 ${100 - executionRate}%, #e2e8f0 0)` }}
+              >
+                <div className="w-[14px] h-[14px] bg-[#f8fafc] rounded-full" />
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col justify-between h-[110px]">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">잔여 예산 (REMAINING)</span>
-              <div className="flex items-end justify-between">
-                <span className="text-2xl font-bold text-slate-900 leading-none">{remainingBudget.toLocaleString()}</span>
-                <div className="w-8 h-8 rounded-full border-2 border-slate-200 border-t-slate-800" />
+            {/* 3. Today's Tasks */}
+            <div className="bg-slate-50/80 rounded-[1.25rem] p-5 flex items-center justify-between border border-slate-100">
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest">오늘의 할 일</span>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-xl font-bold text-slate-900 leading-none">{todayTasks.length}</span>
+                  <span className="text-[11px] font-bold text-slate-400">건</span>
+                </div>
               </div>
+              <div className="w-5 h-5 rounded-full border-[2.5px] border-slate-200 border-t-slate-400 animate-spin-slow shrink-0" />
             </div>
 
-            <div className="bg-slate-50 rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col justify-between h-[110px]">
-              <div className="flex justify-between items-start">
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">우선순위 업무</span>
-                <span className="text-[10px] font-bold bg-white border border-slate-200 text-slate-600 px-2 py-0.5 rounded uppercase">HIGH</span>
+            {/* 4. Priority Task */}
+            <div className="bg-slate-50/80 rounded-[1.25rem] p-5 flex items-center justify-between border border-slate-100">
+              <div className="flex flex-col gap-1.5 w-full">
+                <div className="flex justify-between items-center w-full">
+                  <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest">우선순위 업무</span>
+                  <span className="text-[10px] font-bold bg-white border border-slate-200 text-slate-400 px-1.5 py-[2px] rounded uppercase">HIGH</span>
+                </div>
+                <span className="text-sm font-bold text-slate-900 truncate block leading-none">
+                  {activeTasks.find(t => t.priority === 'high')?.title || '없음'}
+                </span>
               </div>
-              <span className="text-base font-bold text-slate-900 truncate mt-2 leading-none">
-                {activeTasks.find(t => t.priority === 'high')?.title || '없음'}
-              </span>
             </div>
           </div>
         </div>
@@ -290,60 +308,19 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries 
         </div>
       </div>
 
-      {/* Bottom Panel: Portfolio Structural Convexity Framework */}
-      <div className="mt-8">
-        <div className="bg-white rounded-[2rem] p-10 shadow-sm border border-slate-200">
-          <div className="mb-8">
-            <h2 className="text-xl font-bold text-slate-900 flex items-baseline gap-3 tracking-tight">
-              Portfolio Structural Convexity Framework
-              <span className="text-sm font-semibold text-slate-500 tracking-normal">Aggregate Wealth Architecture</span>
-            </h2>
-            <p className="text-[13px] font-medium italic text-slate-500 mt-2">
-              Transcending Ontological and Epistemological Limitations in Aggregate Wealth Architecture
-            </p>
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-            {[
-              { no: '1', title: 'THESIS', sub: 'Ontology', desc: 'Deterministic geometric wealth architecture with USD-denominated superstructure — a perpetual synthetic short against domestic currency liabilities.' },
-              { no: '4', title: 'HEGEMONIC EXPOSURE', sub: 'Anchoring', desc: 'Core equity tranches [ASSET, PERNT] as ontological anchor to global hegemonic capital — Mega-Cap Technology and Defense Industrial Base.' },
-              { no: '2', title: 'ANTITHESIS', sub: 'Epistemology', desc: 'Covariance singularity under stress, alpha decay paradox, and liquidity asymmetry exposing systemic tail-risk across correlated tranches.' },
-              { no: '5', title: 'ALPHA ENGINE', sub: 'Tactical', desc: 'Non-linear tactical tranche [TRADE] generating asymmetric payoff via volatility harvesting — decoupled from systematic beta exposure.' },
-              { no: '3', title: 'SYNTHESIS', sub: 'Framework', desc: 'Vector orthogonalization, algorithmic decoupling via positive carry arbitrage, and mechanical survival switching against systemic tail-risk.' },
-              { no: '6', title: 'RISK ARCHITECTURE', sub: 'Convexity', desc: 'Structural entropy subordination through leverage-adjusted convexity control — mathematical firewall against aggregate drawdown cascades.' },
-            ].map(item => (
-              <div key={item.no} className="border border-slate-200/60 bg-slate-50/50 rounded-2xl p-5 flex gap-4 transition-all hover:bg-slate-50 hover:border-slate-200 hover:shadow-sm">
-                <div className="shrink-0 flex items-center justify-center w-6 h-6 rounded-full bg-blue-50 text-blue-600 text-[11px] font-black border border-blue-100/50">
-                  {item.no}
-                </div>
-                <div className="flex flex-col pt-0.5">
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <span className="text-[10px] font-black text-slate-800 tracking-wider uppercase">{item.title}</span>
-                    <span className="text-slate-300">—</span>
-                    <span className="text-[10px] font-bold text-slate-400 tracking-wide">{item.sub}</span>
-                  </div>
-                  <p className="text-xs font-semibold text-slate-600 leading-relaxed">
-                    {item.desc}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex justify-center">
-            <button className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-slate-50 border border-slate-200 text-[11px] font-bold text-slate-700 hover:bg-slate-100 transition-all hover:shadow-sm">
-              Read Full Framework
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-            </button>
-          </div>
-        </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between mt-8 mb-4 px-4 text-[10px] font-bold text-slate-400 tracking-wider uppercase">
-          <span>© 2026 PORTFOLIO ASSET. All rights reserved.</span>
-          <span className="flex items-center gap-2">Precision Portfolio Intelligence <span className="text-slate-300">|</span> <span className="text-blue-500">SECURE</span></span>
+        <div className="mt-12 pt-6 border-t border-slate-200">
+          <div className="flex items-center justify-between px-4 text-xs font-bold text-slate-400 tracking-wider uppercase">
+            <span>© 2026 HCHPS. All rights reserved.</span>
+            <span className="flex items-center gap-2">
+              HCHPS Work & Wealth Architecture 
+              <span className="text-slate-300">|</span> 
+              <button onClick={onLogout} className="text-blue-500 hover:text-blue-600 hover:underline cursor-pointer transition-all">SECURE</button>
+            </span>
+          </div>
         </div>
-      </div>
       
     </div>
   );
