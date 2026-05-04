@@ -135,8 +135,8 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries 
                       data={pieData}
                       cx="50%"
                       cy="50%"
-                      innerRadius={95}
-                      outerRadius={125}
+                      innerRadius="70%"
+                      outerRadius="90%"
                       paddingAngle={0}
                       dataKey="value"
                       stroke="none"
