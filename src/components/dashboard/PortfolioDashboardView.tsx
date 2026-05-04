@@ -128,15 +128,15 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries 
             </div>
             
             <div className="mt-4 flex items-center h-[280px]">
-              <div className="w-[45%] h-full relative">
+              <div className="w-1/2 h-full relative">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
                       data={pieData}
                       cx="50%"
                       cy="50%"
-                      innerRadius={100}
-                      outerRadius={135}
+                      innerRadius={95}
+                      outerRadius={125}
                       paddingAngle={0}
                       dataKey="value"
                       stroke="none"
@@ -164,7 +164,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries 
                 </div>
               </div>
 
-              <div className="w-[55%] pl-6 flex flex-col gap-5 justify-center h-full">
+              <div className="w-1/2 pl-4 flex flex-col gap-5 justify-center h-full">
                 {breakdownData.map((item, idx) => (
                   <div key={idx} className="flex flex-col gap-2">
                     <div className="flex justify-between items-end">
