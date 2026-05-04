@@ -4,6 +4,16 @@ test.describe('HCHPS UI Critical Path', () => {
   // 앱 접속 전 전역 락을 우회하기 위한 Mock 등은 useSecurityLock 내부에서 자동처리 됨
   
   test('대시보드 메인 페이지 렌더링 확인', async ({ page }) => {
+    // Set authentication cookie to bypass middleware login redirect
+    await page.context().addCookies([
+      {
+        name: 'hchps_session',
+        value: 'authenticated',
+        domain: 'localhost',
+        path: '/',
+      }
+    ]);
+
     // Navigate to the app
     await page.goto('/');
 
@@ -17,6 +27,16 @@ test.describe('HCHPS UI Critical Path', () => {
   });
 
   test('LLM 통합 검색 패널 렌더링 확인', async ({ page }) => {
+    // Set authentication cookie to bypass middleware login redirect
+    await page.context().addCookies([
+      {
+        name: 'hchps_session',
+        value: 'authenticated',
+        domain: 'localhost',
+        path: '/',
+      }
+    ]);
+    
     await page.goto('/');
 
     // Assuming there is a plus button, search icon, or mic icon globally rendered
@@ -28,5 +48,17 @@ test.describe('HCHPS UI Critical Path', () => {
       return document.querySelector('body > script') !== null || document.querySelector('div') !== null;
     });
     expect(isNextMounted).toBe(true);
+  });
+
+  test('로그인 페이지 렌더링 및 미들웨어 리다이렉트 확인', async ({ page }) => {
+    // Do NOT set cookie, navigate to root
+    await page.goto('/');
+    
+    // Should be redirected to /login
+    await expect(page).toHaveURL(/.*\/login/);
+
+    // Login page should have the title visible
+    await expect(page.getByText('HCHPS Work Manager')).toBeVisible();
+    await expect(page.getByPlaceholder('Enter your ID')).toBeVisible();
   });
 });
