@@ -148,15 +148,15 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
           </div>
           
           <div className="flex-1 w-full flex flex-col sm:flex-row items-center justify-center mb-8 gap-8 sm:gap-12 xl:gap-16">
-            <div className="flex-none w-[260px] h-[260px] relative shrink-0">
+            <div className="flex-none w-[230px] h-[230px] relative shrink-0">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
                     data={pieData}
                     cx="50%"
                     cy="50%"
-                    innerRadius={90}
-                    outerRadius={125}
+                    innerRadius={80}
+                    outerRadius={110}
                     paddingAngle={0}
                     dataKey="value"
                     stroke="none"
