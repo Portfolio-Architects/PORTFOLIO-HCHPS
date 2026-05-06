@@ -160,7 +160,6 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                     <span className="text-[18px] font-black text-slate-900 leading-none tracking-tight">{totalBudget.toLocaleString()}</span>
                     <span className="text-[11px] font-bold text-slate-400 leading-none">KRW</span>
                   </div>
-                </div>
               </div>
             </div>
 
