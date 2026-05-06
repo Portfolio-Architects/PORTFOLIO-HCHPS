@@ -75,7 +75,13 @@ export async function readSheet<T>(sheetName: string): Promise<T[]> {
             if (result.success) {
               validRows.push(result.data);
             } else {
-              console.warn(`[Zod Error] Corrupted data suppressed in sheet ${sheetName}:`, result.error, 'Row:', row.id);
+              // HARNESS SYSTEM: Loud Failure for Self-Reinforcing AI loops
+              console.error(`\n======================================================`);
+              console.error(`🚨 [HARNESS ZOD ERROR] Schema Validation Failed!`);
+              console.error(`Sheet: ${sheetName}`);
+              console.error(`Row ID: ${row.id || 'unknown'}`);
+              console.error(`Errors:`, JSON.stringify(result.error.format(), null, 2));
+              console.error(`======================================================\n`);
             }
           } else {
             validRows.push(row);
