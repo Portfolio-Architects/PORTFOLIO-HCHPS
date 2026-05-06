@@ -167,13 +167,14 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
               {breakdownData.map((item, idx) => (
                 <div 
                   key={idx} 
-                  className="flex items-center justify-between gap-4 p-2.5 -ml-2.5 rounded-xl hover:bg-slate-50 transition-colors w-full cursor-default"
+                  className="group flex items-center w-full p-2 -ml-2 rounded-xl hover:bg-slate-50 transition-colors cursor-default"
                 >
-                  <div className="flex items-center gap-4 min-w-0">
-                    <div className="w-3.5 h-3.5 rounded-full shrink-0" style={{ backgroundColor: pieData[idx]?.color || '#cbd5e1' }} />
-                    <span className="text-[15px] font-bold text-slate-600 uppercase tracking-wide truncate" title={item.name}>{item.name}</span>
-                  </div>
-                  <div className="flex flex-col items-end shrink-0 opacity-80 group-hover:opacity-100 transition-opacity">
+                  <div className="w-3.5 h-3.5 rounded-full shrink-0 mr-3 shadow-sm" style={{ backgroundColor: pieData[idx]?.color || '#cbd5e1' }} />
+                  <span className="text-[14px] font-bold text-slate-600 tracking-wide truncate max-w-[60%]" title={item.name}>
+                    {item.name}
+                  </span>
+                  <div className="flex-1 min-w-[16px] border-b-[2px] border-dotted border-slate-200/80 mx-3 mt-1"></div>
+                  <div className="flex flex-col items-end shrink-0 transition-transform group-hover:-translate-x-1 duration-300">
                     <span className="text-[14px] font-black text-slate-800 leading-none">{item.total.toLocaleString()}</span>
                     <span className="text-[9px] font-bold text-slate-400 mt-0.5">KRW</span>
                   </div>
