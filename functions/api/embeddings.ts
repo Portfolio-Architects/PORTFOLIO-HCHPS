@@ -7,7 +7,7 @@ interface Env {
 function getCorsHeaders(request: Request): Record<string, string> {
   let allowedOrigin = 'https://portfolio-hchps.pages.dev';
   const origin = request.headers.get('Origin') || '';
-  if (origin === 'http://localhost:3001' || origin === 'http://127.0.0.1:3001' || origin.startsWith('http://192.168.')) {
+  if (origin === 'http://localhost:3001' || origin === 'http://127.0.0.1:3001' || origin.startsWith('http://192.168.') || origin === 'https://portfolio-architects.github.io') {
     allowedOrigin = origin;
   }
   return {
