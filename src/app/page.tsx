@@ -301,7 +301,7 @@ function ProtectedApp() {
       />
 
       <main className="flex-1 pb-32 sm:pb-8 overflow-y-auto custom-scrollbar">
-        <div className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 lg:pt-8">
+        <div className="max-w-[1800px] mx-auto px-2 sm:px-3 lg:px-4 pt-4 sm:pt-6 lg:pt-8">
 
 
           {renderContent()}

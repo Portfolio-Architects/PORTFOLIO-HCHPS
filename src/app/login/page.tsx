@@ -54,7 +54,7 @@ export default function LoginPage() {
               <path d="M17 17h.01" />
             </svg>
           </div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">HCHPS Work Manager</h1>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight">VITAL Work Manager</h1>
           <p className="text-sm font-semibold text-slate-500 mt-2 tracking-wide">통합 업무 및 예산 관리 아키텍처</p>
         </div>
 

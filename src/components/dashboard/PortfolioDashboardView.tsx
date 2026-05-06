@@ -92,35 +92,18 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
   return (
     <div className="w-full flex flex-col gap-6 animate-in fade-in duration-300 relative min-h-screen font-sans">
       
-      {/* Top Pill Navigation */}
-      <div className="flex items-center gap-3 overflow-x-auto pb-2 no-scrollbar">
-        <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-sm border border-blue-100 shrink-0">
-          <Star className="w-4 h-4 text-blue-500 fill-blue-500" />
-          <span className="text-sm font-bold text-slate-800">Portfolio</span>
-        </div>
-        {['Correlation', 'Ontology', 'Overview'].map(tab => (
-          <div key={tab} className="flex items-center px-4 py-2 rounded-full shrink-0 cursor-pointer hover:bg-slate-200/50 transition-colors">
-            <span className="text-sm font-semibold text-slate-500">{tab}</span>
-          </div>
-        ))}
-        <div className="flex-1" />
-        <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-full border border-slate-200 shrink-0 cursor-pointer hover:bg-slate-50 transition-colors">
-          <span className="text-sm font-bold text-slate-700">Report</span>
-        </div>
-      </div>
-
       {/* Header */}
       <div className="flex flex-col gap-3 mt-4 mb-2">
-        <h1 className="text-4xl sm:text-[40px] font-black tracking-tight text-slate-900 flex items-center gap-4">
-          <div className="w-12 h-12 bg-white rounded-[1rem] shadow-sm border border-slate-100 flex items-center justify-center text-blue-500">
-            <Star className="w-7 h-7 fill-blue-500" />
+        <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-slate-900 flex items-center gap-4">
+          <div className="w-12 h-12 bg-white rounded-[1rem] shadow-sm border border-slate-100 flex items-center justify-center overflow-hidden">
+            <img src="/icon-192x192.png" alt="VITAL Logo" className="w-full h-full object-cover" />
           </div>
-          PORTFOLIO ASSET
+          PORTFOLIO VITAL
         </h1>
         <div className="flex items-center gap-3 ml-2">
           <div className="w-1 h-5 bg-blue-600 rounded-full" />
           <p className="text-[13px] font-semibold text-slate-500 tracking-wide">
-            Semantic Ontology-Driven Total Wealth Architecture — converging macro regime, factor convexity, and tactical alpha into a unified risk topology
+            Vital Information & Task Architecture Ledger — converging public health resources, tasks, and budget execution into a unified management topology
           </p>
         </div>
       </div>
@@ -205,42 +188,43 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
               )}
             </div>
           </div>
+        </div>
 
-          {/* KPI Mini Cards Grid */}
-          <div className="grid grid-cols-2 gap-4 mt-auto pt-4">
-            {/* 1. Execution Rate */}
-            <div className="bg-[#f1f5f9] rounded-[1.5rem] p-5 flex flex-col justify-between relative overflow-hidden group">
+        {/* KPI Mini Cards Grid */}
+        <div className="grid grid-cols-2 gap-4 sm:gap-6">
+          {/* 1. Execution Rate */}
+          <div className="bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-slate-100/50 rounded-[1.5rem] p-5 flex flex-col justify-between relative overflow-hidden group">
               <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest relative z-10 mb-6">EQUITY EXPOSURE</span>
               <span className="text-2xl font-black text-blue-600 leading-none relative z-10">{executionRate.toFixed(1)}%</span>
               <div 
                 className="absolute right-5 bottom-5 w-8 h-8 rounded-full shrink-0 flex items-center justify-center shadow-sm opacity-80 group-hover:scale-110 transition-transform"
                 style={{ background: `conic-gradient(#3b82f6 ${executionRate}%, #e2e8f0 0)` }}
               >
-                <div className="w-[20px] h-[20px] bg-[#f1f5f9] rounded-full" />
+                <div className="w-[20px] h-[20px] bg-white rounded-full" />
               </div>
             </div>
 
             {/* 2. Remaining Budget */}
-            <div className="bg-[#f1f5f9] rounded-[1.5rem] p-5 flex flex-col justify-between relative overflow-hidden group">
+            <div className="bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-slate-100/50 rounded-[1.5rem] p-5 flex flex-col justify-between relative overflow-hidden group">
               <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest relative z-10 mb-6">LIQUIDITY FIREWALL</span>
               <span className="text-2xl font-black text-slate-900 leading-none relative z-10">{(100 - executionRate).toFixed(1)}%</span>
               <div 
                 className="absolute right-5 bottom-5 w-8 h-8 rounded-full shrink-0 flex items-center justify-center shadow-sm opacity-80 group-hover:scale-110 transition-transform"
                 style={{ background: `conic-gradient(#94a3b8 ${100 - executionRate}%, #e2e8f0 0)` }}
               >
-                <div className="w-[20px] h-[20px] bg-[#f1f5f9] rounded-full" />
+                <div className="w-[20px] h-[20px] bg-white rounded-full" />
               </div>
             </div>
 
             {/* 3. Today's Tasks */}
-            <div className="bg-[#f1f5f9] rounded-[1.5rem] p-5 flex flex-col justify-between relative overflow-hidden group">
+            <div className="bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-slate-100/50 rounded-[1.5rem] p-5 flex flex-col justify-between relative overflow-hidden group">
               <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest relative z-10 mb-6">LEVERAGE (DEBT)</span>
               <span className="text-2xl font-black text-slate-900 leading-none relative z-10">{(executionRate * 0.8).toFixed(1)}%</span>
               <div className="absolute right-5 bottom-5 w-7 h-7 rounded-full border-[3.5px] border-slate-200 border-t-slate-400 animate-spin-slow shrink-0 opacity-80 group-hover:border-t-slate-600 transition-colors" />
             </div>
 
             {/* 4. Priority Task */}
-            <div className="bg-[#f1f5f9] rounded-[1.5rem] p-5 flex flex-col justify-between relative overflow-hidden group">
+            <div className="bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-slate-100/50 rounded-[1.5rem] p-5 flex flex-col justify-between relative overflow-hidden group">
               <div className="flex justify-between items-start w-full relative z-10 mb-6">
                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">HEAVY ASSET</span>
                 <span className="text-[9px] font-bold bg-white border border-slate-200 text-slate-400 px-1.5 py-[2px] rounded uppercase">DOM</span>
@@ -250,7 +234,6 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
               </span>
             </div>
           </div>
-        </div>
 
         {/* Right Panel: Portfolio Growth Trend */}
         <div className="xl:col-span-6">
@@ -437,7 +420,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
       {/* Footer */}
       <div className="mt-8 pt-8 pb-4 border-t border-slate-200/60">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 text-[10px] font-black text-slate-400 tracking-widest uppercase">
-          <span>© 2026 PORTFOLIO ASSET. All rights reserved.</span>
+          <span>© 2026 PORTFOLIO VITAL. All rights reserved.</span>
           <span className="flex items-center gap-3">
             Precision Portfolio Intelligence
             <span className="text-slate-300">|</span> 

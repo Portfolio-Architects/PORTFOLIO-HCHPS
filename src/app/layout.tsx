@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 const basePath = process.env.NODE_ENV === 'production' ? '/PORTFOLIO-HCHPS' : '';
 
 export const metadata: Metadata = {
-  title: "HCHPS Work Manager",
+  title: "VITAL Work Manager",
   description: "개인용 업무관리 시스템 — 업무, 예산, 재고, 미팅, 프로젝트 통합 관리",
   manifest: `${basePath}/manifest.json`,
   appleWebApp: {

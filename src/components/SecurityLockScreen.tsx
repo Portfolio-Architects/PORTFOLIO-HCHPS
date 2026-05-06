@@ -106,7 +106,7 @@ export const SecurityLockScreen: React.FC<Props> = ({ hasSetupPIN, failCount, on
       <div className="text-center mb-8 h-16">
         <h2 className="text-xl font-bold text-white mb-2 tracking-tight">
           {hasSetupPIN 
-            ? 'HCHPS 시스템 잠금 해제' 
+            ? 'VITAL 시스템 잠금 해제' 
             : setupStep === 1 ? '새로운 접근 비밀번호 설정' : '비밀번호를 한 번 더 입력해주세요'}
         </h2>
         <p className={`text-sm ${errorMsg ? 'text-red-400' : 'text-slate-400'}`}>
