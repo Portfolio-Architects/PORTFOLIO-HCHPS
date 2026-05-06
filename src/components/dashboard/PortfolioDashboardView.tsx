@@ -163,20 +163,20 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
               </div>
             </div>
 
-            <div className="flex-1 w-full sm:pl-4 flex flex-col gap-5 justify-center min-w-0">
+            <div className="flex-1 w-full max-w-[380px] sm:pl-6 flex flex-col gap-6 justify-center min-w-0">
               {breakdownData.map((item, idx) => (
                 <div 
                   key={idx} 
                   className="group flex items-center w-full p-2 -ml-2 rounded-xl hover:bg-slate-50 transition-colors cursor-default"
                 >
-                  <div className="w-3.5 h-3.5 rounded-full shrink-0 mr-3 shadow-sm" style={{ backgroundColor: pieData[idx]?.color || '#cbd5e1' }} />
-                  <span className="text-[14px] font-bold text-slate-600 tracking-wide truncate max-w-[60%]" title={item.name}>
+                  <div className="w-4 h-4 rounded-full shrink-0 mr-3 shadow-sm" style={{ backgroundColor: pieData[idx]?.color || '#cbd5e1' }} />
+                  <span className="text-[16px] font-bold text-slate-700 tracking-wide truncate max-w-[65%]" title={item.name}>
                     {item.name}
                   </span>
-                  <div className="flex-1 min-w-[16px] border-b-[2px] border-dotted border-slate-200/80 mx-3 mt-1"></div>
+                  <div className="flex-1 min-w-[12px] border-b-[2.5px] border-dotted border-slate-200 mx-3 mt-1.5 opacity-80"></div>
                   <div className="flex flex-col items-end shrink-0 transition-transform group-hover:-translate-x-1 duration-300">
-                    <span className="text-[14px] font-black text-slate-800 leading-none">{item.total.toLocaleString()}</span>
-                    <span className="text-[9px] font-bold text-slate-400 mt-0.5">KRW</span>
+                    <span className="text-[17px] font-black text-slate-800 leading-none">{item.total.toLocaleString()}</span>
+                    <span className="text-[11px] font-bold text-slate-400 mt-0.5">KRW</span>
                   </div>
                 </div>
               ))}
