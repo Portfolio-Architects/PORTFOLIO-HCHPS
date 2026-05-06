@@ -271,7 +271,7 @@ function ProtectedApp() {
 
   return (
     <div 
-      className="flex flex-col min-h-screen"
+      className="flex flex-col min-h-screen bg-[#f8fafc]"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
@@ -300,8 +300,8 @@ function ProtectedApp() {
         }
       />
 
-      <main className="flex-1 p-4 pb-32 sm:p-6 lg:p-8 overflow-y-auto custom-scrollbar sm:pb-8">
-        <div className="max-w-[1800px] mx-auto">
+      <main className="flex-1 pb-32 sm:pb-8 overflow-y-auto custom-scrollbar">
+        <div className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 lg:pt-8">
 
 
           {renderContent()}

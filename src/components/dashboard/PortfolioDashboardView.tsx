@@ -90,7 +90,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
   }, [totalBudget]);
 
   return (
-    <div className="w-full flex flex-col gap-6 animate-in fade-in duration-300 relative min-h-screen bg-[#f8fafc] -m-4 sm:-m-6 lg:-m-8 p-4 sm:p-6 lg:p-8 font-sans">
+    <div className="w-full flex flex-col gap-6 animate-in fade-in duration-300 relative min-h-screen font-sans">
       
       {/* Top Pill Navigation */}
       <div className="flex items-center gap-3 overflow-x-auto pb-2 no-scrollbar">
