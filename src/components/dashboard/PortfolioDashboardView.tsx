@@ -384,7 +384,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px -4px rgb(0 0 0 / 0.1)', backgroundColor: 'rgba(255, 255, 255, 0.95)' }}
                     itemStyle={{ fontSize: '12px', fontWeight: '900' }}
                     labelStyle={{ fontSize: '10px', color: '#94a3b8', marginBottom: '4px', fontWeight: 'bold' }}
-                    formatter={(value: any, name: string) => [`${Number(value).toLocaleString()} KRW`, name === 'actual' ? 'Actual' : 'Predicted']}
+                    formatter={(value: any, name: any) => [`${Number(value).toLocaleString()} KRW`, name === 'actual' ? 'Actual' : 'Predicted']}
                   />
                   <Area type="monotone" dataKey="actual" stroke="#3B82F6" strokeWidth={3} fillOpacity={1} fill="url(#colorActual)" activeDot={{ r: 5, fill: '#3B82F6', stroke: '#fff', strokeWidth: 2 }} />
                   <Line type="monotone" dataKey="predicted" stroke="#94a3b8" strokeWidth={2.5} strokeDasharray="6 6" dot={false} activeDot={{ r: 4, fill: '#94a3b8', stroke: '#fff' }} />
