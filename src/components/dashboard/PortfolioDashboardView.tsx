@@ -57,7 +57,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
     { name: '잔여 예산', value: Math.max(0, remainingBudget), color: '#E2E8F0' }
   ];
 
-  const breakdownData = useMemo(() => {
+  const breakdownData = useMemo<{ name: string; total: number; executed: number; rate: number; formationItem?: string }[]>(() => {
     if (selectedProject === 'ALL') {
       const projectsData = detailedProjects.map(dp => {
         const cats = budgetCategories.filter(c => c.detailedProject === dp);
