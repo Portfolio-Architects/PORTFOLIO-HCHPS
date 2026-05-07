@@ -27,7 +27,8 @@ export const config = {
      * - _next/image (Image optimization)
      * - favicon.ico (Favicon)
      * - api/auth (Auth API route used for logging in)
+     * - sw.js, manifest.json, *.png, *.svg (PWA and static assets)
      */
-    '/((?!_next/static|_next/image|favicon.ico|api/auth).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/auth|sw\\.js|manifest\\.json|.*\\.png|.*\\.svg).*)',
   ],
 };
