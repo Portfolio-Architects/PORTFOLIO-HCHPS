@@ -251,6 +251,20 @@ export function useGraphCustomization() {
         }
       });
       keysToDelete.forEach(k => edgesMap.delete(k));
+      
+      // Clean up related overrides
+      const overridesMap = ydoc.getMap('overrides') as Y.Map<NodeOverride>;
+      if (overridesMap.has(id)) overridesMap.delete(id);
+      
+      // Clean up tombstones to prevent memory leaks
+      const deletedEdgesMap = ydoc.getMap('deletedEdgesMap') as Y.Map<boolean>;
+      const tombstonesToDelete: string[] = [];
+      for (const key of Array.from(deletedEdgesMap.keys())) {
+        if (key.startsWith(`${id}|||`) || key.endsWith(`|||${id}`)) {
+          tombstonesToDelete.push(key);
+        }
+      }
+      tombstonesToDelete.forEach(k => deletedEdgesMap.delete(k));
     });
   }, [ydoc]);
 

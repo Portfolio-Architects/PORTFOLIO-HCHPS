@@ -37,7 +37,7 @@ export function useBudget() {
   const uniqueCategories = useMemo(() => {
     const seen = new Set();
     return rawCategories.filter(c => {
-      const key = `${c.name}-${c.policyProject}-${c.unitProject}-${c.detailedProject}-${c.statItem}-${c.totalBudget}-${c.budgetType || '본예산'}`;
+      const key = `${c.name}-${c.policyProject}-${c.unitProject}-${c.detailedProject}-${c.statItem}-${c.budgetType || '본예산'}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -171,15 +171,26 @@ export function useBudget() {
   }, [updateEntryMut]);
 
   const deleteEntry = useCallback((id: string) => {
+    const entryToDelete = entries.find(e => e.id === id);
+    if (entryToDelete && entryToDelete.isPlanned) {
+      const hasSettledChildren = entries.some(e => e.relatedPlanId === id);
+      if (hasSettledChildren) {
+        alert('이 품의서(원인행위)에 연결된 실제 지출 내역이 존재하여 삭제할 수 없습니다. 연결된 지출 내역을 먼저 삭제하거나 수정해주세요.');
+        return;
+      }
+    }
     deleteEntryMut.mutate(id);
-  }, [deleteEntryMut]);
+  }, [deleteEntryMut, entries]);
 
   // Derived Stats
   const getCategoryStats = useCallback((categoryId: string) => {
     const cat = uniqueCategories.find(c => c.id === categoryId);
     if (!cat) return null;
     const catEntries = entries.filter(e => e.categoryId === categoryId);
-    const generalSpent = catEntries.filter(e => !e.isPlanned && (!e.actionType || e.actionType === 'general')).reduce((sum, e) => sum + e.amount, 0);
+    const generalSpent = catEntries.filter(e => !e.isPlanned && (!e.actionType || e.actionType === 'general' || e.actionType === 'correction' || e.actionType === 'transfer')).reduce((sum, e) => {
+      if (e.actionType === 'transfer') return sum - e.amount;
+      return sum + e.amount;
+    }, 0);
     const dailyExpenseIssued = catEntries.filter(e => !e.isPlanned && e.actionType === 'issuance').reduce((sum, e) => sum + e.amount, 0);
     const dailyExpenseSpent = catEntries.filter(e => !e.isPlanned && e.actionType === 'daily_expense').reduce((sum, e) => sum + e.amount, 0);
     
@@ -223,7 +234,10 @@ export function useBudget() {
 
   const overallStats = useMemo(() => {
     const totalBudget = uniqueCategories.reduce((sum, c) => sum + c.totalBudget, 0);
-    const generalSpent = entries.filter(e => !e.isPlanned && (!e.actionType || e.actionType === 'general')).reduce((sum, e) => sum + e.amount, 0);
+    const generalSpent = entries.filter(e => !e.isPlanned && (!e.actionType || e.actionType === 'general' || e.actionType === 'correction' || e.actionType === 'transfer')).reduce((sum, e) => {
+      if (e.actionType === 'transfer') return sum - e.amount;
+      return sum + e.amount;
+    }, 0);
     const dailyExpenseIssued = entries.filter(e => !e.isPlanned && e.actionType === 'issuance').reduce((sum, e) => sum + e.amount, 0);
     const dailyExpenseSpent = entries.filter(e => !e.isPlanned && e.actionType === 'daily_expense').reduce((sum, e) => sum + e.amount, 0);
     const totalPlanned = entries.filter(e => e.isPlanned && !e.isSettled).reduce((sum, e) => sum + e.amount, 0);

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { BudgetCategory, BudgetEntry, BudgetActionType } from '@/types';
-import { ChevronDown, ChevronUp, Pencil, Trash2, FileCheck, FilePlus2, ArrowUp, ArrowDown } from 'lucide-react';
+import { ChevronDown, ChevronUp, Pencil, Trash2, FileCheck, FilePlus2, ArrowUp, ArrowDown, RefreshCw, CheckCircle2 } from 'lucide-react';
 
 function formatN(n: number) { return n.toLocaleString('ko-KR'); }
 
@@ -8,6 +8,9 @@ export const ACTION_TYPE_CONFIG: Record<BudgetActionType, { label: string; badge
   general: { label: '일반 지출', badge: '일반', badgeBg: 'bg-blue-100 text-blue-700', icon: FileCheck },
   issuance: { label: '일상경비 교부', badge: '교부', badgeBg: 'bg-amber-100 text-amber-700', icon: FilePlus2 },
   daily_expense: { label: '일상경비 지출', badge: '경비지출', badgeBg: 'bg-teal-100 text-teal-700', icon: FileCheck },
+  transfer: { label: '이용/전용', badge: '이용/전용', badgeBg: 'bg-purple-100 text-purple-700', icon: RefreshCw },
+  correction: { label: '정정', badge: '정정', badgeBg: 'bg-orange-100 text-orange-700', icon: Pencil },
+  settle: { label: '정산(결산)', badge: '정산', badgeBg: 'bg-gray-100 text-gray-700', icon: CheckCircle2 }
 };
 
 export const PolicyGroupCard = React.memo(({

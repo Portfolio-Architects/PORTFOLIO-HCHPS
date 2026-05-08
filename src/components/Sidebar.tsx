@@ -8,7 +8,6 @@ interface TopNavProps {
   activeModule: ModuleType;
   onModuleChange: (module: ModuleType) => void;
   taskStats: { total: number; done: number; overdue: number };
-  quickInput?: React.ReactNode;
 }
 
 const navItems: { id: ModuleType; label: string; icon: React.ElementType }[] = [
@@ -18,7 +17,7 @@ const navItems: { id: ModuleType; label: string; icon: React.ElementType }[] = [
   { id: 'knowledge', label: '메모장', icon: SquareCheck },
 ];
 
-export function Sidebar({ activeModule, onModuleChange, taskStats, quickInput }: TopNavProps) {
+export function Sidebar({ activeModule, onModuleChange, taskStats }: TopNavProps) {
   const activeLabel = navItems.find((i) => i.id === activeModule)?.label;
 
   return (
@@ -57,12 +56,7 @@ export function Sidebar({ activeModule, onModuleChange, taskStats, quickInput }:
               })}
             </nav>
 
-            {/* QuickInput (Desktop & Mobile) */}
-            {quickInput && (
-              <div className="flex-1 w-full sm:min-w-0 pb-1 sm:pb-0">
-                {quickInput}
-              </div>
-            )}
+
           </div>
         </div>
       </header>

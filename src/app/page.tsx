@@ -20,10 +20,11 @@ import { MindMap3D } from '@/components/MindMap3D';
 import { PortfolioDashboardView } from '@/components/dashboard/PortfolioDashboardView';
 import { TaskKnowledgeView } from '@/components/TaskKnowledgeView';
 import { SearchResultModal } from '@/components/SearchResultModal';
-import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { AlertTriangle, RefreshCw, Sparkles, X, Settings } from 'lucide-react';
 import { useSecurityLock } from '@/hooks/useSecurityLock';
 import { SecurityLockScreen } from '@/components/SecurityLockScreen';
 import { useGlobalSearch } from '@/hooks/useGlobalSearch';
+import { AIAssistantModal } from '@/components/ai/AIAssistantModal';
 import { useMergedSignals } from '@/hooks/useMergedSignals';
 
 // Error Boundary for MindMap3D — prevents signal map crash from breaking entire app
@@ -62,6 +63,7 @@ class MindMapErrorBoundary extends React.Component<
 
 function ProtectedApp() {
   const [activeModule, setActiveModule] = useState<ModuleType>('dashboard');
+  const [isQuickInputOpen, setIsQuickInputOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   // Hooks
   const { tasks, addTask, updateTask, deleteTask, moveTask, stats: taskStats } = useTasks();
@@ -280,24 +282,6 @@ function ProtectedApp() {
         activeModule={activeModule}
         onModuleChange={handleModuleChange}
         taskStats={taskStats}
-        quickInput={
-          <QuickInput
-            onCreateTask={(data) => {
-              addTask({ title: data.title, status: 'todo', priority: data.priority, category: '', dueDate: data.dueDate, tags: data.tags, description: '', recurrence: data.recurrence, recurrenceEndDate: data.recurrenceEndDate });
-              if (activeModule !== 'workspace') setActiveModule('workspace');
-            }}
-            onCreateKnowledge={(data) => {
-              addKnowledge({ title: data.title, content: data.content, tags: data.tags, category: data.category });
-              if (activeModule !== 'knowledge') setActiveModule('knowledge');
-            }}
-            onAddSignal={(text) => {
-              addSignal(text);
-              if (activeModule !== 'mindmap') setActiveModule('mindmap');
-            }}
-            onSearch={handleGlobalSearch}
-            onNavigate={(m) => handleModuleChange(m as ModuleType)}
-          />
-        }
       />
 
       <main className="flex-1 pb-32 sm:pb-8 overflow-y-auto custom-scrollbar">
@@ -315,6 +299,30 @@ function ProtectedApp() {
         results={searchResults}
       />
 
+      {/* Floating LLM Button & Popover */}
+      <div className="fixed bottom-24 sm:bottom-8 right-4 sm:right-8 z-50 flex flex-col items-end gap-3">
+        <AIAssistantModal 
+          isOpen={isQuickInputOpen} 
+          onClose={() => setIsQuickInputOpen(false)}
+          contextData={{
+            signals: mergedEntries,
+            budgetEntries: budgetEntries,
+            budgetCategories: budgetCategories,
+            knowledge: knowledgeEntries
+          }}
+        />
+        <button
+          onClick={() => setIsQuickInputOpen(!isQuickInputOpen)}
+          className={`p-4 rounded-full shadow-xl transition-all duration-300 hover:scale-105 active:scale-95 flex items-center justify-center ${
+            isQuickInputOpen 
+              ? 'bg-gray-800 text-white hover:bg-gray-700 shadow-lg' 
+              : 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:shadow-blue-500/25'
+          }`}
+          aria-label="AI 어시스턴트 열기"
+        >
+          {isQuickInputOpen ? <X size={24} /> : <Sparkles size={24} />}
+        </button>
+      </div>
 
     </div>
   );

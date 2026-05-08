@@ -86,14 +86,13 @@ export function QuickInput({ onCreateTask, onCreateKnowledge, onAddSignal, onSea
   return (
     <div className="relative overflow-hidden">
       <div className="flex items-center gap-2 bg-[var(--color-card)] rounded-2xl border border-[var(--color-border-light)] shadow-[var(--shadow-sm)] px-3 sm:px-4 py-2 transition-shadow focus-within:shadow-md focus-within:border-[var(--color-primary)] min-w-0">
-        <Zap size={16} className="text-[var(--color-primary)] shrink-0" />
         <input
           type="text"
           value={text}
           onChange={e => setText(e.target.value)}
           onKeyDown={handleKeyDown}
           className="flex-1 min-w-0 bg-transparent text-sm outline-none placeholder:text-[var(--color-text-tertiary)]"
-          placeholder="무엇이든 물어보거나 업무를 입력하세요... (예: 이정우 팀장님 연락처 찾아줘, 내일까지 보고서 작성)"
+          placeholder="Ask anything..."
         />
 
         {parsed && (

@@ -150,7 +150,7 @@ export function useTasks() {
       }
 
       if (shouldDuplicate) {
-        const nextTask = {
+        const nextTaskPayload = {
           title: task.title,
           description: task.description,
           status: 'todo' as TaskStatus,
@@ -164,12 +164,14 @@ export function useTasks() {
           recurrenceEndDate: task.recurrenceEndDate,
           recurrenceCount: task.recurrenceCount
         };
-        setTimeout(() => addTask(nextTask), 50);
+        const now = new Date().toISOString();
+        const nextTask: Task = { ...nextTaskPayload, id: generateId(), createdAt: now, updatedAt: now };
+        addTaskMut.mutate(nextTask);
       }
     }
 
     updateTaskMut.mutate({ id, updates });
-  }, [tasks, updateTaskMut, addTask]);
+  }, [tasks, updateTaskMut, addTaskMut]);
 
   const deleteTask = useCallback((id: string) => {
     deleteTaskMut.mutate(id);

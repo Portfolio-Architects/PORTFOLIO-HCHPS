@@ -21,7 +21,7 @@ export interface Task {
 }
 
 // ============ Budget Module ============
-export type BudgetActionType = 'general' | 'issuance' | 'daily_expense'; // 일반품의, 일상경비교부, 일상경비지출
+export type BudgetActionType = 'general' | 'issuance' | 'daily_expense' | 'transfer' | 'correction' | 'settle'; // 일반품의, 일상경비교부, 일상경비지출, 이용/전용, 정정, 정산(결산)
 
 export interface BudgetCategory {
   id: string;

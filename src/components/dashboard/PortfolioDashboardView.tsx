@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area, CartesianGrid, ComposedChart } from 'recharts';
 import { Task, BudgetCategory, BudgetEntry } from '@/types';
+import { usePortfolioAnalytics } from '@/hooks/usePortfolioAnalytics';
 import { Expand, Shrink, ChevronRight, LayoutDashboard, ChevronDown, ChevronUp } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -17,157 +18,27 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
   const [trendTab, setTrendTab] = useState('Growth');
   const [timeFilter, setTimeFilter] = useState('ALL');
   const [expanded, setExpanded] = useState(false);
-  const [selectedProject, setSelectedProject] = useState('ALL');
-  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
-  const [predictionModel, setPredictionModel] = useState<'conservative' | 'baseline' | 'aggressive'>('baseline');
-
-  const detailedProjects = useMemo(() => {
-    const projects = new Set(budgetCategories.map(c => c.detailedProject).filter(Boolean) as string[]);
-    return Array.from(projects);
-  }, [budgetCategories]);
-
-  // Filter categories for the pie chart
-  const filteredCategories = useMemo(() => {
-    return selectedProject === 'ALL' 
-      ? budgetCategories 
-      : budgetCategories.filter(c => c.detailedProject === selectedProject);
-  }, [budgetCategories, selectedProject]);
-
-  // 1. Calculate Today's Tasks
-  const today = new Date().toISOString().split('T')[0];
-  const activeTasks = tasks.filter(t => t.status !== 'done');
-  const todayTasks = activeTasks.filter(t => t.dueDate === today || (t.dueDate && t.dueDate < today));
-
-  // 2. Calculate Budget Stats
-  const totalBudget = useMemo(() => filteredCategories.reduce((sum, cat) => sum + cat.totalBudget, 0), [filteredCategories]);
-  
-  const executedBudget = useMemo(() => {
-    const validCategoryIds = new Set(filteredCategories.map(c => c.id));
-    return budgetEntries
-      .filter(e => !e.isPlanned && validCategoryIds.has(e.categoryId))
-      .reduce((sum, e) => sum + e.amount, 0);
-  }, [budgetEntries, filteredCategories]);
-
-  const remainingBudget = totalBudget - executedBudget;
-  const executionRate = totalBudget > 0 ? (executedBudget / totalBudget) * 100 : 0;
-
-  // 3. Asset Allocation (Option C: Overall Execution vs Category Breakdown)
-  const pieData = [
-    { name: '집행 완료', value: executedBudget, color: '#3B82F6' },
-    { name: '잔여 예산', value: Math.max(0, remainingBudget), color: '#E2E8F0' }
-  ];
-
-  const breakdownData = useMemo<{ name: string; total: number; executed: number; rate: number; formationItem?: string }[]>(() => {
-    if (selectedProject === 'ALL') {
-      const projectsData = detailedProjects.map(dp => {
-        const cats = budgetCategories.filter(c => c.detailedProject === dp);
-        const catIds = new Set(cats.map(c => c.id));
-        const total = cats.reduce((s, c) => s + c.totalBudget, 0);
-        const executed = budgetEntries.filter(e => catIds.has(e.categoryId) && !e.isPlanned).reduce((s, e) => s + e.amount, 0);
-        const rate = total > 0 ? (executed / total) * 100 : 0;
-        return { name: dp, total, executed, rate };
-      });
-      return projectsData.sort((a, b) => a.name.localeCompare(b.name));
-    } else {
-      const cats = budgetCategories.filter(c => c.detailedProject === selectedProject);
-      return cats.map(cat => {
-        const executed = budgetEntries.filter(e => e.categoryId === cat.id && !e.isPlanned).reduce((s, e) => s + e.amount, 0);
-        const rate = cat.totalBudget > 0 ? (executed / cat.totalBudget) * 100 : 0;
-        return { name: cat.name, formationItem: cat.formationItem, total: cat.totalBudget, executed, rate };
-      }).sort((a, b) => a.name.localeCompare(b.name));
-    }
-  }, [budgetCategories, budgetEntries, selectedProject, detailedProjects]);
-  // 4. Predictive Modeling & Burn Rate Velocity Insights
-  const { predictionData, velocityInsights, nextYearRecommendation, projectedEoy } = useMemo(() => {
-    const currentMonth = 5; // Assume May (0-indexed up to 4, so 5 months elapsed)
-    const elapsedRatio = currentMonth / 12; 
-    
-    const insights: any[] = [];
-    let projectedNextYearTotal = 0;
-    let actualCumulative = 0;
-
-    // Use breakdownData to calculate item-level velocity
-    breakdownData.forEach(item => {
-      const burnRate = item.total > 0 ? item.executed / item.total : 0;
-      const velocity = elapsedRatio > 0 ? burnRate / elapsedRatio : 0; // >1 means burning faster than time
-      
-      let recommendation = 1; // 100% of current budget
-      let action = 'MAINTAIN';
-      let insightText = '정상 속도 소진 중';
-      
-      if (velocity > 1.2) {
-        recommendation = 1.3; 
-        action = 'INCREASE';
-        insightText = `조기 소진 (${(burnRate*100).toFixed(1)}%). 내년 30% 증액 필요`;
-      } else if (velocity < 0.5 && item.executed > 0) {
-        recommendation = 0.8; 
-        action = 'DECREASE';
-        insightText = `집행 부진 (${(burnRate*100).toFixed(1)}%). 내년 20% 삭감 가능`;
-      } else if (item.executed === 0 && elapsedRatio > 0.3) {
-        recommendation = 0.5; 
-        action = 'DECREASE';
-        insightText = `미집행. 내년 50% 삭감 권고`;
-      }
-
-      // Apply policy model weight
-      let modelWeight = 1;
-      if (predictionModel === 'conservative') modelWeight = 0.9;
-      if (predictionModel === 'aggressive') modelWeight = 1.1;
-      
-      const nextYearAlloc = item.total * recommendation * modelWeight;
-      projectedNextYearTotal += nextYearAlloc;
-      actualCumulative += item.executed;
-
-      if (action !== 'MAINTAIN') {
-        insights.push({
-          name: item.name,
-          formationItem: item.formationItem,
-          burnRate: burnRate * 100,
-          velocity,
-          action,
-          insightText,
-          diffAmount: nextYearAlloc - item.total
-        });
-      }
-    });
-
-    // Generate Chart Data
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    let runningTotal = 0;
-    const actualIncrements = [12000000, 35000000, 18000000, 42000000, actualCumulative - 107000000]; // mock increments to match actual cumulative
-    if (actualIncrements[4] < 0) actualIncrements[4] = 25000000; // fallback if data is weird
-    
-    const data = months.map((m, i) => {
-      if (i < currentMonth) {
-        runningTotal += actualIncrements[i] || 0;
-        return { name: m, actual: runningTotal, predicted: null };
-      } else {
-        const mRate = runningTotal / currentMonth; 
-        const predictedVal = runningTotal + mRate * (i - currentMonth + 1);
-        return { name: m, actual: null, predicted: predictedVal };
-      }
-    });
-
-    // Connect the lines
-    if (currentMonth > 0 && currentMonth <= 12) {
-      data[currentMonth - 1].predicted = data[currentMonth - 1].actual;
-    }
-
-    const finalPredicted = data[11].predicted || 0;
-    const eoyRate = totalBudget > 0 ? (finalPredicted / totalBudget) * 100 : 0;
-
-    // Sort insights to show most extreme deviations first
-    insights.sort((a, b) => Math.abs(b.velocity - 1) - Math.abs(a.velocity - 1));
-
-    return { 
-      predictionData: data, 
-      velocityInsights: insights.slice(0, 3), // Top 3 insights
-      nextYearRecommendation: projectedNextYearTotal,
-      projectedEoy: eoyRate
-    };
-  }, [breakdownData, predictionModel, totalBudget]);
+  const {
+    selectedProject, setSelectedProject,
+    expandedCategory, setExpandedCategory,
+    predictionModel, setPredictionModel,
+    detailedProjects,
+    filteredCategories,
+    totalBudget,
+    executedBudget,
+    remainingBudget,
+    executionRate,
+    pieData,
+    breakdownData,
+    allBreakdownData,
+    predictionData,
+    velocityInsights,
+    nextYearRecommendation,
+    projectedEoy
+  } = usePortfolioAnalytics(budgetCategories, budgetEntries);
 
   return (
+
     <div className="w-full flex flex-col gap-6 animate-in fade-in duration-300 relative min-h-screen font-sans">
       
       {/* Header */}
@@ -209,51 +80,54 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
             </select>
           </div>
           
-          <div className="flex-1 w-full h-[250px] flex flex-col sm:flex-row items-center justify-center mb-6 gap-8 sm:gap-12 xl:gap-16">
-            <div className="flex-none w-[230px] h-[230px] relative shrink-0">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={80}
-                    outerRadius={110}
-                    paddingAngle={0}
-                    dataKey="value"
-                    stroke="none"
-                    cornerRadius={0}
-                    style={{ outline: 'none' }}
-                  >
-                    {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} style={{ outline: 'none' }} />
-                    ))}
-                  </Pie>
-                  <RechartsTooltip 
-                    formatter={(value: any) => [`${Number(value).toLocaleString()} KRW`, '']}
-                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                    itemStyle={{ fontSize: '12px', fontWeight: 'bold', color: '#1e293b' }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-              {/* Center Text */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none mt-1">
-                <span className="text-[12px] font-extrabold text-slate-800 uppercase tracking-widest mb-1">TOTAL BUDGET</span>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-[18px] font-black text-slate-900 leading-none tracking-tight">{totalBudget.toLocaleString()}</span>
-                  <span className="text-[11px] font-bold text-slate-400 leading-none">KRW</span>
+          <div className="flex-1 w-full h-[250px] grid grid-cols-1 sm:grid-cols-2 items-center mb-6 gap-8 sm:gap-0">
+            <div className="flex justify-center sm:justify-end sm:pr-6 xl:pr-10">
+              <div className="flex-none w-[230px] h-[230px] relative shrink-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={80}
+                      outerRadius={110}
+                      paddingAngle={0}
+                      dataKey="value"
+                      stroke="none"
+                      cornerRadius={0}
+                      style={{ outline: 'none' }}
+                    >
+                      {pieData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} style={{ outline: 'none' }} />
+                      ))}
+                    </Pie>
+                    <RechartsTooltip 
+                      formatter={(value: any) => [`${Number(value).toLocaleString()} KRW`, '']}
+                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                      itemStyle={{ fontSize: '12px', fontWeight: 'bold', color: '#1e293b' }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                {/* Center Text */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none mt-1">
+                  <span className="text-[12px] font-extrabold text-slate-800 uppercase tracking-widest mb-1">TOTAL BUDGET</span>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-[18px] font-black text-slate-900 leading-none tracking-tight">{totalBudget.toLocaleString()}</span>
+                    <span className="text-[11px] font-bold text-slate-400 leading-none">KRW</span>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="flex-1 w-full max-w-[380px] sm:pl-6 flex flex-col gap-4 justify-start min-w-0 max-h-[260px] overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin' }}>
-              {breakdownData.map((item, idx) => (
+            <div className="flex justify-center sm:justify-start sm:pl-6 xl:pl-10 w-full h-full items-center">
+              <div className="w-full max-w-[380px] flex flex-col gap-4 justify-start min-w-0 max-h-[260px] overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin' }}>
+                {breakdownData.map((item, idx) => (
                 <div 
                   key={idx} 
                   className="group flex items-center w-full p-2 -ml-2 rounded-xl hover:bg-slate-50 transition-colors cursor-default"
                 >
                   <div className="w-4 h-4 rounded-full shrink-0 mr-3 shadow-sm" style={{ backgroundColor: pieData[idx]?.color || '#cbd5e1' }} />
-                  <div className="flex flex-col max-w-[65%] shrink-0" title={item.formationItem ? `${item.formationItem} - ${item.name}` : item.name}>
+                  <div className="flex flex-col min-w-0 shrink" title={item.formationItem ? `${item.formationItem} - ${item.name}` : item.name}>
                     {item.formationItem && (
                       <span className="text-[10px] font-bold text-slate-400 truncate tracking-wider leading-none mb-1">
                         {item.formationItem}
@@ -264,14 +138,15 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                     </span>
                   </div>
                   <div className="flex-1 min-w-[12px] border-b-[2px] border-dotted border-slate-200 mx-3 mt-1.5 opacity-80"></div>
-                  <div className="flex flex-col items-end shrink-0 transition-transform group-hover:-translate-x-1 duration-300">
-                    <span className="text-[16px] font-black text-slate-800 leading-none">{item.total.toLocaleString()}</span>
+                  <div className="w-[96px] shrink-0 text-right transition-transform group-hover:-translate-x-1 duration-300 ml-auto">
+                    <span className="text-[16px] font-black text-slate-800 leading-none tabular-nums whitespace-nowrap block">{item.total.toLocaleString()}</span>
                   </div>
                 </div>
               ))}
               {breakdownData.length === 0 && (
                 <span className="text-xs font-bold text-slate-400 text-center">세부 항목이 없습니다.</span>
               )}
+              </div>
             </div>
           </div>
         </div>
@@ -322,7 +197,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
 
         {/* Right Panel: Predictive Budget Modeling */}
         <div className="xl:col-span-6 flex flex-col gap-6">
-          <div className="bg-white rounded-[2rem] p-8 shadow-sm h-[400px] flex flex-col relative overflow-hidden">
+          <div className="bg-white rounded-[2rem] p-8 shadow-sm h-full flex flex-col relative overflow-hidden">
             {/* Background Decor */}
             <div className="absolute -top-24 -right-24 w-64 h-64 bg-blue-50/50 rounded-full blur-3xl pointer-events-none" />
 
@@ -330,7 +205,6 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
               <div>
                 <h2 className="text-xl font-black text-slate-900 flex items-center gap-3">
                   Predictive Budget Modeling
-                  <span className="px-2 py-0.5 rounded text-[10px] font-black bg-blue-50 text-blue-600 uppercase tracking-widest border border-blue-100">AI MODEL</span>
                 </h2>
                 <p className="text-[13px] font-bold text-slate-400 mt-1">Velocity-based 2027 Allocation Analysis</p>
               </div>
@@ -384,47 +258,24 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px -4px rgb(0 0 0 / 0.1)', backgroundColor: 'rgba(255, 255, 255, 0.95)' }}
                     itemStyle={{ fontSize: '12px', fontWeight: '900' }}
                     labelStyle={{ fontSize: '10px', color: '#94a3b8', marginBottom: '4px', fontWeight: 'bold' }}
-                    formatter={(value: any, name: any) => [`${Number(value).toLocaleString()} KRW`, name === 'actual' ? 'Actual' : 'Predicted']}
+                    formatter={(value: any, name: any) => {
+                      let label = 'Actual';
+                      if (name === 'predicted_aggressive') label = 'Aggressive Prediction';
+                      if (name === 'predicted_baseline') label = 'Baseline Prediction';
+                      if (name === 'predicted_conservative') label = 'Conservative Prediction';
+                      return [`${Number(value).toLocaleString()} KRW`, label];
+                    }}
                   />
                   <Area type="monotone" dataKey="actual" stroke="#3B82F6" strokeWidth={3} fillOpacity={1} fill="url(#colorActual)" activeDot={{ r: 5, fill: '#3B82F6', stroke: '#fff', strokeWidth: 2 }} />
-                  <Line type="monotone" dataKey="predicted" stroke="#94a3b8" strokeWidth={2.5} strokeDasharray="6 6" dot={false} activeDot={{ r: 4, fill: '#94a3b8', stroke: '#fff' }} />
+                  <Line type="monotone" dataKey="predicted_aggressive" stroke={predictionModel === 'aggressive' ? '#ef4444' : '#fca5a5'} strokeWidth={predictionModel === 'aggressive' ? 3 : 1.5} strokeDasharray="6 6" strokeOpacity={predictionModel === 'aggressive' ? 1 : 0.4} dot={false} activeDot={{ r: 4, fill: '#ef4444', stroke: '#fff' }} />
+                  <Line type="monotone" dataKey="predicted_baseline" stroke={predictionModel === 'baseline' ? '#3b82f6' : '#94a3b8'} strokeWidth={predictionModel === 'baseline' ? 3 : 1.5} strokeDasharray="6 6" strokeOpacity={predictionModel === 'baseline' ? 1 : 0.4} dot={false} activeDot={{ r: 4, fill: '#3b82f6', stroke: '#fff' }} />
+                  <Line type="monotone" dataKey="predicted_conservative" stroke={predictionModel === 'conservative' ? '#10b981' : '#6ee7b7'} strokeWidth={predictionModel === 'conservative' ? 3 : 1.5} strokeDasharray="6 6" strokeOpacity={predictionModel === 'conservative' ? 1 : 0.4} dot={false} activeDot={{ r: 4, fill: '#10b981', stroke: '#fff' }} />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          {/* Budget Velocity Insights Panel */}
-          <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100/50">
-            <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-              Budget Velocity Insights
-            </h3>
-            <div className="flex flex-col gap-3">
-              {velocityInsights.length > 0 ? velocityInsights.map((insight, idx) => (
-                <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-slate-50 rounded-xl border border-slate-100">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${insight.action === 'INCREASE' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
-                      <span className="text-sm font-black">{insight.action === 'INCREASE' ? '↑' : '↓'}</span>
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-[12px] font-black text-slate-800 leading-tight">{insight.name}</span>
-                      <span className="text-[10px] font-bold text-slate-500">{insight.insightText}</span>
-                    </div>
-                  </div>
-                  <div className="flex flex-col sm:items-end shrink-0 pl-11 sm:pl-0">
-                    <span className={`text-[12px] font-black ${insight.action === 'INCREASE' ? 'text-red-500' : 'text-blue-500'}`}>
-                      {insight.diffAmount > 0 ? '+' : ''}{insight.diffAmount.toLocaleString()} <span className="text-[9px]">KRW</span>
-                    </span>
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{insight.action} REC.</span>
-                  </div>
-                </div>
-              )) : (
-                <div className="text-center py-4 text-xs font-bold text-slate-400">
-                  특이 소진 항목이 발견되지 않았습니다.
-                </div>
-              )}
-            </div>
-          </div>
+
         </div>
       </div>
 
@@ -436,11 +287,9 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
         </h3>
         
         <div className="flex flex-col gap-3">
-          {breakdownData.map((item, idx) => {
+          {allBreakdownData.map((item, idx) => {
             const isExpanded = expandedCategory === item.name;
-            const subItems = selectedProject === 'ALL' 
-              ? budgetCategories.filter(c => c.detailedProject === item.name)
-              : budgetEntries.filter(e => e.categoryId === filteredCategories.find(c => c.name === item.name)?.id && !e.isPlanned);
+            const subItems = budgetCategories.filter(c => c.detailedProject === item.name);
             
             return (
               <div key={idx} className="flex flex-col bg-white rounded-[1.5rem] shadow-sm overflow-hidden transition-all duration-300 border border-transparent hover:border-slate-100">
@@ -450,8 +299,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                 >
                   <div className="flex items-center gap-4">
                     <div className="w-4 h-4 rounded-full shadow-sm" style={{ backgroundColor: pieData[idx]?.color || '#cbd5e1' }} />
-                    <span className="text-lg font-black text-slate-800 uppercase tracking-widest">{item.name}</span>
-                    {idx === 0 && <span className="px-2 py-0.5 rounded text-[9px] font-black bg-blue-50 text-blue-500 uppercase tracking-widest">MAIN PROJECT</span>}
+                    <span className="text-lg font-black text-slate-800 tracking-tight">{item.name}</span>
                   </div>
                   <div className="flex items-center justify-between sm:justify-end gap-6 w-full sm:w-auto">
                     <div className="flex flex-col sm:items-end">
@@ -479,18 +327,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                       {subItems.length === 0 && <span className="text-sm text-slate-400 font-medium py-4 text-center">하위 내역이 존재하지 않습니다.</span>}
                     </div>
                     
-                    {/* Intelligence Bar */}
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 px-6 py-4 bg-blue-50/40 rounded-2xl">
-                      <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest shrink-0">INTELLIGENCE</span>
-                      <div className="flex flex-wrap items-center gap-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                        <span className="bg-white px-2 py-1 rounded border border-blue-100">β 0.81</span>
-                        <span className="bg-white px-2 py-1 rounded border border-blue-100">WIN 76.7%</span>
-                        <span className="bg-white px-2 py-1 rounded border border-blue-100">HHI 903</span>
-                        <span className="bg-white px-2 py-1 rounded border border-blue-100">SMR -0.20</span>
-                      </div>
-                      <div className="flex-1" />
-                      <span className="text-[11px] font-black text-blue-500 cursor-pointer hover:underline uppercase tracking-wide">Overview &gt;</span>
-                    </div>
+
                   </div>
                 )}
               </div>
@@ -499,41 +336,36 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
         </div>
       </div>
 
-      {/* Lightweight Static 6-Grid Framework */}
+      {/* Budget Velocity Insights Panel */}
       <div className="mt-6 bg-white rounded-[2rem] p-8 sm:p-10 shadow-sm">
-        <div className="mb-8">
-          <h3 className="text-2xl font-black text-slate-900 tracking-tight flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-            VITAL Management Framework 
-            <span className="text-[13px] font-bold text-slate-400 tracking-wide uppercase">Unified Operations & Budget Architecture</span>
-          </h3>
-          <p className="text-sm font-medium text-slate-400 mt-2 italic">Integrating public health operations, resource allocation, and real-time execution tracking.</p>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {[
-            { id: 1, title: 'RESOURCES', subtitle: 'Allocation', text: 'Systematic tracking of public health resources, grants, and operational budgets across all centers.' },
-            { id: 2, title: 'TASKS', subtitle: 'Execution', text: 'Real-time task synchronization preventing operational bottlenecks and ensuring timely service delivery.' },
-            { id: 3, title: 'BUDGET', subtitle: 'Control', text: 'Algorithmic enforcement of budget constraints preventing over-expenditure and ensuring compliance.' },
-            { id: 4, title: 'INVENTORY', subtitle: 'Tracking', text: 'Comprehensive ledger of critical medical supplies, equipment, and facility assets.' },
-            { id: 5, title: 'MEETINGS', subtitle: 'Coordination', text: 'Centralized meeting protocols, document sharing, and decision tracking for stakeholder alignment.' },
-            { id: 6, title: 'INTELLIGENCE', subtitle: 'Analytics', text: 'Data-driven insights and automated reporting for proactive public health management.' }
-          ].map(block => (
-            <div key={block.id} className="p-6 rounded-[1.5rem] border border-slate-100 flex gap-5 hover:border-blue-100 hover:shadow-sm transition-all bg-slate-50/50">
-              <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-black text-xs shrink-0">{block.id}</div>
-              <div className="flex flex-col gap-1.5">
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-black text-blue-600 uppercase tracking-widest">{block.title}</span>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">— {block.subtitle}</span>
+        <h3 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3 mb-6">
+          <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+          Budget Velocity Insights
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {velocityInsights.length > 0 ? velocityInsights.map((insight, idx) => (
+            <div key={idx} className="flex flex-col justify-between gap-4 p-6 bg-slate-50/50 hover:bg-slate-50 hover:shadow-sm hover:border-blue-100 transition-all rounded-[1.5rem] border border-slate-100">
+              <div className="flex items-start gap-4">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${insight.action === 'INCREASE' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
+                  <span className="text-lg font-black">{insight.action === 'INCREASE' ? '↑' : '↓'}</span>
                 </div>
-                <p className="text-[13px] font-semibold text-slate-600 leading-relaxed">{block.text}</p>
+                <div className="flex flex-col">
+                  <span className="text-[14px] font-black text-slate-800 leading-tight mb-1">{insight.name}</span>
+                  <span className="text-[12px] font-semibold text-slate-500 leading-relaxed">{insight.insightText}</span>
+                </div>
+              </div>
+              <div className="flex flex-col items-end pt-4 border-t border-slate-100 mt-2">
+                <span className={`text-lg font-black ${insight.action === 'INCREASE' ? 'text-red-500' : 'text-blue-500'}`}>
+                  {insight.diffAmount > 0 ? '+' : ''}{insight.diffAmount.toLocaleString()} <span className="text-xs">KRW</span>
+                </span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{insight.action} RECOMMENDATION</span>
               </div>
             </div>
-          ))}
-        </div>
-        <div className="flex justify-center mt-10">
-          <button className="px-6 py-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-black uppercase tracking-widest rounded-full transition-colors flex items-center gap-2">
-            Read Full Framework <ChevronDown className="w-4 h-4" />
-          </button>
+          )) : (
+            <div className="col-span-full text-center py-10 text-sm font-bold text-slate-400">
+              특이 소진 항목이 발견되지 않았습니다.
+            </div>
+          )}
         </div>
       </div>
 

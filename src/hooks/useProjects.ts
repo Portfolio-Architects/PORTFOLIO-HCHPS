@@ -1,10 +1,12 @@
 'use client';
 
 import { useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useGoogleSheet, useSheetCrud } from './useGoogleSheet';
 import { Project, ChecklistItem, generateId } from '@/types';
 
 export function useProjects() {
+  const queryClient = useQueryClient();
   const [projects, setProjects] = useGoogleSheet<Project>('PROJECTS', 'hchps-projects', []);
   const { syncAdd, syncUpdate, syncDelete } = useSheetCrud<Project>('PROJECTS');
 
@@ -25,7 +27,19 @@ export function useProjects() {
   const deleteProject = useCallback((id: string) => {
     setProjects(prev => prev.filter(p => p.id !== id));
     syncDelete(id);
-  }, [setProjects, syncDelete]);
+    
+    // CASCADE DELETE: Delete associated tasks
+    import('@/lib/sheets-api').then(({ readSheet, deleteRow }) => {
+      readSheet<import('@/types').Task>('TASKS').then(tasks => {
+        const tasksToDelete = tasks.filter(t => t.projectId === id);
+        if (tasksToDelete.length > 0) {
+          Promise.all(tasksToDelete.map(t => deleteRow('TASKS', t.id))).then(() => {
+            queryClient.invalidateQueries({ queryKey: ['TASKS'] });
+          }).catch(err => console.error('Cascade delete tasks failed:', err));
+        }
+      });
+    });
+  }, [setProjects, syncDelete, queryClient]);
 
   const addChecklistItem = useCallback((projectId: string, text: string) => {
     const item: ChecklistItem = { id: generateId(), text, completed: false };
