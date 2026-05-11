@@ -173,6 +173,7 @@ export function ExpenseEntryModal({
       linkedSubItemId: entryLinkedSubItemId || undefined,
       actionType
     });
+    onClose();
   };
 
   return (
@@ -212,7 +213,7 @@ export function ExpenseEntryModal({
             }} className={inputClass} style={{ flex: 1 }} required>
               <option value="">과목을 선택하세요</option>
               {categories.map(cat => (
-                <option key={cat.id} value={cat.id}>{cat.name} ({cat.totalBudget.toLocaleString()}원)</option>
+                <option key={cat.id} value={cat.id}>[{cat.detailedProject || '미지정 사업'}] {cat.name} ({cat.totalBudget.toLocaleString()}원)</option>
               ))}
             </select>
             {onOpenCategoryModal && (
@@ -230,14 +231,18 @@ export function ExpenseEntryModal({
              </label>
              <select value={entryLinkedSubItemId} onChange={e => setEntryLinkedSubItemId(e.target.value)} className={inputClass}>
                <option value="">-- 산출내역 연결 안함 (과목 전체 포괄지출) --</option>
-               {categories.find(c => c.id === selectedCatId)?.subItems?.flatMap(sub => {
+               {categories.find(c => c.id === selectedCatId)?.subItems?.flatMap((sub, sIdx) => {
                   const opts = [];
+                  const subKey = sub.id || `sub-${sIdx}`;
+                  const subVal = sub.id || sub.name || `sub-${sIdx}`;
                   if (!sub.calculations || sub.calculations.length === 0) {
-                     opts.push(<option key={sub.id} value={sub.id}>[상위] {sub.name || sub.calculation} ({sub.amount.toLocaleString()}원) {sub.isLocked ? '🔒잠금' : ''}</option>);
+                     opts.push(<option key={subKey} value={subVal}>[상위] {sub.name || sub.calculation} ({sub.amount.toLocaleString()}원) {sub.isLocked ? '🔒잠금' : ''}</option>);
                   } else {
-                     opts.push(<option key={sub.id} value={sub.id} disabled className="font-bold bg-gray-100 text-gray-400">📁 {sub.name} (하위항목 선택바람) {sub.isLocked ? '🔒잠금' : ''}</option>);
-                     sub.calculations.forEach(calc => {
-                        opts.push(<option key={calc.id} value={calc.id}>&nbsp;&nbsp;&nbsp;↳ {calc.name || calc.calculation} ({(calc.amount || 0).toLocaleString()}원) {calc.isLocked ? '🔒잠금' : ''}</option>);
+                     opts.push(<option key={subKey} value={subVal} disabled className="font-bold bg-gray-100 text-gray-400">📁 {sub.name} (하위항목 선택바람) {sub.isLocked ? '🔒잠금' : ''}</option>);
+                     sub.calculations.forEach((calc, cIdx) => {
+                        const calcKey = calc.id || `calc-${sIdx}-${cIdx}`;
+                        const calcVal = calc.id || calc.name || `calc-${sIdx}-${cIdx}`;
+                        opts.push(<option key={calcKey} value={calcVal}>&nbsp;&nbsp;&nbsp;↳ {calc.name || calc.calculation} ({(calc.amount || 0).toLocaleString()}원) {calc.isLocked ? '🔒잠금' : ''}</option>);
                      });
                   }
                   return opts;

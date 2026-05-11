@@ -282,6 +282,7 @@ sequenceDiagram
 - **포트 바인딩 및 CORS 정책에 따른 데이터 유실(Blank Data) 방어:** 로컬 개발 서버가 `3000`번 포트로 실행될 경우, Cloudflare Pages KV 백엔드(`functions/api/data.ts`)의 화이트리스트 CORS 보안 정책에 의해 API 통신이 전면 차단되어 대시보드 데이터가 0 또는 빈 화면으로 표출되는 근본 원인을 규명. 개발 서버를 허용된 `3001`번 포트로 롤백 및 고정하여 SSOT(Cloudflare KV) 네트워크 영속성 연결을 무결하게 복구.
 
 ### 🎨 대시보드 UI/UX 및 데이터 시각화 고도화
+- **예산 지출품의 워크플로우 버그 픽스 및 UX 개선:** 메인 대시보드에서 `ExpenseEntryModal`과 `LedgerModal` 렌더링이 누락되었던 문제를 복구. 지출 내역 리스트에 '등록 일자'를 병기하여 가시성을 높였으며, 새 지출 내역 등록 시 드롭다운에 '세부사업명'을 포함하여 동일 통계목 간의 혼동을 차단. 아울러 React 고유 키(Key) 중복 경고 해결 및 폼 저장 후 모달 자동 닫힘 등 세밀한 사용성(UX) 튜닝을 완수함.
 - **Predictive Budget Modeling (회귀 분석 및 예측 모델):** 단순 누적 추세 그래프를 제거하고, `ComposedChart` 기반의 지능형 예측 패널 구축. Policy Model 가중치(보수/유지/공격) 시뮬레이터와 연동하여, 연말 예상 집행액(Projected EOY Execution) 및 내년도 권고 예산안(2027 Recommended Budget) 산출 로직을 UI에 시각화. VITAL 데이터 행정 인프라의 핵심 지능형 모듈로 정립.
 - **Budget Velocity Insights (소진율 속도 기반 인사이트):** 단순 항목 분류를 탈피하여, '통계목의 누적 집행 금액 대비 시간 경과 소진 속도(Velocity)'를 분석하는 정량적 알고리즘 도입. 항목별 소진율(Burn Rate) 특이점 발견 시, 구체적 증액/삭감액 시뮬레이션 및 권고 액션(INCREASE/DECREASE)을 자동 산출하는 뷰파인더 탑재.
 - **가독성 극대화 및 데이터 밀도 구조화:** 통계목 할당 리스트를 '상위 편성목(Subtitle) - 하위 통계목(Main Title)' 2줄 Flex-Col 형태로 재배치. 긴 항목명이 가로로 잘리는(Truncation) 시각적 불쾌감을 차단하고, 레이아웃 공간 효율성을 획기적으로 향상시킴. Recharts SVG의 Flexbox 높이 클리핑 버그 통제 완료.

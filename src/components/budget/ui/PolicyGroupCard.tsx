@@ -544,6 +544,11 @@ export const PolicyGroupCard = React.memo(({
                           {parentCat?.unitProject || '알수없음'}
                         </span>
                       </div>
+                      <div className="w-[90px] flex items-center flex-shrink-0 pr-3">
+                        <span className="text-[11.5px] text-gray-500 font-medium tracking-tight whitespace-nowrap">
+                          {entry.date.replace(/-/g, '.')}
+                        </span>
+                      </div>
                       <div className="w-[140px] hidden lg:flex items-center flex-shrink-0 pr-3">
                         {entry.docRegNum && (
                           <span className="text-[11px] bg-indigo-50 border border-indigo-100 text-indigo-700 px-2 py-0.5 rounded-md whitespace-nowrap">

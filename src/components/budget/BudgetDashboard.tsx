@@ -314,6 +314,32 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
         categories={batchCats}
         onApply={handleApplyBatchEdit}
       />
+
+      {/* Expense Entry Modal */}
+      <ExpenseEntryModal
+        isOpen={showEntryModal}
+        onClose={() => setShowEntryModal(false)}
+        categories={categories}
+        entries={entries}
+        getCategoryStats={getCategoryStats}
+        initialData={entryModalInitialData}
+        onSave={handleSaveEntry}
+        onOpenCategoryModal={() => {
+          setShowEntryModal(false);
+          setReturnToEntryModal(true);
+          setCatModalInitialData(null);
+          setShowCatModal(true);
+        }}
+      />
+
+      {/* Ledger Modal */}
+      <LedgerModal
+        isOpen={showLedgerModal}
+        onClose={() => setShowLedgerModal(false)}
+        categories={categories}
+        entries={entries}
+        getCategoryStats={getCategoryStats}
+      />
     </div>
   );
 }
