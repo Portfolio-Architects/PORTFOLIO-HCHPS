@@ -17,6 +17,7 @@ export function useAIChat() {
     const saved = localStorage.getItem('hchps_ai_chat');
     if (saved) {
       try {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setMessages(JSON.parse(saved));
       } catch (e) {
         console.error('Failed to parse saved chat', e);
