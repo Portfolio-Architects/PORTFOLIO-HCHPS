@@ -21,9 +21,10 @@ interface SearchResultModalProps {
   onClose: () => void;
   query: string;
   results: SearchResultItem[]; // Keep for fallback or pure local results
+  appMode?: 'HCHPS' | 'VITAL';
 }
 
-export function SearchResultModal({ isOpen, onClose, query, results: localResults }: SearchResultModalProps) {
+export function SearchResultModal({ isOpen, onClose, query, results: localResults, appMode = 'VITAL' }: SearchResultModalProps) {
   const [semanticResults, setSemanticResults] = useState<VectorResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -100,7 +101,7 @@ export function SearchResultModal({ isOpen, onClose, query, results: localResult
             </div>
             <div>
               <h3 className="font-bold text-[16px] text-gray-900 flex items-center gap-2">
-                HCHPS 통합 검색
+                {appMode} 통합 검색
               </h3>
               <p className="text-[12px] text-gray-500 font-medium tracking-wide">" {query} " 검색 결과</p>
             </div>

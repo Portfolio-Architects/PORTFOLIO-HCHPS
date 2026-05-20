@@ -8,6 +8,8 @@ interface TopNavProps {
   activeModule: ModuleType;
   onModuleChange: (module: ModuleType) => void;
   taskStats: { total: number; done: number; overdue: number };
+  appMode: 'HCHPS' | 'VITAL';
+  onModeChange: (mode: 'HCHPS' | 'VITAL') => void;
 }
 
 const navItems: { id: ModuleType; label: string; icon: React.ElementType }[] = [
@@ -17,45 +19,48 @@ const navItems: { id: ModuleType; label: string; icon: React.ElementType }[] = [
   { id: 'knowledge', label: '메모장', icon: SquareCheck },
 ];
 
-export function Sidebar({ activeModule, onModuleChange, taskStats }: TopNavProps) {
+export function Sidebar({ activeModule, onModuleChange, taskStats, appMode, onModeChange }: TopNavProps) {
   const activeLabel = navItems.find((i) => i.id === activeModule)?.label;
 
   return (
     <>
       <header className="sticky top-0 left-0 right-0 z-40 bg-[var(--color-card)] border-b border-[var(--color-border-light)] shadow-sm">
-        <div className="max-w-[1800px] mx-auto px-2 sm:px-3 lg:px-4 py-2 sm:py-0">
-          <div className="flex flex-col sm:flex-row items-center justify-between sm:justify-start h-auto sm:h-14 gap-2 sm:gap-3">
+        <div className="max-w-[1800px] mx-auto px-2 sm:px-3 lg:px-4">
+          <div className="flex items-center justify-between h-14 gap-3">
             
-            {/* Mobile Header Title */}
-            <div className="flex sm:hidden w-full items-center justify-between pt-1 px-1">
-              <h1 className="text-xl font-[800] tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-indigo-600">
-                {activeLabel}
-              </h1>
+            {/* Left side: Navigation Items */}
+            <div className="flex items-center gap-3">
+              {/* Mobile Header Title */}
+              <div className="flex sm:hidden items-center pt-1 px-1">
+                <h1 className="text-xl font-[800] tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-indigo-600">
+                  {activeLabel}
+                </h1>
+              </div>
+
+              {/* Desktop Navigation Items */}
+              <nav className="hidden sm:flex items-center w-auto justify-start shrink-0 gap-1">
+                {navItems.map(item => {
+                  const Icon = item.icon;
+                  const isActive = activeModule === item.id;
+                  const activeBg = appMode === 'HCHPS' ? 'bg-emerald-600' : 'bg-blue-600';
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => onModuleChange(item.id)}
+                      className={`flex items-center justify-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-medium whitespace-nowrap cursor-pointer transition-all duration-200 relative ${
+                        isActive
+                          ? `text-white ${activeBg} shadow-sm`
+                          : 'text-[var(--color-text-secondary)] hover:bg-gray-50 hover:text-[var(--color-text-primary)]'
+                      }`}
+                      title={item.label}
+                    >
+                      <Icon className="w-4 h-4" strokeWidth={isActive ? 2.5 : 1.8} />
+                      <span>{item.label}</span>
+                    </button>
+                  );
+                })}
+              </nav>
             </div>
-
-            {/* Desktop Navigation Items */}
-            <nav className="hidden sm:flex items-center w-auto justify-start shrink-0 gap-1 pb-0 pt-0">
-              {navItems.map(item => {
-                const Icon = item.icon;
-                const isActive = activeModule === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => onModuleChange(item.id)}
-                    className={`flex items-center justify-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-medium whitespace-nowrap cursor-pointer transition-all duration-200 relative ${
-                      isActive
-                        ? 'text-white bg-[var(--color-primary)] shadow-sm'
-                        : 'text-[var(--color-text-secondary)] hover:bg-gray-50 hover:text-[var(--color-text-primary)]'
-                    }`}
-                    title={item.label}
-                  >
-                    <Icon className="w-4 h-4" strokeWidth={isActive ? 2.5 : 1.8} />
-                    <span>{item.label}</span>
-                  </button>
-                );
-              })}
-            </nav>
-
 
           </div>
         </div>
@@ -67,13 +72,16 @@ export function Sidebar({ activeModule, onModuleChange, taskStats }: TopNavProps
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeModule === item.id;
+            const activeText = appMode === 'HCHPS' ? 'text-emerald-600' : 'text-blue-600';
+            const activeBg = appMode === 'HCHPS' ? 'bg-emerald-50/80 dark:bg-emerald-900/30' : 'bg-blue-50/80 dark:bg-blue-900/30';
+            const dotBg = appMode === 'HCHPS' ? 'bg-emerald-600' : 'bg-blue-600';
             return (
               <button
                 key={item.id}
                 onClick={() => onModuleChange(item.id)}
                 className={`relative flex flex-col items-center justify-center w-14 h-14 rounded-full ${
                   isActive
-                    ? 'text-blue-600 bg-blue-50/80 dark:bg-blue-900/30'
+                    ? `${activeText} ${activeBg}`
                     : 'text-slate-400'
                 }`}
                 aria-label={item.label}
@@ -85,7 +93,7 @@ export function Sidebar({ activeModule, onModuleChange, taskStats }: TopNavProps
                 
                 {/* Active Indicator Dot */}
                 <div 
-                  className={`absolute bottom-2.5 w-1.5 h-1.5 rounded-full bg-blue-600 ${
+                  className={`absolute bottom-2.5 w-1.5 h-1.5 rounded-full ${dotBg} ${
                     isActive ? 'opacity-100' : 'opacity-0'
                   }`}
                 />

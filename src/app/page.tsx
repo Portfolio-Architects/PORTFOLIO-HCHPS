@@ -61,7 +61,12 @@ class MindMapErrorBoundary extends React.Component<
   }
 }
 
-function ProtectedApp() {
+interface ProtectedAppProps {
+  appMode: 'HCHPS' | 'VITAL';
+  onModeChange: (mode: 'HCHPS' | 'VITAL') => void;
+}
+
+function ProtectedApp({ appMode, onModeChange }: ProtectedAppProps) {
   const [activeModule, setActiveModule] = useState<ModuleType>('dashboard');
   const [isQuickInputOpen, setIsQuickInputOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -86,6 +91,11 @@ function ProtectedApp() {
     setMounted(true);
     // 항상 대시보드를 첫 화면으로 띄우기 위해 로컬스토리지 복원 로직 제거
     setActiveModule('dashboard');
+  }, []);
+
+  // Update browser document title
+  useEffect(() => {
+    document.title = 'PORTFOLIO - VITAL';
   }, []);
 
   const handleLogout = async () => {
@@ -186,8 +196,6 @@ function ProtectedApp() {
     });
   };
 
-  // Global Search and Merged Signals logic extracted to useGlobalSearch and useMergedSignals hooks
-
   const renderContent = () => {
     switch (activeModule) {
       case 'workspace':
@@ -260,16 +268,12 @@ function ProtectedApp() {
         );
 
       case 'dashboard':
-        return <PortfolioDashboardView tasks={tasks} budgetCategories={budgetCategories} budgetEntries={budgetEntries} onLogout={handleLogout} />;
+        return <PortfolioDashboardView tasks={tasks} budgetCategories={budgetCategories} budgetEntries={budgetEntries} onLogout={handleLogout} appMode={appMode} />;
 
       default:
         return null;
     }
   };
-
-
-
-  // Lock guard moved to the parent Home component.
 
   return (
     <div 
@@ -282,12 +286,12 @@ function ProtectedApp() {
         activeModule={activeModule}
         onModuleChange={handleModuleChange}
         taskStats={taskStats}
+        appMode={appMode}
+        onModeChange={onModeChange}
       />
 
       <main className="flex-1 pb-32 sm:pb-8 overflow-y-auto custom-scrollbar">
         <div className="max-w-[1800px] mx-auto px-2 sm:px-3 lg:px-4 pt-4 sm:pt-6 lg:pt-8">
-
-
           {renderContent()}
         </div>
       </main>
@@ -297,6 +301,7 @@ function ProtectedApp() {
         onClose={closeSearchModal}
         query={searchQuery}
         results={searchResults}
+        appMode={appMode}
       />
 
       {/* Floating LLM Button & Popover */}
@@ -310,6 +315,7 @@ function ProtectedApp() {
             budgetCategories: budgetCategories,
             knowledge: knowledgeEntries
           }}
+          appMode={appMode}
         />
         <button
           onClick={() => setIsQuickInputOpen(!isQuickInputOpen)}
@@ -331,11 +337,21 @@ function ProtectedApp() {
 export default function Home() {
   const [mounted, setMounted] = useState(false);
   const { isLocked, hasSetupPIN, failCount, verifyPIN, setupPIN } = useSecurityLock();
+  const [appMode, setAppMode] = useState<'HCHPS' | 'VITAL'>('VITAL');
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
+    setAppMode('VITAL');
   }, []);
+
+  useEffect(() => {
+    document.title = 'PORTFOLIO - VITAL';
+  }, []);
+
+  const handleModeChange = (mode: 'HCHPS' | 'VITAL') => {
+    setAppMode('VITAL');
+  };
 
   if (!mounted || hasSetupPIN === null) {
     return (
@@ -370,9 +386,10 @@ export default function Home() {
         failCount={failCount} 
         onVerify={verifyPIN} 
         onSetup={setupPIN} 
+        appMode={appMode}
       />
     );
   }
 
-  return <ProtectedApp />;
+  return <ProtectedApp appMode={appMode} onModeChange={handleModeChange} />;
 }

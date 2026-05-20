@@ -14,7 +14,7 @@ export async function POST(req: Request) {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const { messages, contextData } = await req.json();
+    const { messages, contextData, appMode } = await req.json();
 
     if (!messages || !Array.isArray(messages)) {
       return NextResponse.json({ error: 'Invalid messages array' }, { status: 400 });
@@ -39,7 +39,7 @@ export async function POST(req: Request) {
     
     const knowledgeText = contextData?.knowledge?.map((k: any) => `- [${k.title}] ${k.content}`).join('\n') || '없음';
 
-    const systemPrompt = `당신은 HCHPS 포트폴리오의 전문 AI 비서입니다.
+    const systemPrompt = `당신은 ${appMode || 'HCHPS'} 포트폴리오의 전문 AI 비서입니다.
 사용자의 업무, 예산, 지식 관리를 도와주며, 항상 '한국어'로만 답변해야 합니다.
 
 [절대 지켜야 할 규칙]
@@ -80,7 +80,19 @@ ${knowledgeText}
       history: formattedHistory,
     });
 
-    const result = await chat.sendMessage(lastMessage.content);
+    let result;
+    let retries = 3;
+    while (retries > 0) {
+      try {
+        result = await chat.sendMessage(lastMessage.content);
+        break;
+      } catch (err: any) {
+        retries--;
+        if (retries === 0) throw err;
+        console.warn(`Gemma API call failed, retrying... (${3 - retries} attempts failed):`, err.message);
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+    }
     const responseText = result.response.text();
 
     return NextResponse.json({ content: responseText });

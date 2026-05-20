@@ -12,9 +12,10 @@ interface AIAssistantModalProps {
     budgets?: any[];
     knowledge: any[];
   };
+  appMode?: 'HCHPS' | 'VITAL';
 }
 
-export function AIAssistantModal({ isOpen, onClose, contextData }: AIAssistantModalProps) {
+export function AIAssistantModal({ isOpen, onClose, contextData, appMode = 'VITAL' }: AIAssistantModalProps) {
   const { messages, addMessage, clearMessages, isTyping, setIsTyping } = useAIChat();
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -41,7 +42,8 @@ export function AIAssistantModal({ isOpen, onClose, contextData }: AIAssistantMo
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: [...messages, { role: 'user', content: userQuery }],
-          contextData
+          contextData,
+          appMode
         })
       });
 
@@ -106,7 +108,7 @@ export function AIAssistantModal({ isOpen, onClose, contextData }: AIAssistantMo
               <Sparkles size={24} />
             </div>
             <h3 className="text-base font-semibold text-gray-800 mb-2">
-              HCHPS AI Assistant.
+              {appMode} AI Assistant.
               <br />
               Ask anything about your work!
             </h3>
