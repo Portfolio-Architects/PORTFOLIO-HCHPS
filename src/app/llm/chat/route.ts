@@ -80,7 +80,7 @@ ${knowledgeText}
       history: formattedHistory,
     });
 
-    let result;
+    let result: any = null;
     let retries = 3;
     while (retries > 0) {
       try {
@@ -92,6 +92,10 @@ ${knowledgeText}
         console.warn(`Gemma API call failed, retrying... (${3 - retries} attempts failed):`, err.message);
         await new Promise((resolve) => setTimeout(resolve, 1000));
       }
+    }
+
+    if (!result || !result.response) {
+      throw new Error('Generative AI returned an empty response.');
     }
     const responseText = result.response.text();
 
