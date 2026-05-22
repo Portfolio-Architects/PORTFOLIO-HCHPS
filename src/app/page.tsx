@@ -26,6 +26,7 @@ import { SecurityLockScreen } from '@/components/SecurityLockScreen';
 import { useGlobalSearch } from '@/hooks/useGlobalSearch';
 import { AIAssistantModal } from '@/components/ai/AIAssistantModal';
 import { useMergedSignals } from '@/hooks/useMergedSignals';
+import { syncTombstones } from '@/lib/sheets-api';
 
 // Error Boundary for MindMap3D — prevents signal map crash from breaking entire app
 class MindMapErrorBoundary extends React.Component<
@@ -91,6 +92,11 @@ function ProtectedApp({ appMode, onModeChange }: ProtectedAppProps) {
     setMounted(true);
     // 항상 대시보드를 첫 화면으로 띄우기 위해 로컬스토리지 복원 로직 제거
     setActiveModule('dashboard');
+
+    // Sync tombstones from server to client local storage
+    syncTombstones().catch((err) => {
+      console.error('Failed to sync tombstones on mount:', err);
+    });
   }, []);
 
   // Update browser document title

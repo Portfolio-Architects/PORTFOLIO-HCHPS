@@ -1,0 +1,142 @@
+[
+  {
+    "id": "mnrcir0v56b8pixdb",
+    "name": "건강증진지원실 운영 - 사무관리비",
+    "totalBudget": 19496000,
+    "policyProject": "건강도시 조성",
+    "unitProject": "건강생활 실천사업",
+    "detailedProject": "건강증진지원실 운영",
+    "statItem": "201-01 사무관리비"
+  },
+  {
+    "id": "mnrcir0v1twl22zuk",
+    "name": "건강증진지원실 운영 - 공공운영비",
+    "totalBudget": 456000,
+    "policyProject": "건강도시 조성",
+    "unitProject": "건강생활 실천사업",
+    "detailedProject": "건강증진지원실 운영",
+    "statItem": "201-02 공공운영비"
+  },
+  {
+    "id": "mnrcir0v0vx5ae1qd",
+    "name": "건강증진지원실 운영 - 행사운영비",
+    "totalBudget": 6300000,
+    "policyProject": "건강도시 조성",
+    "unitProject": "건강생활 실천사업",
+    "detailedProject": "건강증진지원실 운영",
+    "statItem": "201-03 행사운영비"
+  },
+  {
+    "id": "mnrcir0vaotz2abch",
+    "name": "건강증진지원실 운영 - 국내여비",
+    "totalBudget": 1440000,
+    "policyProject": "건강도시 조성",
+    "unitProject": "건강생활 실천사업",
+    "detailedProject": "건강증진지원실 운영",
+    "statItem": "202-01 국내여비"
+  },
+  {
+    "id": "mnrcir0vn4jrzj682",
+    "name": "건강증진지원실 운영 - 시책추진업무",
+    "totalBudget": 1800000,
+    "policyProject": "건강도시 조성",
+    "unitProject": "건강생활 실천사업",
+    "detailedProject": "건강증진지원실 운영",
+    "statItem": "203-03 시책추진업무추진비"
+  },
+  {
+    "id": "mnrcir0vpun1ops6x",
+    "name": "건강증진지원실 운영 - 의료회복비",
+    "totalBudget": 27000000,
+    "policyProject": "건강도시 조성",
+    "unitProject": "건강생활 실천사업",
+    "detailedProject": "건강증진지원실 운영",
+    "statItem": "307-01 의료 및 회복비"
+  },
+  {
+    "id": "mnrcir0v5zjn4qxyg",
+    "name": "강남체력인증 - 기간제보수",
+    "totalBudget": 65549000,
+    "color": "#047857",
+    "policyProject": "건강도시 조성",
+    "unitProject": "건강생활 실천사업",
+    "detailedProject": "강남체력인증센터 운영",
+    "statItem": "101-04 기간제근로자등보수"
+  },
+  {
+    "id": "mnrcir0vl18vfnb68",
+    "name": "강남체력인증 - 사무관리비",
+    "totalBudget": 35451000,
+    "color": "#047857",
+    "policyProject": "건강도시 조성",
+    "unitProject": "건강생활 실천사업",
+    "detailedProject": "강남체력인증센터 운영",
+    "statItem": "201-01 사무관리비"
+  },
+  {
+    "id": "mnrcir0v0gtfi55ks",
+    "name": "강남체력인증 - 행사운영비",
+    "totalBudget": 2000000,
+    "color": "#047857",
+    "policyProject": "건강도시 조성",
+    "unitProject": "건강생활 실천사업",
+    "detailedProject": "강남체력인증센터 운영",
+    "statItem": "201-03 행사운영비"
+  },
+  {
+    "id": "mnrcir0vwrr1z2yol",
+    "name": "강남체력인증 - 시설비",
+    "totalBudget": 55000000,
+    "color": "#047857",
+    "policyProject": "건강도시 조성",
+    "unitProject": "건강생활 실천사업",
+    "detailedProject": "강남체력인증센터 운영",
+    "statItem": "401-01 시설비"
+  },
+  {
+    "id": "mnrcir0vbxmmvztoq",
+    "name": "강남체력인증 - 자산취득비",
+    "totalBudget": 15000000,
+    "color": "#047857",
+    "policyProject": "건강도시 조성",
+    "unitProject": "건강생활 실천사업",
+    "detailedProject": "강남체력인증센터 운영",
+    "statItem": "405-01 자산및물품취득비"
+  },
+  {
+    "id": "mnrcir0voap2bpm8z",
+    "name": "건강생활실천사업(건강증진) - 사무관리비",
+    "totalBudget": 20380000,
+    "policyProject": "건강도시 조성",
+    "unitProject": "건강증진사업관리",
+    "detailedProject": "건강생활실천사업(건강증진)",
+    "statItem": "201-01 사무관리비"
+  },
+  {
+    "id": "mnrcir0vhyhg1xb87",
+    "name": "건강생활실천사업(건강증진) - 행사운영비",
+    "totalBudget": 96100000,
+    "policyProject": "건강도시 조성",
+    "unitProject": "건강증진사업관리",
+    "detailedProject": "건강생활실천사업(건강증진)",
+    "statItem": "201-03 행사운영비"
+  },
+  {
+    "id": "mnrcir0vwspp9jw51",
+    "name": "건강생활실천사업(건강증진) - 시책추진",
+    "totalBudget": 1900000,
+    "policyProject": "건강도시 조성",
+    "unitProject": "건강증진사업관리",
+    "detailedProject": "건강생활실천사업(건강증진)",
+    "statItem": "203-03 시책추진업무추진비"
+  },
+  {
+    "id": "mnrcir0vkiq1dafm3",
+    "name": "건강생활실천사업(건강증진) - 행사실비",
+    "totalBudget": 3000000,
+    "policyProject": "건강도시 조성",
+    "unitProject": "건강증진사업관리",
+    "detailedProject": "건강생활실천사업(건강증진)",
+    "statItem": "301-11 행사실비지원금"
+  }
+]

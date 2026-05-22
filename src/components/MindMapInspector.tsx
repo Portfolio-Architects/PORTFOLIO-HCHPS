@@ -1,7 +1,7 @@
 import React from 'react';
 import { OrbitalNode, OntologyEdge, GROUP_COLORS, GROUP_LABELS, OntologyGroup } from '@/lib/ontology.types';
 import { NodeOverride } from '@/hooks/useGraphCustomization';
-import { Edit2, Waypoints, CheckCircle, Trash2, Link2, Radio, X, Crosshair, Activity, Bot } from 'lucide-react';
+import { Edit2, Waypoints, CheckCircle, Trash2, Link2, Radio, X, Crosshair, Activity, Bot, Unlink } from 'lucide-react';
 
 interface ForceGraphEngine {
   nodes: OrbitalNode[];
@@ -39,6 +39,22 @@ export function MindMapInspector(props: MindMapInspectorProps) {
     parentModeSource, setParentModeSource,
     initEngine, handleSwapNodeOrder, clearNodeOverride, isOverlay
   } = props;
+
+  const connectedEdges = activeNode && engineRef.current
+    ? (engineRef.current as any).getConnectedEdges(activeNode.id) as Array<{ edge: OntologyEdge; otherNode: OrbitalNode }>
+    : [];
+
+  const uniqueConnectedEdges = React.useMemo(() => {
+    const seen = new Set<string>();
+    const unique: Array<{ edge: OntologyEdge; otherNode: OrbitalNode }> = [];
+    for (const item of connectedEdges) {
+      if (item.otherNode && !seen.has(item.otherNode.id)) {
+        seen.add(item.otherNode.id);
+        unique.push(item);
+      }
+    }
+    return unique;
+  }, [connectedEdges]);
 
   // CRM tab moved to CrmDashboardView
 
@@ -336,6 +352,64 @@ export function MindMapInspector(props: MindMapInspectorProps) {
                               ⬇ 아래로 이동
                             </button>
                           </div>
+                        </div>
+
+                        {/* 4. 연결 끊기 (관계 해제) */}
+                        <div className="flex flex-col gap-1 bg-slate-50 p-2.5 border border-slate-200 rounded-lg shadow-sm">
+                          <label className="text-[10px] font-bold text-slate-500 mb-0.5">연결 끊기 (관계 해제)</label>
+                          {uniqueConnectedEdges.length === 0 ? (
+                            <div className="text-[10px] text-slate-400 text-center py-2">
+                              연결된 노드가 없습니다.
+                            </div>
+                          ) : (
+                            <div className="flex flex-col gap-1.5 max-h-[150px] overflow-y-auto custom-scrollbar">
+                              {uniqueConnectedEdges.map(({ edge, otherNode }) => {
+                                const isParentChild = activeNode.parentId === otherNode.id || otherNode.parentId === activeNode.id;
+                                return (
+                                  <div key={otherNode.id} className="flex items-center justify-between bg-white px-2 py-1.5 border border-slate-100 rounded-md text-xs">
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      <span className="font-medium text-slate-700 truncate" title={otherNode.label}>
+                                        {otherNode.label}
+                                      </span>
+                                      <span className="text-[9px] px-1 bg-slate-100 text-slate-400 rounded shrink-0">
+                                        {isParentChild ? '위계' : '연결'}
+                                      </span>
+                                    </div>
+                                    <button
+                                      onClick={() => {
+                                        if (confirm(`'${activeNode.label}'와(과) '${otherNode.label}'의 연결을 해제하시겠습니까?`)) {
+                                          // 1. 만약 부모-자식 위계라면, 자식 노드의 부모 관계를 끊어준다.
+                                          if (activeNode.parentId === otherNode.id) {
+                                            setNodeOverride(activeNode.id, { customParent: 'NONE', customOrbitIndex: undefined, fixedX: undefined, fixedY: undefined });
+                                          } else if (otherNode.parentId === activeNode.id) {
+                                            setNodeOverride(otherNode.id, { customParent: 'NONE', customOrbitIndex: undefined, fixedX: undefined, fixedY: undefined });
+                                          }
+                                          // 2. Custom Edge 및 Dynamic Edge의 tombstone 등록
+                                          deleteCustomEdge(activeNode.id, otherNode.id);
+                                          
+                                          // UI 업데이트를 위해 지연 후 재로드
+                                          setTimeout(() => {
+                                            initEngine();
+                                            // 현재 노드 상태 업데이트
+                                            if (engineRef.current) {
+                                              const updatedActive = (engineRef.current as any).getNodeById(activeNode.id);
+                                              if (updatedActive) {
+                                                setActiveNode(updatedActive);
+                                              }
+                                            }
+                                          }, 50);
+                                        }
+                                      }}
+                                      className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors cursor-pointer shrink-0"
+                                      title="연결 해제"
+                                    >
+                                      <Unlink size={13} />
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>

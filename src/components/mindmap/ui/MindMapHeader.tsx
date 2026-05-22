@@ -24,7 +24,7 @@ export function MindMapHeader({
       <div>
         <h2 className="text-xl font-bold flex items-center gap-2">
           <Radio size={22} className="text-emerald-500" />
-          시그널
+          마인드맵
         </h2>
         <div className="mt-1 flex items-center gap-3 text-xs text-[var(--color-text-tertiary)]">
           <span>노드 <strong className="text-[var(--color-primary)]">{stats.nodes}</strong>개</span>

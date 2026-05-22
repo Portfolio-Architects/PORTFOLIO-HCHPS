@@ -8,7 +8,7 @@
 import { encryptPayload, decryptPayload, getAuthToken } from '@/lib/crypto';
 import { getDomainSchema } from '@/lib/schemas';
 
-const API_BASE = 'https://portfolio-hchps.pages.dev/api/data';
+const API_BASE = '/api/data';
 
 function getAuthHeaders(): Record<string, string> {
   try {
@@ -199,5 +199,22 @@ export async function replaceAll<T>(sheetName: string, data: T[]): Promise<boole
 // ============ Config check ============
 
 export function isGoogleSheetsConfigured(): boolean {
-  return true; // Always "configured" since we use Cloudflare KV
+  return true; // Always "configured" since we use Local JSON System
+}
+
+/**
+ * 최신 글로벌 톰스톤 목록을 서버에서 불러와 브라우저 local storage 캐시와 동기화합니다.
+ * 서버에서 톰스톤이 지워진 항목(복원된 항목)을 감지하여 클라이언트 local storage 캐시에서도 함께 제거합니다.
+ */
+export async function syncTombstones(): Promise<void> {
+  if (typeof window === 'undefined') return;
+  try {
+    const serverTombstones = await readSheet<string>('GLOBAL_TOMBSTONES');
+    if (Array.isArray(serverTombstones)) {
+      localStorage.setItem('hchps-global-tombstones', JSON.stringify(serverTombstones));
+      console.info('[Tombstone Sync] 글로벌 톰스톤 목록 동기화 완료:', serverTombstones);
+    }
+  } catch (err) {
+    console.error('[Tombstone Sync] 글로벌 톰스톤 목록 동기화 실패:', err);
+  }
 }

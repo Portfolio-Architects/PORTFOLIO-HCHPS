@@ -31,14 +31,23 @@ export function buildSignalGraph(
     deletedEdges?: string[];
   }
 ): OntologyGraph {
+  console.log('[DEBUG] buildSignalGraph START. entries.length=', entries.length, 'customNodes.length=', customData?.customNodes.length);
   const nodes: OntologyNode[] = [];
   const edges: OntologyEdge[] = [];
 
   if (entries.length === 0) {
-    return {
-      nodes: [{ id: 'empty', label: '엔트리가 없습니다', group: 'OTHER', baseValue: 50 }],
-      edges: [],
-    };
+    if (customData && customData.customNodes.length > 0) {
+      // IF entries are empty but we have custom nodes, DON'T abort!
+      // This might be the bug! If the user deleted all signals but kept custom nodes!
+      console.log('[DEBUG] entries empty but custom nodes exist!');
+      // We should still add a root node maybe?
+    } else {
+      console.log('[DEBUG] Returning empty nodes!');
+      return {
+        nodes: [{ id: 'empty', label: '엔트리가 없습니다', group: 'OTHER', baseValue: 50 }],
+        edges: [],
+      };
+    }
   }
 
   // 1. Root Node (HCHPS) - Center of the tree
@@ -543,5 +552,6 @@ export function buildSignalGraph(
     }
   });
 
+  console.log('[DEBUG] buildSignalGraph END. finalNodes.length=', finalNodes.length, 'finalEdges.length=', finalEdges.length);
   return { nodes: finalNodes, edges: finalEdges };
 }

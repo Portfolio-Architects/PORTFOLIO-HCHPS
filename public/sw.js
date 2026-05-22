@@ -9,28 +9,15 @@ const urlsToCache = [
 ];
 
 self.addEventListener('install', (event) => {
-  self.skipWaiting(); // 즉시 새 버전 활성화
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => {
-        return cache.addAll(urlsToCache);
-      }).catch(err => console.error('SW Cache Error:', err))
-  );
+  self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
-            return caches.delete(cacheName); // 기존 구버전 캐시 삭제
-          }
-        })
-      );
+    self.registration.unregister().then(() => {
+      console.log('SW Unregistered completely to fix caching!');
     })
   );
-  self.clients.claim();
 });
 
 // ============ Push Notification Support ============

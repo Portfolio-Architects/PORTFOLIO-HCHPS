@@ -1,0 +1,37 @@
+[
+  {
+    "id": "singleton",
+    "blocks": [
+      {
+        "id": "6a18de48-ace6-49c5-9463-cb3845b0ea9f",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "rgb(255, 255, 255)",
+          "textColor": "lab(8.11897 0.811279 -12.254)",
+          "textAlignment": "left"
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "01027052318",
+            "styles": {
+              "bold": true
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "7045eb2e-cec5-41f3-8653-6ef84818e383",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [],
+        "children": []
+      }
+    ]
+  }
+]

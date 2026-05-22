@@ -435,8 +435,10 @@ export function useGraphCustomization() {
     try {
       const { readSheet } = await import('@/lib/sheets-api');
       const rows = await readSheet<MapCustomizationData & { id: string }>('MAP_CUSTOMIZATION');
+      console.log('[DEBUG] fetchFromCloud rows:', rows);
       if (rows && rows.length > 0 && rows[0].id === 'singleton') {
         const cloudData = rows[0];
+        console.log('[DEBUG] cloudData.customNodes:', cloudData.customNodes?.length);
         ydoc.transact(() => {
           ['overrides', 'customNodesMap', 'customEdgesMap', 'deletedEdgesMap'].forEach(name => {
             const m = ydoc.getMap(name);

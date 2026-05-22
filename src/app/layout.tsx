@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const basePath = process.env.NODE_ENV === 'production' ? '/PORTFOLIO-VITAL' : '';
+const basePath = '';
 
 export const metadata: Metadata = {
   title: "VITAL Work Manager",
@@ -51,16 +51,10 @@ export default function RootLayout({
             dangerouslySetInnerHTML={{
               __html: `
                 if ('serviceWorker' in navigator) {
-                  window.addEventListener('load', function() {
-                    var basePath = window.location.pathname.startsWith('/PORTFOLIO-VITAL') ? '/PORTFOLIO-VITAL' : '';
-                    navigator.serviceWorker.register(basePath + '/sw.js').then(
-                      function(registration) {
-                        console.info('ServiceWorker registration successful scope: ', registration.scope);
-                      },
-                      function(err) {
-                        console.error('ServiceWorker registration failed: ', err);
-                      }
-                    );
+                  navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                    for(let registration of registrations) {
+                      registration.unregister();
+                    }
                   });
                 }
               `,

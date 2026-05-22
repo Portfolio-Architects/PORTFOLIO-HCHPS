@@ -58,7 +58,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
       <div className="flex flex-col gap-3 mt-4 mb-2">
         <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-slate-900 flex items-center gap-4">
           <div className="w-12 h-12 bg-white rounded-[1rem] shadow-sm border border-slate-100 flex items-center justify-center overflow-hidden">
-            <img src={`${process.env.NODE_ENV === 'production' ? (isHchps ? '/PORTFOLIO-HCHPS' : '/PORTFOLIO-VITAL') : ''}/icon-192x192.png`} alt={`${appMode} Logo`} className="w-full h-full object-cover" />
+            <img src="/icon-192x192.png" alt={`${appMode} Logo`} className="w-full h-full object-cover" />
           </div>
           PORTFOLIO {appMode}
         </h1>
@@ -98,7 +98,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
           <div className="flex-1 w-full h-[250px] grid grid-cols-1 sm:grid-cols-2 items-center mb-6 gap-8 sm:gap-0">
             <div className="flex justify-center sm:justify-end sm:pr-6 xl:pr-10">
               <div className="flex-none w-[230px] h-[230px] relative shrink-0">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height={230}>
                   <PieChart>
                     <Pie
                       data={dynamicPieData}
@@ -258,7 +258,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
 
             {/* Regression Chart */}
             <div className="flex-1 mt-6 relative min-h-0">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height={250} minHeight={250}>
                 <ComposedChart data={predictionData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorActual" x1="0" y1="0" x2="0" y2="1">

@@ -43,3 +43,10 @@ next-env.d.ts
 # cloudflare and partykit
 .wrangler/
 .partykit/
+
+# local database backups
+/data/backups/
+
+# scratch dependencies
+/scratch/**/node_modules/
+

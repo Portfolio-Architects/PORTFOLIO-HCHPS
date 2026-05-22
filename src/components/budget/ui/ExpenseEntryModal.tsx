@@ -142,13 +142,35 @@ export function ExpenseEntryModal({
       }
     }
 
-    if (actionType !== 'settle') {
+    if (actionType === 'daily_expense') {
+      const stats = getCategoryStats(selectedCatId);
+      const dailyRemaining = stats ? stats.dailyExpenseRemaining : 0;
+      let adjustment = amt;
+      if (editEntryId) {
+        const oldEntry = entries.find(e => e.id === editEntryId);
+        if (oldEntry && oldEntry.actionType === 'daily_expense') {
+          adjustment = amt - oldEntry.amount;
+        }
+      }
+      if (adjustment > dailyRemaining) {
+        const proceed = window.confirm(`[경고] 일상경비 교부 잔액(${dailyRemaining.toLocaleString()}원)을 초과합니다. (초과 금액: ${(adjustment - dailyRemaining).toLocaleString()}원)\n\n지출을 허용하시겠습니까? (확인 시 등록 진행)`);
+        if (!proceed) return;
+      }
+    }
+
+    if (actionType !== 'settle' && actionType !== 'daily_expense') {
       const stats = getCategoryStats(selectedCatId);
       const spent = stats ? stats.spent : 0;
       let adjustment = amt;
       if (editEntryId) {
         const oldEntry = entries.find(e => e.id === editEntryId);
-        if (oldEntry && oldEntry.actionType !== 'settle') adjustment = amt - oldEntry.amount;
+        if (oldEntry) {
+          const oldWasInSpent = oldEntry.actionType === 'issuance' || oldEntry.actionType === 'general' || oldEntry.actionType === 'correction' || oldEntry.actionType === 'transfer' || !oldEntry.actionType;
+          if (oldWasInSpent) {
+            const oldSign = oldEntry.actionType === 'transfer' ? -1 : 1;
+            adjustment = amt - (oldEntry.amount * oldSign);
+          }
+        }
       }
       
       if (actionType === 'transfer') {
@@ -189,6 +211,8 @@ export function ExpenseEntryModal({
               { id: 'settle', label: '정산(결산)', desc: '지출 확정 및 결산' },
               { id: 'correction', label: '정정', desc: '기존 지출내역 금액 정정' },
               { id: 'transfer', label: '이용/전용', desc: '다른 산출항목으로 예산 이동' },
+              { id: 'issuance', label: '일상경비 교부', desc: '일상경비 재원 배정(교부)' },
+              { id: 'daily_expense', label: '일상경비 지출', desc: '교부된 일상경비 범위 내 지출' },
             ].map(type => (
               <label key={type.id} className={`flex flex-col p-2.5 rounded-lg border-2 cursor-pointer transition-all ${actionType === type.id ? 'border-blue-500 bg-blue-50/50 shadow-sm' : 'border-gray-200 bg-white hover:border-blue-200 hover:bg-gray-50'}`}>
                 <div className="flex items-center gap-2">

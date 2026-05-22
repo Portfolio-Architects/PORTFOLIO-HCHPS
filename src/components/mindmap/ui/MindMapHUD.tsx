@@ -74,7 +74,7 @@ export function MindMapHUD({
         <button
           onClick={onPrintPdf}
           className="bg-white rounded-lg p-2.5 shadow-sm border border-[var(--color-border-light)] hover:bg-gray-100 cursor-pointer text-gray-500 transition-colors"
-          title="시그널 맵 PDF 인쇄/저장"
+          title="마인드맵 PDF 인쇄/저장"
         >
           <Printer size={18} />
         </button>

@@ -12,7 +12,8 @@
     "lint": "eslint",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "restore": "node scripts/restore.js"
   },
   "dependencies": {
     "@blocknote/core": "^0.47.3",

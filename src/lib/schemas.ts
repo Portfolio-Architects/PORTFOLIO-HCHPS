@@ -25,7 +25,7 @@ export const TaskSchema = z.object({
 export type TaskDto = z.infer<typeof TaskSchema>;
 
 // ============ Budget Module ============
-export const BudgetActionTypeSchema = z.enum(['general', 'issuance', 'daily_expense']);
+export const BudgetActionTypeSchema = z.enum(['general', 'issuance', 'daily_expense', 'transfer', 'correction', 'settle']);
 
 export const BudgetCategorySchema = z.object({
   id: z.string().catch('unknown-cat'),

@@ -1,0 +1,69 @@
+[
+  {
+    "id": "singleton",
+    "blocks": [
+      {
+        "id": "356d5047-567a-46de-b45f-30d27e5bc10b",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "강사비 지급 기준,",
+            "styles": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "127394ff-a567-4695-a147-2be50a6196e4",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "063-907-5155",
+            "styles": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "78f99959-fd92-44ef-a6be-f66805876353",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "3급 강사의 경력 증빙은 어디까지가 허용 가능한지?(사단법인도 가능한지)",
+            "styles": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "7aeeea74-875e-4276-aaa2-7064f37be8e5",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [],
+        "children": []
+      }
+    ]
+  }
+]

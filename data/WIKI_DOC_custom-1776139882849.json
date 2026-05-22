@@ -1,0 +1,63 @@
+[
+  {
+    "id": "singleton",
+    "blocks": [
+      {
+        "id": "8f620fc7-afe6-4e24-8d23-ea5d306a8bc0",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [],
+        "children": []
+      },
+      {
+        "id": "f165b7bf-58e8-4249-aa9a-671393747bc7",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "매니저",
+            "styles": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "32dca9b6-21f6-41f8-be9e-e03052b6ab65",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "01095051019",
+            "styles": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "2ea6d53d-4d7d-40ae-ba35-ff0764f298f2",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [],
+        "children": []
+      }
+    ]
+  }
+]
