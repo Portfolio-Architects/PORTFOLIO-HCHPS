@@ -60,15 +60,6 @@ export const EDGE_TYPE_LABELS: Record<EdgeType, string> = {
   DECOUPLING:    '디커플링',
 };
 
-// ============ Personal CRM ============
-
-export interface CRM_ApprovalLog {
-  id: string;
-  date: string;       // 결재 시도 일시 (예: 2026-04-09 10:30)
-  status: 'APPROVED' | 'REJECTED' | 'PENDING' | 'RE_REVIEW'; // 승인, 반려, 보류 등
-  memo: string;       // 당시 기분이나 반려 사유 메모
-}
-
 // ============ Node ============
 
 export interface OntologyNode {
@@ -88,14 +79,6 @@ export interface OntologyNode {
   dueDate?: string;            // User overridden deadline (YYYY-MM-DD)
   isHighlighted?: boolean;     // User custom fixed highlight/glow
   isCompleted?: boolean;       // User custom completed state (Archive)
-  // === Personal CRM ===
-  isPerson?: boolean;                           // 인물 노드 여부
-  currentMood?: 'SUNNY' | 'CLOUDY' | 'RAINY' | 'STORM'; // 상사의 현재 기상도
-  leadershipStyle?: 'MICROMANAGER' | 'VISIONARY' | 'UNKNOWN'; // 리더십 성향
-  chronotype?: 'LARK' | 'OWL' | 'UNKNOWN';      // 생체리듬: 아침형/저녁형
-  scheduleMemo?: string;                        // 상사 주요 일정 및 스케줄
-  isPreparingExam?: boolean;                    // 승진 역량평가 준비 여부
-  approvalLogs?: CRM_ApprovalLog[]; // 결재 기록들
   // === Runtime computed ===
   centralityScore?: number;    // Eigenvector-weighted centrality (0-1)
   renderSize?: number;         // blended size (0-1)

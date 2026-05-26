@@ -18,15 +18,8 @@ export interface NodeOverride {
   isHighlighted?: boolean | null;
   isCompleted?: boolean | null;
   hidden?: boolean | null;
-  isPerson?: boolean | null;
-  leadershipStyle?: 'MICROMANAGER' | 'VISIONARY' | 'UNKNOWN' | null;
-  chronotype?: 'LARK' | 'OWL' | 'UNKNOWN' | null;
-  currentMood?: 'SUNNY' | 'CLOUDY' | 'RAINY' | 'STORM' | null;
-  scheduleMemo?: string | null;
-  isPreparingExam?: boolean | null;
   useCustomContext?: boolean | null;
   customContextText?: string | null;
-  approvalLogs?: import('@/lib/ontology.types').CRM_ApprovalLog[] | null;
   story5W1H?: {
     who?: string;
     when?: string;

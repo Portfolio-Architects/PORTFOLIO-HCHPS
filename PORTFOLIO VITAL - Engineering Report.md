@@ -323,11 +323,16 @@ sequenceDiagram
 - **Culling 공간 효율 및 패닝 튜닝:** 비가시 구역 DOM/Canvas 렌더링을 억제하는 `layoutHidden` 기법 내장, 트리 전개 시 자동 로컬 패닝 스와이프 기능, `customSortOrder` 자유 정렬 탑재.
 - **Project Planning 역량 통합 편입:** 단일 텍스트 기능이던 'Boss Schedule' 뷰를 전면 폐기/병합하고, 시맨틱 캔버스와 결합된 통합 프로젝트 리소스 기획(Project Planning) 모듈로 승격. (스케줄링 도메인은 데이터 소스로 영속 이관)
 
-### 보안, CRM 및 엔터프라이즈 UX 방어벽
+### 보안 및 엔터프라이즈 UX 방어벽
 - **Next.js Middleware 기반 영구 세션 로그인 (Cookie Auth):** 브라우저의 기본 Basic Auth 팝업을 배제하고, VITAL 고유의 Glassmorphism 커스텀 로그인 페이지 구축. 10년 만료 기한의 `HttpOnly` 보안 쿠키를 발급하여 클라우드플레어 인프라 종속성 없이 코드 레벨에서 완벽한 프라이빗 영구 인증 체계(Floating Logout Button 탑재) 구현.
 - **Zero-Trust E2EE LockScreen:** PIN에서 파생된 동적 세션(Session Token) 인증 및 데이터 뷰어 단위 메모리 퍼지(Purge)를 내장해 무단 접근/XSS 위협을 격리화.
-- **사내 정치/결재 기상도(CRM):** 핵심 인물의 생체리듬, 리더십 특성, 스케줄 화이트스페이스를 통합 집수하여 최적화된 보고 타이밍을 추론해 제시하는 'AI 전략 뷰파인더' 탑재.
 - **고스트 클릭(Ghost-click) 아티팩트 소멸:** 고빈도 터치/드래그, 디바운스 혼선으로 인한 널 포인터 결빙 및 네비게이션 시각 검은 줄(Black Artifact) 발생 등 네이티브 성능을 하락시키는 잔재 철저히 제거.
+
+### 사내 정치/결재 기상도(CRM) 및 관련 기능 완전 제거 (2026-05-26)
+- **CRM 대시보드 제거**: CrmDashboardView.tsx 파일을 전면 삭제하고 관련 뷰 모듈의 연결을 해제하였습니다.
+- **AI 전략 뷰파인더 및 결재 최적 타이밍 컨텍스트 제거**: approval_timing_context.md 프롬프트 템플릿과 useBossSchedule.ts 훅 및 BOSS_SCHEDULE.json 데이터베이스 파일을 영구 삭제하였습니다.
+- **온톨로지 엔진 기상도 뱃지 렌더링 제거**: OntologyRenderer.ts에서 인물 노드 위에 표시되던 날씨 아이콘(기상도 뱃지) 캔버스 드로잉 코드를 완전히 걷어냈습니다.
+- **타입 및 커스텀 훅 의존성 클린업**: ontology.types.ts와 useGraphCustomization.ts, signal-graph.ts, useScheduleAlerts.ts, src/app/page.tsx 등 프로젝트 전반에서 isPerson, currentMood, leadershipStyle, chronotype, approvalLogs, bossEntries 등 CRM 관련 필드, 훅 호출 및 API/라우터 허용 목록(BOSS_SCHEDULE)을 소거하였습니다.
 
 ### 에이전트 행동 지침 및 패치 관리 규칙 추가 (2026-05-26)
 - **실시간 패치 기록 및 동적 규칙 최신화**: 주요 작업 커밋이나 새로운 프롬프트 입력 등 패치 발생 시, `PORTFOLIO VITAL - Engineering Report.md`에 세부 내역을 기록하고 이를 토대로 `AGENTS.md` 에이전트 행동 규칙을 수시로 업데이트하는 E2E 규칙(Section 2-E)을 신설 및 통합하였습니다.
@@ -337,6 +342,10 @@ sequenceDiagram
 - **Cloudflare Pages 자동 배포 연동 해제 (2026-05-26)**:
   - VITAL 아키텍처의 로컬 스토리지 단 단일화(SSOT) 변경으로 인해 불필요해진 Cloudflare Pages 서버리스 환경 대상 자동 배포 통합을 GitHub App 차단(Suspend/Uninstall)을 통해 비활성화 처리.
   - 이로써 불필요한 빌드 리소스 소모 및 로컬 DB 파일 시스템 미지원으로 인한 배포 빌드 교착 현상을 해소함.
+
+### 렌더링 지연 상시 감시 체계 및 성능 프로파일러 구축 (2026-05-26)
+- **PerformanceProfiler 신설**: Canvas 2D 렌더링 루프의 프레임 시간(render duration), FPS, 피크 레이턴시, 지연 경고(16.7ms 초과)를 상시 추적하는 독립 프로파일러 모듈([PerformanceProfiler.ts](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/lib/engine/PerformanceProfiler.ts))을 설계 및 배치.
+- **실시간 프로파일러 HUD 오버라이드**: [MindMap3D.tsx](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/components/MindMap3D.tsx)의 Canvas 우측 상단에 glassmorphism 및 반응형을 반영한 실시간 HUD 통계 판넬을 탑재하여 렌더링 지연을 시각적으로 상시 모니터링할 수 있도록 고도화.
 
 ---
 
@@ -348,7 +357,7 @@ sequenceDiagram
 - [x] **프로덕션 런타임 순도 및 최적화**
 - [x] **테스트 커버리지 기반 구축**
 - [x] **RAG 기반 지식 위키 및 벡터화 파이프라인**
-- [x] **인물 중심 온톨로지 (Personal CRM)**
+- [x] **인물 중심 온톨로지 (Personal CRM) - 기능 폐기 완료**
 - [x] **SSOT 구조의 완전한 프라이빗-퍼스트 아키텍처 및 안티-해킹 보안 인프라**
 - [x] **업무 암묵지 및 노하우 아카이브 (Task Wisdom Hub) 구축 및 모달 양방향 연동**
 
@@ -361,7 +370,6 @@ sequenceDiagram
 ### 3. 암묵지 데이터 파이프라인 고도화 (Phase 9 - 대기)
 
 - [ ] **Task Wisdom Hub의 로컬 벡터 임베딩 및 하이브리드 RAG 검색 엔진 튜닝**
-- [ ] **의사결정 보조를 위한 임원진 결재선 예측 및 CRM 리액션 자동 산출 고도화**
 - [ ] **지능형 소진 속도(Velocity) 기반 예산 자동 재배분 플래너 구현**
 
 ### 4. 자가 치유 및 하네스 엔지니어링 (Harness Engineering - 지속성)

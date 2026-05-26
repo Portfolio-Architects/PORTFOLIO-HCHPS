@@ -2,11 +2,10 @@
 
 import { useMemo } from 'react';
 import { Task, Meeting } from '@/types';
-import { BossScheduleEntry } from '@/hooks/useBossSchedule';
 
 export interface ScheduleAlert {
   id: string;
-  type: 'task' | 'meeting' | 'boss';
+  type: 'task' | 'meeting';
   title: string;
   datetime: Date;
   location?: string;
@@ -40,8 +39,7 @@ function getUrgency(dt: Date, now: Date): ScheduleAlert['urgency'] | null {
 
 export function useScheduleAlerts(
   tasks: Task[],
-  meetings: Meeting[],
-  bossEntries: BossScheduleEntry[]
+  meetings: Meeting[]
 ): ScheduleAlert[] {
   return useMemo(() => {
     const now = new Date();
@@ -80,24 +78,6 @@ export function useScheduleAlerts(
       });
     }
 
-    // 3. Boss Schedule
-    for (const b of bossEntries) {
-      const timeStr = b.startTime || '09:00';
-      const dt = new Date(`${b.date}T${timeStr}:00`);
-      if (isNaN(dt.getTime())) continue;
-      const urgency = getUrgency(dt, now);
-      if (!urgency) continue;
-      alerts.push({
-        id: `boss-${b.id}`,
-        type: 'boss',
-        title: b.title,
-        datetime: dt,
-        location: b.location,
-        urgency,
-        icon: '👔',
-      });
-    }
-
     // 긴급도 순 → 시간 순 정렬
     const urgencyOrder: Record<string, number> = { overdue: 0, now: 1, today: 2, tomorrow: 3, 'this-week': 4 };
     alerts.sort((a, b) => {
@@ -107,5 +87,5 @@ export function useScheduleAlerts(
     });
 
     return alerts;
-  }, [tasks, meetings, bossEntries]);
+  }, [tasks, meetings]);
 }

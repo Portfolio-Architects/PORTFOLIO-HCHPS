@@ -80,8 +80,6 @@ export function MindMapInspector(props: MindMapInspectorProps) {
     return unique;
   }, [connectedEdges]);
 
-  // CRM tab moved to CrmDashboardView
-
   const renderNodeDetails = (isOverlay: boolean) => {
     return (
       <div 
@@ -196,29 +194,8 @@ export function MindMapInspector(props: MindMapInspectorProps) {
                       )}
                     </div>
 
-                    {/* Node Attributes Toggles: Person & Highlight */}
-                    <div className="mb-4 grid grid-cols-2 gap-1.5">
-                      {/* isPerson Toggle */}
-                      <div className="flex flex-col bg-indigo-50 p-2 border border-indigo-100 rounded-lg shadow-sm">
-                        <div className="flex justify-between items-center mb-1">
-                          <label className="text-[10px] font-bold text-indigo-900">인물/이해관계자</label>
-                          <button
-                            onClick={() => {
-                              setNodeOverride(activeNode.id, { isPerson: !activeNode.isPerson });
-                              if (engineRef.current) {
-                                const engineNode = engineRef.current.nodes.find((n: OrbitalNode) => n.id === activeNode.id);
-                                if (engineNode) engineNode.isPerson = !activeNode.isPerson;
-                                setActiveNode({ ...activeNode, isPerson: !activeNode.isPerson });
-                              }
-                            }}
-                            className={`relative inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${activeNode.isPerson ? 'bg-indigo-500' : 'bg-indigo-200'}`}
-                          >
-                            <span className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${activeNode.isPerson ? 'translate-x-3' : 'translate-x-0'}`} />
-                          </button>
-                        </div>
-                        <span className="text-[8.5px] text-indigo-500/90 leading-tight">기상도 분석 활성화</span>
-                      </div>
-
+                    {/* Node Attributes Toggles: Highlight */}
+                    <div className="mb-4 grid grid-cols-1 gap-1.5">
                       {/* Highlight Toggle */}
                       <div className="flex flex-col bg-amber-50 p-2 border border-amber-200 rounded-lg shadow-sm">
                         <div className="flex justify-between items-center mb-1">

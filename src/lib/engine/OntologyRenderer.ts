@@ -333,34 +333,7 @@ export class OntologyRenderer {
         ctx.stroke();
       } 
 
-      // Personal CRM: Mood Badge (결재 기상도)
-      if (node.currentMood) {
-        const moodIcons: Record<string, string> = {
-          'SUNNY': '☀️',
-          'CLOUDY': '☁️',
-          'RAINY': '☔️',
-          'STORM': '⚡️'
-        };
-        const moodIcon = moodIcons[node.currentMood];
-        if (moodIcon) {
-          ctx.font = `${10 * zoom}px sans-serif`;
-          // Draw badge on the top edge (slightly offset from the center)
-          const moodBadgeX = node.renderX + (isLeftSide ? -boxW/2 + 10*zoom : boxW/2 - 10*zoom);
-          const moodBadgeY = node.renderY - boxH / 2;
-          
-          ctx.beginPath();
-          ctx.arc(moodBadgeX, moodBadgeY, 8 * zoom, 0, 2 * Math.PI);
-          ctx.fillStyle = '#FFFFFF';
-          ctx.fill();
-          ctx.strokeStyle = '#E2E8F0';
-          ctx.lineWidth = 1 * zoom;
-          ctx.stroke();
-          
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(moodIcon, moodBadgeX, moodBadgeY + 1 * zoom);
-        }
-      }
+
       // 마감 기한 (Deadline) 표시 (활성화된 노드만 표기)
       if (isActive && node.dueDate) {
         const parts = node.dueDate.split('-');

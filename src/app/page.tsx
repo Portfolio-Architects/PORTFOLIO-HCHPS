@@ -9,7 +9,6 @@ import { useMeetings } from '@/hooks/useMeetings';
 import { useProjects } from '@/hooks/useProjects';
 import { useSignal, extractKeywords } from '@/hooks/useSignal';
 import { useKnowledge } from '@/hooks/useKnowledge';
-import { useBossSchedule } from '@/hooks/useBossSchedule';
 import { useScheduleAlerts } from '@/hooks/useScheduleAlerts';
 import { useNotificationAlerts } from '@/hooks/useNotificationAlerts';
 import { ScheduleAlertBanner } from '@/components/mindmap/ui/ScheduleAlertBanner';
@@ -79,8 +78,7 @@ function ProtectedApp({ appMode, onModeChange }: ProtectedAppProps) {
   const { projects, addProject, updateProject, deleteProject, addChecklistItem, toggleChecklistItem, deleteChecklistItem, getProjectProgress } = useProjects();
   const { entries: signalEntries, addSignal, deleteSignal, updateSignal, updateSignalKeywords, keywordMap } = useSignal();
   const { entries: knowledgeEntries, addKnowledge, updateKnowledge, deleteKnowledge, filterKnowledge, metadata: knowledgeMetadata } = useKnowledge();
-  const { entries: bossEntries } = useBossSchedule();
-  const scheduleAlerts = useScheduleAlerts(tasks, meetings, bossEntries);
+  const scheduleAlerts = useScheduleAlerts(tasks, meetings);
   const { permission: notifPermission, requestPermission: requestNotifPermission, appEnabled, toggleAppEnabled } = useNotificationAlerts(scheduleAlerts);
 
   const { searchModalOpen, searchQuery, searchResults, handleGlobalSearch, closeSearchModal } = useGlobalSearch();

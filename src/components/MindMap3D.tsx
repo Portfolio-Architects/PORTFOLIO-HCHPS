@@ -2,6 +2,7 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { OntologyCanvasEngine } from '@/lib/OntologyCanvasEngine';
+import { PerformanceProfiler } from '@/lib/engine/PerformanceProfiler';
 import { OntologyLayout } from '@/lib/engine/OntologyLayout';
 import { buildSignalGraph } from '@/lib/signal-graph';
 import { SignalEntry } from '@/hooks/useSignal';
@@ -86,6 +87,22 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
       window.removeEventListener('wiki:openNode', handleOpenWiki as EventListener);
       window.removeEventListener('wiki:closeNode', handleCloseWiki as EventListener);
     };
+  }, []);
+
+  const [perfMetrics, setPerfMetrics] = useState({
+    lastRenderTime: 0,
+    avgRenderTime: 0,
+    maxRenderTime: 0,
+    warningCount: 0,
+    totalRenders: 0,
+    fps: 60
+  });
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setPerfMetrics(PerformanceProfiler.getInstance().getMetrics());
+    }, 1000);
+    return () => clearInterval(timer);
   }, []);
 
   // ── Keyboard Shortcuts (Undo/Redo) ──
@@ -318,12 +335,15 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
       ctx.save();
       ctx.scale(dpr, dpr);
 
+      PerformanceProfiler.getInstance().tick();
+
       const isDirty = engine.tick();
       if (isDirty) {
+        const t0 = performance.now();
         engine.render(ctx, w, h);
+        const t1 = performance.now();
+        PerformanceProfiler.getInstance().recordRender(t1 - t0);
       }
-
-      // 툴팁이 캔버스 하단에 고정되므로 동적 transform 로직 삭제
 
       ctx.restore();
       animationRef.current = requestAnimationFrame(loop);
@@ -781,6 +801,34 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
           />
+
+          {/* Performance HUD Overlay */}
+          <div className="absolute top-4 right-4 z-20 flex flex-col gap-1 p-2.5 rounded-xl bg-white/70 backdrop-blur-md border border-slate-200/50 shadow-lg text-[10px] font-mono text-slate-700 pointer-events-none select-none min-w-[130px]">
+            <div className="flex items-center justify-between gap-3">
+              <span className="font-sans font-bold text-slate-900">성능 프로파일러</span>
+              <div className="flex items-center gap-1">
+                <span className={`w-1.5 h-1.5 rounded-full ${perfMetrics.fps >= 55 ? 'bg-emerald-500 animate-pulse' : perfMetrics.fps >= 30 ? 'bg-amber-500' : 'bg-rose-500'}`}></span>
+                <span className="font-bold text-slate-800">{perfMetrics.fps} FPS</span>
+              </div>
+            </div>
+            <div className="h-px bg-slate-200/40 my-1"></div>
+            <div className="flex justify-between">
+              <span>최근 렌더:</span>
+              <span className="font-bold text-slate-900">{perfMetrics.lastRenderTime.toFixed(2)}ms</span>
+            </div>
+            <div className="flex justify-between">
+              <span>평균 렌더:</span>
+              <span className="font-bold text-slate-900">{perfMetrics.avgRenderTime.toFixed(2)}ms</span>
+            </div>
+            <div className="flex justify-between">
+              <span>최대 렌더:</span>
+              <span className="font-bold text-slate-900">{perfMetrics.maxRenderTime.toFixed(2)}ms</span>
+            </div>
+            <div className="flex justify-between">
+              <span>지연 경고:</span>
+              <span className={`font-bold ${perfMetrics.warningCount > 0 ? 'text-amber-600 font-extrabold animate-pulse' : 'text-slate-900'}`}>{perfMetrics.warningCount}회</span>
+            </div>
+          </div>
 
           {/* Whiteboard Toolbar (top-left) */}
 

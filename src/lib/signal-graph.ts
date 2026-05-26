@@ -263,7 +263,6 @@ export function buildSignalGraph(
             customLabel: resolveProp('customLabel'),
             customSortOrder: resolveProp('customSortOrder'),
             hidden: resolveProp('hidden'),
-            isPerson: resolveProp('isPerson'),
             dueDate: resolveProp('dueDate'),
             isHighlighted: resolveProp('isHighlighted'),
             isCompleted: resolveProp('isCompleted'),
@@ -328,7 +327,6 @@ export function buildSignalGraph(
         if (override.customGroup !== undefined) n.group = override.customGroup === null ? n.group : (override.customGroup as OntologyGroup);
         if (override.customOrbitIndex !== undefined) n.customOrbitIndex = override.customOrbitIndex === null ? undefined : override.customOrbitIndex;
         if (override.customSortOrder !== undefined) n.customSortOrder = override.customSortOrder === null ? undefined : override.customSortOrder;
-        if (override.isPerson !== undefined) n.isPerson = override.isPerson === null ? undefined : override.isPerson;
         if (override.dueDate !== undefined) n.dueDate = override.dueDate === null ? undefined : override.dueDate;
         if (override.isHighlighted !== undefined) n.isHighlighted = override.isHighlighted === null ? undefined : override.isHighlighted;
         if (override.isCompleted !== undefined) n.isCompleted = override.isCompleted === null ? undefined : override.isCompleted;
