@@ -120,6 +120,10 @@ export const KnowledgeEntrySchema = z.object({
   tags: z.array(z.string()).default([]).catch([]),
   createdAt: z.string().catch(new Date().toISOString()),
   updatedAt: z.string().catch(new Date().toISOString()),
+  linkedTaskIds: z.array(z.string()).optional().default([]).catch([]),
+  linkedProjectIds: z.array(z.string()).optional().default([]).catch([]),
+  pitfalls: z.string().optional().catch(''),
+  steps: z.array(z.string()).optional().default([]).catch([]),
 });
 
 export const getDomainSchema = (sheetName: string) => {

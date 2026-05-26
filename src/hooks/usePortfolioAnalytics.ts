@@ -83,21 +83,69 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
     return projectsData.sort((a, b) => a.name.localeCompare(b.name));
   }, [budgetCategories, budgetEntries, detailedProjects]);
 
-  // Predictive Modeling & Burn Rate Velocity Insights
-  const { predictionData, velocityInsights, nextYearRecommendation, projectedEoy } = useMemo(() => {
-    const currentMonth = 5; // Assume May (0-indexed up to 4, so 5 months elapsed)
-    const elapsedRatio = currentMonth / 12; 
+  // Monthly Execution Trend Analysis
+  const { monthlyExecutionData, maxSpendMonth, avgMonthlySpend, velocityInsights, remainingTargetAmount, recommendedMonthlySpendForTarget } = useMemo(() => {
+    const currentMonth = 5; // 2026년 5월 기준 (1~5월까지 5개월 경과)
+    const elapsedRatio = currentMonth / 12;
+    const validCategoryIds = new Set(filteredCategories.map(c => c.id));
     
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthlyAmounts = Array(12).fill(0);
+    
+    budgetEntries.forEach(e => {
+      if (e.isPlanned || e.actionType === 'settle' || !validCategoryIds.has(e.categoryId)) {
+        return;
+      }
+      
+      const parts = e.date.split('-');
+      const monthIdx = parts.length >= 2 ? parseInt(parts[1], 10) - 1 : -1;
+      
+      if (monthIdx >= 0 && monthIdx < 12) {
+        const amount = e.actionType === 'transfer' ? -e.amount : e.amount;
+        monthlyAmounts[monthIdx] += amount;
+      }
+    });
+    
+    // 11월(Index 10)까지 100% 소진 목표선형 가이드
+    const monthlyTargetUnit = totalBudget / 11;
+    
+    let cumulative = 0;
+    const trendData = months.map((m, i) => {
+      const actualMonthAmount = monthlyAmounts[i];
+      cumulative += actualMonthAmount;
+      
+      // 11월까지 선형 누적, 12월은 100% 유지
+      const targetVal = i < 11 
+        ? Math.round(monthlyTargetUnit * (i + 1)) 
+        : totalBudget;
+        
+      return {
+        name: m,
+        monthly: actualMonthAmount,
+        cumulative: cumulative,
+        targetCumulative: targetVal
+      };
+    });
+    
+    // 최대 지출월 찾기
+    let maxAmt = 0;
+    let maxMonthName = 'None';
+    monthlyAmounts.forEach((amt, idx) => {
+      if (amt > maxAmt) {
+        maxAmt = amt;
+        maxMonthName = months[idx];
+      }
+    });
+    
+    const avgSpend = currentMonth > 0 ? executedBudget / currentMonth : 0;
+    
+    // Velocity Insights 계산 복구 (예측 가중치를 배제한 실제 예산 속도 분석)
     const insights: any[] = [];
-    let projectedNextYearTotal = 0;
-    let actualCumulative = 0;
-
-    // Use breakdownData to calculate item-level velocity
     breakdownData.forEach(item => {
       const burnRate = item.total > 0 ? item.executed / item.total : 0;
-      const velocity = elapsedRatio > 0 ? burnRate / elapsedRatio : 0; // >1 means burning faster than time
+      const velocity = elapsedRatio > 0 ? burnRate / elapsedRatio : 0; 
       
-      let recommendation = 1; // 100% of current budget
+      let recommendation = 1; 
       let action = 'MAINTAIN';
       let insightText = '정상 속도 소진 중';
       
@@ -115,14 +163,7 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
         insightText = `미집행. 내년 50% 삭감 권고`;
       }
 
-      // Apply policy model weight
-      let modelWeight = 1;
-      if (predictionModel === 'conservative') modelWeight = 0.9;
-      if (predictionModel === 'aggressive') modelWeight = 1.1;
-      
-      const nextYearAlloc = item.total * recommendation * modelWeight;
-      projectedNextYearTotal += nextYearAlloc;
-      actualCumulative += item.executed;
+      const nextYearAlloc = item.total * recommendation;
 
       if (action !== 'MAINTAIN') {
         insights.push({
@@ -137,53 +178,21 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
       }
     });
 
-    // Generate Chart Data
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    let runningTotal = 0;
-    const actualIncrements = [12000000, 35000000, 18000000, 42000000, actualCumulative - 107000000]; // mock increments to match actual cumulative
-    if (actualIncrements[4] < 0) actualIncrements[4] = 25000000; // fallback if data is weird
-    
-    const data = months.map((m, i) => {
-      if (i < currentMonth) {
-        runningTotal += actualIncrements[i] || 0;
-        return { name: m, actual: runningTotal, predicted_conservative: null, predicted_baseline: null, predicted_aggressive: null };
-      } else {
-        const mRate = runningTotal / currentMonth; 
-        const predictedVal = runningTotal + mRate * (i - currentMonth + 1);
-        
-        const factor = (i - currentMonth + 1);
-        const spread = mRate * 0.15 * factor;
-
-        return { 
-          name: m, 
-          actual: null, 
-          predicted_conservative: predictedVal - spread,
-          predicted_baseline: predictedVal,
-          predicted_aggressive: predictedVal + spread
-        };
-      }
-    });
-
-    // Connect the lines
-    if (currentMonth > 0 && currentMonth <= 12) {
-      data[currentMonth - 1].predicted_conservative = data[currentMonth - 1].actual;
-      data[currentMonth - 1].predicted_baseline = data[currentMonth - 1].actual;
-      data[currentMonth - 1].predicted_aggressive = data[currentMonth - 1].actual;
-    }
-
-    const finalPredicted = data[11].predicted_baseline || 0;
-    const eoyRate = totalBudget > 0 ? (finalPredicted / totalBudget) * 100 : 0;
-
-    // Sort insights to show most extreme deviations first
     insights.sort((a, b) => Math.abs(b.velocity - 1) - Math.abs(a.velocity - 1));
-
-    return { 
-      predictionData: data, 
-      velocityInsights: insights.slice(0, 3), // Top 3 insights
-      nextYearRecommendation: projectedNextYearTotal,
-      projectedEoy: eoyRate
+    
+    // 11월 목표 대비 남은 목표 예산 및 월간 권장 지출액 계산
+    const remainTargetAmt = Math.max(0, totalBudget - executedBudget);
+    const recommendedSpend = remainTargetAmt / 6; // 6개월 남음 (6,7,8,9,10,11월)
+    
+    return {
+      monthlyExecutionData: trendData,
+      maxSpendMonth: { month: maxMonthName, amount: maxAmt },
+      avgMonthlySpend: avgSpend,
+      velocityInsights: insights.slice(0, 3),
+      remainingTargetAmount: remainTargetAmt,
+      recommendedMonthlySpendForTarget: recommendedSpend
     };
-  }, [breakdownData, predictionModel, totalBudget]);
+  }, [filteredCategories, budgetEntries, executedBudget, breakdownData, totalBudget]);
 
   return {
     selectedProject, setSelectedProject,
@@ -198,9 +207,11 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
     pieData,
     breakdownData,
     allBreakdownData,
-    predictionData,
+    monthlyExecutionData,
+    maxSpendMonth,
+    avgMonthlySpend,
     velocityInsights,
-    nextYearRecommendation,
-    projectedEoy
+    remainingTargetAmount,
+    recommendedMonthlySpendForTarget
   };
 }

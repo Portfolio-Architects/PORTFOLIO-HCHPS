@@ -137,6 +137,10 @@ export interface KnowledgeEntry {
   tags: string[];
   createdAt: string;
   updatedAt: string;
+  linkedTaskIds?: string[];
+  linkedProjectIds?: string[];
+  pitfalls?: string;
+  steps?: string[];
 }
 
 export type ModuleType = 'workspace' | 'knowledge' | 'mindmap' | 'dashboard';

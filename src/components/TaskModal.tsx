@@ -159,20 +159,19 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, allTags
     if (!knowledgeEntries || knowledgeEntries.length === 0) return [];
     
     return knowledgeEntries.filter(entry => {
-      // 1. Direct tag match (task has a tag that matches entry's tag)
+      // 1. Direct task ID link match
+      if (editTask && entry.linkedTaskIds && entry.linkedTaskIds.includes(editTask.id)) return true;
+      // 2. Direct tag match (task has a tag that matches entry's tag)
       if (entry.tags && entry.tags.some(t => tags.includes(t))) return true;
-      // 2. Keyword match from title
+      // 3. Keyword match from title
       if (title) {
-        // Very basic keyword check: if entry tags or title exist in task title
         if (entry.tags && entry.tags.some(t => title.includes(t))) return true;
-        
-        // Exclude generic terms before checking title inclusion
         const genericTerms = ['보고', '회의', '미팅', '작성', '확인', '검토', '기획'];
         if (!genericTerms.includes(entry.title) && title.includes(entry.title)) return true;
       }
       return false;
     });
-  }, [knowledgeEntries, tags, title]);
+  }, [knowledgeEntries, tags, title, editTask]);
 
   const inputClass = "w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent transition-shadow";
   const labelClass = "block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5";
@@ -181,16 +180,37 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, allTags
     <Modal isOpen={isOpen} onClose={onClose} title={editTask ? '업무 수정' : '새 업무'}>
       <form onSubmit={handleSubmit} className="space-y-4">
         {matchedAdvice.length > 0 && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 mb-2">
-            <h4 className="flex items-center gap-1.5 text-xs font-bold text-yellow-800 mb-2">
-              <Lightbulb size={14} className="text-yellow-600" />
-              💡 참고할 조언 / 어드바이스 ({matchedAdvice.length}건)
+          <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-3.5 mb-2">
+            <h4 className="flex items-center gap-1.5 text-xs font-black text-indigo-900 mb-2.5">
+              <Lightbulb size={14} className="text-amber-500 fill-amber-500" />
+              💡 연동된 업무 암묵지 & 노하우 가이드 ({matchedAdvice.length}건)
             </h4>
-            <div className="space-y-2 max-h-32 overflow-y-auto custom-scrollbar">
+            <div className="space-y-3.5 max-h-56 overflow-y-auto custom-scrollbar">
               {matchedAdvice.map(advice => (
-                <div key={advice.id} className="bg-white/80 rounded-lg p-2 text-xs">
-                  <div className="font-semibold text-gray-800 mb-0.5">{advice.title}</div>
-                  <div className="text-gray-600 whitespace-pre-wrap leading-relaxed">{advice.content}</div>
+                <div key={advice.id} className="bg-white border border-slate-100 rounded-lg p-3 text-xs shadow-sm">
+                  <div className="font-bold text-slate-800 text-[12px] mb-1.5 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 bg-indigo-600 rounded-full"></span>
+                    {advice.title}
+                  </div>
+                  {advice.content && (
+                    <div className="text-slate-600 mb-2 leading-relaxed whitespace-pre-wrap">{advice.content}</div>
+                  )}
+                  {advice.steps && advice.steps.length > 0 && (
+                    <div className="mt-2 bg-slate-50 p-2 rounded border border-slate-100">
+                      <div className="font-bold text-[10px] text-slate-500 mb-1">실행 순서:</div>
+                      <ol className="list-decimal pl-4 space-y-1 text-slate-600">
+                        {advice.steps.map((step, sIdx) => (
+                          <li key={sIdx}>{step}</li>
+                        ))}
+                      </ol>
+                    </div>
+                  )}
+                  {advice.pitfalls && (
+                    <div className="mt-2 bg-rose-50 border border-rose-100 text-rose-800 p-2 rounded flex gap-1.5 items-start">
+                      <span className="text-[10px] font-black bg-rose-100 text-rose-700 px-1 rounded shrink-0">경고</span>
+                      <p className="leading-relaxed">{advice.pitfalls}</p>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

@@ -112,6 +112,62 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
     }
   }, [isOpen, initialData]);
 
+  // 하단 세부 산출내역의 개별재원을 종합하여 상단 재원 분할에 자동 반영
+  useEffect(() => {
+    const totals: Record<string, number> = {};
+    let hasCustomFunding = false;
+    let customFundingTotal = 0;
+
+    catSubItems.forEach((sub: any) => {
+      if (sub.isCustomFunding && sub.fundingSplits) {
+        hasCustomFunding = true;
+        sub.fundingSplits.forEach((fs: any) => {
+          const amt = Number((fs.amount || '0').replace(/,/g, ''));
+          if (amt > 0) {
+            totals[fs.source] = (totals[fs.source] || 0) + amt;
+            customFundingTotal += amt;
+          }
+        });
+      } else {
+        const subHasCalc = sub.calculations && sub.calculations.length > 0;
+        if (subHasCalc) {
+          sub.calculations.forEach((calc: any) => {
+            if (calc.isCustomFunding && calc.fundingSplits) {
+              hasCustomFunding = true;
+              calc.fundingSplits.forEach((fs: any) => {
+                const amt = Number((fs.amount || '0').replace(/,/g, ''));
+                if (amt > 0) {
+                  totals[fs.source] = (totals[fs.source] || 0) + amt;
+                  customFundingTotal += amt;
+                }
+              });
+            }
+          });
+        }
+      }
+    });
+
+    if (hasCustomFunding) {
+      const targetBudget = Number(catBudget.replace(/,/g, ''));
+      const remaining = targetBudget - customFundingTotal;
+      if (remaining > 0) {
+        totals['구비'] = (totals['구비'] || 0) + remaining;
+      }
+
+      const newSplits = Object.entries(totals).map(([source, amt]) => ({
+        source,
+        amount: amt.toLocaleString()
+      }));
+
+      const currentClean = catFundingSplits.map(s => ({ source: s.source, amount: (s.amount || '0').replace(/,/g, '') })).sort((a,b) => a.source.localeCompare(b.source));
+      const newClean = newSplits.map(s => ({ source: s.source, amount: s.amount.replace(/,/g, '') })).sort((a,b) => a.source.localeCompare(b.source));
+      
+      if (JSON.stringify(currentClean) !== JSON.stringify(newClean) && newSplits.length > 0) {
+        setCatFundingSplits(newSplits);
+      }
+    }
+  }, [catSubItems, catBudget, catFundingSplits]);
+
   const handleAddCategory = (e: React.FormEvent) => {
     e.preventDefault();
     const targetBudget = Number(catBudget.replace(/,/g, ''));
@@ -197,6 +253,8 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
     }
 
     onSave(isEdit || false, editCatId, updates);
+    alert('저장되었습니다.');
+    onClose();
   };
 
   return (
@@ -271,7 +329,7 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
 <option value="기금">기금</option>
 <option value="시비">시비</option>
 <option value="구비">구비</option>
-<option value="특교">특교</option>
+<option value="특별교부세">특별교부세</option>
                     </select>
                     
                     <div className="relative flex-1">
@@ -517,7 +575,7 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
                                      <option value="기금">기금</option>
                                      <option value="시비">시비</option>
                                      <option value="구비">구비</option>
-                                     <option value="특교">특교</option>
+                                     <option value="특별교부세">특별교부세</option>
                                    </select>
                                    <div className="relative w-[130px]">
                                      <input type="text" value={split.amount} onChange={e => {
@@ -594,10 +652,10 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
                                   setCatSubItems(newSubs);
                                 }} className="px-1.5 py-1 text-[11px] bg-white border border-teal-200 rounded font-medium text-teal-800 w-[70px] outline-none">
                                   <option value="국비">국비</option>
-<option value="기금">기금</option>
-<option value="시비">시비</option>
-<option value="구비">구비</option>
-<option value="특교">특교</option>
+                                  <option value="기금">기금</option>
+                                  <option value="시비">시비</option>
+                                  <option value="구비">구비</option>
+                                  <option value="특별교부세">특교</option>
                                 </select>
                                 <div className="relative w-[100px]">
                                   <input type="text" value={split.amount} onChange={e => {

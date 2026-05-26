@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area, CartesianGrid, ComposedChart } from 'recharts';
+import { PieChart, Pie, Cell, LineChart, Line, Bar, ReferenceLine, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area, CartesianGrid, ComposedChart } from 'recharts';
 import { Task, BudgetCategory, BudgetEntry } from '@/types';
 import { usePortfolioAnalytics } from '@/hooks/usePortfolioAnalytics';
 import { Expand, Shrink, ChevronRight, LayoutDashboard, ChevronDown, ChevronUp } from 'lucide-react';
@@ -17,10 +17,10 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
   const [trendTab, setTrendTab] = useState('Growth');
   const [timeFilter, setTimeFilter] = useState('ALL');
   const [expanded, setExpanded] = useState(false);
+  const [chartType, setChartType] = useState<'monthly' | 'cumulative'>('monthly');
   const {
     selectedProject, setSelectedProject,
     expandedCategory, setExpandedCategory,
-    predictionModel, setPredictionModel,
     detailedProjects,
     filteredCategories,
     totalBudget,
@@ -30,10 +30,12 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
     pieData,
     breakdownData,
     allBreakdownData,
-    predictionData,
+    monthlyExecutionData,
+    maxSpendMonth,
+    avgMonthlySpend,
     velocityInsights,
-    nextYearRecommendation,
-    projectedEoy
+    remainingTargetAmount,
+    recommendedMonthlySpendForTarget
   } = usePortfolioAnalytics(budgetCategories, budgetEntries);
 
   const isHchps = appMode === 'HCHPS';
@@ -95,9 +97,9 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
             </select>
           </div>
           
-          <div className="flex-1 w-full h-[250px] grid grid-cols-1 sm:grid-cols-2 items-center mb-6 gap-8 sm:gap-0">
-            <div className="flex justify-center sm:justify-end sm:pr-6 xl:pr-10">
-              <div className="flex-none w-[230px] h-[230px] relative shrink-0">
+          <div className="flex-1 w-full h-[250px] flex flex-col sm:flex-row items-stretch justify-center mb-6 gap-6 sm:gap-8 md:gap-12 lg:gap-16">
+            <div className="w-full sm:w-[260px] h-[250px] flex-shrink-0 flex justify-center items-center">
+              <div className="w-[230px] h-[230px] relative flex-shrink-0">
                 <ResponsiveContainer width="100%" height={230}>
                   <PieChart>
                     <Pie
@@ -134,12 +136,12 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
               </div>
             </div>
 
-            <div className="flex justify-center sm:justify-start sm:pl-6 xl:pl-10 w-full h-full items-center">
+            <div className="flex-shrink-0 flex justify-center sm:justify-start w-full sm:w-[300px] md:w-[340px] lg:w-[360px] h-full items-center min-w-0">
               <div className="w-full max-w-[380px] flex flex-col gap-4 justify-start min-w-0 max-h-[260px] overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin' }}>
                 {breakdownData.map((item, idx) => (
                 <div 
                   key={idx} 
-                  className="group flex items-center w-full p-2 -ml-2 rounded-xl hover:bg-slate-50 transition-colors cursor-default"
+                  className="group flex items-center w-full p-2 -ml-2 rounded-xl hover:bg-slate-50 transition-colors cursor-default min-w-0"
                 >
                   <div className="w-4 h-4 rounded-full shrink-0 mr-3 shadow-sm" style={{ backgroundColor: themeColors[idx % themeColors.length] || '#cbd5e1' }} />
                   <div className="flex flex-col min-w-0 shrink" title={item.formationItem ? `${item.formationItem} - ${item.name}` : item.name}>
@@ -219,72 +221,94 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 relative z-10">
               <div>
                 <h2 className="text-xl font-black text-slate-900 flex items-center gap-3">
-                  Predictive Budget Modeling
+                  Monthly Budget Execution
                 </h2>
-                <p className="text-[13px] font-bold text-slate-400 mt-1">Velocity-based 2027 Allocation Analysis</p>
+                <p className="text-[13px] font-bold text-slate-400 mt-1">Monthly breakdown and cumulative execution trend</p>
               </div>
 
-              {/* Policy Model Toggles */}
-              <div className="flex p-1 bg-slate-50 rounded-xl border border-slate-200/60 shadow-inner">
-                {['conservative', 'baseline', 'aggressive'].map(model => (
-                  <button 
-                    key={model}
-                    onClick={() => setPredictionModel(model as any)} 
-                    className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${predictionModel === model ? `bg-white ${isHchps ? 'text-emerald-600' : 'text-blue-600'} shadow-sm border border-slate-200/50` : 'text-slate-400 hover:text-slate-600 border border-transparent'}`}
-                  >
-                    {model}
-                  </button>
-                ))}
+              {/* Chart Type Toggle Switch */}
+              <div className="flex p-1 bg-slate-50 rounded-xl border border-slate-200/60 shadow-inner shrink-0">
+                <button 
+                  onClick={() => setChartType('monthly')} 
+                  className={`px-3.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${chartType === 'monthly' ? `bg-white ${isHchps ? 'text-emerald-600' : 'text-blue-600'} shadow-sm border border-slate-200/50` : 'text-slate-400 hover:text-slate-600 border border-transparent'}`}
+                >
+                  월별 집행액
+                </button>
+                <button 
+                  onClick={() => setChartType('cumulative')} 
+                  className={`px-3.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${chartType === 'cumulative' ? `bg-white ${isHchps ? 'text-emerald-600' : 'text-blue-600'} shadow-sm border border-slate-200/50` : 'text-slate-400 hover:text-slate-600 border border-transparent'}`}
+                >
+                  누적 집행액
+                </button>
               </div>
             </div>
 
-            {/* KPIs */}
-            <div className="grid grid-cols-2 gap-4 mt-6 relative z-10">
+            {/* KPIs for 11-Month Total Execution Target */}
+            <div className="grid grid-cols-3 gap-2 sm:gap-4 mt-6 relative z-10">
               <div className="flex flex-col">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">PROJECTED EOY EXECUTION</span>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-2xl font-black text-slate-800 leading-none">{projectedEoy.toFixed(1)}</span>
-                  <span className="text-sm font-bold text-slate-400">%</span>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 truncate">PEAK SPENDING</span>
+                <div className="flex flex-col sm:flex-row sm:items-baseline gap-0.5 sm:gap-1">
+                  <span className="text-xl font-black text-slate-800 leading-none">{maxSpendMonth.month}</span>
+                  <span className="text-[11px] font-bold text-slate-500 truncate">({maxSpendMonth.amount.toLocaleString()}원)</span>
                 </div>
               </div>
-              <div className="flex flex-col items-end sm:items-start">
-                <span className={`text-[10px] font-black ${isHchps ? 'text-emerald-600' : 'text-blue-600'} uppercase tracking-widest mb-1`}>2027 RECOMMENDED BUDGET</span>
-                <div className="flex items-baseline gap-1">
-                  <span className={`text-2xl font-black ${isHchps ? 'text-emerald-600' : 'text-blue-600'} leading-none tracking-tight`}>{nextYearRecommendation.toLocaleString()}</span>
-                  <span className={`text-sm font-bold ${isHchps ? 'text-emerald-400' : 'text-blue-400'}`}>KRW</span>
+              <div className="flex flex-col items-center sm:items-start border-l border-slate-100 pl-2">
+                <span className={`text-[10px] font-black ${isHchps ? 'text-emerald-600' : 'text-blue-600'} uppercase tracking-widest mb-1 truncate`}>REQ. SPEND / MO (11월)</span>
+                <div className="flex items-baseline gap-0.5 sm:gap-1 flex-wrap">
+                  <span className={`text-[15px] sm:text-xl font-black ${isHchps ? 'text-emerald-600' : 'text-blue-600'} leading-none tracking-tight`}>{Math.round(recommendedMonthlySpendForTarget).toLocaleString()}</span>
+                  <span className={`text-[10px] font-bold ${isHchps ? 'text-emerald-400' : 'text-blue-400'}`}>원</span>
+                </div>
+              </div>
+              <div className="flex flex-col items-end sm:items-start border-l border-slate-100 pl-2">
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 truncate">REMAINING TARGET</span>
+                <div className="flex items-baseline gap-0.5 sm:gap-1 flex-wrap">
+                  <span className="text-[15px] sm:text-xl font-black text-slate-900 leading-none tracking-tight">{remainingTargetAmount.toLocaleString()}</span>
+                  <span className="text-[10px] font-bold text-slate-400">원</span>
                 </div>
               </div>
             </div>
 
-            {/* Regression Chart */}
-            <div className="flex-1 mt-6 relative min-h-0">
-              <ResponsiveContainer width="100%" height={250} minHeight={250}>
-                <ComposedChart data={predictionData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+            {/* Monthly Trend Chart */}
+            <div className="flex-1 mt-6 relative min-h-0 w-full h-full">
+              <ResponsiveContainer width="100%" height="100%" minHeight={385}>
+                <ComposedChart data={monthlyExecutionData} margin={{ top: 25, right: 10, left: -20, bottom: 0 }}>
                   <defs>
-                    <linearGradient id="colorActual" x1="0" y1="0" x2="0" y2="1">
+                    <linearGradient id="colorCumulative" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor={isHchps ? '#10B981' : '#3B82F6'} stopOpacity={0.2}/>
                       <stop offset="95%" stopColor={isHchps ? '#10B981' : '#3B82F6'} stopOpacity={0}/>
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 700 }} dy={10} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 700 }} tickFormatter={(val) => `${(val / 1000000).toFixed(0)}M`} />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 700 }} 
+                    tickFormatter={(val) => `${(val / 1000000).toFixed(0)}M`} 
+                  />
                   <RechartsTooltip 
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px -4px rgb(0 0 0 / 0.1)', backgroundColor: 'rgba(255, 255, 255, 0.95)' }}
                     itemStyle={{ fontSize: '12px', fontWeight: '900' }}
                     labelStyle={{ fontSize: '10px', color: '#94a3b8', marginBottom: '4px', fontWeight: 'bold' }}
                     formatter={(value: any, name: any) => {
-                      let label = 'Actual';
-                      if (name === 'predicted_aggressive') label = 'Aggressive Prediction';
-                      if (name === 'predicted_baseline') label = 'Baseline Prediction';
-                      if (name === 'predicted_conservative') label = 'Conservative Prediction';
+                      if (name === 'targetCumulative') return [`${Number(value).toLocaleString()} KRW`, '11월 100% 소진 목표선'];
+                      const label = chartType === 'cumulative' ? '누적 집행액' : '월별 집행액';
                       return [`${Number(value).toLocaleString()} KRW`, label];
                     }}
                   />
-                  <Area type="monotone" dataKey="actual" stroke={isHchps ? '#10B981' : '#3B82F6'} strokeWidth={3} fillOpacity={1} fill="url(#colorActual)" activeDot={{ r: 5, fill: isHchps ? '#10B981' : '#3B82F6', stroke: '#fff', strokeWidth: 2 }} />
-                  <Line type="monotone" dataKey="predicted_aggressive" stroke={predictionModel === 'aggressive' ? '#ef4444' : '#fca5a5'} strokeWidth={predictionModel === 'aggressive' ? 3 : 1.5} strokeDasharray="6 6" strokeOpacity={predictionModel === 'aggressive' ? 1 : 0.4} dot={false} activeDot={{ r: 4, fill: '#ef4444', stroke: '#fff' }} />
-                  <Line type="monotone" dataKey="predicted_baseline" stroke={predictionModel === 'baseline' ? (isHchps ? '#10b981' : '#3b82f6') : '#94a3b8'} strokeWidth={predictionModel === 'baseline' ? 3 : 1.5} strokeDasharray="6 6" strokeOpacity={predictionModel === 'baseline' ? 1 : 0.4} dot={false} activeDot={{ r: 4, fill: isHchps ? '#10b981' : '#3b82f6', stroke: '#fff' }} />
-                  <Line type="monotone" dataKey="predicted_conservative" stroke={predictionModel === 'conservative' ? '#10b981' : '#6ee7b7'} strokeWidth={predictionModel === 'conservative' ? 3 : 1.5} strokeDasharray="6 6" strokeOpacity={predictionModel === 'conservative' ? 1 : 0.4} dot={false} activeDot={{ r: 4, fill: '#10b981', stroke: '#fff' }} />
+                  
+                  {/* 11월 100% 소진 마감일 세로 가이드라인 - insideTop과 offset 조정으로 텍스트 잘림 방지 */}
+                  <ReferenceLine x="Nov" stroke="#ef4444" strokeDasharray="4 4" strokeWidth={2} label={{ value: "11월 예산 마감", fill: "#ef4444", fontSize: 9, fontWeight: 'bold', position: 'insideTop', offset: 15 }} />
+                  
+                  {chartType === 'monthly' ? (
+                    <Bar dataKey="monthly" fill={isHchps ? '#34D399' : '#60A5FA'} radius={[4, 4, 0, 0]} barSize={16} />
+                  ) : (
+                    <>
+                      {/* 선형 100% 소진 가이드 점선 */}
+                      <Line type="monotone" dataKey="targetCumulative" stroke="#cbd5e1" strokeWidth={1.5} strokeDasharray="5 5" dot={false} activeDot={false} />
+                      <Area type="monotone" dataKey="cumulative" stroke={isHchps ? '#10B981' : '#3B82F6'} strokeWidth={3} fillOpacity={1} fill="url(#colorCumulative)" activeDot={{ r: 5, fill: isHchps ? '#10B981' : '#3B82F6', stroke: '#fff', strokeWidth: 2 }} />
+                    </>
+                  )}
                 </ComposedChart>
               </ResponsiveContainer>
             </div>

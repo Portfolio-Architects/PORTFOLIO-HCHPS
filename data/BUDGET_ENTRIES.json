@@ -107,7 +107,8 @@
     "purpose": "공공 PT 프로그램 운영 용품 구매비",
     "memo": "",
     "actionType": "daily_expense",
-    "docRegNum": "보건행정과-1644"
+    "docRegNum": "보건행정과-1644",
+    "_enc": "QhJCjtJgbQ5LP2n28FH2sHzhyp0VEwy+q24r7WcGe83Eba0aNFtz4OIaYsJ0X1nq884ZdL8SMLtw9xjWqHWASL6p3SM52iq2xTeIvXBy9g4RIwloyD+d6kNtnamlJCZNO6MqT9jWlXjKbsQ+PhLh3k+HynrLNHE2uwEe45eBBByLJIPwhYJ5KPaMa8iCG6SIGUxhcJlj4np1t7M1OhOH2v5n47o0GDtj1xFzrDejYUex5Ci2p5xYCQyb92DAr/g6HOEulKydq7mETA83hEpX33v2qmp26A3tZWRW3BnLGDCjOaay9+bZfKlrOcifhQXMpupOaONL3URoyTO36AW44BtDbJNeYNUWnIFe"
   },
   {
     "id": "mnshxrik20lkudha9",
@@ -117,7 +118,8 @@
     "purpose": "헬스체크업 사업 안내 리플릿 제작비",
     "memo": "",
     "actionType": "daily_expense",
-    "docRegNum": "보건행정과-3380"
+    "docRegNum": "보건행정과-3380",
+    "_enc": "/P60hdA6lj0igcbl0Iz9t+N6xwKzyBYLWSXGEGk/GwbmySaX0AreIJ5G3LMqtgQv46ps+4SX9FuDu//fsXvuDEUP2dVWUTET6EfXqcoRgVYcxCGpnFGnEQzjzl4GUYeCWqpUkxpzeCx4ffKSOfg/O0Qm6PgITeP1DmTDbdBpox8v9YKxnsP7kUJviLKULEcD7OCyN7mDBq/SjC78TMSUKYUuwFa2924FR50EzXpQJWwjy2YQWFwIV3HOBFFvgBrdUqeKwZP2r9y/uXnPqtXfgOcTlaXpfpjQUFUsLg0Jfur+UtVRBgP22yjgvOWLoq7Q+HKwqNDP8wU3FzB4ym3ZiWTxiSo3shv1IMS90DgR5w=="
   },
   {
     "id": "mnsi256u8mzxj33y4",
@@ -169,7 +171,7 @@
     "memo": "유실된 예산 데이터를 임시로 생성했습니다.",
     "actionType": "issuance",
     "docRegNum": "",
-    "_enc": "TCqUc9cSl5DCITDZCc/YFic99QPMoeYIucP01/jKh3QiviRyzta080Ldila8MDVBgnNz0e5hoUh5V1Qwpjffy+ctV9jZD471YZX9eizCkzeFxGv8TVQwWwkHSs213Xoe/v1McFcWhBjoXGBKlpj1l8AvoIAhxvnT8yIOyOrQvm++fXGGMpNvRo6cgNla09sO/dxlIKkGt1OjV9I6JWcSEy5YFthJnghEB3QVD38y4EYmpvOvl62YvDgxW8DLhG1dNTJPIF960TYoPZOu5g+ouZHOYEJS+5t6eSEmQ1pEY7DR3kseEDoDpaH2cng8RKM="
+    "_enc": "ZowiFXVBnCINUPuWynh/qBGksdjvEfAM5hitjDF3NZ8CVsbdEfLjr91+kPcxll2gAocZQ4yiBhMX/NoMPUjiyO5ri5m1eBzIXEsmrDXeWuUEx80KngQP/LX2YKJfAcVeOEdIACbmcpY1jpeMe4zhEbfkjWe5nRcGRL/mbITPSnlORBoFAtKvgaxzGqHS2l/qFKga9chjTZ7B/XXHfUGcKfg32zDZOlegJtW1sLIqLw4+jitK251YOJczU9WCZmI7eVJXOXRakLipe4AOLPadHd8riZ+OD2jmeNjF0AuPvaVlCmrMpOvzDevDU+9zYyI="
   },
   {
     "id": "mpgm7fi4g76ijebh1",
@@ -177,11 +179,11 @@
   },
   {
     "id": "mpgmggdbzz5l3teun",
-    "_enc": "rkjkxyriZ3kHSCYVtKz3S82Acycszwp7QM4hRqD5GRJlq/X8orRfNl6R7jmm2J+x4WwiU8Rm2V8jNiUV8QwgVEMlddRZAWsfJ1a1fIdQw8H+lNnIhLJ5b2OpVYgg88Ao3QQWNE720oFh4uzEJmq9jANma/Y7JLhqAcsf3GvthRHyGRY4DLMb4VCJUdmI3xjeopUMYyiIKLGUce2qMVrTrK6mFB32AekvLbLCclYw4cn+QTMir2P2KnF+U+582FS3LAJN4upZvzWNDEqwenfUP8Eu41AGbI+y7vtKoc+kpHUZd2RFOynDnvO25ZIQTxtPFSI5ff5snVdmoDg+FGG6369Sm9bRoqv9mrs33RLZSJE="
+    "_enc": "2VJu/UASYRYl4HBnty0U04RUQN7lRjJS6Ly5MCrBUywYhtYW6WJx/Qkve4OoFvmwUfxeYx6cEPLwY1UzeDI20x2H4T9NVeyYdlcKYwKQZHwttEUjqVAf7F2Vnh8AwTY7LmO+VnPCiVw8IiGwOdZL9eQHFBUep4y3u7VX6sHIc0X5rQSe5UaGow8hhpg8j8i7TAZuqddSlFr+8vOOcA13DcgMiLE5R+OGZRk4HKAw3mHOJcV5fKPID6jv3Vwouc4/pjVxyUUuXeT242V6bC8FU//XLiSEfWIfQwes6GgxOVy/RliaU8RrVaS3SeYdlcVckbLWWrk3i9StJ+j8W1i+K7GN/j00xqf7x3fS04dpvrRNNrfXGMfrF0ZwegT5G8bSIGSOREAFHuuTpBzvpta7qoHbqkA="
   },
   {
     "id": "mpgmhlei34m5nrsm8",
-    "_enc": "7icu+WZoJ1vTTOxSAZnn37bPKhj8BuS1OANhaaREMrw/m6yJfqJuLMaHYYUXGQUkGaNFd4L8ahzwnWXSu+016S+tHI5SnXu+c6Js6WOEtOwdV92DwrsbXi0QIpIPHZgddbfRn6V6SIAO+wZ35dtIZI1+6mv3NYyWnI2CJQ9m257CcrLEPtlWO9XtAIZpsuW/bV9/jmWEhxcmAH9BKiZ3i0CdwqWIMKGxjA5JHJ67k5PftiQrrXPNU2FgDwmvbf+xQuLwCI8fUxC8RnBiTMj4GIpoLgqVUvtLX0zCPMDZcIueE/1SAG5L5oxllhdG2kZ5WfRGP07NHx5L3Nt7cxkd6rOigPKc32Ne2l/D"
+    "_enc": "k4FWI0fFOhoWjR8xq48J72YOzWiV5tSgt7Kxz5PltIyYx/7lxKyjcrlycXcrjK2fCpXhQUmKurG5MSnIrRVr1uW6GavHMPzj/hO2SHLCH+7t1KgLUOVsj4+RmaiABSEr/7n3SmiBzLnK91jscUiWfoUMLKtp2EyVdf1OjsOJC/j+i65e1ELIrvISNmenLMeZsgqmzxbds7v98B9rgA5GgqnCAFba0bg8mB7IDcg8vuotcwDIcGt+s9QWkCBcarrd4vmtFKuQBCZ85lE0Ztilv/apa5Ypcg/eR16z9QIs1V8bprb8wbwDnpbNZuDSVJxtN/PRtcbWuM262BAEhp4xQS+j2wOEfk1XgVy48fAt5fzqsPaoY3jTYTdskiYoWhisHwjOEEeBRwRn3erMs3uz"
   },
   {
     "id": "mpgmjmr9j2v8owi3c",

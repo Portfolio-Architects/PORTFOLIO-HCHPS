@@ -1,46 +1,6 @@
 [
   {
     "id": "singleton",
-    "blocks": [
-      {
-        "id": "1d3e3c1e-a6f2-4099-96a7-75a8549e2832",
-        "type": "paragraph",
-        "props": {
-          "backgroundColor": "default",
-          "textColor": "default",
-          "textAlignment": "left"
-        },
-        "content": [
-          {
-            "type": "text",
-            "text": "01022659559",
-            "styles": {}
-          }
-        ],
-        "children": []
-      },
-      {
-        "id": "dfe427ef-0bf9-43a0-9769-1162ee857fb6",
-        "type": "paragraph",
-        "props": {
-          "backgroundColor": "default",
-          "textColor": "default",
-          "textAlignment": "left"
-        },
-        "content": [],
-        "children": []
-      },
-      {
-        "id": "7a49f9d5-826c-4074-aa54-31047f15882a",
-        "type": "paragraph",
-        "props": {
-          "backgroundColor": "default",
-          "textColor": "default",
-          "textAlignment": "left"
-        },
-        "content": [],
-        "children": []
-      }
-    ]
+    "_enc": "jhT+KPYrgfDvA8vaBhkXJDJ7M5SXAepqvSU5R/RAaTGne17JctAe/xBxzFs8qwQo6QUVJ5JDrXWOl6A3+gPgufRiZonI786wzXPqaAMrjl3RGS2CiDx4wlWElTmQxgimvo10d2aqa29KDNHu2Z5eEqx2ptnAOj4DS3Qz5n0dy2uXZ+MBK5XRjgHB/PpGlms/+LcbuHMi5KWU27Ue+zDZD7NnswICkrQyn5fX0R2zNc05FO24jXLC3hbjwBjBdcKwnIiOdqn8Baqe4gUjV82LZy7jUBotIAbD6cn7Sg+lKstZNV3g61mMRh/iHy8ZxihWnRhBQLzrICI7gMa13nfk/Xj1+2ai++R0EvgaiHBJcz3vbQ+CsOROV1L4BL+YSmCZ2cHe7zPyuOz148q8SZE92B4cYMS0WGMT/k8D2zm8j5HHvgIeCOEvKatXQiOnnmsjbrgjEnj/2WRlt903kfMl3BA90uTNpQLLQr1kQA2MTAmvzKZIg+JJgjh72euxBEsKx+QMKNTU3kwA2SFe5K07qmyURUOjJQat/RkH91fJSXrh56OnivmMrMpFxa3c40Nc3HbQrynnDsuAg5AYchzOyWbeVKNwqC5ANhpNGJvGAzmXcnfGv9LqZ7S4GsdQ9AvitYvvJ2lRrMKj2P1LWOmiomNHsoHDaBMOOBhjjZhUU62ObuahO/rr6Rvl2+YLRhhXOK1A8Y0p8CZHqKyDnNiQSpDhHi6rfI7VvNZJLZeSWmDu0iOtIqEU4oYay9vFNf4UAn3WK5dLg+QqsEsizuICs1P9e52uXq/gJybHb1S7t6UyrmyQGA=="
   }
 ]

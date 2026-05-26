@@ -18,7 +18,7 @@ import { QuickInput } from '@/components/QuickInput';
 import { WorkspaceView } from '@/components/WorkspaceView';
 import { MindMap3D } from '@/components/MindMap3D';
 import { PortfolioDashboardView } from '@/components/dashboard/PortfolioDashboardView';
-import { TaskKnowledgeView } from '@/components/TaskKnowledgeView';
+import { TaskWisdomView } from '@/components/TaskWisdomView';
 import { SearchResultModal } from '@/components/SearchResultModal';
 import { AlertTriangle, RefreshCw, Sparkles, X, Settings } from 'lucide-react';
 import { useSecurityLock } from '@/hooks/useSecurityLock';
@@ -229,7 +229,7 @@ function ProtectedApp({ appMode, onModeChange }: ProtectedAppProps) {
 
       case 'knowledge':
         return (
-          <TaskKnowledgeView
+          <TaskWisdomView
             tasks={tasks}
             addTask={addTask}
             updateTask={updateTask}
