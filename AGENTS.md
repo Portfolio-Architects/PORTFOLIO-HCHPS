@@ -26,6 +26,10 @@ Cloudflare 백엔드(`functions/api/*.ts`)는 CORS를 엄격하게 강제합니�
 - `http://localhost:3001`
 이 헤더들을 업데이트하지 않고 localhost 포트를 `3001`에서 절대 변경하지 마십시오.
 
+### D. 로컬 개발 환경 가동 및 중요 문서 노출 규칙
+1. **로컬 개발 서버 기동 시 문서 아티팩트 자동 노출**: 로컬 개발 서버를 오픈/실행하는 작업을 인지하거나 수행할 때, 개발 컨텍스트 유지와 에이전트 준수 규칙을 즉시 모니터링하기 위하여 반드시 `PORTFOLIO HCHPS - Engineering Report.md` 파일과 `AGENTS.md` 파일을 우측 아티팩트 사이드바(Artifact Sidebar)에 띄워야 합니다.
+
+
 ## 3. 다중 에이전트 파이프라인 맵
 - `src/lib/agents/planner.ts`: 작업 분해 및 컨텍스트 검색.
 - `src/lib/agents/generator.ts`: 실행 및 코드 합성.
