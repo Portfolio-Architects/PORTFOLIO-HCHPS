@@ -40,12 +40,12 @@
 
 | 지표 | 수치 |
 |------|------|
-| TypeScript/TSX 파일 수 | **73개** |
-| 총 코드 라인 수 | **~13,000줄** |
-| 총 커밋 수 | **189** |
-| 컴포넌트 모듈 | **6개** (budget, inventory, knowledge, report, ui, workspace — 총 22개 컴포넌트) |
+| TypeScript/TSX 파일 수 | **88개** (38 TSX, 50 TS) |
+| 총 코드 라인 수 | **~15,000줄** |
+| 총 커밋 수 | **246** |
+| 컴포넌트 모듈 | **9개** (ai, budget, dashboard, inventory, knowledge, meeting, mindmap, project, ui — 총 33개 파일) |
 | 로컬 서버 함수 (API Routes) | **2개** (api/data, llm/chat) |
-| 커스텀 훅 | **11개** |
+| 커스텀 훅 | **20개** |
 | 라이브러리 계층 | **4개** (lib, hooks, types, party) |
 | 엔진 하위 모듈 | **4개** (OntologyCanvasEngine, OntologyLayout, OntologyNetwork, OntologyRenderer) |
 | 도메인 타입 | **10개** (Task, BudgetEntry, InventoryItem, Meeting, Project, KnowledgeEntry, DocumentEntry, OntologyNode, OntologyEdge, OntologyGroup) |
@@ -59,8 +59,8 @@ graph TB
     subgraph Client["클라이언트 계층 (React 19)"]
         Page["page.tsx (SPA 진입점)"]
         Sidebar["Sidebar (모듈 네비게이션)"]
-        Views["WorkspaceView / TaskKnowledgeView / MindMap3D"]
-        Components["20개 기능 컴포넌트"]
+        Views["WorkspaceView / TaskWisdomView / MindMap3D"]
+        Components["30개 이상 기능 컴포넌트"]
     end
 
     subgraph Engine["온톨로지 캔버스 엔진 (Vanilla TS)"]
@@ -119,21 +119,18 @@ src/
 │   │   └── data/       → Next.js 로컬 API 데이터 입출력 라우터 (route.ts)
 │   ├── llm/
 │   │   └── chat/       → Next.js 로컬 LLM 통신 및 백오프 재시도 라우터 (route.ts)
-├── components/         → 기능별 UI (20개 컴포넌트)
-│   ├── budget/         → BudgetDashboard
-│   ├── inventory/      → InventoryList
-│   ├── knowledge/      → KnowledgeList
-│   └── ui/             → Badge, Card, Modal, ProgressBar
-│   ├── CalendarView.tsx, DashboardView.tsx, DynamicForceGraph.tsx
-│   ├── MindMap3D.tsx (온톨로지 캔버스 호스트 — 1,334줄)
-│   ├── QuickInput.tsx, SearchResultModal.tsx, Sidebar.tsx
-│   ├── TaskKnowledgeView.tsx, TaskList.tsx, TaskModal.tsx
+├── components/         → 기능별 UI (총 33개 파일)
+│   ├── ai/, budget/, dashboard/, inventory/, knowledge/, meeting/, mindmap/, project/, ui/
+│   ├── AddDataModal.tsx, CrmDashboardView.tsx, DynamicForceGraph.tsx
+│   ├── MindMap3D.tsx, MindMapInspector.tsx, QuickInput.tsx, SearchResultModal.tsx
+│   ├── SecurityLockScreen.tsx, Sidebar.tsx, TaskModal.tsx, TaskWisdomView.tsx
 │   ├── WeeklyReportView.tsx, WikiEditor.tsx, WorkspaceView.tsx
-├── hooks/              → 11개 커스텀 훅 (도메인 + 동기화)
-│   ├── useTasks.ts, useBudget.ts, useInventory.ts, useKnowledge.ts
-│   ├── useMeetings.ts, useProjects.ts, useSignal.ts
-│   ├── useGoogleSheet.ts, useGraphCustomization.ts
-│   ├── useWikiStorage.ts, useYjsStore.ts
+├── hooks/              → 20개 커스텀 훅 (도메인 + 동기화 + 분석 + AI)
+│   ├── useTasks.ts, useBudget.ts, useInventory.ts, useKnowledge.ts, useMeetings.ts
+│   ├── useProjects.ts, useSignal.ts, useGoogleSheet.ts, useGraphCustomization.ts
+│   ├── useWikiStorage.ts, useYjsStore.ts, useAIChat.ts, useBossSchedule.ts
+│   ├── useBudgetFilters.ts, useGlobalSearch.ts, useMergedSignals.ts, useNotificationAlerts.ts
+│   ├── usePortfolioAnalytics.ts, useScheduleAlerts.ts, useSecurityLock.ts
 ├── lib/                → 핵심 라이브러리 (20개 모듈)
 │   ├── engine/         → OntologyLayout, OntologyNetwork, OntologyRenderer
 │   ├── OntologyCanvasEngine.ts (상태 컨트롤러 — 712줄)
@@ -155,7 +152,7 @@ src/
 | 모듈 | 뷰 컴포넌트 | 설명 |
 |------|------------|------|
 | 워크스페이스 | `WorkspaceView.tsx` | 업무, 캘린더, 예산, 재고, 문서 관리를 통합한 대시보드 |
-| 지식 베이스 | `TaskKnowledgeView.tsx` | 태그 기반 분류 및 문맥 연결을 지원하는 지식 관리 시스템 |
+| 업무 암묵지 | `TaskWisdomView.tsx` | Zod 기반 확장 스키마 및 AI 노하우 추출을 지원하는 암묵지 아카이브 모듈 |
 | 시그널 맵 | `MindMap3D.tsx` | 수동 핀 배치 방식의 방사형 시맨틱 그래프 인터랙티브 캔버스 |
 | 위키 | `WikiEditor.tsx` | BlockNote 기반 리치 텍스트 에디터로 노드별 지식 페이지 작성 |
 | 주간 보고 | `WeeklyReportView.tsx` | LLM 추출 기반 주간 보고서 및 CRM 크로스 동기화 모듈 |
@@ -168,7 +165,7 @@ src/
 | `inventory/` | 1 | InventoryList (예산 항목 연동 재고 추적) |
 | `knowledge/` | 1 | KnowledgeList (태그 시스템 기반 검색형 지식 베이스) |
 | `ui/` | 4 | Badge, Card, Modal, ProgressBar |
-| 핵심 뷰 | 12 | MindMap3D, WorkspaceView, TaskList, TaskModal, CalendarView, DashboardView, QuickInput, SearchResultModal, Sidebar, TaskKnowledgeView, WeeklyReportView, WikiEditor, DynamicForceGraph |
+| 핵심 뷰 | 15 | MindMap3D, WorkspaceView, TaskList, TaskModal, CalendarView, DashboardView, QuickInput, SearchResultModal, Sidebar, TaskWisdomView, WeeklyReportView, WikiEditor, DynamicForceGraph, CrmDashboardView, MindMapInspector |
 
 ### 로컬 API 엔드포인트
 
@@ -184,7 +181,7 @@ src/
 | `useTasks` | 업무 CRUD, 우선순위/상태 관리, 반복 일정 엔진 |
 | `useBudget` | 예산 카테고리 추적, 품의/결의 플로우 |
 | `useInventory` | 재고 수준 관리, 예산 항목 교차 참조 |
-| `useKnowledge` | 태그 기반 분류를 포함한 지식 베이스 CRUD |
+| `useKnowledge` | Zod 확장 필드를 포함한 업무 암묵지 CRUD 및 가이드라인 추출 지원 |
 | `useMeetings` | 회의 일정 관리, 안건/회의록 기록 |
 | `useProjects` | 프로젝트 체크리스트 관리 및 진행률 추적 |
 | `useSignal` | NLP 키워드 추출 파이프라인 + 시그널 데이터 집계 |
@@ -192,6 +189,15 @@ src/
 | `useGraphCustomization` | `useSyncExternalStore` + 16ms 디바운스 기반 Yjs 그래프 오버라이드 스토어 |
 | `useWikiStorage` | 노드별 BlockNote 위키 콘텐츠 영속성 관리 |
 | `useYjsStore` | Yjs 문서 + PartyKit WebSocket 프로바이더 생명주기 |
+| `useAIChat` | Gemma 로컬 AI와의 채팅 대화 처리 및 응답 스트리밍 |
+| `useBossSchedule` | 임원/결재선 일정 트래킹 및 CRM 결재 최적 시점 분석 지원 |
+| `useBudgetFilters` | 예산 대시보드 내 카테고리 및 검색 필터 관리 |
+| `useGlobalSearch` | 전체 모듈(업무, 예산, 지식, 비품) 대상 통합 실시간 검색 |
+| `useMergedSignals` | 시그널 맵 노드 구성을 위해 다중 모듈 데이터를 통합 시맨틱 인덱싱 |
+| `useNotificationAlerts` | 일정 및 리액션 시그널 알림 스케줄링 및 푸시 처리 |
+| `usePortfolioAnalytics` | 포트폴리오 자산 구조적 볼록성 및 지능형 집행 예측 |
+| `useScheduleAlerts` | 마감 임박 업무 및 긴급 회의 일정 알림 연산 |
+| `useSecurityLock` | PIN 코드 인증 세션 및 데이터 zero-trust 보호 계층 관리 |
 
 ---
 
