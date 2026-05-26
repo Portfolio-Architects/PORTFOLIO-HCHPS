@@ -334,6 +334,9 @@ sequenceDiagram
 - **eslint.config.mjs 및 MindMapInspector.tsx Linter 리팩토링 (2026-05-26)**:
   - `eslint.config.mjs`의 `globalIgnores`에 `**/*.js`, `scratch/**`, `scripts/**`를 추가하여, 로컬 임시 스크립트나 빌드 스크립트 내 CommonJS `require()` 사용으로 발생하는 타입스크립트 import 경고 및 린트 오류를 원천 차단.
   - `MindMapInspector.tsx`에서 렌더 타임 중 `ref.current`에 직접 접근하여 발생한 `react-hooks/refs` 린트 경고 문제를 React `useState`와 `useEffect` 훅을 활용한 상태 기반 데이터 갱신 구조로 리팩토링하여 해소. 로컬 린트 및 unit test (`npm run test`) 통과 검증 완료.
+- **Cloudflare Pages 자동 배포 연동 해제 (2026-05-26)**:
+  - VITAL 아키텍처의 로컬 스토리지 단 단일화(SSOT) 변경으로 인해 불필요해진 Cloudflare Pages 서버리스 환경 대상 자동 배포 통합을 GitHub App 차단(Suspend/Uninstall)을 통해 비활성화 처리.
+  - 이로써 불필요한 빌드 리소스 소모 및 로컬 DB 파일 시스템 미지원으로 인한 배포 빌드 교착 현상을 해소함.
 
 ---
 
