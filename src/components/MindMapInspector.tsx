@@ -40,9 +40,33 @@ export function MindMapInspector(props: MindMapInspectorProps) {
     initEngine, handleSwapNodeOrder, clearNodeOverride, isOverlay
   } = props;
 
-  const connectedEdges = activeNode && engineRef.current
-    ? (engineRef.current as any).getConnectedEdges(activeNode.id) as Array<{ edge: OntologyEdge; otherNode: OrbitalNode }>
-    : [];
+  const [connectedEdges, setConnectedEdges] = React.useState<Array<{ edge: OntologyEdge; otherNode: OrbitalNode }>>([]);
+  const [parentLabel, setParentLabel] = React.useState<string | null>(null);
+  const [engineNodes, setEngineNodes] = React.useState<OrbitalNode[]>([]);
+
+  React.useEffect(() => {
+    if (engineRef.current) {
+      setEngineNodes(engineRef.current.nodes || []);
+      if (activeNode) {
+        const edges = (engineRef.current as any).getConnectedEdges(activeNode.id) as Array<{ edge: OntologyEdge; otherNode: OrbitalNode }>;
+        setConnectedEdges(edges || []);
+        
+        if (activeNode.parentId) {
+          const parent = engineRef.current.nodes.find((n: OrbitalNode) => n.id === activeNode.parentId);
+          setParentLabel(parent ? parent.label : null);
+        } else {
+          setParentLabel(null);
+        }
+      } else {
+        setConnectedEdges([]);
+        setParentLabel(null);
+      }
+    } else {
+      setEngineNodes([]);
+      setConnectedEdges([]);
+      setParentLabel(null);
+    }
+  }, [activeNode, engineRef]);
 
   const uniqueConnectedEdges = React.useMemo(() => {
     const seen = new Set<string>();
@@ -155,7 +179,7 @@ export function MindMapInspector(props: MindMapInspectorProps) {
                           {(activeNode.orbitIndex === 1 || (activeNode.parentId && activeNode.parentId !== 'root-HCHPS')) && (
                             <>
                               <span className="text-emerald-600 font-medium truncate">
-                                📁 카테고리: {activeNode.orbitIndex === 1 ? '메인' : (engineRef.current?.nodes.find((n: OrbitalNode) => n.id === activeNode.parentId)?.label || (activeNode.parentId?.startsWith('tag-') ? activeNode.parentId.replace('tag-', '') : '지정됨'))}
+                                 📁 카테고리: {activeNode.orbitIndex === 1 ? '메인' : (parentLabel || (activeNode.parentId?.startsWith('tag-') ? activeNode.parentId.replace('tag-', '') : '지정됨'))}
                               </span>
                             </>
                           )}
@@ -262,13 +286,13 @@ export function MindMapInspector(props: MindMapInspectorProps) {
                                 <option value="NONE">❌ 연결 해제 (독립된 맵으로 고립)</option>
                                 
                                 {/* 렌더링 되지 않는 고스트(삭제/강등된) 부모 노드 처리를 위한 명시적 Option 주입 */}
-                                {(activeNode.parentId && activeNode.parentId !== 'root-HCHPS' && !engineRef.current?.nodes.some((n: OrbitalNode) => n.id === activeNode.parentId)) && (
-                                  <option value={activeNode.parentId}>
-                                    👻 현재 맵에 없는 이전 부모 ({activeNode.parentId.replace('tag-', '').replace('custom-', '')})
-                                  </option>
-                                )}
+                                 {(activeNode.parentId && activeNode.parentId !== 'root-HCHPS' && !engineNodes.some((n: OrbitalNode) => n.id === activeNode.parentId)) && (
+                                   <option value={activeNode.parentId}>
+                                     👻 현재 맵에 없는 이전 부모 ({activeNode.parentId.replace('tag-', '').replace('custom-', '')})
+                                   </option>
+                                 )}
 
-                                {engineRef.current?.nodes
+                                 {engineNodes
                                    .filter((n: OrbitalNode) => {
                                       // If this is the currently selected parent, always show it so the select doesn't break
                                       if (n.id === activeNode.parentId) return true;

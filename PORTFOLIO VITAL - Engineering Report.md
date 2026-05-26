@@ -283,19 +283,19 @@ sequenceDiagram
 
 ## 8. 최근 엔지니어링 마일스톤 (요약)
 
-### 🧠 업무 암묵지 & 노하우 아카이브 (Task Wisdom Hub) 구축
+### 업무 암묵지 & 노하우 아카이브 (Task Wisdom Hub) 구축
 * **메모장 기능의 전면 개편**: 기존의 단순 텍스트 메모장이던 "메모장" 탭을 폐기하고, 업무 처리 내역의 노하우(암묵지)를 포착하여 연동할 수 있는 **"업무 암묵지" (Task Wisdom Hub)** 모듈을 신설 및 통합하였습니다.
 * **구조화된 암묵지 스키마 설계**: `KnowledgeEntry` 스키마 및 Zod 검증 체계를 확장하여 `linkedTaskIds`, `linkedProjectIds`, `steps` (실행 단계 로드맵), `pitfalls` (경고 및 주의사항) 속성을 새롭게 지원합니다.
 * **AI Wisdom Extractor 탑재**: 사용자가 붙여넣은 메신저 대화나 터미널 기록, 피드백 원문 등에서 업무 노하우와 절차, 주의사항을 추출해 JSON 구조로 정제하는 로컬 Gemma AI 연동 파이프라인을 탑재하여 폼을 자동 완성시킵니다.
 * **업무 모달(TaskModal) 양방향 통합**: 개별 업무 상세 조회(TaskModal) 시, 해당 업무에 연동되어 있는 암묵지 실행 가이드(Steps)와 주의사항(Pitfalls) 경고창이 자동으로 즉시 조회되어 업무를 진행할 때 이전 노하우를 까먹지 않도록 설계했습니다.
 * **대시보드 도넛 차트 정렬 개선**: `Budget Allocation` 패널 내 도넛 그래프와 범례(세부사업 목록)를 가로/세로 중앙 정렬(`justify-center` 및 반응형 고정 너비)하여 시각적 불균형을 완전 해소했습니다.
 
-### 🔧 로컬 개발 환경 및 데이터 네트워크 영속성 복구 (Troubleshooting)
+### 로컬 개발 환경 및 데이터 네트워크 영속성 복구 (Troubleshooting)
 - **HMR 캐시 충돌 및 JSX 렌더링 에러 해결:** `PortfolioDashboardView.tsx` 내 불필요한 닫힘 태그(`</div>`)로 인해 발생한 Next.js Turbopack 렌더링 중단 버그를 수정하고, 꼬여버린 `.next` 빌드 임시 캐시를 강제로 완전 초기화하여 "Module factory not available" HMR 동기화 에러를 완벽히 해소.
 - **로컬 PC 단독 서버 및 JSON 파일 데이터 스토어 전환:** 외부 클라우드플레어 서버(KV, Pages Functions)의 CORS 정책 번잡함과 보안 취약성을 피하기 위해, Next.js 자체 API Route(`src/app/api/data`)와 로컬 디스크 상의 `data/*.json` 파일 영속화 구조로 전면 이관. 개발 서버 포트는 CORS 충돌 방지를 위해 `3001`번 포트로 고정 바인딩.
 - **VITAL 단일화 및 UI 브랜딩 통합:** VITAL과 HCHPS가 동일 프로젝트임에 따라 상단 헤더의 모드 스위처를 전면 제거하고 상태를 `PORTFOLIO - VITAL`로 단일화 고정. React HMR 핫 리로드 시 발생하는 훅 의존성 크기 불일치 오류를 브라우저 상태 정합성 복구를 통해 최종 정립.
 
-### 🎨 대시보드 UI/UX 및 데이터 시각화 고도화
+### 대시보드 UI/UX 및 데이터 시각화 고도화
 - **예산 지출품의 워크플로우 버그 픽스 및 UX 개선:** 메인 대시보드에서 `ExpenseEntryModal`과 `LedgerModal` 렌더링이 누락되었던 문제를 복구. 지출 내역 리스트에 '등록 일자'를 병기하여 가시성을 높였으며, 새 지출 내역 등록 시 드롭다운에 '세부사업명'을 포함하여 동일 통계목 간의 혼동을 차단. 아울러 React 고유 키(Key) 중복 경고 해결 및 폼 저장 후 모달 자동 닫힘 등 세밀한 사용성(UX) 튜닝을 완수함.
 - **Predictive Budget Modeling (회귀 분석 및 예측 모델):** 단순 누적 추세 그래프를 제거하고, `ComposedChart` 기반의 지능형 예측 패널 구축. Policy Model 가중치(보수/유지/공격) 시뮬레이터와 연동하여, 연말 예상 집행액(Projected EOY Execution) 및 내년도 권고 예산안(2027 Recommended Budget) 산출 로직을 UI에 시각화. VITAL 데이터 행정 인프라의 핵심 지능형 모듈로 정립.
 - **Budget Velocity Insights (소진율 속도 기반 인사이트):** 단순 항목 분류를 탈피하여, '통계목의 누적 집행 금액 대비 시간 경과 소진 속도(Velocity)'를 분석하는 정량적 알고리즘 도입. 항목별 소진율(Burn Rate) 특이점 발견 시, 구체적 증액/삭감액 시뮬레이션 및 권고 액션(INCREASE/DECREASE)을 자동 산출하는 뷰파인더 탑재.
@@ -303,64 +303,66 @@ sequenceDiagram
 - **하이브리드 예산 시각화 (도넛-바 차트):** 전체 예산 대비 집행률을 보여주는 대형 도넛 차트와 선택된 프로젝트의 상세 항목별 진행률 바 차트를 결합하여 직관적인 데이터 탐색 환경을 구축.
 - **Portfolio Structural Convexity Framework:** 대시보드 하단에 고급 자산 포트폴리오 관리론을 시각화한 구조적 프레임워크 뷰를 신설하여 프리미엄 워크 매니저로서의 시각적 완성도 달성.
 
-### 🚀 아키텍처 및 퍼포먼스
+### 아키텍처 및 퍼포먼스
 - **상태 관리 단일화(SSOT) 및 타입 방어벽:** 파편화된 로컬 상태를 `TanStack Query`와 Zod 런타임 스키마 레벨로 통합 제어. 컴포넌트는 FSD(Feature-Sliced Design) 패턴에 따라 모듈화되어 비즈니스 로직과 UI 관심사를 완벽하게 분리.
 - **실시간 렌더링 최적화:** `useSyncExternalStore` 채택 및 16ms 디바운스, `needsRedraw` 기반의 Dirty Flag 렌더링 파이프라인을 구축해 유휴 상태 CPU 점유율 0% 유지. 다중 기기(PartyKit + Yjs) 동시 편집 시 발생하는 UI 정지(Freeze) 현상을 영구 소거.
 
-### 🧠 로컬 AI 어시스턴트 성능 최적화
+### 로컬 AI 어시스턴트 성능 최적화
 - **Edge Gemini API 백엔드:** 클라이언트 자원(GPU) 소모 없이, 서버리스 환경과 구글 클라우드 기반 Gemini API (`gemma-4-31b-it`) 통신으로 백엔드를 전면 교체(일일 14.4K 한도 확보). 
 - **자동 재시도 메커니즘 설계:** 구글 API 서버 측의 일시적인 500/503 게이트웨이 장애에 완벽하게 대응하기 위해, API 라우터 내에 최대 3회 자동 지수 백오프 재시도(Retry with Backoff) 로직을 설계 및 통합하여 인앱 AI 어시스턴트의 답변 안정성을 극대화함.
 - **RAG 데이터 파이프라인 및 한국어 지시문 최적화:** AI 비서가 예산 카테고리명을 `undefined`로 인식하던 RAG 문제를 해결하기 위해, 프론트엔드 컨텍스트에 원본 `budgetCategories` 딕셔너리를 주입하여 정확한 항목명을 자동 매핑하도록 고도화. 또한 추론 과정(Chain of Thought)이 사용자 UI에 노출되는 부작용을 막기 위해 한국어 Strict Constraint 시스템 프롬프트 탑재.
 
-### 💸 예산 분배 및 데이터 파이프라인
+### 예산 분배 및 데이터 파이프라인
 - **세부 항목별 예산 엄격 통제 계층 추가 (Strict Sub-Item Budgeting):** 개별 지출 내역과 특정 세부 항목 예산을 1:1로 매핑하여 통제하는 UUID 기반 추적 시스템을 도입. 항목별 잔액 초과 집행을 실시간으로 차단하는 검증 구조 확립.
 - **무손실 정밀 Batch-Editor (예산 배분):** % 비율 기반의 비례 배분을 통해 소수점 부동오차를 원천 차단하는 이산적 `fundingSplits` 정밀 연산 알고리즘 도입. 단수 차이 없는 정교한 재원 크로스-분할 자동화 달성.
 - **모바일 4-tier 대시보드 리팩토링:** 정책/단위/세부/과제로 이어지는 예산 매핑과 프리미엄 글래스모피즘(Glassmorphism) 기반 4열 액션 카드로 반응형 모바일 최고 수준 UX 경험 도출.
 - **영속성 플로우 무결성 제어:** 카테고리 인바운드 추가 기능, 예산 항목 sortOrder 교착 버그 해결, UI Header Badge 중복 폭증 현상 등 데이터베이스 계층과 렌더링 간 구조적 데드락 제어 완료.
 
-### 🗺️ 프로젝트 및 온톨로지 인터랙션
+### 프로젝트 및 온톨로지 인터랙션
 - **결정론적 Tidy Tree BFS 아키텍처:** 물리 방사형 온톨로지 엔진의 레이아웃 왜곡을 극복하고, 은은한 횡방향 교차 간선을 보존한 채로 깔끔한 좌우 흐름형 로직으로 완전 마이그레이션.
 - **Culling 공간 효율 및 패닝 튜닝:** 비가시 구역 DOM/Canvas 렌더링을 억제하는 `layoutHidden` 기법 내장, 트리 전개 시 자동 로컬 패닝 스와이프 기능, `customSortOrder` 자유 정렬 탑재.
 - **Project Planning 역량 통합 편입:** 단일 텍스트 기능이던 'Boss Schedule' 뷰를 전면 폐기/병합하고, 시맨틱 캔버스와 결합된 통합 프로젝트 리소스 기획(Project Planning) 모듈로 승격. (스케줄링 도메인은 데이터 소스로 영속 이관)
 
-### 🛡️ 보안, CRM 및 엔터프라이즈 UX 방어벽
+### 보안, CRM 및 엔터프라이즈 UX 방어벽
 - **Next.js Middleware 기반 영구 세션 로그인 (Cookie Auth):** 브라우저의 기본 Basic Auth 팝업을 배제하고, VITAL 고유의 Glassmorphism 커스텀 로그인 페이지 구축. 10년 만료 기한의 `HttpOnly` 보안 쿠키를 발급하여 클라우드플레어 인프라 종속성 없이 코드 레벨에서 완벽한 프라이빗 영구 인증 체계(Floating Logout Button 탑재) 구현.
 - **Zero-Trust E2EE LockScreen:** PIN에서 파생된 동적 세션(Session Token) 인증 및 데이터 뷰어 단위 메모리 퍼지(Purge)를 내장해 무단 접근/XSS 위협을 격리화.
 - **사내 정치/결재 기상도(CRM):** 핵심 인물의 생체리듬, 리더십 특성, 스케줄 화이트스페이스를 통합 집수하여 최적화된 보고 타이밍을 추론해 제시하는 'AI 전략 뷰파인더' 탑재.
 - **고스트 클릭(Ghost-click) 아티팩트 소멸:** 고빈도 터치/드래그, 디바운스 혼선으로 인한 널 포인터 결빙 및 네비게이션 시각 검은 줄(Black Artifact) 발생 등 네이티브 성능을 하락시키는 잔재 철저히 제거.
 
-### 📝 에이전트 행동 지침 및 패치 관리 규칙 추가 (2026-05-26)
+### 에이전트 행동 지침 및 패치 관리 규칙 추가 (2026-05-26)
 - **실시간 패치 기록 및 동적 규칙 최신화**: 주요 작업 커밋이나 새로운 프롬프트 입력 등 패치 발생 시, `PORTFOLIO VITAL - Engineering Report.md`에 세부 내역을 기록하고 이를 토대로 `AGENTS.md` 에이전트 행동 규칙을 수시로 업데이트하는 E2E 규칙(Section 2-E)을 신설 및 통합하였습니다.
+- **eslint.config.mjs 및 MindMapInspector.tsx Linter 리팩토링 (2026-05-26)**:
+  - `eslint.config.mjs`의 `globalIgnores`에 `**/*.js`, `scratch/**`, `scripts/**`를 추가하여, 로컬 임시 스크립트나 빌드 스크립트 내 CommonJS `require()` 사용으로 발생하는 타입스크립트 import 경고 및 린트 오류를 원천 차단.
+  - `MindMapInspector.tsx`에서 렌더 타임 중 `ref.current`에 직접 접근하여 발생한 `react-hooks/refs` 린트 경고 문제를 React `useState`와 `useEffect` 훅을 활용한 상태 기반 데이터 갱신 구조로 리팩토링하여 해소. 로컬 린트 및 unit test (`npm run test`) 통과 검증 완료.
 
 ---
 
 ## 9. 감사 기반 로드맵 및 전략적 지평
 
-### 1. 아키텍처 무결성 (Phase 7)
+### 1. 아키텍처 무결성 및 인프라 구축 (Phase 7 - 완료)
 
-- [x] **절대적 타입 무결성 (`noImplicitAny`)** ✅
-- [x] **프로덕션 런타임 순도** ✅
-- [x] **테스트 커버리지 기반 구축** ✅
+- [x] **절대적 타입 무결성 (`noImplicitAny`)**
+- [x] **프로덕션 런타임 순도 및 최적화**
+- [x] **테스트 커버리지 기반 구축**
+- [x] **RAG 기반 지식 위키 및 벡터화 파이프라인**
+- [x] **인물 중심 온톨로지 (Personal CRM)**
+- [x] **SSOT 구조의 완전한 프라이빗-퍼스트 아키텍처 및 안티-해킹 보안 인프라**
+- [x] **업무 암묵지 및 노하우 아카이브 (Task Wisdom Hub) 구축 및 모달 양방향 연동**
 
-### 2. AI 운영 및 지식 인프라
+### 2. 다중 에이전트 협업 및 오케스트레이션 (Phase 8 - 진행 중)
 
-- [x] **RAG 기반 지식 위키 (Phase 1)** ✅
-- [x] **벡터화 파이프라인 (Phase 2)** ✅
+- [/] **다중 에이전트 파이프라인 (Planner-Generator-Evaluator) 통합 테스트**
+- [ ] **에이전트 간 실시간 CRDT 세션 및 메시지 브로드캐스팅 최적화**
+- [ ] **에이전트 작업 모니터링 전용 상태 보드 개발**
 
-### 3. 전략적 지평 (차세대 1인 생존 비서 체제)
+### 3. 암묵지 데이터 파이프라인 고도화 (Phase 9 - 대기)
 
-- [x] **인물 중심 온톨로지 (Personal CRM)** ✅
-- [x] **AI 기반 사내 컨텍스트 멘토링** ✅
-- [x] **SSOT 구조의 완전한 프라이빗-퍼스트 아키텍처 및 안티-해킹 보안 인프라** ✅
+- [ ] **Task Wisdom Hub의 로컬 벡터 임베딩 및 하이브리드 RAG 검색 엔진 튜닝**
+- [ ] **의사결정 보조를 위한 임원진 결재선 예측 및 CRM 리액션 자동 산출 고도화**
+- [ ] **지능형 소진 속도(Velocity) 기반 예산 자동 재배분 플래너 구현**
 
-### 4. Vibe Coding 한계 극복 및 엔지니어링 고도화 (4대 핵심 Pillar)
+### 4. 자가 치유 및 하네스 엔지니어링 (Harness Engineering - 지속성)
 
-- [x] **Pillar 1: 블랙박스 해소 및 아키텍처 통제 (Separation of Concerns)** ✅
-- [x] **Pillar 2: 기술 부채 상환 및 유지보수성 확보 (Maintainability)** ✅
-- [x] **Pillar 3: 방어적 프로그래밍 (Defensive Programming)** ✅
-- [x] **Pillar 4: 테스트와 검증 체계 (Automated Testing & CI)** ✅
-
-### 🌟 5. 차세대 아키텍처 비전 (Phase 8: Harness Engineering)
-- **분산된 컨텍스트(Context Legibility)** 구축
-- **결정론적 방어벽의 자가 발전(Self-Reinforcing)**
-- **다중-에이전트 체제로의 확장 (장기 과제)**
+- [/] **코드 수정 시 Zod 런타임 유효성 자가 진단 및 빌드 무결성 보증 하네스 스크립트 고도화**
+- [ ] **성능 프로파일러 연동을 통한 dirty flag 렌더링 지연 상시 감시 체계 수립**
+- [ ] **AGENTS.md 규칙과 작업 리포트 간의 자동 동기화 도구 체계화**

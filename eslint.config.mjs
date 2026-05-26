@@ -23,6 +23,9 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     "*.js",
+    "**/*.js",
+    "scratch/**",
+    "scripts/**",
     "old-sheets-api.ts"
   ]),
 ]);
