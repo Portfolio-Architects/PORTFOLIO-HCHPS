@@ -72,7 +72,7 @@ function ProtectedApp({ appMode, onModeChange }: ProtectedAppProps) {
   const [mounted, setMounted] = useState(false);
   // Hooks
   const { tasks, addTask, updateTask, deleteTask, moveTask, stats: taskStats } = useTasks();
-  const { categories: budgetCategories, entries: budgetEntries, addCategory, updateCategory, deleteCategory, addEntry, updateEntry, deleteEntry, getCategoryStats, overallStats } = useBudget();
+  const { categories: budgetCategories, entries: budgetEntries, addCategory, updateCategory, deleteCategory, addEntry, updateEntry, deleteEntry, getCategoryStats, overallStats, overallStatsActual } = useBudget();
   const { items: inventoryItems, addItem, updateItem, deleteItem, adjustStock, getItemHistory } = useInventory();
   const { meetings, addMeeting, updateMeeting, deleteMeeting, getUpcomingMeetings, getTodayMeetings } = useMeetings();
   const { projects, addProject, updateProject, deleteProject, addChecklistItem, toggleChecklistItem, deleteChecklistItem, getProjectProgress } = useProjects();
@@ -206,15 +206,15 @@ function ProtectedApp({ appMode, onModeChange }: ProtectedAppProps) {
         return (
           <WorkspaceView
             budgetCategories={budgetCategories}
-            budgetEntries={budgetEntries}
+            budgetEntries={budgetEntries.filter(e => !e.isPlanned)}
             addCategory={addCategory}
             updateCategory={updateCategory}
             deleteCategory={deleteCategory}
             addEntry={addEntry}
             updateEntry={updateEntry}
             deleteEntry={deleteEntry}
-            getCategoryStats={getCategoryStats}
-            overallStats={overallStats}
+            getCategoryStats={(id) => getCategoryStats(id, true)}
+            overallStats={overallStatsActual}
             inventoryItems={inventoryItems}
             addItem={addItem}
             updateItem={updateItem}
@@ -222,6 +222,7 @@ function ProtectedApp({ appMode, onModeChange }: ProtectedAppProps) {
             adjustStock={adjustStock}
             getItemHistory={getItemHistory}
             addKnowledge={addKnowledge}
+            addSignal={addSignal}
           />
         );
 

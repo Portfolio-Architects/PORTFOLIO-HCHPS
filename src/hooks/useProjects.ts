@@ -37,7 +37,7 @@ export function useProjects() {
             queryClient.invalidateQueries({ queryKey: ['TASKS'] });
           }).catch(err => console.error('Cascade delete tasks failed:', err));
         }
-      });
+      }).catch(err => console.error('Failed to read TASKS for cascade delete:', err));
     });
   }, [setProjects, syncDelete, queryClient]);
 

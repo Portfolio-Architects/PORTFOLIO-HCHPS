@@ -76,10 +76,27 @@ export function buildSignalGraph(
     tagCounts.set('💭 미분류', 9999); 
   }
 
-  // Take top N tags to avoid clutter
-  const sortedTags = Array.from(tagCounts.entries())
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 15);
+  // Take top N tags to avoid clutter, but ALWAYS include tags that have overrides or are custom parents
+  const allSortedTags = Array.from(tagCounts.entries())
+    .sort((a, b) => b[1] - a[1]);
+
+  const sortedTags: [string, number][] = [];
+  const overrideKeys = customData ? new Set(Object.keys(customData.overrides)) : new Set<string>();
+
+  allSortedTags.forEach(([tag, count], i) => {
+    const id = `tag-${tag}`;
+    const hasOverride = overrideKeys.has(id);
+    let isParentOfAny = false;
+    if (customData) {
+      isParentOfAny = Object.values(customData.overrides).some(
+        ov => ov && ov.customParent === id
+      );
+    }
+
+    if (i < 15 || hasOverride || isParentOfAny) {
+      sortedTags.push([tag, count]);
+    }
+  });
 
   const tagNodesMap = new Map<string, string>();
   const tagGroupMap = new Map<string, OntologyGroup>();
@@ -161,10 +178,28 @@ export function buildSignalGraph(
     const tagNodeId = tagNodesMap.get(tag)!;
     const branchGroup = tagGroupMap.get(tag) || 'OTHER';
     
-    // Top 8 keywords per branch to prevent chaos
-    const sortedKw = Array.from(kwMap.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 8); 
+    // Top 8 keywords per branch to prevent chaos, but ALWAYS include overridden ones or those referenced as customParent
+    const allSortedKw = Array.from(kwMap.entries())
+      .sort((a, b) => b[1] - a[1]);
+
+    const sortedKw: [string, number][] = [];
+    const overrideKeys = customData ? new Set(Object.keys(customData.overrides)) : new Set<string>();
+
+    allSortedKw.forEach(([kw, freq], i) => {
+      const leafId = `leaf-${tagNodeId}-${kw}`;
+      const hasOverride = overrideKeys.has(leafId);
+      
+      let isParentOfAny = false;
+      if (customData) {
+        isParentOfAny = Object.values(customData.overrides).some(
+          ov => ov && ov.customParent === leafId
+        );
+      }
+
+      if (i < 8 || hasOverride || isParentOfAny) {
+        sortedKw.push([kw, freq]);
+      }
+    });
 
     sortedKw.forEach(([kw, freq], i) => {
       const leafId = `leaf-${tagNodeId}-${kw}`;

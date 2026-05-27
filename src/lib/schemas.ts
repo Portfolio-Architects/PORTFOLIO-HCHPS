@@ -53,6 +53,7 @@ export const BudgetCategorySchema = z.object({
     amount: z.number(),
     isCustomFunding: z.boolean().optional(),
     isLocked: z.boolean().optional(),
+    virtualAdjustment: z.number().optional().catch(0),
     fundingSplits: z.array(z.object({
       source: z.string(),
       amount: z.number()
@@ -64,6 +65,7 @@ export const BudgetCategorySchema = z.object({
       amount: z.number(),
       isCustomFunding: z.boolean().optional(),
       isLocked: z.boolean().optional(),
+      virtualAdjustment: z.number().optional().catch(0),
       fundingSplits: z.array(z.object({
         source: z.string(),
         amount: z.number()

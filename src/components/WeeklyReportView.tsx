@@ -1,7 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Card } from '@/components/ui/card';
 import { FileText, CalendarDays, UploadCloud, Zap } from 'lucide-react';
-import { useGraphCustomization } from '@/hooks/useGraphCustomization';
 
 interface WeeklyReportViewProps {
   addSignal?: (text: string) => void;
@@ -10,12 +9,9 @@ interface WeeklyReportViewProps {
 interface WeeklyReportData {
   completedTasks: string[];
   upcomingTasks: string[];
-  leaderSchedules: string[];
 }
 
 export function WeeklyReportView({ addSignal }: WeeklyReportViewProps) {
-  const { overrides, setNodeOverride } = useGraphCustomization();
-  
   const [extractedRawText, setExtractedRawText] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -68,7 +64,7 @@ export function WeeklyReportView({ addSignal }: WeeklyReportViewProps) {
             주간업무 리포트
           </span>
         </h1>
-        <p className="text-sm text-[var(--color-text-secondary)]">주간보고 PDF를 업로드하면 자동으로 개인 실적과 팀장님 일정을 데이터화합니다.</p>
+        <p className="text-sm text-[var(--color-text-secondary)]">주간보고 PDF를 업로드하면 자동으로 개인 실적과 주요 일정을 분석하여 데이터화합니다.</p>
       </div>
 
       <Card className="p-8 border-2 border-dashed border-purple-200 bg-purple-50/30">

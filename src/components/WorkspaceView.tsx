@@ -4,13 +4,15 @@ import React, { useState } from 'react';
 import { BudgetCategory, BudgetEntry, InventoryItem, StockChange } from '@/types';
 import { BudgetDashboard } from '@/components/budget/BudgetDashboard';
 import { InventoryList } from '@/components/inventory/InventoryList';
-import { Wallet, Package } from 'lucide-react';
+import { WeeklyReportView } from '@/components/WeeklyReportView';
+import { Wallet, Package, CalendarDays } from 'lucide-react';
 
-type SubTab = 'budget' | 'inventory';
+type SubTab = 'budget' | 'inventory' | 'report';
 
 const subTabs: { id: SubTab; label: string; icon: React.ElementType }[] = [
   { id: 'budget', label: '예산', icon: Wallet },
   { id: 'inventory', label: '재고', icon: Package },
+  { id: 'report', label: '주간보고', icon: CalendarDays },
 ];
 
 interface WorkspaceViewProps {
@@ -40,6 +42,8 @@ interface WorkspaceViewProps {
   getItemHistory: (itemId: string) => StockChange[];
   // Knowledge
   addKnowledge: (k: { title: string; content: string; category: string; tags: string[] }) => void;
+  // Signal
+  addSignal?: (text: string) => void;
 }
 
 export function WorkspaceView(props: WorkspaceViewProps) {
@@ -73,6 +77,13 @@ export function WorkspaceView(props: WorkspaceViewProps) {
             deleteItem={props.deleteItem}
             adjustStock={props.adjustStock}
             getItemHistory={props.getItemHistory}
+          />
+        );
+
+      case 'report':
+        return (
+          <WeeklyReportView
+            addSignal={props.addSignal}
           />
         );
 

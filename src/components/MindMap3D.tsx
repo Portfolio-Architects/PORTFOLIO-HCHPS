@@ -146,7 +146,11 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
 
   
   const [isWikiOpen, setIsWikiOpen] = useState(false);
-  const { blocks: wikiBlocks, isLoaded: wikiLoaded, saveBlocks: saveWikiBlocks } = useWikiStorage(isWikiOpen && activeNode ? activeNode.id : null, setNodeOverride);
+  const { blocks: wikiBlocks, isLoaded: wikiLoaded, saveBlocks: saveWikiBlocks } = useWikiStorage(
+    isWikiOpen && activeNode ? activeNode.id : null,
+    isWikiOpen && activeNode ? activeNode.label : null,
+    setNodeOverride
+  );
   
   const tooltipRef = useRef<HTMLDivElement>(null);
   const parentModeSourceRef = useRef(parentModeSource);

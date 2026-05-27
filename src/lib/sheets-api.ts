@@ -41,59 +41,61 @@ export async function readSheet<T>(sheetName: string): Promise<T[]> {
       },
       cache: 'no-store'
     });
-    if (res.ok) {
-      const json = await res.json();
-      if (json.success && Array.isArray(json.data)) {
-        // E2EE Decryption
-        const decryptedPromises = json.data.map(async (row: Record<string, unknown>) => {
-          if (row._enc) {
-            try {
-              const dec = await decryptPayload(row._enc as string);
-              return { id: row.id, ...(dec as Record<string, unknown>) };
-            } catch (e) {
-              console.error('Decryption failed for row', row.id, e);
-              return row; // Return base object if decryption fails
-            }
-          }
-          return row; // Legacy plaintext fallback
-        });
-        const rawRows = await Promise.all(decryptedPromises);
-        
-        // Global Tombstone: Filter out deleted items to prevent Cloudflare KV eventual consistency zombie data
-        let deletedIds: string[] = [];
-        if (typeof window !== 'undefined') {
-          try { deletedIds = JSON.parse(localStorage.getItem('hchps-global-tombstones') || '[]'); } catch {}
+    if (!res.ok) {
+      throw new Error(`HTTP error ${res.status}`);
+    }
+    const json = await res.json();
+    if (!json.success || !Array.isArray(json.data)) {
+      throw new Error(json.error || 'API returned success=false or invalid data');
+    }
+    
+    // E2EE Decryption
+    const decryptedPromises = json.data.map(async (row: Record<string, unknown>) => {
+      if (row._enc) {
+        try {
+          const dec = await decryptPayload(row._enc as string);
+          return { id: row.id, ...(dec as Record<string, unknown>) };
+        } catch (e) {
+          console.error('Decryption failed for row', row.id, e);
+          throw e; // Decryption failure must propagate to prevent silent empty overwrites!
         }
-        
-        // Zod Runtimes Validation (Fail-Safe)
-        const schema = getDomainSchema(sheetName);
-        const validRows: Record<string, unknown>[] = [];
-        for (const row of rawRows) {
-          if (deletedIds.includes(row.id)) continue; // 🚀 Kill Zombies
-          if ('safeParse' in schema) {
-            const result = schema.safeParse(row);
-            if (result.success) {
-              validRows.push(result.data);
-            } else {
-              // HARNESS SYSTEM: Loud Failure for Self-Reinforcing AI loops
-              console.error(`\n======================================================`);
-              console.error(`🚨 [HARNESS ZOD ERROR] Schema Validation Failed!`);
-              console.error(`Sheet: ${sheetName}`);
-              console.error(`Row ID: ${row.id || 'unknown'}`);
-              console.error(`Errors:`, JSON.stringify(result.error.format(), null, 2));
-              console.error(`======================================================\n`);
-            }
-          } else {
-            validRows.push(row);
-          }
+      }
+      return row; // Legacy plaintext fallback
+    });
+    const rawRows = await Promise.all(decryptedPromises);
+    
+    // Global Tombstone: Filter out deleted items to prevent Cloudflare KV eventual consistency zombie data
+    let deletedIds: string[] = [];
+    if (typeof window !== 'undefined') {
+      try { deletedIds = JSON.parse(localStorage.getItem('hchps-global-tombstones') || '[]'); } catch {}
+    }
+    
+    // Zod Runtimes Validation (Fail-Safe)
+    const schema = getDomainSchema(sheetName);
+    const validRows: Record<string, unknown>[] = [];
+    for (const row of rawRows) {
+      if (deletedIds.includes(row.id)) continue; // 🚀 Kill Zombies
+      if ('safeParse' in schema) {
+        const result = schema.safeParse(row);
+        if (result.success) {
+          validRows.push(result.data);
+        } else {
+          // HARNESS SYSTEM: Loud Failure for Self-Reinforcing AI loops
+          console.error(`\n======================================================`);
+          console.error(`🚨 [HARNESS ZOD ERROR] Schema Validation Failed!`);
+          console.error(`Sheet: ${sheetName}`);
+          console.error(`Row ID: ${row.id || 'unknown'}`);
+          console.error(`Errors:`, JSON.stringify(result.error.format(), null, 2));
+          console.error(`======================================================\n`);
         }
-        return validRows as T[];
+      } else {
+        validRows.push(row);
       }
     }
-    return [];
+    return validRows as T[];
   } catch (err) {
-    console.warn(`데이터 읽기 실패 (오프라인 모드): ${sheetName}`, err);
-    return [];
+    console.error(`데이터 읽기 실패: ${sheetName}`, err);
+    throw err; // Propagate the error so callers (especially React Query or fallback logic) are aware
   }
 }
 

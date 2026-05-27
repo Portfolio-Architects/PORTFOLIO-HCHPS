@@ -2,7 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { PieChart, Pie, Cell, LineChart, Line, Bar, ReferenceLine, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area, CartesianGrid, ComposedChart } from 'recharts';
 import { Task, BudgetCategory, BudgetEntry } from '@/types';
 import { usePortfolioAnalytics } from '@/hooks/usePortfolioAnalytics';
-import { Expand, Shrink, ChevronRight, LayoutDashboard, ChevronDown, ChevronUp } from 'lucide-react';
+import { useBudget } from '@/hooks/useBudget';
+import { Expand, Shrink, ChevronRight, LayoutDashboard, ChevronDown, ChevronUp, AlertCircle, Folder, FileText, Lock, Unlock, Layers } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface DashboardProps {
@@ -18,6 +19,10 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
   const [timeFilter, setTimeFilter] = useState('ALL');
   const [expanded, setExpanded] = useState(false);
   const [chartType, setChartType] = useState<'monthly' | 'cumulative'>('monthly');
+  const [expandedSubCategory, setExpandedSubCategory] = useState<string | null>(null);
+
+  const { addEntry, updateEntry, deleteEntry, updateCategory, entries, getCategoryStats } = useBudget();
+
   const {
     selectedProject, setSelectedProject,
     expandedCategory, setExpandedCategory,
@@ -35,8 +40,14 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
     avgMonthlySpend,
     velocityInsights,
     remainingTargetAmount,
-    recommendedMonthlySpendForTarget
+    recommendedMonthlySpendForTarget,
+    exhaustionMonthName,
+    projectedEoyExecutionRate,
+    totalPlannedInDraft,
+    unplannedRemainingAmount,
+    totalVirtualAdjustment
   } = usePortfolioAnalytics(budgetCategories, budgetEntries);
+
 
   const isHchps = appMode === 'HCHPS';
   const themeColors = useMemo(() => {
@@ -349,24 +360,401 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                   </div>
                 </div>
                 
-                {/* Lightweight Body */}
+                {/* High-Fidelity Detailed Body */}
                 {isExpanded && (
                   <div className="px-6 pb-6 pt-2 border-t border-slate-50 mx-6 animate-in fade-in duration-200">
-                    <div className="flex flex-col gap-2 mb-6 mt-4">
-                      {subItems.map((sub: any, sIdx: number) => (
-                        <div key={sIdx} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl border border-slate-100 hover:border-slate-200 transition-colors gap-2 sm:gap-0 bg-slate-50/30">
-                          <div className="flex items-center gap-3">
-                            <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
-                            <span className="font-bold text-slate-700">{sub.name || sub.description}</span>
-                            <span className={`px-1.5 py-0.5 rounded text-[8px] font-black bg-white border border-slate-200 ${isHchps ? 'text-emerald-500' : 'text-blue-500'} uppercase tracking-wider`}>VIEW</span>
-                          </div>
-                          <span className="font-black text-slate-800">{sub.amount ? sub.amount.toLocaleString() : sub.totalBudget?.toLocaleString() || 0} <span className="text-[10px] text-slate-400">KRW</span></span>
+                    
+                    {/* 지능형 가계획 및 미설계 잔액 요약 카드 */}
+                    <div className="mb-6 mt-4 p-5 rounded-2xl bg-slate-50 border border-slate-200/60 flex flex-col gap-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-xs font-black text-slate-800">
+                          <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0" />
+                          <span>11월 30일 완수 소진용 지능형 지출 권장 분석</span>
                         </div>
-                      ))}
-                      {subItems.length === 0 && <span className="text-sm text-slate-400 font-medium py-4 text-center">하위 내역이 존재하지 않습니다.</span>}
+                        <div className="text-[11px] font-bold text-slate-400">
+                          * 가상 조정액은 이 설계 보드의 잔액 보정에만 반영됩니다.
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-bold text-slate-700">
+                        <div className="p-3.5 bg-white rounded-xl border border-slate-100 flex flex-col gap-1.5 shadow-sm">
+                          <span className="text-slate-400 text-[10px] uppercase tracking-wider">소진 현황</span>
+                          <div className="flex flex-col gap-0.5">
+                            <span>남은 본예산: <span className="font-extrabold text-slate-900">{item.remaining.toLocaleString()}원</span></span>
+                            <span>현재 실집행률: <span className="font-extrabold text-slate-900">{item.rate.toFixed(1)}%</span></span>
+                          </div>
+                        </div>
+                        <div className="p-3.5 bg-white rounded-xl border border-slate-100 flex flex-col gap-1.5 shadow-sm">
+                          <span className="text-slate-400 text-[10px] uppercase tracking-wider">가계획 설계 현황</span>
+                          <div className="flex flex-col gap-0.5">
+                            <span>설계된 계획액: <span className="font-extrabold text-slate-900">{(item.plannedInProject || 0).toLocaleString()}원</span></span>
+                            <span>가상 조정액 총합: <span className={`font-extrabold ${item.virtualAdjustmentInProject < 0 ? 'text-red-500' : 'text-slate-900'}`}>{(item.virtualAdjustmentInProject || 0).toLocaleString()}원</span></span>
+                          </div>
+                        </div>
+                        <div className="p-3.5 bg-white rounded-xl border border-slate-100 flex flex-col gap-1.5 shadow-sm">
+                          <span className="text-slate-400 text-[10px] uppercase tracking-wider">미설계 잔액 (오차 대조)</span>
+                          <div className="flex flex-col gap-0.5">
+                            <span>보정 전 잔액: <span className="font-extrabold text-slate-900">{(item.remaining - (item.plannedInProject || 0)).toLocaleString()}원</span></span>
+                            <span>보정 후 잔액: <span className={`font-black text-sm ${(item.unplannedRemaining || 0) === 0 ? 'text-emerald-600' : 'text-red-500'}`}>{(item.unplannedRemaining || 0).toLocaleString()}원</span></span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 통계목 세부 내역 루프 */}
+                    <div className="flex flex-col gap-4">
+                      {subItems.map((sub: any, sIdx: number) => {
+                        const isSubExpanded = expandedSubCategory === sub.id;
+                        const subStats = getCategoryStats(sub.id) || { totalBudget: 0, spent: 0, planned: 0, remaining: 0, locked: 0 };
+                        
+                        // 통계목 기준 1~12월 가계획 집계 및 미설계 잔액
+                        const subPlannedEntries = entries.filter(e => e.categoryId === sub.id && e.isPlanned);
+                        const subPlannedTotal = subPlannedEntries.reduce((sum, e) => sum + e.amount, 0);
+                        
+                        // 통계목의 가상 조정액 계산
+                        let subVirtualAdjustment = 0;
+                        if (sub.subItems) {
+                          sub.subItems.forEach((s: any) => {
+                            if (typeof s.virtualAdjustment === 'number') subVirtualAdjustment += s.virtualAdjustment;
+                            if (s.calculations) {
+                              s.calculations.forEach((c: any) => {
+                                if (typeof c.virtualAdjustment === 'number') subVirtualAdjustment += c.virtualAdjustment;
+                              });
+                            }
+                          });
+                        }
+                        
+                        // 통계목 미설계 잔액 = 남은예산(본예산-실집행-묶인금액) + 가상조정액
+                        // subStats.remaining은 이미 getCategoryStats 내부에서 가계획(planned)을 차감하여 계산된 잔액입니다.
+                        const subUnplannedRemaining = subStats.remaining + subVirtualAdjustment;
+
+
+                        return (
+                          <div key={sIdx} className="flex flex-col rounded-2xl border border-slate-100 hover:border-slate-200/80 transition-all bg-slate-50/20 shadow-sm overflow-hidden">
+                            {/* 통계목 헤더 */}
+                            <div 
+                              className="flex flex-col sm:flex-row sm:items-center justify-between p-4 cursor-pointer hover:bg-slate-50/40 transition-colors gap-3 sm:gap-0"
+                              onClick={() => setExpandedSubCategory(isSubExpanded ? null : sub.id)}
+                            >
+                              <div className="flex items-center gap-3">
+                                <Layers className={`w-4 h-4 ${isHchps ? 'text-emerald-500' : 'text-blue-500'} shrink-0`} />
+                                <div className="flex flex-col">
+                                  <span className="font-black text-[14px] text-slate-800">{sub.name}</span>
+                                  {sub.formationItem && (
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{sub.formationItem} {sub.statItem && `| ${sub.statItem}`}</span>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              <div className="flex items-center justify-between sm:justify-end gap-6 w-full sm:w-auto">
+                                <div className="flex flex-col sm:items-end">
+                                  <span className="text-xs font-semibold text-slate-400">총 본예산</span>
+                                  <span className="font-extrabold text-[13px] text-slate-700">{sub.totalBudget.toLocaleString()}원</span>
+                                </div>
+                                <div className="flex flex-col sm:items-end">
+                                  <span className="text-xs font-semibold text-slate-400">보정 후 미설계 잔액</span>
+                                  <span className={`font-black text-[13px] ${subUnplannedRemaining === 0 ? 'text-emerald-600' : 'text-red-500'}`}>{subUnplannedRemaining.toLocaleString()}원</span>
+                                </div>
+                                {isSubExpanded ? <ChevronUp className="w-4 h-4 text-slate-400 shrink-0" /> : <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />}
+                              </div>
+                            </div>
+
+                            {/* 통계목 상세 플래닝 & 대조 보드 */}
+                            {isSubExpanded && (
+                              <div className="p-5 border-t border-slate-100 bg-white flex flex-col gap-6 animate-in slide-in-from-top-2 duration-200">
+                                
+                                {/* 1) 1~12월 연간 가계획(draft planning) 입력 폼 */}
+                                <div className="flex flex-col gap-3">
+                                  <div className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-600" />
+                                    <span>1월 ~ 12월 연간 지출 가계획 설계</span>
+                                  </div>
+                                  
+                                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-12 gap-3">
+                                    {Array.from({ length: 12 }, (_, mIdx) => {
+                                      const mNum = mIdx + 1;
+                                      const mStr = mNum < 10 ? `0${mNum}` : `${mNum}`;
+                                      const dateStr = `2026-${mStr}-15`;
+                                      
+                                      // 해당 월 가계획 엔트리 찾기
+                                      const entry = entries.find(e => e.categoryId === sub.id && e.isPlanned && e.date.startsWith(`2026-${mStr}`));
+                                      
+                                      return (
+                                        <div key={mIdx} className="flex flex-col gap-1.5 bg-slate-50/50 p-2.5 rounded-xl border border-slate-100">
+                                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{mNum}월</span>
+                                          <input 
+                                            type="text"
+                                            placeholder="0"
+                                            defaultValue={entry?.amount ? entry.amount.toLocaleString() : ''}
+                                            onInput={(e: any) => {
+                                              // 입력값 콤마 포맷팅 처리
+                                              const cleanVal = e.target.value.replace(/[^0-9]/g, '');
+                                              e.target.value = cleanVal ? parseInt(cleanVal, 10).toLocaleString() : '';
+                                            }}
+                                            onBlur={(e: any) => {
+                                              const rawVal = e.target.value.replace(/,/g, '');
+                                              const amountVal = parseInt(rawVal, 10) || 0;
+                                              if (amountVal > 0) {
+                                                if (entry) {
+                                                  updateEntry(entry.id, { amount: amountVal });
+                                                } else {
+                                                  addEntry({
+                                                    categoryId: sub.id,
+                                                    amount: amountVal,
+                                                    date: dateStr,
+                                                    purpose: `${mNum}월 가계획`,
+                                                    isPlanned: true
+                                                  });
+                                                }
+                                              } else if (entry) {
+                                                deleteEntry(entry.id);
+                                              }
+                                            }}
+                                            className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-black text-slate-800 text-right focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 outline-none"
+                                          />
+                                          <input 
+                                            type="text"
+                                            placeholder="비고"
+                                            defaultValue={entry?.purpose && entry.purpose !== `${mNum}월 가계획` ? entry.purpose : ''}
+                                            onBlur={(e: any) => {
+                                              const textVal = e.target.value.trim();
+                                              if (entry) {
+                                                updateEntry(entry.id, { purpose: textVal || `${mNum}월 가계획` });
+                                              } else if (textVal) {
+                                                // 금액이 0원이라도 설명이 있으면 생성 (금액은 일단 0으로 둠)
+                                                addEntry({
+                                                  categoryId: sub.id,
+                                                  amount: 0,
+                                                  date: dateStr,
+                                                  purpose: textVal,
+                                                  isPlanned: true
+                                                });
+                                              }
+                                            }}
+                                            className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-[9px] font-semibold text-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 outline-none"
+                                          />
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+
+                                {/* 2) 공식 예산서 세부 산출 내역 대조 테이블 (subItems 트리 구조) */}
+                                <div className="flex flex-col gap-2.5">
+                                  <div className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+                                    <span>공식 예산서 세부 산출 내역 대조 및 가상 보정</span>
+                                  </div>
+
+                                  <div className="border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+                                    <table className="w-full border-collapse text-left">
+                                      <thead>
+                                        <tr className="bg-slate-50/80 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                                          <th className="py-2.5 px-4">구분 / 세부 항목명</th>
+                                          <th className="py-2.5 px-4 text-right">공식 예산액 (원)</th>
+                                          <th className="py-2.5 px-4 text-center">집행 제어</th>
+                                          <th className="py-2.5 px-4 text-right w-[180px]">가상 조정액 (원)</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="text-sm font-bold text-slate-600 divide-y divide-slate-100">
+                                        {sub.subItems && sub.subItems.map((s: any, sIdx: number) => {
+                                          const hasCalcs = s.calculations && s.calculations.length > 0;
+                                          return (
+                                            <React.Fragment key={sIdx}>
+                                              {/* 1단계 통계목 아이템 */}
+                                              <tr className={`${hasCalcs ? 'bg-slate-50/10' : ''} hover:bg-slate-50/40 transition-colors`}>
+                                                <td className="py-3 px-4 flex items-center gap-2">
+                                                  <Folder className="w-4 h-4 text-slate-400 shrink-0" />
+                                                  <span>{s.name}</span>
+                                                  {s.isLocked && (
+                                                    <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-red-50 text-red-500 border border-red-100">차단됨</span>
+                                                  )}
+                                                </td>
+                                                <td className="py-3 px-4 text-right font-extrabold text-slate-800">
+                                                  {s.amount.toLocaleString()}원
+                                                </td>
+                                                <td className="py-3 px-4 text-center">
+                                                  <button 
+                                                    onClick={() => {
+                                                      const updatedSubItems = [...sub.subItems];
+                                                      updatedSubItems[sIdx] = {
+                                                        ...updatedSubItems[sIdx],
+                                                        isLocked: !updatedSubItems[sIdx].isLocked
+                                                      };
+                                                      updateCategory(sub.id, { subItems: updatedSubItems });
+                                                    }}
+                                                    className="p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer inline-flex items-center justify-center"
+                                                    title={s.isLocked ? "예산 통제 잠금 해제" : "예산 통제 잠금 (사용 불가)"}
+                                                  >
+                                                    {s.isLocked ? <Lock className="w-4 h-4 text-red-500" /> : <Unlock className="w-4 h-4 text-emerald-500" />}
+                                                  </button>
+                                                </td>
+                                                <td className="py-3 px-4">
+                                                  {!hasCalcs && (
+                                                    <input 
+                                                      type="text"
+                                                      placeholder="0"
+                                                      defaultValue={s.virtualAdjustment ? (s.virtualAdjustment > 0 ? `+${s.virtualAdjustment.toLocaleString()}` : s.virtualAdjustment.toLocaleString()) : ''}
+                                                      onInput={(e: any) => {
+                                                        // 음수 및 숫자 콤마 포맷터
+                                                        const val = e.target.value;
+                                                        const isNegative = val.startsWith('-');
+                                                        const digits = val.replace(/[^0-9]/g, '');
+                                                        if (!digits) {
+                                                          e.target.value = isNegative ? '-' : '';
+                                                          return;
+                                                        }
+                                                        const formatted = parseInt(digits, 10).toLocaleString();
+                                                        e.target.value = isNegative ? `-${formatted}` : formatted;
+                                                      }}
+                                                      onBlur={(e: any) => {
+                                                        const rawVal = e.target.value.replace(/,/g, '');
+                                                        const adjValue = parseInt(rawVal, 10) || 0;
+                                                        const updatedSubItems = [...sub.subItems];
+                                                        updatedSubItems[sIdx] = {
+                                                          ...updatedSubItems[sIdx],
+                                                          virtualAdjustment: adjValue
+                                                        };
+                                                        updateCategory(sub.id, { subItems: updatedSubItems });
+                                                      }}
+                                                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-black text-slate-800 text-right focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 outline-none transition-all"
+                                                    />
+                                                  )}
+                                                </td>
+                                              </tr>
+
+                                              {/* 2단계 세부 계산식 아이템 */}
+                                              {hasCalcs && s.calculations.map((c: any, cIdx: number) => (
+                                                <tr key={`calc-${cIdx}`} className="bg-slate-50/5 hover:bg-slate-50/20 transition-colors">
+                                                  <td className="py-2.5 px-4 pl-8 flex items-center gap-2 text-xs">
+                                                    <FileText className="w-3.5 h-3.5 text-slate-300 shrink-0" />
+                                                    <span className="text-slate-500">{c.name || c.calculation}</span>
+                                                    {c.isLocked && (
+                                                      <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-red-50 text-red-500 border border-red-100">차단됨</span>
+                                                    )}
+                                                  </td>
+                                                  <td className="py-2.5 px-4 text-right text-xs font-bold text-slate-500">
+                                                    {c.amount.toLocaleString()}원
+                                                  </td>
+                                                  <td className="py-2.5 px-4 text-center">
+                                                    <button 
+                                                      onClick={() => {
+                                                        const updatedSubItems = [...sub.subItems];
+                                                        const updatedCalcs = [...updatedSubItems[sIdx].calculations];
+                                                        updatedCalcs[cIdx] = {
+                                                          ...updatedCalcs[cIdx],
+                                                          isLocked: !updatedCalcs[cIdx].isLocked
+                                                        };
+                                                        updatedSubItems[sIdx] = {
+                                                          ...updatedSubItems[sIdx],
+                                                          calculations: updatedCalcs
+                                                        };
+                                                        updateCategory(sub.id, { subItems: updatedSubItems });
+                                                      }}
+                                                      className="p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer inline-flex items-center justify-center"
+                                                      title={c.isLocked ? "예산 통제 잠금 해제" : "예산 통제 잠금 (사용 불가)"}
+                                                    >
+                                                      {c.isLocked ? <Lock className="w-3.5 h-3.5 text-red-500" /> : <Unlock className="w-3.5 h-3.5 text-emerald-500" />}
+                                                    </button>
+                                                  </td>
+                                                  <td className="py-2.5 px-4">
+                                                    <input 
+                                                      type="text"
+                                                      placeholder="0"
+                                                      defaultValue={c.virtualAdjustment ? (c.virtualAdjustment > 0 ? `+${c.virtualAdjustment.toLocaleString()}` : c.virtualAdjustment.toLocaleString()) : ''}
+                                                      onInput={(e: any) => {
+                                                        const val = e.target.value;
+                                                        const isNegative = val.startsWith('-');
+                                                        const digits = val.replace(/[^0-9]/g, '');
+                                                        if (!digits) {
+                                                          e.target.value = isNegative ? '-' : '';
+                                                          return;
+                                                        }
+                                                        const formatted = parseInt(digits, 10).toLocaleString();
+                                                        e.target.value = isNegative ? `-${formatted}` : formatted;
+                                                      }}
+                                                      onBlur={(e: any) => {
+                                                        const rawVal = e.target.value.replace(/,/g, '');
+                                                        const adjValue = parseInt(rawVal, 10) || 0;
+                                                        const updatedSubItems = [...sub.subItems];
+                                                        const updatedCalcs = [...updatedSubItems[sIdx].calculations];
+                                                        updatedCalcs[cIdx] = {
+                                                          ...updatedCalcs[cIdx],
+                                                          virtualAdjustment: adjValue
+                                                        };
+                                                        updatedSubItems[sIdx] = {
+                                                          ...updatedSubItems[sIdx],
+                                                          calculations: updatedCalcs
+                                                        };
+                                                        updateCategory(sub.id, { subItems: updatedSubItems });
+                                                      }}
+                                                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-black text-slate-800 text-right focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 outline-none transition-all"
+                                                    />
+                                                  </td>
+                                                </tr>
+                                              ))}
+                                            </React.Fragment>
+                                          );
+                                        })}
+                                        {(!sub.subItems || sub.subItems.length === 0) && (
+                                          <tr>
+                                            <td colSpan={4} className="py-4 text-center text-xs text-slate-400 font-medium">공식 예산서 세부 산출 내역이 비어 있습니다.</td>
+                                          </tr>
+                                        )}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </div>
+
+                                {/* 3) 실제 집행 지출 내역 목록 (대조 보드) */}
+                                <div className="flex flex-col gap-2.5">
+                                  <div className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                                    <AlertCircle className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                    <span>실제 지출 집행 완료 내역</span>
+                                  </div>
+
+                                  <div className="border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+                                    <table className="w-full border-collapse text-left">
+                                      <thead>
+                                        <tr className="bg-slate-50/80 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                                          <th className="py-2 px-4">지출 일자</th>
+                                          <th className="py-2 px-4">품의 목적 (건명)</th>
+                                          <th className="py-2 px-4 text-right">집행 금액 (원)</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="text-xs font-bold text-slate-600 divide-y divide-slate-100">
+                                        {entries.filter(e => e.categoryId === sub.id && !e.isPlanned).map((e: any, eIdx: number) => (
+                                          <tr key={eIdx} className="hover:bg-slate-50/50 transition-colors">
+                                            <td className="py-2 px-4 text-slate-500">{e.date}</td>
+                                            <td className="py-2 px-4 text-slate-700">{e.purpose}</td>
+                                            <td className="py-2 px-4 text-right font-extrabold text-slate-800">
+                                              {e.amount.toLocaleString()}원
+                                            </td>
+                                          </tr>
+                                        ))}
+                                        {entries.filter(e => e.categoryId === sub.id && !e.isPlanned).length === 0 && (
+                                          <tr>
+                                            <td colSpan={3} className="py-3 text-center text-xs text-slate-400 font-medium">실제 집행된 지출 내역이 없습니다.</td>
+                                          </tr>
+                                        )}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </div>
+
+                              </div>
+                            )}
+
+                          </div>
+                        );
+                      })}
+                      {subItems.length === 0 && (
+                        <span className="text-sm text-slate-400 font-medium py-4 text-center">하위 통계목 내역이 존재하지 않습니다.</span>
+                      )}
                     </div>
                   </div>
                 )}
+
               </div>
             );
           })}

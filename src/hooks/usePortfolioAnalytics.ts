@@ -5,6 +5,7 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
   const [selectedProject, setSelectedProject] = useState('ALL');
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [predictionModel, setPredictionModel] = useState<'conservative' | 'baseline' | 'aggressive'>('baseline');
+  const [routineSpend, setRoutineSpend] = useState<number>(0); // 월 고정/루틴 지출액
 
   const detailedProjects = useMemo(() => {
     const projects = new Set(budgetCategories.map(c => c.detailedProject).filter(Boolean) as string[]);
@@ -68,7 +69,7 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
   }, [budgetCategories, budgetEntries, selectedProject, detailedProjects]);
 
   // 항상 모든 사업을 표시하기 위한 독립된 데이터 (아코디언용)
-  const allBreakdownData = useMemo<{ name: string; total: number; executed: number; rate: number; formationItem?: string }[]>(() => {
+  const allBreakdownData = useMemo(() => {
     const projectsData = detailedProjects.map(dp => {
       const cats = budgetCategories.filter(c => c.detailedProject === dp);
       const catIds = new Set(cats.map(c => c.id));
@@ -78,13 +79,86 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
         return s + e.amount;
       }, 0);
       const rate = total > 0 ? (executed / total) * 100 : 0;
-      return { name: dp, total, executed, rate };
+      
+      const remaining = Math.max(0, total - executed);
+      const recommendedMonthly = Math.round(remaining / 6);
+      const historicalMonthly = Math.round(executed / 5);
+
+      // 이 세부사업의 가계획 총합
+      const plannedInProject = budgetEntries
+        .filter(e => e.isPlanned && catIds.has(e.categoryId))
+        .reduce((sum, e) => sum + e.amount, 0);
+
+      // 이 세부사업의 가상 조정액 총합
+      let virtualAdjustmentInProject = 0;
+      cats.forEach(cat => {
+        if (cat.subItems) {
+          cat.subItems.forEach(sub => {
+            if (typeof sub.virtualAdjustment === 'number') {
+              virtualAdjustmentInProject += sub.virtualAdjustment;
+            }
+            if (sub.calculations) {
+              sub.calculations.forEach(calc => {
+                if (typeof calc.virtualAdjustment === 'number') {
+                  virtualAdjustmentInProject += calc.virtualAdjustment;
+                }
+              });
+            }
+          });
+        }
+      });
+
+      // 미설계 잔액 = 남은예산 - 가계획 + 가상조정액
+      const unplannedRemaining = remaining - plannedInProject + virtualAdjustmentInProject;
+      
+      let burnStatus: 'ACCELERATE' | 'DECELERATE' | 'OPTIMAL' = 'OPTIMAL';
+      const diffAmount = recommendedMonthly - historicalMonthly;
+      
+      if (executed > 0) {
+        if (recommendedMonthly > 1.15 * historicalMonthly) {
+          burnStatus = 'ACCELERATE';
+        } else if (recommendedMonthly < 0.85 * historicalMonthly) {
+          burnStatus = 'DECELERATE';
+        }
+      } else {
+        if (remaining > 0) {
+          burnStatus = 'ACCELERATE';
+        }
+      }
+      
+      return { 
+        name: dp, 
+        total, 
+        executed, 
+        rate,
+        remaining,
+        unplannedRemaining,
+        plannedInProject,
+        virtualAdjustmentInProject,
+        recommendedMonthly,
+        historicalMonthly,
+        burnStatus,
+        diffAmount
+      };
     });
     return projectsData.sort((a, b) => a.name.localeCompare(b.name));
   }, [budgetCategories, budgetEntries, detailedProjects]);
 
-  // Monthly Execution Trend Analysis
-  const { monthlyExecutionData, maxSpendMonth, avgMonthlySpend, velocityInsights, remainingTargetAmount, recommendedMonthlySpendForTarget } = useMemo(() => {
+
+  // Monthly Execution Trend Analysis & Target Spend-down Planner
+  const { 
+    monthlyExecutionData, 
+    maxSpendMonth, 
+    avgMonthlySpend, 
+    velocityInsights, 
+    remainingTargetAmount, 
+    recommendedMonthlySpendForTarget,
+    exhaustionMonthName,
+    projectedEoyExecutionRate,
+    totalPlannedInDraft,
+    unplannedRemainingAmount,
+    totalVirtualAdjustment
+  } = useMemo(() => {
     const currentMonth = 5; // 2026년 5월 기준 (1~5월까지 5개월 경과)
     const elapsedRatio = currentMonth / 12;
     const validCategoryIds = new Set(filteredCategories.map(c => c.id));
@@ -108,23 +182,113 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
     
     // 11월(Index 10)까지 100% 소진 목표선형 가이드
     const monthlyTargetUnit = totalBudget / 11;
+
+    // --- 1. Linear Regression (최소자승법 선형 회귀) ---
+    // N = 5 (Jan to May)
+    const N = 5;
+    let sumX = 0;
+    let sumY = 0;
+    let sumXY = 0;
+    let sumXX = 0;
     
+    let tempCumulative = 0;
+    for (let k = 1; k <= N; k++) {
+      tempCumulative += monthlyAmounts[k - 1];
+      sumX += k;
+      sumY += tempCumulative;
+      sumXY += k * tempCumulative;
+      sumXX += k * k;
+    }
+    
+    const slope = (N * sumXY - sumX * sumY) / (N * sumXX - sumX * sumX || 1);
+    const intercept = (sumY - slope * sumX) / N;
+
+    // --- 2. Target Burn-down Plan by Nov 30 ---
+    const actualCumulativeMay = tempCumulative; // Jan to May actual total
+    const remainTargetAmt = Math.max(0, totalBudget - actualCumulativeMay);
+    
+    // 가계획 (isPlanned: true) 항목들의 월별 집계
+    const plannedMonthlyAmounts = Array(12).fill(0);
+    budgetEntries.forEach(e => {
+      if (!e.isPlanned || !validCategoryIds.has(e.categoryId)) {
+        return;
+      }
+      const parts = e.date.split('-');
+      const monthIdx = parts.length >= 2 ? parseInt(parts[1], 10) - 1 : -1;
+      if (monthIdx >= 0 && monthIdx <= 11) { // 1월 ~ 12월 전체 수용
+        plannedMonthlyAmounts[monthIdx] += e.amount;
+      }
+    });
+
+    // 가상 조정액(Virtual Adjustment) 총합 계산
+    let totalVirtualAdjustment = 0;
+    filteredCategories.forEach(cat => {
+      if (cat.subItems) {
+        cat.subItems.forEach(sub => {
+          if (typeof sub.virtualAdjustment === 'number') {
+            totalVirtualAdjustment += sub.virtualAdjustment;
+          }
+          if (sub.calculations) {
+            sub.calculations.forEach(calc => {
+              if (typeof calc.virtualAdjustment === 'number') {
+                totalVirtualAdjustment += calc.virtualAdjustment;
+              }
+            });
+          }
+        });
+      }
+    });
+
+    const totalPlannedInDraft = plannedMonthlyAmounts.reduce((sum, val) => sum + val, 0);
+    // 가상 조정액 보정치 반영
+    const unplannedRemainingAmount = remainTargetAmt - totalPlannedInDraft + totalVirtualAdjustment;
+
+
+    // 월 권장 지출액 (참고용 기준값)
+    const recommendedMonthlySpendForTarget = Math.round(remainTargetAmt / 6);
+
     let cumulative = 0;
+    let planCumulativeVal = 0;
+    
     const trendData = months.map((m, i) => {
       const actualMonthAmount = monthlyAmounts[i];
       cumulative += actualMonthAmount;
       
-      // 11월까지 선형 누적, 12월은 100% 유지
       const targetVal = i < 11 
         ? Math.round(monthlyTargetUnit * (i + 1)) 
         : totalBudget;
+
+      const regVal = Math.round(slope * (i + 1) + intercept);
+      const plannedMonthSpend = Math.round(plannedMonthlyAmounts[i]);
+      
+      if (i <= 4) {
+        // 1월~5월 (실제 데이터 반영)
+        // 가계획 입력값이 있다면 계획값을 사용하고, 없으면 실제 누적 실적값을 계획선 베이스로 적용
+        const effectivePlanSpend = plannedMonthSpend > 0 ? plannedMonthSpend : actualMonthAmount;
+        planCumulativeVal += effectivePlanSpend;
+        return {
+          name: m,
+          monthly: actualMonthAmount,
+          cumulative: cumulative,
+          planCumulative: planCumulativeVal,
+          planMonthly: plannedMonthSpend > 0 ? plannedMonthSpend : actualMonthAmount,
+          regressionCumulative: regVal >= 0 ? regVal : 0,
+          targetCumulative: targetVal
+        };
+      } else {
+        // 6월~12월 (계획/예측 데이터 반영)
+        planCumulativeVal += plannedMonthSpend;
         
-      return {
-        name: m,
-        monthly: actualMonthAmount,
-        cumulative: cumulative,
-        targetCumulative: targetVal
-      };
+        return {
+          name: m,
+          monthly: undefined,
+          cumulative: undefined,
+          planCumulative: planCumulativeVal,
+          planMonthly: plannedMonthSpend,
+          regressionCumulative: regVal >= 0 ? regVal : 0,
+          targetCumulative: targetVal
+        };
+      }
     });
     
     // 최대 지출월 찾기
@@ -139,7 +303,7 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
     
     const avgSpend = currentMonth > 0 ? executedBudget / currentMonth : 0;
     
-    // Velocity Insights 계산 복구 (예측 가중치를 배제한 실제 예산 속도 분석)
+    // Velocity Insights 계산
     const insights: any[] = [];
     breakdownData.forEach(item => {
       const burnRate = item.total > 0 ? item.executed / item.total : 0;
@@ -180,9 +344,27 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
 
     insights.sort((a, b) => Math.abs(b.velocity - 1) - Math.abs(a.velocity - 1));
     
-    // 11월 목표 대비 남은 목표 예산 및 월간 권장 지출액 계산
-    const remainTargetAmt = Math.max(0, totalBudget - executedBudget);
-    const recommendedSpend = remainTargetAmt / 6; // 6개월 남음 (6,7,8,9,10,11월)
+    // 자연 소진 월(exhaustion month) 구하기
+    let exhaustionMonth = 'N/A';
+    if (slope > 0) {
+      const monthFloat = (totalBudget - intercept) / slope;
+      if (monthFloat > 0 && monthFloat <= 24) {
+        const monthNum = Math.ceil(monthFloat);
+        if (monthNum <= 12) {
+          exhaustionMonth = `2026년 ${monthNum}월`;
+        } else {
+          exhaustionMonth = `2027년 ${monthNum - 12}월`;
+        }
+      } else if (monthFloat > 24) {
+        exhaustionMonth = '2년 이상 소요';
+      }
+    } else {
+      exhaustionMonth = '지출 증가세 없음';
+    }
+
+    // 2026년 말 최종 예상 소진율
+    const regEoyVal = trendData[11].regressionCumulative;
+    const projectedEoyRate = totalBudget > 0 ? (regEoyVal / totalBudget) * 100 : 0;
     
     return {
       monthlyExecutionData: trendData,
@@ -190,14 +372,20 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
       avgMonthlySpend: avgSpend,
       velocityInsights: insights.slice(0, 3),
       remainingTargetAmount: remainTargetAmt,
-      recommendedMonthlySpendForTarget: recommendedSpend
+      recommendedMonthlySpendForTarget,
+      exhaustionMonthName: exhaustionMonth,
+      projectedEoyExecutionRate: projectedEoyRate,
+      totalPlannedInDraft,
+      unplannedRemainingAmount,
+      totalVirtualAdjustment
     };
-  }, [filteredCategories, budgetEntries, executedBudget, breakdownData, totalBudget]);
+  }, [filteredCategories, budgetEntries, executedBudget, breakdownData, totalBudget, routineSpend]);
 
   return {
     selectedProject, setSelectedProject,
     expandedCategory, setExpandedCategory,
     predictionModel, setPredictionModel,
+    routineSpend, setRoutineSpend,
     detailedProjects,
     filteredCategories,
     totalBudget,
@@ -212,6 +400,11 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
     avgMonthlySpend,
     velocityInsights,
     remainingTargetAmount,
-    recommendedMonthlySpendForTarget
+    recommendedMonthlySpendForTarget,
+    exhaustionMonthName,
+    projectedEoyExecutionRate,
+    totalPlannedInDraft,
+    unplannedRemainingAmount,
+    totalVirtualAdjustment
   };
 }
