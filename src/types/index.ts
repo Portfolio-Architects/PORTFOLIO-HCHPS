@@ -93,6 +93,7 @@ export interface BudgetEntry {
   inventoryItemId?: string;
   docRegNum?: string; // 시행 문서 번호 (보건행정과-00000)
   linkedSubItemId?: string; // 세부 산출내역(통제 항목) 연결 ID
+  checked?: boolean;
 }
 
 // ============ Inventory Module ============

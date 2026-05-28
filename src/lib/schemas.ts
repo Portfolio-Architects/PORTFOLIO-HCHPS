@@ -96,6 +96,7 @@ export const BudgetEntrySchema = z.object({
   actionType: BudgetActionTypeSchema.optional().catch(undefined),
   inventoryItemId: z.string().optional().catch(undefined),
   docRegNum: z.string().optional().catch(''),
+  checked: z.boolean().optional().catch(false),
 });
 
 export type BudgetEntryDto = z.infer<typeof BudgetEntrySchema>;

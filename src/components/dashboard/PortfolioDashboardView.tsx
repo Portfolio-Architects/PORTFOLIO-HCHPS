@@ -423,20 +423,20 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                 >
                   <div className="flex items-center gap-4">
                     <div className="w-4 h-4 rounded-full shadow-sm" style={{ backgroundColor: themeColors[idx % themeColors.length] || '#cbd5e1' }} />
-                    <span className="text-lg font-black text-slate-800 tracking-tight">{item.name}</span>
+                    <span className="text-xl font-black text-slate-800 tracking-tight">{item.name}</span>
                   </div>
                   <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto">
                     <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
                       {/* 대카테고리 총 본예산 칩 */}
                       <div className="flex flex-col sm:items-end px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-100/80 shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)] min-w-[100px] sm:min-w-[120px]">
-                        <span className="text-[15px] font-bold text-slate-500 leading-tight">총 본예산</span>
-                        <span className="font-extrabold text-[17px] text-slate-700 mt-0.5">{item.total.toLocaleString()}원</span>
+                        <span className="text-[17px] font-bold text-slate-500 leading-tight">총 본예산</span>
+                        <span className="font-extrabold text-[19px] text-slate-700 mt-0.5">{item.total.toLocaleString()}원</span>
                       </div>
   
                       {/* 대카테고리 합산 설계확정 금액 칩 */}
                       <div className="flex flex-col sm:items-end px-3 py-1.5 rounded-xl bg-indigo-50/30 border border-indigo-100/50 shadow-[inset_0_1px_2px_rgba(79,70,229,0.02)] min-w-[100px] sm:min-w-[120px]">
-                        <span className="text-[15px] font-bold text-indigo-600/90 leading-tight">설계 확정 금액</span>
-                        <span className="font-black text-[17px] text-indigo-600 mt-0.5">{categoryVirtualAdjustment.toLocaleString()}원</span>
+                        <span className="text-[17px] font-bold text-indigo-600/90 leading-tight">설계 확정 금액</span>
+                        <span className="font-black text-[19px] text-indigo-600 mt-0.5">{categoryVirtualAdjustment.toLocaleString()}원</span>
                       </div>
   
                       {/* 대카테고리 남은 차액 칩 */}
@@ -445,13 +445,13 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                           ? 'bg-emerald-50/30 border-emerald-100/50 shadow-[inset_0_1px_2px_rgba(16,185,129,0.02)]' 
                           : 'bg-rose-50/30 border-rose-100/50 shadow-[inset_0_1px_2px_rgba(244,63,94,0.02)]'
                       }`}>
-                        <span className={`text-[15px] font-bold leading-tight ${categoryRemainingDiff === 0 ? 'text-emerald-600' : 'text-rose-600'}`}>남은 차액</span>
-                        <span className={`font-black text-[17px] mt-0.5 ${categoryRemainingDiff === 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{categoryRemainingDiff.toLocaleString()}원</span>
+                        <span className={`text-[17px] font-bold leading-tight ${categoryRemainingDiff === 0 ? 'text-emerald-600' : 'text-rose-600'}`}>남은 차액</span>
+                        <span className={`font-black text-[19px] mt-0.5 ${categoryRemainingDiff === 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{categoryRemainingDiff.toLocaleString()}원</span>
                       </div>
                     </div>
                     
                     {/* 다차원 비율 정보 패널 */}
-                    <div className="border-l border-slate-200 pl-4 flex flex-col gap-0.5 text-[11px] font-black text-slate-500 min-w-[155px] text-right pr-2">
+                    <div className="border-l border-slate-200 pl-4 flex flex-col gap-0.5 text-[12px] font-black text-slate-500 min-w-[155px] text-right pr-2">
                       <div>실제 집행률: <span className="text-slate-800 font-extrabold">{executionRate.toFixed(1)}%</span></div>
                       <div>설계 확정률: <span className="text-indigo-600 font-black">{designRate.toFixed(1)}%</span></div>
                       <div>남은 예산 비율: <span className={categoryRemainingDiff === 0 ? 'text-emerald-600 font-black' : 'text-rose-600 font-black'}>{remainingRate.toFixed(1)}%</span></div>
@@ -495,25 +495,25 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                             >
                               <div className="flex items-center gap-3">
                                 <div className="flex flex-col">
-                                  <span className="font-black text-[16px] text-slate-800">{sub.name}</span>
+                                  <span className="font-black text-[18px] text-slate-800">{sub.name}</span>
                                   {sub.formationItem && (
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{sub.formationItem} {sub.statItem && `| ${sub.statItem}`}</span>
+                                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{sub.formationItem} {sub.statItem && `| ${sub.statItem}`}</span>
                                   )}
                                 </div>
                               </div>
                               
                               <div className="flex items-center justify-between sm:justify-end gap-6 w-full sm:w-auto">
                                 <div className="flex flex-col sm:items-end">
-                                  <span className="text-xs font-semibold text-slate-400">총 본예산</span>
-                                  <span className="font-extrabold text-[13px] text-slate-700">{sub.totalBudget.toLocaleString()}원</span>
+                                  <span className="text-[13px] font-semibold text-slate-400">총 본예산</span>
+                                  <span className="font-extrabold text-[15px] text-slate-700">{sub.totalBudget.toLocaleString()}원</span>
                                 </div>
                                 <div className="flex flex-col sm:items-end">
-                                  <span className="text-xs font-semibold text-indigo-600/90">설계 확정 금액</span>
-                                  <span className="font-black text-[13px] text-indigo-600">{subVirtualAdjustment.toLocaleString()}원</span>
+                                  <span className="text-[13px] font-semibold text-indigo-600/90">설계 확정 금액</span>
+                                  <span className="font-black text-[15px] text-indigo-600">{subVirtualAdjustment.toLocaleString()}원</span>
                                 </div>
                                 <div className="flex flex-col sm:items-end">
-                                  <span className="text-xs font-semibold text-slate-400">남은 차액</span>
-                                  <span className={`font-black text-[13px] ${subRemainingDiff === 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{subRemainingDiff.toLocaleString()}원</span>
+                                  <span className="text-[13px] font-semibold text-slate-400">남은 차액</span>
+                                  <span className={`font-black text-[15px] ${subRemainingDiff === 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{subRemainingDiff.toLocaleString()}원</span>
                                 </div>
                                 {isSubExpanded ? <ChevronUp className="w-4 h-4 text-slate-400 shrink-0" /> : <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />}
                               </div>
@@ -578,31 +578,8 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                               {/* 1단계 통계목 아이템 */}
                                               <tr className={`${hasCalcs ? 'bg-slate-50/10' : ''} hover:bg-slate-50/40 transition-colors`}>
                                                 <td className="py-3 px-4 flex items-center gap-2">
-                                                  <button
-                                                    onClick={(e) => {
-                                                      e.stopPropagation();
-                                                      const updatedSubItems = [...(sub.subItems || [])];
-                                                      updatedSubItems[sIdx] = {
-                                                        ...updatedSubItems[sIdx],
-                                                        checked: !updatedSubItems[sIdx].checked
-                                                      };
-                                                      updateCategory(sub.id, { subItems: updatedSubItems });
-                                                    }}
-                                                    className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all cursor-pointer shrink-0 ${
-                                                      s.checked 
-                                                        ? 'bg-emerald-500 border-emerald-500 text-white' 
-                                                        : 'border-slate-300 hover:border-slate-400 bg-white'
-                                                    }`}
-                                                    title={s.checked ? "지출 매핑 해제" : "지출 매핑 완료 마킹"}
-                                                  >
-                                                    {s.checked && (
-                                                      <svg className="w-2.5 h-2.5 fill-current" viewBox="0 0 20 20">
-                                                        <path d="M0 11l2-2 5 5L18 3l2 2L7 18z" />
-                                                      </svg>
-                                                    )}
-                                                  </button>
-                                                  <Folder className={`w-4 h-4 shrink-0 transition-colors ${s.checked ? 'text-slate-300 opacity-60' : 'text-slate-400'}`} />
-                                                  <span className={s.checked ? 'text-slate-400 line-through opacity-60 decoration-slate-300 font-bold' : ''}>{s.name}</span>
+                                                  <Folder className="w-4 h-4 text-slate-400 shrink-0" />
+                                                  <span>{s.name}</span>
                                                   <button
                                                     onClick={(e) => {
                                                       e.stopPropagation();
@@ -707,17 +684,16 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                                             const inputVal = e.target.value.trim();
                                                             const updatedSubItems = [...(sub.subItems || [])];
                                                             const currentItem = updatedSubItems[sIdx];
-                                                            const { planned: existingPlanned } = extractSplitFormulaFromNote(currentItem.note);
                                                             
                                                             const completedVal = evaluateExpression(inputVal);
-                                                            const plannedVal = evaluateExpression(existingPlanned);
+                                                            const autoPlannedVal = Math.max(0, currentItem.amount - completedVal);
                                                             const existingMemo = extractMemoFromNoteWithSplit(currentItem.note);
                                                             
-                                                            const newNote = buildNoteWithSplitFormula(inputVal, existingPlanned, existingMemo);
+                                                            const newNote = buildNoteWithSplitFormula(inputVal, autoPlannedVal.toString(), existingMemo);
                                                             
                                                             updatedSubItems[sIdx] = {
                                                               ...currentItem,
-                                                              virtualAdjustment: completedVal + plannedVal,
+                                                              virtualAdjustment: completedVal + autoPlannedVal,
                                                               note: newNote
                                                             };
                                                             updateCategory(sub.id, { subItems: updatedSubItems });
@@ -863,36 +839,8 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                                 const cRemainingDiff = c.amount - (cCompVal + cPlanVal);
                                                 
                                                 return (
-                                                  <tr key={`calc-${cIdx}`} className={`bg-slate-50/5 hover:bg-slate-50/20 transition-colors ${c.checked ? 'opacity-60' : ''}`}>
+                                                  <tr key={`calc-${cIdx}`} className="bg-slate-50/5 hover:bg-slate-50/20 transition-colors">
                                                     <td className="py-2.5 px-4 pl-8 flex items-center gap-2 text-sm">
-                                                      <button
-                                                        onClick={(e) => {
-                                                          e.stopPropagation();
-                                                          const updatedSubItems = [...(sub.subItems || [])];
-                                                          const updatedCalcs = [...(updatedSubItems[sIdx].calculations || [])];
-                                                          updatedCalcs[cIdx] = {
-                                                            ...updatedCalcs[cIdx],
-                                                            checked: !updatedCalcs[cIdx].checked
-                                                          };
-                                                          updatedSubItems[sIdx] = {
-                                                            ...updatedSubItems[sIdx],
-                                                            calculations: updatedCalcs
-                                                          };
-                                                          updateCategory(sub.id, { subItems: updatedSubItems });
-                                                        }}
-                                                        className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center transition-all cursor-pointer shrink-0 ${
-                                                          c.checked 
-                                                            ? 'bg-emerald-500 border-emerald-500 text-white' 
-                                                            : 'border-slate-300 hover:border-slate-400 bg-white'
-                                                        }`}
-                                                        title={c.checked ? "지출 매핑 해제" : "지출 매핑 완료 마킹"}
-                                                      >
-                                                        {c.checked && (
-                                                          <svg className="w-2 h-2 fill-current" viewBox="0 0 20 20">
-                                                            <path d="M0 11l2-2 5 5L18 3l2 2L7 18z" />
-                                                          </svg>
-                                                        )}
-                                                      </button>
                                                       <FileText className="w-3.5 h-3.5 text-slate-300 shrink-0" />
                                                       {(() => {
                                                         const nameInputId = `calc-name-${sub.id}-${sIdx}-${cIdx}`;
@@ -919,7 +867,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                                                 updateCategory(sub.id, { subItems: updatedSubItems });
                                                                 setTimeout(() => setActiveInputId(null), 150);
                                                               }}
-                                                              className="bg-white border border-indigo-400 rounded px-1.5 py-0.5 text-xs font-bold text-slate-700 outline-none w-[150px]"
+                                                              className="bg-white border border-indigo-400 rounded px-1.5 py-0.5 text-sm font-bold text-slate-700 outline-none w-[150px]"
                                                             />
                                                           );
                                                         }
@@ -930,11 +878,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                                               e.stopPropagation();
                                                               setTimeout(() => setActiveInputId(nameInputId), 50);
                                                             }}
-                                                            className={`font-bold transition-all cursor-pointer ${
-                                                              c.checked 
-                                                                ? 'text-slate-400 line-through opacity-60 hover:text-indigo-500' 
-                                                                : 'text-slate-500 hover:text-indigo-600 hover:underline'
-                                                            }`}
+                                                            className="text-slate-500 hover:text-indigo-600 hover:underline cursor-pointer font-bold"
                                                             title="이름 수정"
                                                           >
                                                             {c.name || c.calculation || '세부 항목'}
@@ -995,17 +939,16 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                                                 const updatedSubItems = [...(sub.subItems || [])];
                                                                 const updatedCalcs = [...(updatedSubItems[sIdx].calculations || [])];
                                                                 const currentCalc = updatedCalcs[cIdx];
-                                                                const { planned: existingPlanned } = extractSplitFormulaFromNote(currentCalc.note);
                                                                 
                                                                 const completedVal = evaluateExpression(inputVal);
-                                                                const plannedVal = evaluateExpression(existingPlanned);
+                                                                const autoPlannedVal = Math.max(0, currentCalc.amount - completedVal);
                                                                 const existingMemo = extractMemoFromNoteWithSplit(currentCalc.note);
                                                                 
-                                                                const newNote = buildNoteWithSplitFormula(inputVal, existingPlanned, existingMemo);
+                                                                const newNote = buildNoteWithSplitFormula(inputVal, autoPlannedVal.toString(), existingMemo);
                                                                 
                                                                 updatedCalcs[cIdx] = {
                                                                   ...currentCalc,
-                                                                  virtualAdjustment: completedVal + plannedVal,
+                                                                  virtualAdjustment: completedVal + autoPlannedVal,
                                                                   note: newNote
                                                                 };
                                                                 updatedSubItems[sIdx] = {
@@ -1198,6 +1141,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                     <table className="w-full border-collapse text-left">
                                       <thead>
                                         <tr className="bg-slate-50/80 border-b border-slate-100 text-[12px] font-black text-slate-400 uppercase tracking-wider">
+                                          <th className="py-2 px-4 w-[45px] text-center">확인</th>
                                           <th className="py-2 px-4">지출 일자</th>
                                           <th className="py-2 px-4">품의 목적 (건명)</th>
                                           <th className="py-2 px-4 text-right">집행 금액 (원)</th>
@@ -1207,17 +1151,36 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                         {entries.filter(e => e.categoryId === sub.id && !e.isPlanned)
                                           .sort((a, b) => b.date.localeCompare(a.date))
                                           .map((e: any, eIdx: number) => (
-                                          <tr key={eIdx} className="hover:bg-slate-50/50 transition-colors">
-                                            <td className="py-2 px-4 text-slate-500">{e.date}</td>
-                                            <td className="py-2 px-4 text-slate-700">{e.purpose}</td>
-                                            <td className="py-2 px-4 text-right font-extrabold text-slate-800">
+                                          <tr key={eIdx} className={`transition-colors ${e.checked ? 'bg-slate-50/30 opacity-50 line-through text-slate-400' : 'hover:bg-slate-50/50'}`}>
+                                            <td className="py-2 px-4 text-center">
+                                              <button
+                                                onClick={() => {
+                                                  updateEntry(e.id, { checked: !e.checked });
+                                                }}
+                                                className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all cursor-pointer mx-auto ${
+                                                  e.checked 
+                                                    ? 'bg-emerald-500 border-emerald-500 text-white' 
+                                                    : 'border-slate-300 hover:border-slate-400 bg-white'
+                                                }`}
+                                                title={e.checked ? "대조 완료 해제" : "대조 완료 체크"}
+                                              >
+                                                {e.checked && (
+                                                  <svg className="w-2.5 h-2.5 fill-current" viewBox="0 0 20 20">
+                                                    <path d="M0 11l2-2 5 5L18 3l2 2L7 18z" />
+                                                  </svg>
+                                                )}
+                                              </button>
+                                            </td>
+                                            <td className={`py-2 px-4 ${e.checked ? 'text-slate-400' : 'text-slate-500'}`}>{e.date}</td>
+                                            <td className={`py-2 px-4 ${e.checked ? 'text-slate-400' : 'text-slate-700'}`}>{e.purpose}</td>
+                                            <td className={`py-2 px-4 text-right font-extrabold ${e.checked ? 'text-slate-400' : 'text-slate-800'}`}>
                                               {e.amount.toLocaleString()}원
                                             </td>
                                           </tr>
                                         ))}
                                         {entries.filter(e => e.categoryId === sub.id && !e.isPlanned).length === 0 && (
                                           <tr>
-                                            <td colSpan={3} className="py-3 text-center text-sm text-slate-400 font-medium">실제 집행된 지출 내역이 없습니다.</td>
+                                            <td colSpan={4} className="py-3 text-center text-sm text-slate-400 font-medium">실제 집행된 지출 내역이 없습니다.</td>
                                           </tr>
                                         )}
                                       </tbody>
