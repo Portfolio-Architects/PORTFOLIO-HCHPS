@@ -1090,34 +1090,32 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                                           }}
                                                           className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-0.5 text-xs font-medium text-slate-500 focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 outline-none transition-all"
                                                         />
-                                                        {c.amount === 0 && (
-                                                          <button
-                                                            onClick={(e) => {
-                                                              e.stopPropagation();
-                                                              if (!confirm('이 세부 항목을 삭제하시겠습니까?')) return;
-                                                              const updatedSubItems = [...(sub.subItems || [])];
-                                                              let updatedCalcs = [...(updatedSubItems[sIdx].calculations || [])];
-                                                              
-                                                              // 해당 세부 항목 제거
-                                                              updatedCalcs = updatedCalcs.filter((_, i) => i !== cIdx);
-                                                              
-                                                              const hasRemainingCalcs = updatedCalcs.length > 0;
-                                                              
-                                                              updatedSubItems[sIdx] = {
-                                                                ...updatedSubItems[sIdx],
-                                                                calculations: hasRemainingCalcs ? updatedCalcs : undefined,
-                                                                virtualAdjustment: hasRemainingCalcs ? updatedCalcs.reduce((sum: number, x: any) => sum + (x.virtualAdjustment || 0), 0) : 0,
-                                                                note: hasRemainingCalcs ? updatedSubItems[sIdx].note : ''
-                                                              };
-                                                              
-                                                              updateCategory(sub.id, { subItems: updatedSubItems });
-                                                            }}
-                                                            className="p-1 text-rose-500 hover:bg-rose-50 rounded transition-colors cursor-pointer shrink-0"
-                                                            title="세부 항목 삭제"
-                                                          >
-                                                            <X className="w-3.5 h-3.5" />
-                                                          </button>
-                                                        )}
+                                                        <button
+                                                          onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (!confirm('이 세부 항목을 삭제하시겠습니까?')) return;
+                                                            const updatedSubItems = [...(sub.subItems || [])];
+                                                            let updatedCalcs = [...(updatedSubItems[sIdx].calculations || [])];
+                                                            
+                                                            // 해당 세부 항목 제거
+                                                            updatedCalcs = updatedCalcs.filter((_, i) => i !== cIdx);
+                                                            
+                                                            const hasRemainingCalcs = updatedCalcs.length > 0;
+                                                            
+                                                            updatedSubItems[sIdx] = {
+                                                              ...updatedSubItems[sIdx],
+                                                              calculations: hasRemainingCalcs ? updatedCalcs : undefined,
+                                                              virtualAdjustment: hasRemainingCalcs ? updatedCalcs.reduce((sum: number, x: any) => sum + (x.virtualAdjustment || 0), 0) : 0,
+                                                              note: hasRemainingCalcs ? updatedSubItems[sIdx].note : ''
+                                                            };
+                                                            
+                                                            updateCategory(sub.id, { subItems: updatedSubItems });
+                                                          }}
+                                                          className="p-1 text-rose-500 hover:bg-rose-50 rounded transition-colors cursor-pointer shrink-0"
+                                                          title="세부 항목 삭제"
+                                                        >
+                                                          <X className="w-3.5 h-3.5" />
+                                                        </button>
                                                       </div>
                                                     </td>
                                                   </tr>
