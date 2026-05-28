@@ -3,7 +3,7 @@ import { PieChart, Pie, Cell, LineChart, Line, Bar, ReferenceLine, XAxis, YAxis,
 import { Task, BudgetCategory, BudgetEntry } from '@/types';
 import { usePortfolioAnalytics } from '@/hooks/usePortfolioAnalytics';
 import { useBudget } from '@/hooks/useBudget';
-import { Expand, Shrink, ChevronRight, LayoutDashboard, ChevronDown, ChevronUp, AlertCircle, Folder, FileText, Lock, Unlock, Layers } from 'lucide-react';
+import { Expand, Shrink, ChevronRight, LayoutDashboard, ChevronDown, ChevronUp, AlertCircle, Folder, FileText, Lock, Unlock, Layers, X } from 'lucide-react';
 import { format } from 'date-fns';
 
 // --- 수식 계산 및 파싱 헬퍼 함수 ---
@@ -465,52 +465,11 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                 {isExpanded && (
                   <div className="px-6 pb-6 pt-2 border-t border-slate-50 mx-6 animate-in fade-in duration-200">
                     
-                    {/* 지능형 가계획 및 미설계 잔액 요약 카드 */}
-                    <div className="mb-6 mt-4 p-5 rounded-2xl bg-slate-50 border border-slate-200/60 flex flex-col gap-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-xs font-black text-slate-800">
-                          <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0" />
-                          <span>11월 30일 완수 소진용 지능형 지출 권장 분석</span>
-                        </div>
-                        <div className="text-[11px] font-bold text-slate-400">
-                          * 가상 조정액은 이 설계 보드의 잔액 보정에만 반영됩니다.
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-bold text-slate-700">
-                        <div className="p-3.5 bg-white rounded-xl border border-slate-100 flex flex-col gap-1.5 shadow-sm">
-                          <span className="text-slate-400 text-[10px] uppercase tracking-wider">소진 현황</span>
-                          <div className="flex flex-col gap-0.5">
-                            <span>남은 본예산: <span className="font-extrabold text-slate-900">{item.remaining.toLocaleString()}원</span></span>
-                            <span>현재 실집행률: <span className="font-extrabold text-slate-900">{item.rate.toFixed(1)}%</span></span>
-                          </div>
-                        </div>
-                        <div className="p-3.5 bg-white rounded-xl border border-slate-100 flex flex-col gap-1.5 shadow-sm">
-                          <span className="text-slate-400 text-[10px] uppercase tracking-wider">가계획 설계 현황</span>
-                          <div className="flex flex-col gap-0.5">
-                            <span>설계된 계획액: <span className="font-extrabold text-slate-900">{(item.plannedInProject || 0).toLocaleString()}원</span></span>
-                            <span>가상 조정액 총합: <span className={`font-extrabold ${item.virtualAdjustmentInProject < 0 ? 'text-red-500' : 'text-slate-900'}`}>{(item.virtualAdjustmentInProject || 0).toLocaleString()}원</span></span>
-                          </div>
-                        </div>
-                        <div className="p-3.5 bg-white rounded-xl border border-slate-100 flex flex-col gap-1.5 shadow-sm">
-                          <span className="text-slate-400 text-[10px] uppercase tracking-wider">미설계 잔액 (오차 대조)</span>
-                          <div className="flex flex-col gap-0.5">
-                            <span>보정 전 잔액: <span className="font-extrabold text-slate-900">{(item.remaining - (item.plannedInProject || 0)).toLocaleString()}원</span></span>
-                            <span>보정 후 잔액: <span className={`font-black text-sm ${(item.unplannedRemaining || 0) === 0 ? 'text-emerald-600' : 'text-red-500'}`}>{(item.unplannedRemaining || 0).toLocaleString()}원</span></span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
 
                     {/* 통계목 세부 내역 루프 */}
                     <div className="flex flex-col gap-4">
                       {subItems.map((sub: any, sIdx: number) => {
                         const isSubExpanded = expandedSubCategory === sub.id;
-                        const subStats = getCategoryStats(sub.id) || { totalBudget: 0, spent: 0, planned: 0, remaining: 0, locked: 0 };
-                        
-                        // 통계목 기준 1~12월 가계획 집계 및 미설계 잔액
-                        const subPlannedEntries = entries.filter(e => e.categoryId === sub.id && e.isPlanned);
-                        const subPlannedTotal = subPlannedEntries.reduce((sum, e) => sum + e.amount, 0);
                         
                         // 통계목의 가상 조정액 계산
                         let subVirtualAdjustment = 0;
@@ -525,10 +484,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                           });
                         }
                         
-                        // 통계목 미설계 잔액 = 남은예산(본예산-실집행-묶인금액) + 가상조정액
-                        // subStats.remaining은 이미 getCategoryStats 내부에서 가계획(planned)을 차감하여 계산된 잔액입니다.
-                        const subUnplannedRemaining = subStats.remaining + subVirtualAdjustment;
-
+                        const subRemainingDiff = sub.totalBudget - subVirtualAdjustment;
 
                         return (
                           <div key={sIdx} className="flex flex-col rounded-2xl border border-slate-100 hover:border-slate-200/80 transition-all bg-slate-50/20 shadow-sm overflow-hidden">
@@ -538,9 +494,8 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                               onClick={() => setExpandedSubCategory(isSubExpanded ? null : sub.id)}
                             >
                               <div className="flex items-center gap-3">
-                                <Layers className={`w-4 h-4 ${isHchps ? 'text-emerald-500' : 'text-blue-500'} shrink-0`} />
                                 <div className="flex flex-col">
-                                  <span className="font-black text-[14px] text-slate-800">{sub.name}</span>
+                                  <span className="font-black text-[16px] text-slate-800">{sub.name}</span>
                                   {sub.formationItem && (
                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{sub.formationItem} {sub.statItem && `| ${sub.statItem}`}</span>
                                   )}
@@ -553,8 +508,12 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                   <span className="font-extrabold text-[13px] text-slate-700">{sub.totalBudget.toLocaleString()}원</span>
                                 </div>
                                 <div className="flex flex-col sm:items-end">
-                                  <span className="text-xs font-semibold text-slate-400">보정 후 미설계 잔액</span>
-                                  <span className={`font-black text-[13px] ${subUnplannedRemaining === 0 ? 'text-emerald-600' : 'text-red-500'}`}>{subUnplannedRemaining.toLocaleString()}원</span>
+                                  <span className="text-xs font-semibold text-indigo-600/90">설계 확정 금액</span>
+                                  <span className="font-black text-[13px] text-indigo-600">{subVirtualAdjustment.toLocaleString()}원</span>
+                                </div>
+                                <div className="flex flex-col sm:items-end">
+                                  <span className="text-xs font-semibold text-slate-400">남은 차액</span>
+                                  <span className={`font-black text-[13px] ${subRemainingDiff === 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{subRemainingDiff.toLocaleString()}원</span>
                                 </div>
                                 {isSubExpanded ? <ChevronUp className="w-4 h-4 text-slate-400 shrink-0" /> : <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />}
                               </div>
@@ -564,81 +523,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                             {isSubExpanded && (
                               <div className="p-5 border-t border-slate-100 bg-white flex flex-col gap-6 animate-in slide-in-from-top-2 duration-200">
                                 
-                                {/* 1) 1~12월 연간 가계획(draft planning) 입력 폼 */}
-                                <div className="flex flex-col gap-3">
-                                  <div className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-600" />
-                                    <span>1월 ~ 12월 연간 지출 가계획 설계</span>
-                                  </div>
-                                  
-                                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-12 gap-3">
-                                    {Array.from({ length: 12 }, (_, mIdx) => {
-                                      const mNum = mIdx + 1;
-                                      const mStr = mNum < 10 ? `0${mNum}` : `${mNum}`;
-                                      const dateStr = `2026-${mStr}-15`;
-                                      
-                                      // 해당 월 가계획 엔트리 찾기
-                                      const entry = entries.find(e => e.categoryId === sub.id && e.isPlanned && e.date.startsWith(`2026-${mStr}`));
-                                      
-                                      return (
-                                        <div key={mIdx} className="flex flex-col gap-1.5 bg-slate-50/50 p-2.5 rounded-xl border border-slate-100">
-                                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{mNum}월</span>
-                                          <input 
-                                            type="text"
-                                            placeholder="0"
-                                            defaultValue={entry?.amount ? entry.amount.toLocaleString() : ''}
-                                            onInput={(e: any) => {
-                                              // 입력값 콤마 포맷팅 처리
-                                              const cleanVal = e.target.value.replace(/[^0-9]/g, '');
-                                              e.target.value = cleanVal ? parseInt(cleanVal, 10).toLocaleString() : '';
-                                            }}
-                                            onBlur={(e: any) => {
-                                              const rawVal = e.target.value.replace(/,/g, '');
-                                              const amountVal = parseInt(rawVal, 10) || 0;
-                                              if (amountVal > 0) {
-                                                if (entry) {
-                                                  updateEntry(entry.id, { amount: amountVal });
-                                                } else {
-                                                  addEntry({
-                                                    categoryId: sub.id,
-                                                    amount: amountVal,
-                                                    date: dateStr,
-                                                    purpose: `${mNum}월 가계획`,
-                                                    isPlanned: true
-                                                  });
-                                                }
-                                              } else if (entry) {
-                                                deleteEntry(entry.id);
-                                              }
-                                            }}
-                                            className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-black text-slate-800 text-right focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 outline-none"
-                                          />
-                                          <input 
-                                            type="text"
-                                            placeholder="비고"
-                                            defaultValue={entry?.purpose && entry.purpose !== `${mNum}월 가계획` ? entry.purpose : ''}
-                                            onBlur={(e: any) => {
-                                              const textVal = e.target.value.trim();
-                                              if (entry) {
-                                                updateEntry(entry.id, { purpose: textVal || `${mNum}월 가계획` });
-                                              } else if (textVal) {
-                                                // 금액이 0원이라도 설명이 있으면 생성 (금액은 일단 0으로 둠)
-                                                addEntry({
-                                                  categoryId: sub.id,
-                                                  amount: 0,
-                                                  date: dateStr,
-                                                  purpose: textVal,
-                                                  isPlanned: true
-                                                });
-                                              }
-                                            }}
-                                            className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-[9px] font-semibold text-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 outline-none"
-                                          />
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
+
 
                                 {/* 2) 공식 예산서 세부 산출 내역 대조 테이블 (subItems 트리 구조) */}
                                 <div className="flex flex-col gap-2.5">
@@ -695,6 +580,52 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                                 <td className="py-3 px-4 flex items-center gap-2">
                                                   <Folder className="w-4 h-4 text-slate-400 shrink-0" />
                                                   <span>{s.name}</span>
+                                                  <button
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      const updatedSubItems = [...(sub.subItems || [])];
+                                                      const currentItem = updatedSubItems[sIdx];
+                                                      const calcs = [...(currentItem.calculations || [])];
+                                                      
+                                                      // 새 가상 항목 ID 생성
+                                                      const newCalcId = `calc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                                                      
+                                                      // 기존 입력 수식/메모 마이그레이션 (세부 계산식이 아예 없었던 경우)
+                                                      if (calcs.length === 0 && (currentItem.note || currentItem.virtualAdjustment)) {
+                                                        calcs.push({
+                                                          id: `calc-${Date.now()}-mig`,
+                                                          name: '기존 등록분',
+                                                          calculation: '',
+                                                          amount: currentItem.amount || 0,
+                                                          virtualAdjustment: currentItem.virtualAdjustment || 0,
+                                                          note: currentItem.note || ''
+                                                        });
+                                                      }
+                                                      
+                                                      // 새 세부 항목 객체 삽입
+                                                      calcs.push({
+                                                        id: newCalcId,
+                                                        name: '새 세부 항목',
+                                                        calculation: '',
+                                                        amount: 0,
+                                                        virtualAdjustment: 0,
+                                                        note: '[완료:  | 예정: ]'
+                                                      });
+                                                      
+                                                      updatedSubItems[sIdx] = {
+                                                        ...currentItem,
+                                                        calculations: calcs,
+                                                        virtualAdjustment: calcs.reduce((sum: number, c: any) => sum + (c.virtualAdjustment || 0), 0),
+                                                        note: '' // 마이그레이션되었으므로 1단계의 직접 작성 비고는 날림
+                                                      };
+                                                      
+                                                      updateCategory(sub.id, { subItems: updatedSubItems });
+                                                    }}
+                                                    className="px-2 py-0.5 rounded text-[10px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 hover:bg-indigo-100/70 transition-colors cursor-pointer ml-2 shrink-0 inline-flex items-center gap-1"
+                                                    title="이 통계목 아래에 가상 세부 항목을 추가하여 다중 항목 확정액을 입력합니다"
+                                                  >
+                                                    + 세부 추가
+                                                  </button>
                                                   {s.isLocked && (
                                                     <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-red-50 text-red-500 border border-red-100">차단됨</span>
                                                   )}
@@ -705,7 +636,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                                 <td className="py-3 px-4 text-center">
                                                   <button 
                                                     onClick={() => {
-                                                      const updatedSubItems = [...sub.subItems];
+                                                      const updatedSubItems = [...(sub.subItems || [])];
                                                       updatedSubItems[sIdx] = {
                                                         ...updatedSubItems[sIdx],
                                                         isLocked: !updatedSubItems[sIdx].isLocked
@@ -769,7 +700,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                                             updateCategory(sub.id, { subItems: updatedSubItems });
                                                             setTimeout(() => setActiveInputId(null), 150);
                                                           }}
-                                                          className="w-full bg-white border border-blue-500 rounded-lg px-2.5 py-1 text-xs font-black text-slate-800 text-right focus:ring-1 focus:ring-blue-500/20 outline-none"
+                                                          className="w-full min-w-[100px] bg-white border border-blue-500 rounded-lg px-2.5 py-1 text-xs font-black text-slate-800 text-right focus:ring-1 focus:ring-blue-500/20 outline-none"
                                                         />
                                                       );
                                                     }
@@ -841,7 +772,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                                             updateCategory(sub.id, { subItems: updatedSubItems });
                                                             setTimeout(() => setActiveInputId(null), 150);
                                                           }}
-                                                          className="w-full bg-white border border-blue-500 rounded-lg px-2.5 py-1 text-xs font-black text-slate-800 text-right focus:ring-1 focus:ring-blue-500/20 outline-none"
+                                                          className="w-full min-w-[100px] bg-white border border-blue-500 rounded-lg px-2.5 py-1 text-xs font-black text-slate-800 text-right focus:ring-1 focus:ring-blue-500/20 outline-none"
                                                         />
                                                       );
                                                     }
@@ -850,7 +781,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                                       <div 
                                                         onClick={(e) => {
                                                           e.stopPropagation();
-                                                          setActiveInputId(inputId);
+                                                          setTimeout(() => setActiveInputId(inputId), 50);
                                                         }}
                                                         className={`px-3 py-1.5 rounded-full text-right cursor-pointer text-xs font-black transition-colors min-w-[80px] inline-block ${
                                                           planVal > 0 
@@ -878,7 +809,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                                       defaultValue={extractMemoFromNoteWithSplit(s.note)}
                                                       onBlur={(e: any) => {
                                                         const noteVal = e.target.value.trim();
-                                                        const updatedSubItems = [...sub.subItems];
+                                                        const updatedSubItems = [...(sub.subItems || [])];
                                                         const currentItem = updatedSubItems[sIdx];
                                                         const { completed, planned } = extractSplitFormulaFromNote(currentItem.note);
                                                         
@@ -899,7 +830,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                               </tr>
 
                                               {/* 2단계 세부 계산식 아이템 */}
-                                              {hasCalcs && s.calculations.map((c: any, cIdx: number) => {
+                                              {hasCalcs && (s.calculations || []).map((c: any, cIdx: number) => {
                                                 const { completed, planned } = extractSplitFormulaFromNote(c.note);
                                                 const compBase = completed 
                                                   ? completed 
@@ -912,7 +843,49 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                                   <tr key={`calc-${cIdx}`} className="bg-slate-50/5 hover:bg-slate-50/20 transition-colors">
                                                     <td className="py-2.5 px-4 pl-8 flex items-center gap-2 text-xs">
                                                       <FileText className="w-3.5 h-3.5 text-slate-300 shrink-0" />
-                                                      <span className="text-slate-500">{c.name || c.calculation}</span>
+                                                      {(() => {
+                                                        const nameInputId = `calc-name-${sub.id}-${sIdx}-${cIdx}`;
+                                                        const isEditingName = activeInputId === nameInputId;
+                                                        
+                                                        if (isEditingName) {
+                                                          return (
+                                                            <input
+                                                              autoFocus
+                                                              type="text"
+                                                              defaultValue={c.name || c.calculation || ''}
+                                                              onBlur={(e) => {
+                                                                const newName = e.target.value.trim() || '세부 항목';
+                                                                const updatedSubItems = [...(sub.subItems || [])];
+                                                                const updatedCalcs = [...(updatedSubItems[sIdx].calculations || [])];
+                                                                updatedCalcs[cIdx] = {
+                                                                  ...updatedCalcs[cIdx],
+                                                                  name: newName
+                                                                };
+                                                                updatedSubItems[sIdx] = {
+                                                                  ...updatedSubItems[sIdx],
+                                                                  calculations: updatedCalcs
+                                                                };
+                                                                updateCategory(sub.id, { subItems: updatedSubItems });
+                                                                setTimeout(() => setActiveInputId(null), 150);
+                                                              }}
+                                                              className="bg-white border border-indigo-400 rounded px-1.5 py-0.5 text-xs font-bold text-slate-700 outline-none w-[150px]"
+                                                            />
+                                                          );
+                                                        }
+                                                        
+                                                        return (
+                                                          <span 
+                                                            onClick={(e) => {
+                                                              e.stopPropagation();
+                                                              setTimeout(() => setActiveInputId(nameInputId), 50);
+                                                            }}
+                                                            className="text-slate-500 hover:text-indigo-600 hover:underline cursor-pointer font-bold"
+                                                            title="이름 수정"
+                                                          >
+                                                            {c.name || c.calculation || '세부 항목'}
+                                                          </span>
+                                                        );
+                                                      })()}
                                                       {c.isLocked && (
                                                         <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-red-50 text-red-500 border border-red-100">차단됨</span>
                                                       )}
@@ -964,8 +937,8 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                                               }}
                                                               onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
                                                                 const inputVal = e.target.value.trim();
-                                                                const updatedSubItems = [...sub.subItems];
-                                                                const updatedCalcs = [...updatedSubItems[sIdx].calculations];
+                                                                const updatedSubItems = [...(sub.subItems || [])];
+                                                                const updatedCalcs = [...(updatedSubItems[sIdx].calculations || [])];
                                                                 const currentCalc = updatedCalcs[cIdx];
                                                                 const { planned: existingPlanned } = extractSplitFormulaFromNote(currentCalc.note);
                                                                 
@@ -987,7 +960,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                                                 updateCategory(sub.id, { subItems: updatedSubItems });
                                                                 setTimeout(() => setActiveInputId(null), 150);
                                                               }}
-                                                              className="w-full bg-white border border-blue-500 rounded-lg px-2 py-0.5 text-xs font-black text-slate-800 text-right focus:ring-1 focus:ring-blue-500/20 outline-none"
+                                                              className="w-full min-w-[100px] bg-white border border-blue-500 rounded-lg px-2 py-0.5 text-xs font-black text-slate-800 text-right focus:ring-1 focus:ring-blue-500/20 outline-none"
                                                             />
                                                           );
                                                         }
@@ -1031,8 +1004,8 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                                               }}
                                                               onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
                                                                 const inputVal = e.target.value.trim();
-                                                                const updatedSubItems = [...sub.subItems];
-                                                                const updatedCalcs = [...updatedSubItems[sIdx].calculations];
+                                                                const updatedSubItems = [...(sub.subItems || [])];
+                                                                const updatedCalcs = [...(updatedSubItems[sIdx].calculations || [])];
                                                                 const currentCalc = updatedCalcs[cIdx];
                                                                 const { completed: existingCompleted } = extractSplitFormulaFromNote(currentCalc.note);
                                                                 const compBase = existingCompleted 
@@ -1057,7 +1030,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                                                 updateCategory(sub.id, { subItems: updatedSubItems });
                                                                 setTimeout(() => setActiveInputId(null), 150);
                                                               }}
-                                                              className="w-full bg-white border border-blue-500 rounded-lg px-2 py-0.5 text-xs font-black text-slate-800 text-right focus:ring-1 focus:ring-blue-500/20 outline-none"
+                                                              className="w-full min-w-[100px] bg-white border border-blue-500 rounded-lg px-2 py-0.5 text-xs font-black text-slate-800 text-right focus:ring-1 focus:ring-blue-500/20 outline-none"
                                                             />
                                                           );
                                                         }
@@ -1087,31 +1060,61 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                                     </td>
                                                     {/* 2단계 비고 */}
                                                     <td className="py-2.5 px-4">
-                                                      <input 
-                                                        type="text"
-                                                        placeholder="비고 입력"
-                                                        defaultValue={extractMemoFromNoteWithSplit(c.note)}
-                                                        onBlur={(e: any) => {
-                                                          const noteVal = e.target.value.trim();
-                                                          const updatedSubItems = [...sub.subItems];
-                                                          const updatedCalcs = [...updatedSubItems[sIdx].calculations];
-                                                          const currentCalc = updatedCalcs[cIdx];
-                                                          const { completed, planned } = extractSplitFormulaFromNote(currentCalc.note);
-                                                          
-                                                          const finalNote = buildNoteWithSplitFormula(completed, planned, noteVal);
-                                                          
-                                                          updatedCalcs[cIdx] = {
-                                                            ...currentCalc,
-                                                            note: finalNote
-                                                          };
-                                                          updatedSubItems[sIdx] = {
-                                                            ...updatedSubItems[sIdx],
-                                                            calculations: updatedCalcs
-                                                          };
-                                                          updateCategory(sub.id, { subItems: updatedSubItems });
-                                                        }}
-                                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-0.5 text-xs font-medium text-slate-500 focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 outline-none transition-all"
-                                                      />
+                                                      <div className="flex items-center gap-2">
+                                                        <input 
+                                                          type="text"
+                                                          placeholder="비고 입력"
+                                                          defaultValue={extractMemoFromNoteWithSplit(c.note)}
+                                                          onBlur={(e: any) => {
+                                                            const noteVal = e.target.value.trim();
+                                                            const updatedSubItems = [...(sub.subItems || [])];
+                                                            const updatedCalcs = [...(updatedSubItems[sIdx].calculations || [])];
+                                                            const currentCalc = updatedCalcs[cIdx];
+                                                            const { completed, planned } = extractSplitFormulaFromNote(currentCalc.note);
+                                                            
+                                                            const finalNote = buildNoteWithSplitFormula(completed, planned, noteVal);
+                                                            
+                                                            updatedCalcs[cIdx] = {
+                                                              ...currentCalc,
+                                                              note: finalNote
+                                                            };
+                                                            updatedSubItems[sIdx] = {
+                                                              ...updatedSubItems[sIdx],
+                                                              calculations: updatedCalcs
+                                                            };
+                                                            updateCategory(sub.id, { subItems: updatedSubItems });
+                                                          }}
+                                                          className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-0.5 text-xs font-medium text-slate-500 focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 outline-none transition-all"
+                                                        />
+                                                        {c.amount === 0 && (
+                                                          <button
+                                                            onClick={(e) => {
+                                                              e.stopPropagation();
+                                                              if (!confirm('이 세부 항목을 삭제하시겠습니까?')) return;
+                                                              const updatedSubItems = [...(sub.subItems || [])];
+                                                              let updatedCalcs = [...(updatedSubItems[sIdx].calculations || [])];
+                                                              
+                                                              // 해당 세부 항목 제거
+                                                              updatedCalcs = updatedCalcs.filter((_, i) => i !== cIdx);
+                                                              
+                                                              const hasRemainingCalcs = updatedCalcs.length > 0;
+                                                              
+                                                              updatedSubItems[sIdx] = {
+                                                                ...updatedSubItems[sIdx],
+                                                                calculations: hasRemainingCalcs ? updatedCalcs : undefined,
+                                                                virtualAdjustment: hasRemainingCalcs ? updatedCalcs.reduce((sum: number, x: any) => sum + (x.virtualAdjustment || 0), 0) : 0,
+                                                                note: hasRemainingCalcs ? updatedSubItems[sIdx].note : ''
+                                                              };
+                                                              
+                                                              updateCategory(sub.id, { subItems: updatedSubItems });
+                                                            }}
+                                                            className="p-1 text-rose-500 hover:bg-rose-50 rounded transition-colors cursor-pointer shrink-0"
+                                                            title="세부 항목 삭제"
+                                                          >
+                                                            <X className="w-3.5 h-3.5" />
+                                                          </button>
+                                                        )}
+                                                      </div>
                                                     </td>
                                                   </tr>
                                                 );
