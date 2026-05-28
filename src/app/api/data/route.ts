@@ -23,6 +23,20 @@ function getFilePath(sheet: string): string {
   return path.join(process.cwd(), 'data', `${sheet}.json`);
 }
 
+async function safeRename(src: string, dest: string): Promise<void> {
+  try {
+    await fs.rename(src, dest);
+  } catch (err) {
+    try {
+      await fs.copyFile(src, dest);
+      await fs.unlink(src);
+    } catch (fallbackErr) {
+      console.error(`[File System] safeRename fallback failed from ${src} to ${dest}:`, fallbackErr);
+      throw err;
+    }
+  }
+}
+
 async function readData(sheet: string): Promise<any[]> {
   const filePath = getFilePath(sheet);
   try {
@@ -84,7 +98,7 @@ async function backupDataFile(sheet: string, data: any[]): Promise<void> {
     // 원자적 파일 백업 쓰기
     const tmpBackupFile = `${backupFile}.tmp`;
     await fs.writeFile(tmpBackupFile, dataStr, 'utf-8');
-    await fs.rename(tmpBackupFile, backupFile);
+    await safeRename(tmpBackupFile, backupFile);
     
     // Prune old backups (keep only the 20 most recent)
     const files = await fs.readdir(backupDir);
@@ -109,7 +123,7 @@ async function backupDataFile(sheet: string, data: any[]): Promise<void> {
     
     const tmpDailyFile = `${dailyFile}.tmp`;
     await fs.writeFile(tmpDailyFile, dataStr, 'utf-8');
-    await fs.rename(tmpDailyFile, dailyFile);
+    await safeRename(tmpDailyFile, dailyFile);
     
     const dailyFiles = (await fs.readdir(dailyDir)).filter(f => f.endsWith('.json') && !f.endsWith('.tmp')).sort();
     if (dailyFiles.length > 7) {
@@ -133,7 +147,7 @@ async function backupDataFile(sheet: string, data: any[]): Promise<void> {
     
     const tmpWeeklyFile = `${weeklyFile}.tmp`;
     await fs.writeFile(tmpWeeklyFile, dataStr, 'utf-8');
-    await fs.rename(tmpWeeklyFile, weeklyFile);
+    await safeRename(tmpWeeklyFile, weeklyFile);
     
     const weeklyFiles = (await fs.readdir(weeklyDir)).filter(f => f.endsWith('.json') && !f.endsWith('.tmp')).sort();
     if (weeklyFiles.length > 4) {
@@ -169,7 +183,7 @@ async function writeDataToFile(sheet: string, data: any[]): Promise<void> {
   // 2. 원자적 파일 쓰기 (Write to .tmp first, then rename)
   const tmpPath = `${filePath}.tmp`;
   await fs.writeFile(tmpPath, JSON.stringify(data, null, 2), 'utf-8');
-  await fs.rename(tmpPath, filePath);
+  await safeRename(tmpPath, filePath);
   
   // Trigger backup
   await backupDataFile(sheet, data);
