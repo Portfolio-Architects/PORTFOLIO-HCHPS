@@ -535,7 +535,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                   <div className="border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
                                     <table className="w-full border-collapse text-left">
                                       <thead>
-                                        <tr className="bg-slate-50/80 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                                        <tr className="bg-slate-50/80 border-b border-slate-100 text-[12px] font-black text-slate-400 uppercase tracking-wider">
                                           <th className="py-2.5 px-4">구분 / 세부 항목명</th>
                                           <th className="py-2.5 px-4 text-right">공식 예산액 (원)</th>
                                           <th className="py-2.5 px-4 text-center">집행 제어</th>
@@ -545,7 +545,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                           <th className="py-2.5 px-4 text-left w-[200px]">비고</th>
                                         </tr>
                                       </thead>
-                                      <tbody className="text-sm font-bold text-slate-600 divide-y divide-slate-100">
+                                      <tbody className="text-[16px] font-bold text-slate-600 divide-y divide-slate-100">
                                         {sub.subItems && sub.subItems.map((s: any, sIdx: number) => {
                                           const hasCalcs = s.calculations && s.calculations.length > 0;
                                           
@@ -578,8 +578,31 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                               {/* 1단계 통계목 아이템 */}
                                               <tr className={`${hasCalcs ? 'bg-slate-50/10' : ''} hover:bg-slate-50/40 transition-colors`}>
                                                 <td className="py-3 px-4 flex items-center gap-2">
-                                                  <Folder className="w-4 h-4 text-slate-400 shrink-0" />
-                                                  <span>{s.name}</span>
+                                                  <button
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      const updatedSubItems = [...(sub.subItems || [])];
+                                                      updatedSubItems[sIdx] = {
+                                                        ...updatedSubItems[sIdx],
+                                                        checked: !updatedSubItems[sIdx].checked
+                                                      };
+                                                      updateCategory(sub.id, { subItems: updatedSubItems });
+                                                    }}
+                                                    className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all cursor-pointer shrink-0 ${
+                                                      s.checked 
+                                                        ? 'bg-emerald-500 border-emerald-500 text-white' 
+                                                        : 'border-slate-300 hover:border-slate-400 bg-white'
+                                                    }`}
+                                                    title={s.checked ? "지출 매핑 해제" : "지출 매핑 완료 마킹"}
+                                                  >
+                                                    {s.checked && (
+                                                      <svg className="w-2.5 h-2.5 fill-current" viewBox="0 0 20 20">
+                                                        <path d="M0 11l2-2 5 5L18 3l2 2L7 18z" />
+                                                      </svg>
+                                                    )}
+                                                  </button>
+                                                  <Folder className={`w-4 h-4 shrink-0 transition-colors ${s.checked ? 'text-slate-300 opacity-60' : 'text-slate-400'}`} />
+                                                  <span className={s.checked ? 'text-slate-400 line-through opacity-60 decoration-slate-300 font-bold' : ''}>{s.name}</span>
                                                   <button
                                                     onClick={(e) => {
                                                       e.stopPropagation();
@@ -621,13 +644,13 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                                       
                                                       updateCategory(sub.id, { subItems: updatedSubItems });
                                                     }}
-                                                    className="px-2 py-0.5 rounded text-[10px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 hover:bg-indigo-100/70 transition-colors cursor-pointer ml-2 shrink-0 inline-flex items-center gap-1"
+                                                    className="px-2 py-0.5 rounded text-[12px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 hover:bg-indigo-100/70 transition-colors cursor-pointer ml-2 shrink-0 inline-flex items-center gap-1"
                                                     title="이 통계목 아래에 가상 세부 항목을 추가하여 다중 항목 확정액을 입력합니다"
                                                   >
                                                     + 세부 추가
                                                   </button>
                                                   {s.isLocked && (
-                                                    <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-red-50 text-red-500 border border-red-100">차단됨</span>
+                                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-red-50 text-red-500 border border-red-100">차단됨</span>
                                                   )}
                                                 </td>
                                                 <td className="py-3 px-4 text-right font-extrabold text-slate-800">
@@ -652,7 +675,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                                 {/* 확정액 (지출 완료) */}
                                                 <td className="py-3 px-4 text-right">
                                                   {hasCalcs ? (
-                                                    <span className="text-[13px] font-extrabold text-slate-500">
+                                                    <span className="text-[15px] font-extrabold text-slate-500">
                                                       {sCompTotal > 0 ? `${sCompTotal.toLocaleString()}원` : '-'}
                                                     </span>
                                                   ) : (() => {
@@ -840,8 +863,36 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                                 const cRemainingDiff = c.amount - (cCompVal + cPlanVal);
                                                 
                                                 return (
-                                                  <tr key={`calc-${cIdx}`} className="bg-slate-50/5 hover:bg-slate-50/20 transition-colors">
-                                                    <td className="py-2.5 px-4 pl-8 flex items-center gap-2 text-xs">
+                                                  <tr key={`calc-${cIdx}`} className={`bg-slate-50/5 hover:bg-slate-50/20 transition-colors ${c.checked ? 'opacity-60' : ''}`}>
+                                                    <td className="py-2.5 px-4 pl-8 flex items-center gap-2 text-sm">
+                                                      <button
+                                                        onClick={(e) => {
+                                                          e.stopPropagation();
+                                                          const updatedSubItems = [...(sub.subItems || [])];
+                                                          const updatedCalcs = [...(updatedSubItems[sIdx].calculations || [])];
+                                                          updatedCalcs[cIdx] = {
+                                                            ...updatedCalcs[cIdx],
+                                                            checked: !updatedCalcs[cIdx].checked
+                                                          };
+                                                          updatedSubItems[sIdx] = {
+                                                            ...updatedSubItems[sIdx],
+                                                            calculations: updatedCalcs
+                                                          };
+                                                          updateCategory(sub.id, { subItems: updatedSubItems });
+                                                        }}
+                                                        className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center transition-all cursor-pointer shrink-0 ${
+                                                          c.checked 
+                                                            ? 'bg-emerald-500 border-emerald-500 text-white' 
+                                                            : 'border-slate-300 hover:border-slate-400 bg-white'
+                                                        }`}
+                                                        title={c.checked ? "지출 매핑 해제" : "지출 매핑 완료 마킹"}
+                                                      >
+                                                        {c.checked && (
+                                                          <svg className="w-2 h-2 fill-current" viewBox="0 0 20 20">
+                                                            <path d="M0 11l2-2 5 5L18 3l2 2L7 18z" />
+                                                          </svg>
+                                                        )}
+                                                      </button>
                                                       <FileText className="w-3.5 h-3.5 text-slate-300 shrink-0" />
                                                       {(() => {
                                                         const nameInputId = `calc-name-${sub.id}-${sIdx}-${cIdx}`;
@@ -879,7 +930,11 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                                               e.stopPropagation();
                                                               setTimeout(() => setActiveInputId(nameInputId), 50);
                                                             }}
-                                                            className="text-slate-500 hover:text-indigo-600 hover:underline cursor-pointer font-bold"
+                                                            className={`font-bold transition-all cursor-pointer ${
+                                                              c.checked 
+                                                                ? 'text-slate-400 line-through opacity-60 hover:text-indigo-500' 
+                                                                : 'text-slate-500 hover:text-indigo-600 hover:underline'
+                                                            }`}
                                                             title="이름 수정"
                                                           >
                                                             {c.name || c.calculation || '세부 항목'}
@@ -887,7 +942,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                                         );
                                                       })()}
                                                       {c.isLocked && (
-                                                        <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-red-50 text-red-500 border border-red-100">차단됨</span>
+                                                        <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-red-50 text-red-500 border border-red-100">차단됨</span>
                                                       )}
                                                     </td>
                                                     <td className="py-2.5 px-4 text-right text-xs font-bold text-slate-500">
@@ -1053,7 +1108,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                                       })()}
                                                     </td>
                                                     {/* 2단계 남은 차액 (원) */}
-                                                    <td className={`py-2.5 px-4 text-right text-xs font-bold ${
+                                                    <td className={`py-2.5 px-4 text-right text-[11px] font-bold ${
                                                       cRemainingDiff === 0 ? 'text-emerald-600' : 'text-rose-600'
                                                     }`}>
                                                       {cRemainingDiff.toLocaleString()}원
@@ -1124,7 +1179,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                         })}
                                         {(!sub.subItems || sub.subItems.length === 0) && (
                                           <tr>
-                                            <td colSpan={7} className="py-4 text-center text-xs text-slate-400 font-medium">공식 예산서 세부 산출 내역이 비어 있습니다.</td>
+                                            <td colSpan={7} className="py-4 text-center text-sm text-slate-400 font-medium">공식 예산서 세부 산출 내역이 비어 있습니다.</td>
                                           </tr>
                                         )}
                                       </tbody>
@@ -1142,14 +1197,16 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                   <div className="border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
                                     <table className="w-full border-collapse text-left">
                                       <thead>
-                                        <tr className="bg-slate-50/80 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                                        <tr className="bg-slate-50/80 border-b border-slate-100 text-[12px] font-black text-slate-400 uppercase tracking-wider">
                                           <th className="py-2 px-4">지출 일자</th>
                                           <th className="py-2 px-4">품의 목적 (건명)</th>
                                           <th className="py-2 px-4 text-right">집행 금액 (원)</th>
                                         </tr>
                                       </thead>
-                                      <tbody className="text-xs font-bold text-slate-600 divide-y divide-slate-100">
-                                        {entries.filter(e => e.categoryId === sub.id && !e.isPlanned).map((e: any, eIdx: number) => (
+                                      <tbody className="text-sm font-bold text-slate-600 divide-y divide-slate-100">
+                                        {entries.filter(e => e.categoryId === sub.id && !e.isPlanned)
+                                          .sort((a, b) => b.date.localeCompare(a.date))
+                                          .map((e: any, eIdx: number) => (
                                           <tr key={eIdx} className="hover:bg-slate-50/50 transition-colors">
                                             <td className="py-2 px-4 text-slate-500">{e.date}</td>
                                             <td className="py-2 px-4 text-slate-700">{e.purpose}</td>
@@ -1160,7 +1217,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                         ))}
                                         {entries.filter(e => e.categoryId === sub.id && !e.isPlanned).length === 0 && (
                                           <tr>
-                                            <td colSpan={3} className="py-3 text-center text-xs text-slate-400 font-medium">실제 집행된 지출 내역이 없습니다.</td>
+                                            <td colSpan={3} className="py-3 text-center text-sm text-slate-400 font-medium">실제 집행된 지출 내역이 없습니다.</td>
                                           </tr>
                                         )}
                                       </tbody>

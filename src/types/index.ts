@@ -38,6 +38,7 @@ export interface BudgetCalculation {
   isLocked?: boolean;
   virtualAdjustment?: number;
   note?: string;
+  checked?: boolean;
 }
 
 export interface BudgetSubItem {
@@ -52,6 +53,7 @@ export interface BudgetSubItem {
   virtualAdjustment?: number;
   calculations?: BudgetCalculation[];
   note?: string;
+  checked?: boolean;
 }
 
 export interface BudgetCategory {

@@ -55,6 +55,7 @@ export const BudgetCategorySchema = z.object({
     isLocked: z.boolean().optional(),
     virtualAdjustment: z.number().optional().catch(0),
     note: z.string().optional().catch(''),
+    checked: z.boolean().optional().catch(false),
     fundingSplits: z.array(z.object({
       source: z.string(),
       amount: z.number()
@@ -68,6 +69,7 @@ export const BudgetCategorySchema = z.object({
       isLocked: z.boolean().optional(),
       virtualAdjustment: z.number().optional().catch(0),
       note: z.string().optional().catch(''),
+      checked: z.boolean().optional().catch(false),
       fundingSplits: z.array(z.object({
         source: z.string(),
         amount: z.number()
