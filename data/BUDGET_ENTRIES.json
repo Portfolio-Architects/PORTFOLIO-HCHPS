@@ -40,7 +40,8 @@
     "purpose": "(일상경비 교부) 보건신체활동 활성화 사업 운영",
     "memo": "",
     "actionType": "issuance",
-    "docRegNum": "보건행정과-725"
+    "docRegNum": "보건행정과-725",
+    "_enc": "OeDxAsU20QEt0EqQvOoTSt6OQQJjWdEPnnlN6jQPoq/5AlP3mU9ol64KetztgvqETmUfncdXNHIeTcJ/OIg7mfe4CLV1S2UAE8b5lkSX+7E045LRnBmpn6zYYxFgu1ilmRiIKu8MdM3l7YGWqWiwaPbpigbL64KHhJmxhNZcHsd+BmdDMIfB82I3Pn76n0XNyfz4zVP+fbKEGaqDc6Ye4u4oNEiwZlDGejFTED+MDaLCbG72HgN8BkLtYvFbR3X8E/1+zWOAY5XA0MHJRDE21Wj9jbSmIabcuauAAOoht9/D6q6hukRddoz/PvewWPebhPq9gWornH1yum+Dizr8AjRhSPA="
   },
   {
     "id": "mnsh0ldc9lua8ykfx",
@@ -116,7 +117,7 @@
     "memo": "",
     "actionType": "daily_expense",
     "docRegNum": "보건행정과-1644",
-    "_enc": "QhJCjtJgbQ5LP2n28FH2sHzhyp0VEwy+q24r7WcGe83Eba0aNFtz4OIaYsJ0X1nq884ZdL8SMLtw9xjWqHWASL6p3SM52iq2xTeIvXBy9g4RIwloyD+d6kNtnamlJCZNO6MqT9jWlXjKbsQ+PhLh3k+HynrLNHE2uwEe45eBBByLJIPwhYJ5KPaMa8iCG6SIGUxhcJlj4np1t7M1OhOH2v5n47o0GDtj1xFzrDejYUex5Ci2p5xYCQyb92DAr/g6HOEulKydq7mETA83hEpX33v2qmp26A3tZWRW3BnLGDCjOaay9+bZfKlrOcifhQXMpupOaONL3URoyTO36AW44BtDbJNeYNUWnIFe"
+    "_enc": "Nvp7f/HhzWRgLncULQVXRWXAdmFHKLfr9EfC7bqxpues74vjbdqWonOqUirwRNPANogRH61TjbNAaHAua3kaB70WguoT4rLjprGZY6OKpLYyuim1b3/K/9ByLDblnvY6ajQOIawEOKql5EpIYTjY2Vf9aCLoJ579qH5okRmHYS0LWnBngzXP+OPgC/nJWAaI8Xwon4oLLLLaiGq29IBH8CmgyGcTt6yrfjuMy7BBBCaQTA0m/HG2PWMrcerHbbEfZrSNg6zQIGe7CiMcke5WIWjBNsq93GYwxHTD23PBXFxw5Csg8BMipZNacmP5L3epNJcDlVzYKqDTBfIBQy+sY2JfdiN6IyHbevE09xa3ANo+vxt6acruW6r0"
   },
   {
     "id": "mnshxrik20lkudha9",
@@ -127,7 +128,7 @@
     "memo": "",
     "actionType": "daily_expense",
     "docRegNum": "보건행정과-3380",
-    "_enc": "/P60hdA6lj0igcbl0Iz9t+N6xwKzyBYLWSXGEGk/GwbmySaX0AreIJ5G3LMqtgQv46ps+4SX9FuDu//fsXvuDEUP2dVWUTET6EfXqcoRgVYcxCGpnFGnEQzjzl4GUYeCWqpUkxpzeCx4ffKSOfg/O0Qm6PgITeP1DmTDbdBpox8v9YKxnsP7kUJviLKULEcD7OCyN7mDBq/SjC78TMSUKYUuwFa2924FR50EzXpQJWwjy2YQWFwIV3HOBFFvgBrdUqeKwZP2r9y/uXnPqtXfgOcTlaXpfpjQUFUsLg0Jfur+UtVRBgP22yjgvOWLoq7Q+HKwqNDP8wU3FzB4ym3ZiWTxiSo3shv1IMS90DgR5w=="
+    "_enc": "9mxfCcASz4fIi0t2oZF3EfM7sbmGxvknmkFxQmbdOoiz8TOg2CG1DpOQZM5zzO7m1XT24k9XW8kVqEJQBD59q3GXySuUn85XDXqxSHw23k3Mn12P+i1zduYfnQYquQFJ5SMCYFeSOBqVLp89kYS/19wodyqWqywXL0Ay7UvT/Da4FEO/E6ikl5D9juo7U1ZDRuyuRPP7SPVbu5IjQu7+RXWsr4nlJ0oiJx7I9ZFPCcOzAW2FKlrMi1klBeTcUled89FEcntg1fAv+ULaKREvUFpgcrSpBdZJ1F+vuF8nWtSAkAs3OiL4phO4uHQd2wA//BKVRpRh4Qj/48maEe72hbdFotYyNTNzZ5GtGU17ZDykiObKlVPfsrqDDUOI8w=="
   },
   {
     "id": "mnsi256u8mzxj33y4",
@@ -182,7 +183,7 @@
     "memo": "유실된 예산 데이터를 임시로 생성했습니다.",
     "actionType": "issuance",
     "docRegNum": "",
-    "_enc": "ZowiFXVBnCINUPuWynh/qBGksdjvEfAM5hitjDF3NZ8CVsbdEfLjr91+kPcxll2gAocZQ4yiBhMX/NoMPUjiyO5ri5m1eBzIXEsmrDXeWuUEx80KngQP/LX2YKJfAcVeOEdIACbmcpY1jpeMe4zhEbfkjWe5nRcGRL/mbITPSnlORBoFAtKvgaxzGqHS2l/qFKga9chjTZ7B/XXHfUGcKfg32zDZOlegJtW1sLIqLw4+jitK251YOJczU9WCZmI7eVJXOXRakLipe4AOLPadHd8riZ+OD2jmeNjF0AuPvaVlCmrMpOvzDevDU+9zYyI="
+    "_enc": "1xL3vOTxYU5XUBYkgS395yl/jPL4j8mkgQtX4fdxBh6T/TYmFyKJECbinzLiX3FUfGTj7tgCj9MBIkvPWb0FLW9GfttlOKy8U0PikJCinxJiFx4oDzEsuYgU44O1GeXZ4TkHljOkEejjubz6bKU91+U5GEFykGAlcrjtx8tTqbh4CT2BfDZ/v/sPAeacvhgsEe+IzyMThIJ6Dl1izW6RP3JdUG/n4AizcxpF6gKPlg/6dpORRLoWdTHL5rxBrWxgzZ9eAGcOJ1uzRh1hr2egS24+Au0ebAeofP7gvx328MbI/mr7zbYYv+YjKZZoqVkpIkpUsc9GN1hI6R6s48w="
   },
   {
     "id": "mpgm7fi4g76ijebh1",
@@ -190,11 +191,11 @@
   },
   {
     "id": "mpgmggdbzz5l3teun",
-    "_enc": "2VJu/UASYRYl4HBnty0U04RUQN7lRjJS6Ly5MCrBUywYhtYW6WJx/Qkve4OoFvmwUfxeYx6cEPLwY1UzeDI20x2H4T9NVeyYdlcKYwKQZHwttEUjqVAf7F2Vnh8AwTY7LmO+VnPCiVw8IiGwOdZL9eQHFBUep4y3u7VX6sHIc0X5rQSe5UaGow8hhpg8j8i7TAZuqddSlFr+8vOOcA13DcgMiLE5R+OGZRk4HKAw3mHOJcV5fKPID6jv3Vwouc4/pjVxyUUuXeT242V6bC8FU//XLiSEfWIfQwes6GgxOVy/RliaU8RrVaS3SeYdlcVckbLWWrk3i9StJ+j8W1i+K7GN/j00xqf7x3fS04dpvrRNNrfXGMfrF0ZwegT5G8bSIGSOREAFHuuTpBzvpta7qoHbqkA="
+    "_enc": "mKU1I6Y+/psQLd1ZONzF5FMX2/UIrwVlss5q+85SNa/SOThQd7nbIS/XqnSBHEnBcFJVl0Lqfkqeeyopg+eOBW7dib06JKFnt64Sd4VYYVOuBhj+/ET5BUDq6hjpFUH/ZWHCZFFuu7fTe0K64O0xYjT365LDro5DJVY3tHPCF4Ap+8mKgf0WBU8gR4agP9HsVeVMcWWA8EjWpF3lLfeyN+nRtqK9tOMh6IDMhHaOGjawPRf/T71KBgGNb+DdhbhY06yoAIS9So9N00uV6nUaMgRtftxBFipH1bYlXBoNpgLrHI0FOYBxycnoBodaBC8iA1kbIQq1E2zjLpqeLUOGKKmoVotT5JdthXYKRp60IzDU0qyM1Ju+FbfOA1Fxal9hjFdti3v2UaTJz7VNpeDXK7IkrnQfNxlQCvKcVhWm7dS0VRI="
   },
   {
     "id": "mpgmhlei34m5nrsm8",
-    "_enc": "k4FWI0fFOhoWjR8xq48J72YOzWiV5tSgt7Kxz5PltIyYx/7lxKyjcrlycXcrjK2fCpXhQUmKurG5MSnIrRVr1uW6GavHMPzj/hO2SHLCH+7t1KgLUOVsj4+RmaiABSEr/7n3SmiBzLnK91jscUiWfoUMLKtp2EyVdf1OjsOJC/j+i65e1ELIrvISNmenLMeZsgqmzxbds7v98B9rgA5GgqnCAFba0bg8mB7IDcg8vuotcwDIcGt+s9QWkCBcarrd4vmtFKuQBCZ85lE0Ztilv/apa5Ypcg/eR16z9QIs1V8bprb8wbwDnpbNZuDSVJxtN/PRtcbWuM262BAEhp4xQS+j2wOEfk1XgVy48fAt5fzqsPaoY3jTYTdskiYoWhisHwjOEEeBRwRn3erMs3uz"
+    "_enc": "OsghPN0fZiQgkD4iHILikfRNtpl1MlaUFjBVLBNCDdIxXQ/62L0RLetm7/Gn8QMnP1W5z2BpEC/RysSEaZ1O1PShMAhMgYmfyuYyO/i8nc8vP1bICPOHPH2v0dXsjKTI/A212Y8JNTKgkLRANfJeuZmCzdUzNND3K5wXVcfw4HaEB6qTxbZf1wdQCGlZmVkcgJDYI421uCG3vCO9v2Khbi8xSNYV5Gy7IWgMkKV2n7RHmtsIwcylK198tohEgrP6UUNae0/bUepgEdsaw8nC7lrFqfevoqWG+Qev0K8RSBkvQB/64Smydcum2Myz7llSqNzaxBagqhN+aLbF03wV7gImMzhdTZpF+918C6lBF9uVtJsBaqLeOOydH6FH5CE22auGUpP1gPuV/PhxjxLQmWNyFwOsXn6ZQTVXzhQx"
   },
   {
     "id": "mpgmjmr9j2v8owi3c",
@@ -226,11 +227,11 @@
   },
   {
     "id": "mpgmzccda6wriniy8",
-    "_enc": "SDPpmPQZwQ8eI99AOiZ9a8TQseNZ+47bV1SLuo6dqWBrPJRY/M+g2ASFRbZxwj8aOz6lwoCFxNeBE8DVVNjYZT3CLMlDU6WV5CPRuM35w+2Rh/thaafha+xrSJAx+eztALK0AuHJS1cf6yvigQcOEZ9dPWeq4qklVzGhUuBCr/YVfFXEk2gPDVu0Ql+wBjIXWbzOTLre7q3ZQk7GrzkamOmyk7tUZ8a58YlOaA=="
+    "_enc": "NSmKT8UT6B6tF7s6vgVF0drJ3/ebpQ/wIJ3v8aD1j4cOKhlXmT2PoxoH0+LPgBE3UFSi2MEcuG4dNztFBwbIKd9WPISmABcB0zWkf2ra1/0MOwNpdcQvoB/oKmuR6I3e4DUWoG6jveF95hbk4EA8l92hadgH4J6MMhe/KYaioJ8ZnaalY8vH/JCv8tjcUQTTpJ3tqmmJOxJr7KK2vFtNth6onmCAXRwg3vlCosrFZAleyFO/0kr/4cECfw=="
   },
   {
     "id": "mpgmzvvn57mwdszhm",
-    "_enc": "NGMeMTjjH4q5vIHshcFycKzuTM06plvMw+1arpAuQIBdbwitvL2cDoyGdi+gjQ5QennXynpdw0eG2ISASDH5x98rzU7/zwfpmVJd9DK3t0N0iwnA2ggdKc060hX7Q0auFfuNgmIULc8R89KhKI27aHXlYZeCndVwa4LV5W83sqrYZCDkB6KmfFbwzAwYh8oYSCs3pUSbpbMRYJRCNpEuejfQhzOZ62QLoVBjIg=="
+    "_enc": "x8u/9h3TqiKOvKhvv9gDLG7ibj3GZ/EBuXxPhdOW9qxitpKBdKNRj31K6/fPrbKs/GCBxQg7ox6qIjLz8P67H4vDqNaKc7QTtEj5SRZl+SzHEqENi1x0HCNZAEVk6IvT3Noh2WXstBZTNUCvScxZjtU33gVWuOZs5O7Fvv01JkjQZPp8k+YEXyE2VTNXhOVDE1uGHkYI76gYmm2DExle2X4q81jnoPxXmizjSgy4AsUn3gnXi7gAvqA0Sw=="
   },
   {
     "id": "mpngbepyei0z6wqv6",
