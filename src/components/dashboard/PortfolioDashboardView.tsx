@@ -836,7 +836,6 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                                   : (!completed && !planned && c.virtualAdjustment ? c.virtualAdjustment.toString() : '');
                                                 const cCompVal = evaluateExpression(compBase);
                                                 const cPlanVal = evaluateExpression(planned);
-                                                const cRemainingDiff = c.amount - (cCompVal + cPlanVal);
                                                 
                                                 return (
                                                   <tr key={`calc-${cIdx}`} className="bg-slate-50/5 hover:bg-slate-50/20 transition-colors">
@@ -889,8 +888,8 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                                         <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-red-50 text-red-500 border border-red-100">차단됨</span>
                                                       )}
                                                     </td>
-                                                    <td className="py-2.5 px-4 text-right text-xs font-bold text-slate-500">
-                                                      {c.amount.toLocaleString()}원
+                                                    <td className="py-2.5 px-4 text-right text-xs font-bold text-slate-400">
+                                                      -
                                                     </td>
                                                     <td className="py-2.5 px-4 text-center">
                                                       <button 
@@ -1051,10 +1050,8 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                                       })()}
                                                     </td>
                                                     {/* 2단계 남은 차액 (원) */}
-                                                    <td className={`py-2.5 px-4 text-right text-[11px] font-bold ${
-                                                      cRemainingDiff === 0 ? 'text-emerald-600' : 'text-rose-600'
-                                                    }`}>
-                                                      {cRemainingDiff.toLocaleString()}원
+                                                    <td className="py-2.5 px-4 text-right text-[11px] font-bold text-slate-400">
+                                                      -
                                                     </td>
                                                     {/* 2단계 비고 */}
                                                     <td className="py-2.5 px-4">
