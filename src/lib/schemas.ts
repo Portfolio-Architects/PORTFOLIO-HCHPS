@@ -54,6 +54,7 @@ export const BudgetCategorySchema = z.object({
     isCustomFunding: z.boolean().optional(),
     isLocked: z.boolean().optional(),
     virtualAdjustment: z.number().optional().catch(0),
+    note: z.string().optional().catch(''),
     fundingSplits: z.array(z.object({
       source: z.string(),
       amount: z.number()
@@ -66,6 +67,7 @@ export const BudgetCategorySchema = z.object({
       isCustomFunding: z.boolean().optional(),
       isLocked: z.boolean().optional(),
       virtualAdjustment: z.number().optional().catch(0),
+      note: z.string().optional().catch(''),
       fundingSplits: z.array(z.object({
         source: z.string(),
         amount: z.number()
@@ -113,28 +115,12 @@ export const ProjectSchema = z.object({
   updatedAt: z.string().catch(new Date().toISOString()),
 });
 
-// ============ Knowledge Base Module ============
-export const KnowledgeEntrySchema = z.object({
-  id: z.string().catch('unknown-knowledge'),
-  title: z.string().catch('제목 없음'),
-  content: z.string().catch('내용 없음'),
-  category: z.string().catch('일반'),
-  tags: z.array(z.string()).default([]).catch([]),
-  createdAt: z.string().catch(new Date().toISOString()),
-  updatedAt: z.string().catch(new Date().toISOString()),
-  linkedTaskIds: z.array(z.string()).optional().default([]).catch([]),
-  linkedProjectIds: z.array(z.string()).optional().default([]).catch([]),
-  pitfalls: z.string().optional().catch(''),
-  steps: z.array(z.string()).optional().default([]).catch([]),
-});
-
 export const getDomainSchema = (sheetName: string) => {
   switch (sheetName.toUpperCase()) {
     case 'TASKS': return TaskSchema;
     case 'BUDGET_CATEGORIES': return BudgetCategorySchema;
     case 'BUDGET_ENTRIES': return BudgetEntrySchema;
     case 'PROJECTS': return ProjectSchema;
-    case 'KNOWLEDGE': return KnowledgeEntrySchema;
     default: return z.any(); // Fallback for unstructured arrays
   }
 };

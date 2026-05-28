@@ -7,13 +7,12 @@ interface AddDataModalProps {
   onClose: () => void;
   onAddSignal: (text: string) => void;
   onAddTask: (title: string, desc: string) => void;
-  onAddKnowledge: (title: string, content: string) => void;
   onAddMeeting: (title: string, notes: string) => void;
 }
 
-export function AddDataModal({ isOpen, initialMode = 'memo', onClose, onAddSignal, onAddTask, onAddKnowledge, onAddMeeting }: AddDataModalProps) {
+export function AddDataModal({ isOpen, initialMode = 'memo', onClose, onAddSignal, onAddTask, onAddMeeting }: AddDataModalProps) {
   const [mode, setMode] = useState<'memo' | 'pdf'>(initialMode);
-  const [type, setType] = useState<'signal' | 'task' | 'knowledge' | 'meeting'>('signal');
+  const [type, setType] = useState<'signal' | 'task' | 'meeting'>('signal');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [isParsing, setIsParsing] = useState(false);
@@ -81,7 +80,6 @@ export function AddDataModal({ isOpen, initialMode = 'memo', onClose, onAddSigna
 
     if (type === 'signal') onAddSignal(content);
     if (type === 'task') onAddTask(title, content);
-    if (type === 'knowledge') onAddKnowledge(title, content);
     if (type === 'meeting') onAddMeeting(title, content);
     
     setTitle(''); 

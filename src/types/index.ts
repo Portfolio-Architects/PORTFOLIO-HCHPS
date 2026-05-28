@@ -23,6 +23,37 @@ export interface Task {
 // ============ Budget Module ============
 export type BudgetActionType = 'general' | 'issuance' | 'daily_expense' | 'transfer' | 'correction' | 'settle'; // 일반품의, 일상경비교부, 일상경비지출, 이용/전용, 정정, 정산(결산)
 
+export interface BudgetFundingSplit {
+  source: string;
+  amount: number;
+}
+
+export interface BudgetCalculation {
+  id?: string;
+  name?: string;
+  calculation: string;
+  amount: number;
+  isCustomFunding?: boolean;
+  fundingSplits?: BudgetFundingSplit[];
+  isLocked?: boolean;
+  virtualAdjustment?: number;
+  note?: string;
+}
+
+export interface BudgetSubItem {
+  id?: string;
+  prefix?: string;
+  name: string;
+  calculation?: string;
+  amount: number;
+  isCustomFunding?: boolean;
+  fundingSplits?: BudgetFundingSplit[];
+  isLocked?: boolean;
+  virtualAdjustment?: number;
+  calculations?: BudgetCalculation[];
+  note?: string;
+}
+
 export interface BudgetCategory {
   id: string;
   name: string;
@@ -37,8 +68,8 @@ export interface BudgetCategory {
   statItem?: string;      // 통계목 (ex: 01 사무관리비)
   budgetType?: '본예산' | '간주예산' | '추경'; // 예산 구분
   fundingSource?: string; // 재원 구분 (구비, 국비, 시비 등)
-  fundingSplits?: { source: string; amount: number }[]; // 정확한 분할 금액을 저장하기 위한 원본 데이터 보존용
-  subItems?: { id?: string; prefix?: string; name: string; calculation?: string; amount: number; isCustomFunding?: boolean; fundingSplits?: { source: string; amount: number }[]; isLocked?: boolean; virtualAdjustment?: number; calculations?: { id?: string; name?: string; calculation: string; amount: number; isCustomFunding?: boolean; fundingSplits?: { source: string; amount: number }[]; isLocked?: boolean; virtualAdjustment?: number; }[] }[]; // 세부 산출내역 (산출근거)
+  fundingSplits?: BudgetFundingSplit[]; // 정확한 분할 금액을 저장하기 위한 원본 데이터 보존용
+  subItems?: BudgetSubItem[]; // 세부 산출내역 (산출근거)
   sortOrder?: number; // 편성목 표시 순서 (낮을수록 위)
 }
 
@@ -128,22 +159,7 @@ export interface DocumentEntry {
   status: 'draft' | 'ready' | 'done'; // 상태
 }
 
-// ============ Knowledge Base Module ============
-export interface KnowledgeEntry {
-  id: string;
-  title: string;
-  content: string;
-  category: string;
-  tags: string[];
-  createdAt: string;
-  updatedAt: string;
-  linkedTaskIds?: string[];
-  linkedProjectIds?: string[];
-  pitfalls?: string;
-  steps?: string[];
-}
-
-export type ModuleType = 'workspace' | 'knowledge' | 'mindmap' | 'dashboard';
+export type ModuleType = 'workspace' | 'mindmap' | 'dashboard';
 
 // ============ Utility ============
 export function generateId(): string {

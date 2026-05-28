@@ -6,7 +6,7 @@
 
 // ============ Types ============
 
-export type ParsedType = 'task' | 'meeting' | 'budget' | 'knowledge' | 'signal' | 'query';
+export type ParsedType = 'task' | 'meeting' | 'budget' | 'signal' | 'query';
 
 export interface ParsedResult {
   type: ParsedType;
@@ -552,7 +552,6 @@ function cleanTitle(raw: string, removals: string[]): string {
 const MEETING_KEYWORDS = ['회의', '미팅', 'meeting', '면담', '상담', '간담회', '회합', '브리핑', '보고회', '발표', '세미나', '워크샵', '워크숍', '토론', '논의', '협의', '점검회의', '조회', '석식', '오찬', '만남', '만나'];
 const BUDGET_KEYWORDS = ['구매', '구입', '지출', '결제', '입금', '송금', '배정', '집행', '충당', '조달'];
 const TASK_ACTION_KEYWORDS = ['해야', '까지', '제출', '완료', '작성', '처리', '보고', '마감', '확인', '검토', '준비', '정리', '진행', '수행', '실행', '점검'];
-const KNOWLEDGE_KEYWORDS = ['지식창고', '암묵지', '어드바이스', '팁'];
 const SIGNAL_KEYWORDS = ['시그널', '신호', '동향', '트렌드', '징후', '조짐', '움직임', '분위기', '기류', '낌새'];
 const QUERY_KEYWORDS = ['연락처', '번호', '이메일', '메일', '누구', '어디', '무엇', '알려줘', '찾아줘', '검색', '조회', '어떻게', '?'];
 
@@ -607,7 +606,6 @@ export function classifyAndParse(text: string): ParsedResult {
 
   const hasQueryKeyword = QUERY_KEYWORDS.some(k => lowerText.includes(k));
   const hasSignalKeyword = SIGNAL_KEYWORDS.some(k => lowerText.includes(k));
-  const hasKnowledgeKeyword = KNOWLEDGE_KEYWORDS.some(k => lowerText.includes(k));
   const hasMeetingKeyword = MEETING_KEYWORDS.some(k => lowerText.includes(k));
   const hasBudgetKeyword = BUDGET_KEYWORDS.some(k => lowerText.includes(k));
   const hasTaskAction = TASK_ACTION_KEYWORDS.some(k => lowerText.includes(k));
@@ -620,9 +618,6 @@ export function classifyAndParse(text: string): ParsedResult {
     confidence = 0.95;
   } else if (hasSignalKeyword) {
     type = 'signal';
-    confidence = 0.95;
-  } else if (hasKnowledgeKeyword) {
-    type = 'knowledge';
     confidence = 0.95;
   } else if (hasMeetingKeyword || (hasPeople && hasTime && !hasAmount)) {
     type = 'meeting';
@@ -646,12 +641,6 @@ export function classifyAndParse(text: string): ParsedResult {
 
   // Build title: remove extracted segments, then clean
   const removals: string[] = [];
-
-  if (hasKnowledgeKeyword) {
-    // Remove the knowledge keyword from title
-    const foundKw = KNOWLEDGE_KEYWORDS.find(k => lowerText.includes(k));
-    if (foundKw) removals.push(foundKw);
-  }
   allDates.forEach(d => removals.push(d.matched));
   if (timeResult) removals.push(timeResult.matched);
   if (amountResult) removals.push(amountResult.matched);

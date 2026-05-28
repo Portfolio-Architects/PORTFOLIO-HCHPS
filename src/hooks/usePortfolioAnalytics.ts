@@ -108,8 +108,8 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
         }
       });
 
-      // 미설계 잔액 = 남은예산 - 가계획 + 가상조정액
-      const unplannedRemaining = remaining - plannedInProject + virtualAdjustmentInProject;
+      // 미설계 잔액 = 남은예산 - 가계획 - 가상조정액
+      const unplannedRemaining = remaining - plannedInProject - virtualAdjustmentInProject;
       
       let burnStatus: 'ACCELERATE' | 'DECELERATE' | 'OPTIMAL' = 'OPTIMAL';
       const diffAmount = recommendedMonthly - historicalMonthly;
@@ -150,7 +150,6 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
     monthlyExecutionData, 
     maxSpendMonth, 
     avgMonthlySpend, 
-    velocityInsights, 
     remainingTargetAmount, 
     recommendedMonthlySpendForTarget,
     exhaustionMonthName,
@@ -240,8 +239,8 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
     });
 
     const totalPlannedInDraft = plannedMonthlyAmounts.reduce((sum, val) => sum + val, 0);
-    // 가상 조정액 보정치 반영
-    const unplannedRemainingAmount = remainTargetAmt - totalPlannedInDraft + totalVirtualAdjustment;
+    // 가상 조정액 보정치 반영 (설계 완료로 인식하여 차감)
+    const unplannedRemainingAmount = remainTargetAmt - totalPlannedInDraft - totalVirtualAdjustment;
 
 
     // 월 권장 지출액 (참고용 기준값)
@@ -303,46 +302,6 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
     
     const avgSpend = currentMonth > 0 ? executedBudget / currentMonth : 0;
     
-    // Velocity Insights 계산
-    const insights: any[] = [];
-    breakdownData.forEach(item => {
-      const burnRate = item.total > 0 ? item.executed / item.total : 0;
-      const velocity = elapsedRatio > 0 ? burnRate / elapsedRatio : 0; 
-      
-      let recommendation = 1; 
-      let action = 'MAINTAIN';
-      let insightText = '정상 속도 소진 중';
-      
-      if (velocity > 1.2) {
-        recommendation = 1.3; 
-        action = 'INCREASE';
-        insightText = `조기 소진 (${(burnRate*100).toFixed(1)}%). 내년 30% 증액 필요`;
-      } else if (velocity < 0.5 && item.executed > 0) {
-        recommendation = 0.8; 
-        action = 'DECREASE';
-        insightText = `집행 부진 (${(burnRate*100).toFixed(1)}%). 내년 20% 삭감 가능`;
-      } else if (item.executed === 0 && elapsedRatio > 0.3) {
-        recommendation = 0.5; 
-        action = 'DECREASE';
-        insightText = `미집행. 내년 50% 삭감 권고`;
-      }
-
-      const nextYearAlloc = item.total * recommendation;
-
-      if (action !== 'MAINTAIN') {
-        insights.push({
-          name: item.name,
-          formationItem: item.formationItem,
-          burnRate: burnRate * 100,
-          velocity,
-          action,
-          insightText,
-          diffAmount: nextYearAlloc - item.total
-        });
-      }
-    });
-
-    insights.sort((a, b) => Math.abs(b.velocity - 1) - Math.abs(a.velocity - 1));
     
     // 자연 소진 월(exhaustion month) 구하기
     let exhaustionMonth = 'N/A';
@@ -370,7 +329,6 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
       monthlyExecutionData: trendData,
       maxSpendMonth: { month: maxMonthName, amount: maxAmt },
       avgMonthlySpend: avgSpend,
-      velocityInsights: insights.slice(0, 3),
       remainingTargetAmount: remainTargetAmt,
       recommendedMonthlySpendForTarget,
       exhaustionMonthName: exhaustionMonth,
@@ -398,7 +356,6 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
     monthlyExecutionData,
     maxSpendMonth,
     avgMonthlySpend,
-    velocityInsights,
     remainingTargetAmount,
     recommendedMonthlySpendForTarget,
     exhaustionMonthName,

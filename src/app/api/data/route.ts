@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { getDomainSchema } from '@/lib/schemas';
 
 // Allowed sheets
 const ALLOWED_SHEETS = new Set([
   'TASKS', 'MEETINGS', 'PROJECTS',
   'BUDGET_CATEGORIES', 'BUDGET_ENTRIES',
   'INVENTORY', 'STOCK_CHANGES',
-  'SIGNAL_LOG', 'KNOWLEDGE',
+  'SIGNAL_LOG',
   'MAP_CUSTOMIZATION',
   'PLANNING_MAP_CUSTOMIZATION',
   'DELETED_SIGNALS', 'GLOBAL_TOMBSTONES'
@@ -40,20 +41,54 @@ async function readData(sheet: string): Promise<any[]> {
   }
 }
 
+// ISO 주차(Week Number) 구하기 함수
+function getWeekNumber(d: Date): number {
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dayNum = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil((((date.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  return weekNo;
+}
+
+// Zod 스키마 게이트키퍼 유효성 검증 함수
+function validateDataPayload(sheet: string, data: any[]): boolean {
+  const schema = getDomainSchema(sheet);
+  
+  if (schema && typeof (schema as any).safeParse === 'function') {
+    for (let i = 0; i < data.length; i++) {
+      const item = data[i];
+      const parsed = (schema as any).safeParse(item);
+      if (!parsed.success) {
+        console.error(`[Zod Gatekeeper Error] Invalid data item in sheet ${sheet} at index ${i}:`, parsed.error.format());
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 async function backupDataFile(sheet: string, data: any[]): Promise<void> {
   try {
+    const dataStr = JSON.stringify(data, null, 2);
+    const now = new Date();
+
+    // 1. Son 백업 (최근 20개 변경 이력)
     const backupDir = path.join(process.cwd(), 'data', 'backups', sheet);
     await fs.mkdir(backupDir, { recursive: true });
     
     // ISO format suitable for filenames: YYYY-MM-DDTHH-mm-ss-SSSZ
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const timestamp = now.toISOString().replace(/[:.]/g, '-');
     const backupFile = path.join(backupDir, `${timestamp}_${sheet}.json`);
     
-    await fs.writeFile(backupFile, JSON.stringify(data, null, 2), 'utf-8');
+    // 원자적 파일 백업 쓰기
+    const tmpBackupFile = `${backupFile}.tmp`;
+    await fs.writeFile(tmpBackupFile, dataStr, 'utf-8');
+    await fs.rename(tmpBackupFile, backupFile);
     
     // Prune old backups (keep only the 20 most recent)
     const files = await fs.readdir(backupDir);
-    const jsonFiles = files.filter(f => f.endsWith('.json')).sort(); // Lexicographical sort works chronologically
+    const jsonFiles = files.filter(f => f.endsWith('.json') && !f.endsWith('.tmp')).sort(); // Lexicographical sort works chronologically
     if (jsonFiles.length > 20) {
       const toDelete = jsonFiles.slice(0, jsonFiles.length - 20);
       for (const file of toDelete) {
@@ -64,12 +99,65 @@ async function backupDataFile(sheet: string, data: any[]): Promise<void> {
         }
       }
     }
+
+    // 2. Father 백업 (일별 아카이브 - 최대 7일 보존)
+    const dailyDir = path.join(process.cwd(), 'data', 'backups', 'daily', sheet);
+    await fs.mkdir(dailyDir, { recursive: true });
+    
+    const dayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const dailyFile = path.join(dailyDir, `${dayStr}_${sheet}.json`);
+    
+    const tmpDailyFile = `${dailyFile}.tmp`;
+    await fs.writeFile(tmpDailyFile, dataStr, 'utf-8');
+    await fs.rename(tmpDailyFile, dailyFile);
+    
+    const dailyFiles = (await fs.readdir(dailyDir)).filter(f => f.endsWith('.json') && !f.endsWith('.tmp')).sort();
+    if (dailyFiles.length > 7) {
+      const toDelete = dailyFiles.slice(0, dailyFiles.length - 7);
+      for (const file of toDelete) {
+        try {
+          await fs.unlink(path.join(dailyDir, file));
+        } catch (err) {
+          console.error(`[Backup] Pruning Daily failed for ${file}:`, err);
+        }
+      }
+    }
+
+    // 3. Grandfather 백업 (주별 아카이브 - 최대 4주 보존)
+    const weeklyDir = path.join(process.cwd(), 'data', 'backups', 'weekly', sheet);
+    await fs.mkdir(weeklyDir, { recursive: true });
+    
+    const weekNo = getWeekNumber(now);
+    const weekStr = `${now.getFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+    const weeklyFile = path.join(weeklyDir, `${weekStr}_${sheet}.json`);
+    
+    const tmpWeeklyFile = `${weeklyFile}.tmp`;
+    await fs.writeFile(tmpWeeklyFile, dataStr, 'utf-8');
+    await fs.rename(tmpWeeklyFile, weeklyFile);
+    
+    const weeklyFiles = (await fs.readdir(weeklyDir)).filter(f => f.endsWith('.json') && !f.endsWith('.tmp')).sort();
+    if (weeklyFiles.length > 4) {
+      const toDelete = weeklyFiles.slice(0, weeklyFiles.length - 4);
+      for (const file of toDelete) {
+        try {
+          await fs.unlink(path.join(weeklyDir, file));
+        } catch (err) {
+          console.error(`[Backup] Pruning Weekly failed for ${file}:`, err);
+        }
+      }
+    }
+
   } catch (backupErr) {
     console.error(`[Backup] Failed to backup sheet ${sheet}:`, backupErr);
   }
 }
 
 async function writeDataToFile(sheet: string, data: any[]): Promise<void> {
+  // 1. Zod 유효성 검사 적용 (무결성 깨진 데이터 디스크 쓰기 방지)
+  if (!validateDataPayload(sheet, data)) {
+    throw new Error(`[Zod validation failed] Data structure is invalid for sheet: ${sheet}`);
+  }
+
   const filePath = getFilePath(sheet);
   
   // Ensure the data directory exists
@@ -78,7 +166,10 @@ async function writeDataToFile(sheet: string, data: any[]): Promise<void> {
     await fs.mkdir(dirPath, { recursive: true });
   } catch (e) {}
 
-  await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
+  // 2. 원자적 파일 쓰기 (Write to .tmp first, then rename)
+  const tmpPath = `${filePath}.tmp`;
+  await fs.writeFile(tmpPath, JSON.stringify(data, null, 2), 'utf-8');
+  await fs.rename(tmpPath, filePath);
   
   // Trigger backup
   await backupDataFile(sheet, data);

@@ -7,6 +7,8 @@ interface ForceGraphEngine {
   nodes: OrbitalNode[];
   edges: OntologyEdge[];
   needsRedraw?: boolean;
+  getConnectedEdges?: (nodeId: string) => Array<{ edge: OntologyEdge; otherNode: OrbitalNode }>;
+  getNodeById?: (nodeId: string) => OrbitalNode | null | undefined;
 }
 
 interface MindMapInspectorProps {
@@ -48,7 +50,7 @@ export function MindMapInspector(props: MindMapInspectorProps) {
     if (engineRef.current) {
       setEngineNodes(engineRef.current.nodes || []);
       if (activeNode) {
-        const edges = (engineRef.current as any).getConnectedEdges(activeNode.id) as Array<{ edge: OntologyEdge; otherNode: OrbitalNode }>;
+        const edges = engineRef.current.getConnectedEdges ? engineRef.current.getConnectedEdges(activeNode.id) : [];
         setConnectedEdges(edges || []);
         
         if (activeNode.parentId) {
@@ -394,10 +396,10 @@ export function MindMapInspector(props: MindMapInspectorProps) {
                                               initEngine();
                                               // 현재 노드 상태 업데이트
                                               if (engineRef.current) {
-                                                const updatedActive = (engineRef.current as any).getNodeById(activeNode.id);
-                                                if (updatedActive) {
-                                                  setActiveNode(updatedActive);
-                                                }
+                                                 const updatedActive = engineRef.current.getNodeById ? engineRef.current.getNodeById(activeNode.id) : null;
+                                                 if (updatedActive) {
+                                                   setActiveNode(updatedActive);
+                                                 }
                                               }
                                             }, 50);
                                           }

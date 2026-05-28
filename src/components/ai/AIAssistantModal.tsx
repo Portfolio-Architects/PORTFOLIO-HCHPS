@@ -1,16 +1,17 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Sparkles, X, Settings, Send, Trash2, Loader2, Bot, User } from 'lucide-react';
 import { useAIChat } from '@/hooks/useAIChat';
+import { BudgetCategory, BudgetEntry } from '@/types';
+import { SignalEntry } from '@/hooks/useSignal';
 
 interface AIAssistantModalProps {
   isOpen: boolean;
   onClose: () => void;
   contextData: {
-    signals: any[];
-    budgetEntries?: any[];
-    budgetCategories?: any[];
-    budgets?: any[];
-    knowledge: any[];
+    signals: SignalEntry[];
+    budgetEntries?: BudgetEntry[];
+    budgetCategories?: BudgetCategory[];
+    budgets?: BudgetCategory[];
   };
   appMode?: 'HCHPS' | 'VITAL';
 }

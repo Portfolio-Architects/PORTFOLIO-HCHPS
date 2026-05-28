@@ -35,7 +35,6 @@ interface BudgetDashboardProps {
     totalBudget: number; totalSpent: number; totalPlanned: number; remaining: number;
     dailyExpenseIssued: number; dailyExpenseSpent: number; dailyExpenseRemaining: number;
   };
-  addKnowledge?: (k: { title: string; content: string; category: string; tags: string[] }) => void;
 }
 
 function formatN(n: number) { return n.toLocaleString('ko-KR'); }
@@ -81,7 +80,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
     if (isEdit && editCatId) {
       updateCategory(editCatId, updates);
     } else {
-      addCategory(updates as any);
+      addCategory(updates as Omit<BudgetCategory, 'id'>);
     }
   };
 

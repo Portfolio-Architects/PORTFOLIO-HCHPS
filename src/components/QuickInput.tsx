@@ -6,7 +6,6 @@ import { Zap, Calendar, Clock, MapPin, Users, DollarSign, AlertTriangle, Send, R
 
 interface QuickInputProps {
   onCreateTask: (data: { title: string; dueDate?: string; priority: 'low' | 'medium' | 'high'; tags: string[]; category: string; recurrence?: string; recurrenceEndDate?: string }) => void;
-  onCreateKnowledge?: (data: { title: string; content: string; tags: string[]; category: string }) => void;
   onAddSignal?: (text: string) => void;
   onSearch?: (query: string) => void;
   onNavigate: (module: string) => void;
@@ -17,7 +16,7 @@ function formatAmount(n: number): string {
   return `${n.toLocaleString()}원`;
 }
 
-export function QuickInput({ onCreateTask, onCreateKnowledge, onAddSignal, onSearch, onNavigate }: QuickInputProps) {
+export function QuickInput({ onCreateTask, onAddSignal, onSearch, onNavigate }: QuickInputProps) {
   const [text, setText] = useState('');
   const [justCreated, setJustCreated] = useState(false);
   const [createdLabel, setCreatedLabel] = useState('업무 생성 완료!');
@@ -47,16 +46,7 @@ export function QuickInput({ onCreateTask, onCreateKnowledge, onAddSignal, onSea
     } else if (parsed.type === 'signal' && onAddSignal) {
       onAddSignal(parsed.rawText);
       setCreatedLabel('📡 시그널 기록 완료!');
-      onNavigate('knowledge');
-    } else if (parsed.type === 'knowledge' && onCreateKnowledge) {
-      onCreateKnowledge({
-        title: parsed.title,
-        content: parsed.rawText,
-        tags,
-        category: parsed.category || '',
-      });
-      setCreatedLabel('지식 등록 완료!');
-      onNavigate('knowledge');
+      onNavigate('mindmap');
     } else {
       onCreateTask({
         title: parsed.title,
@@ -74,7 +64,7 @@ export function QuickInput({ onCreateTask, onCreateKnowledge, onAddSignal, onSea
     setText('');
     setJustCreated(true);
     setTimeout(() => setJustCreated(false), 2500);
-  }, [parsed, text, onCreateTask, onCreateKnowledge, onAddSignal, onSearch, onNavigate]);
+  }, [parsed, text, onCreateTask, onAddSignal, onSearch, onNavigate]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -101,11 +91,9 @@ export function QuickInput({ onCreateTask, onCreateKnowledge, onAddSignal, onSea
               ? 'bg-purple-50 text-purple-600'
               : parsed.type === 'signal'
                 ? 'bg-emerald-50 text-emerald-600'
-                : parsed.type === 'knowledge' 
-                  ? 'bg-[rgba(234,179,8,0.1)] text-yellow-600'
-                  : 'bg-[rgba(74,108,247,0.08)] text-[var(--color-primary)]'
+                : 'bg-[rgba(74,108,247,0.08)] text-[var(--color-primary)]'
           }`}>
-            {parsed.type === 'query' ? '🔍 정보 검색' : parsed.type === 'signal' ? '📡 시그널' : parsed.type === 'knowledge' ? '💡 지식' : '📋 업무'}
+            {parsed.type === 'query' ? '🔍 정보 검색' : parsed.type === 'signal' ? '📡 시그널' : '📋 업무'}
           </span>
         )}
 

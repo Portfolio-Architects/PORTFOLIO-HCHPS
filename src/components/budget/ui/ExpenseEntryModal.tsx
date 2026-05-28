@@ -1,7 +1,6 @@
-/* eslint-disable react-hooks/set-state-in-effect, @typescript-eslint/ban-ts-comment */
-// @ts-nocheck
+/* eslint-disable react-hooks/set-state-in-effect */
 import React, { useState, useEffect } from 'react';
-import { BudgetCategory, BudgetEntry, BudgetActionType } from '@/types';
+import { BudgetCategory, BudgetEntry, BudgetActionType, BudgetSubItem, BudgetCalculation } from '@/types';
 import { Modal } from '@/components/ui/modal';
 
 interface ExpenseEntryModalProps {
@@ -9,7 +8,10 @@ interface ExpenseEntryModalProps {
   onClose: () => void;
   categories: BudgetCategory[];
   entries: BudgetEntry[];
-  getCategoryStats: (id: string) => any;
+  getCategoryStats: (id: string) => { 
+    totalBudget: number; spent: number; planned: number; remaining: number; usageRate: number;
+    generalSpent: number; dailyExpenseIssued: number; dailyExpenseSpent: number; dailyExpenseRemaining: number;
+  } | null;
   initialData: Partial<BudgetEntry> | null;
   preselectedCategoryId?: string;
   onSave: (isEdit: boolean, id: string | null, data: Partial<BudgetEntry>) => void;
@@ -108,9 +110,9 @@ export function ExpenseEntryModal({
 
     // -- VALIDATION START --
     if (entryLinkedSubItemId && actionType !== 'settle') {
-      let targetSubItem = cat.subItems?.find(s => s.id === entryLinkedSubItemId);
+      let targetSubItem: BudgetSubItem | BudgetCalculation | undefined = cat.subItems?.find(s => s.id === entryLinkedSubItemId);
       if (!targetSubItem) {
-        targetSubItem = cat.subItems?.flatMap(s => s.calculations || []).find((c: any) => c.id === entryLinkedSubItemId);
+        targetSubItem = cat.subItems?.flatMap(s => s.calculations || []).find((c: BudgetCalculation) => c.id === entryLinkedSubItemId);
       }
       
       if (targetSubItem) {
@@ -217,7 +219,7 @@ export function ExpenseEntryModal({
               <label key={type.id} className={`flex flex-col p-2.5 rounded-lg border-2 cursor-pointer transition-all ${actionType === type.id ? 'border-blue-500 bg-blue-50/50 shadow-sm' : 'border-gray-200 bg-white hover:border-blue-200 hover:bg-gray-50'}`}>
                 <div className="flex items-center gap-2">
                   <input type="radio" name="actionType" value={type.id} checked={actionType === type.id} onChange={() => {
-                     setActionType(type.id as any);
+                     setActionType(type.id as BudgetActionType);
                      setEntryError(null);
                   }} className="text-blue-600 focus:ring-blue-500 border-gray-300" />
                   <span className={`font-bold text-[13px] ${actionType === type.id ? 'text-blue-700' : 'text-gray-700'}`}>{type.label}</span>

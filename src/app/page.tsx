@@ -8,7 +8,6 @@ import { useInventory } from '@/hooks/useInventory';
 import { useMeetings } from '@/hooks/useMeetings';
 import { useProjects } from '@/hooks/useProjects';
 import { useSignal, extractKeywords } from '@/hooks/useSignal';
-import { useKnowledge } from '@/hooks/useKnowledge';
 import { useScheduleAlerts } from '@/hooks/useScheduleAlerts';
 import { useNotificationAlerts } from '@/hooks/useNotificationAlerts';
 import { ScheduleAlertBanner } from '@/components/mindmap/ui/ScheduleAlertBanner';
@@ -17,7 +16,6 @@ import { QuickInput } from '@/components/QuickInput';
 import { WorkspaceView } from '@/components/WorkspaceView';
 import { MindMap3D } from '@/components/MindMap3D';
 import { PortfolioDashboardView } from '@/components/dashboard/PortfolioDashboardView';
-import { TaskWisdomView } from '@/components/TaskWisdomView';
 import { SearchResultModal } from '@/components/SearchResultModal';
 import { AlertTriangle, RefreshCw, Sparkles, X, Settings } from 'lucide-react';
 import { useSecurityLock } from '@/hooks/useSecurityLock';
@@ -70,6 +68,7 @@ function ProtectedApp({ appMode, onModeChange }: ProtectedAppProps) {
   const [activeModule, setActiveModule] = useState<ModuleType>('dashboard');
   const [isQuickInputOpen, setIsQuickInputOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [buttonBottom, setButtonBottom] = useState<number | null>(null);
   // Hooks
   const { tasks, addTask, updateTask, deleteTask, moveTask, stats: taskStats } = useTasks();
   const { categories: budgetCategories, entries: budgetEntries, addCategory, updateCategory, deleteCategory, addEntry, updateEntry, deleteEntry, getCategoryStats, overallStats, overallStatsActual } = useBudget();
@@ -77,12 +76,11 @@ function ProtectedApp({ appMode, onModeChange }: ProtectedAppProps) {
   const { meetings, addMeeting, updateMeeting, deleteMeeting, getUpcomingMeetings, getTodayMeetings } = useMeetings();
   const { projects, addProject, updateProject, deleteProject, addChecklistItem, toggleChecklistItem, deleteChecklistItem, getProjectProgress } = useProjects();
   const { entries: signalEntries, addSignal, deleteSignal, updateSignal, updateSignalKeywords, keywordMap } = useSignal();
-  const { entries: knowledgeEntries, addKnowledge, updateKnowledge, deleteKnowledge, filterKnowledge, metadata: knowledgeMetadata } = useKnowledge();
   const scheduleAlerts = useScheduleAlerts(tasks, meetings);
   const { permission: notifPermission, requestPermission: requestNotifPermission, appEnabled, toggleAppEnabled } = useNotificationAlerts(scheduleAlerts);
 
   const { searchModalOpen, searchQuery, searchResults, handleGlobalSearch, closeSearchModal } = useGlobalSearch();
-  const { mergedKeywordMap, mergedEntries } = useMergedSignals(signalEntries, keywordMap, tasks, knowledgeEntries, projects, meetings, budgetEntries, inventoryItems);
+  const { mergedKeywordMap, mergedEntries } = useMergedSignals(signalEntries, keywordMap, tasks, projects, meetings, budgetEntries, inventoryItems);
 
   // Prevent hydration mismatch — hooks read localStorage data on client
   useEffect(() => {
@@ -101,6 +99,54 @@ function ProtectedApp({ appMode, onModeChange }: ProtectedAppProps) {
   useEffect(() => {
     document.title = 'PORTFOLIO - VITAL';
   }, []);
+
+  // AI button position listener to prevent overlapping with footer
+  useEffect(() => {
+    const handleScroll = () => {
+      const footer = document.getElementById('dashboard-footer');
+      const isMobile = window.innerWidth < 640;
+      const defaultBottom = isMobile ? 96 : 32; // bottom-24 is 96px, sm:bottom-8 is 32px
+
+      if (!footer) {
+        setButtonBottom(defaultBottom);
+        return;
+      }
+
+      const footerRect = footer.getBoundingClientRect();
+      const visibleFooterHeight = window.innerHeight - footerRect.top;
+      
+      if (visibleFooterHeight > 0) {
+        // Push the button up so it stays at least 16px above the footer
+        const targetBottom = visibleFooterHeight + 16;
+        setButtonBottom(Math.max(defaultBottom, targetBottom));
+      } else {
+        setButtonBottom(defaultBottom);
+      }
+    };
+
+    // Listen to scroll events anywhere on the page (capture phase)
+    window.addEventListener('scroll', handleScroll, { capture: true, passive: true });
+    window.addEventListener('resize', handleScroll);
+    
+    // Initial calculation
+    handleScroll();
+    
+    // Monitor DOM changes inside the scroll container to handle accordion collapses/expands
+    const scrollContainer = document.getElementById('main-scroll-container');
+    let mutationObserver: MutationObserver | null = null;
+    if (scrollContainer) {
+      mutationObserver = new MutationObserver(handleScroll);
+      mutationObserver.observe(scrollContainer, { childList: true, subtree: true });
+    }
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll, { capture: true });
+      window.removeEventListener('resize', handleScroll);
+      if (mutationObserver) {
+        mutationObserver.disconnect();
+      }
+    };
+  }, [activeModule]);
 
   const handleLogout = async () => {
     try {
@@ -142,7 +188,7 @@ function ProtectedApp({ appMode, onModeChange }: ProtectedAppProps) {
     
     // Minimum horizontal swipe distance
     if (Math.abs(distance) > 60) {
-      const order: ModuleType[] = ['dashboard', 'mindmap', 'workspace', 'knowledge'];
+      const order: ModuleType[] = ['dashboard', 'mindmap', 'workspace'];
       const currentIndex = order.indexOf(activeModule);
       
       if (distance > 0 && currentIndex < order.length - 1) {
@@ -178,12 +224,6 @@ function ProtectedApp({ appMode, onModeChange }: ProtectedAppProps) {
         updateTask(t.id, { tags: t.tags.map(tag => tag === rawOld ? rawNew : tag) });
       }
     });
-    // update Knowledge
-    knowledgeEntries?.forEach(k => {
-      if (k.tags.includes(rawOld)) {
-        updateKnowledge(k.id, { tags: k.tags.map(tag => tag === rawOld ? rawNew : tag) });
-      }
-    });
   };
 
   const handleDeleteCategory = (name: string) => {
@@ -191,11 +231,6 @@ function ProtectedApp({ appMode, onModeChange }: ProtectedAppProps) {
     tasks.forEach(t => {
       if (t.tags.includes(rawName)) {
         updateTask(t.id, { tags: t.tags.filter(tag => tag !== rawName) });
-      }
-    });
-    knowledgeEntries?.forEach(k => {
-      if (k.tags.includes(rawName)) {
-        updateKnowledge(k.id, { tags: k.tags.filter(tag => tag !== rawName) });
       }
     });
   };
@@ -221,36 +256,7 @@ function ProtectedApp({ appMode, onModeChange }: ProtectedAppProps) {
             deleteItem={deleteItem}
             adjustStock={adjustStock}
             getItemHistory={getItemHistory}
-            addKnowledge={addKnowledge}
             addSignal={addSignal}
-          />
-        );
-
-      case 'knowledge':
-        return (
-          <TaskWisdomView
-            tasks={tasks}
-            addTask={addTask}
-            updateTask={updateTask}
-            deleteTask={deleteTask}
-            moveTask={moveTask}
-            meetings={meetings}
-            addMeeting={addMeeting}
-            updateMeeting={updateMeeting}
-            deleteMeeting={deleteMeeting}
-            projects={projects}
-            addProject={addProject}
-            deleteProject={deleteProject}
-            knowledgeEntries={knowledgeEntries}
-            addKnowledge={addKnowledge}
-            updateKnowledge={updateKnowledge}
-            deleteKnowledge={deleteKnowledge}
-            filterKnowledge={filterKnowledge}
-            knowledgeMetadata={knowledgeMetadata}
-            signalEntries={signalEntries}
-            addSignal={addSignal}
-            updateSignal={updateSignal}
-            deleteSignal={deleteSignal}
           />
         );
 
@@ -295,7 +301,7 @@ function ProtectedApp({ appMode, onModeChange }: ProtectedAppProps) {
         onModeChange={onModeChange}
       />
 
-      <main className="flex-1 pb-32 sm:pb-8 overflow-y-auto custom-scrollbar">
+      <main id="main-scroll-container" className="flex-1 pb-32 sm:pb-8 overflow-y-auto custom-scrollbar">
         <div className="max-w-[1800px] mx-auto px-2 sm:px-3 lg:px-4 pt-4 sm:pt-6 lg:pt-8">
           {renderContent()}
         </div>
@@ -310,15 +316,17 @@ function ProtectedApp({ appMode, onModeChange }: ProtectedAppProps) {
       />
 
       {/* Floating LLM Button & Popover */}
-      <div className="fixed bottom-24 sm:bottom-8 right-4 sm:right-8 z-50 flex flex-col items-end gap-3">
+      <div 
+        className="fixed bottom-24 sm:bottom-8 right-4 sm:right-8 z-50 flex flex-col items-end gap-3"
+        style={buttonBottom !== null ? { bottom: `${buttonBottom}px` } : undefined}
+      >
         <AIAssistantModal 
           isOpen={isQuickInputOpen} 
           onClose={() => setIsQuickInputOpen(false)}
           contextData={{
             signals: mergedEntries,
             budgetEntries: budgetEntries,
-            budgetCategories: budgetCategories,
-            knowledge: knowledgeEntries
+            budgetCategories: budgetCategories
           }}
           appMode={appMode}
         />

@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Task, TaskStatus, KnowledgeEntry } from '@/types';
+import { Task, TaskStatus } from '@/types';
 import { Modal } from './ui/modal';
-import { Lightbulb, CalendarDays } from 'lucide-react';
+import { CalendarDays } from 'lucide-react';
 
 type RecurrenceType = 'none' | 'daily' | 'weekly' | 'biweekly' | 'custom';
 const WEEKDAYS = ['월', '화', '수', '목', '금', '토', '일'];
@@ -32,10 +32,9 @@ interface TaskModalProps {
   onUpdate?: (id: string, updates: Partial<Task>) => void;
   allTags: string[];
   projects: { id: string; name: string }[];
-  knowledgeEntries: KnowledgeEntry[];
 }
 
-export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, allTags, projects, knowledgeEntries }: TaskModalProps) {
+export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, allTags, projects }: TaskModalProps) {
   const [title, setTitle] = useState(editTask?.title || '');
   const [description, setDescription] = useState(editTask?.description || '');
   const [status, setStatus] = useState<TaskStatus>(editTask?.status || 'todo');
@@ -155,67 +154,12 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, allTags
     }
   };
 
-  const matchedAdvice = useMemo(() => {
-    if (!knowledgeEntries || knowledgeEntries.length === 0) return [];
-    
-    return knowledgeEntries.filter(entry => {
-      // 1. Direct task ID link match
-      if (editTask && entry.linkedTaskIds && entry.linkedTaskIds.includes(editTask.id)) return true;
-      // 2. Direct tag match (task has a tag that matches entry's tag)
-      if (entry.tags && entry.tags.some(t => tags.includes(t))) return true;
-      // 3. Keyword match from title
-      if (title) {
-        if (entry.tags && entry.tags.some(t => title.includes(t))) return true;
-        const genericTerms = ['보고', '회의', '미팅', '작성', '확인', '검토', '기획'];
-        if (!genericTerms.includes(entry.title) && title.includes(entry.title)) return true;
-      }
-      return false;
-    });
-  }, [knowledgeEntries, tags, title, editTask]);
-
   const inputClass = "w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent transition-shadow";
   const labelClass = "block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5";
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={editTask ? '업무 수정' : '새 업무'}>
       <form onSubmit={handleSubmit} className="space-y-4">
-        {matchedAdvice.length > 0 && (
-          <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-3.5 mb-2">
-            <h4 className="flex items-center gap-1.5 text-xs font-black text-indigo-900 mb-2.5">
-              <Lightbulb size={14} className="text-amber-500 fill-amber-500" />
-              💡 연동된 업무 암묵지 & 노하우 가이드 ({matchedAdvice.length}건)
-            </h4>
-            <div className="space-y-3.5 max-h-56 overflow-y-auto custom-scrollbar">
-              {matchedAdvice.map(advice => (
-                <div key={advice.id} className="bg-white border border-slate-100 rounded-lg p-3 text-xs shadow-sm">
-                  <div className="font-bold text-slate-800 text-[12px] mb-1.5 flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 bg-indigo-600 rounded-full"></span>
-                    {advice.title}
-                  </div>
-                  {advice.content && (
-                    <div className="text-slate-600 mb-2 leading-relaxed whitespace-pre-wrap">{advice.content}</div>
-                  )}
-                  {advice.steps && advice.steps.length > 0 && (
-                    <div className="mt-2 bg-slate-50 p-2 rounded border border-slate-100">
-                      <div className="font-bold text-[10px] text-slate-500 mb-1">실행 순서:</div>
-                      <ol className="list-decimal pl-4 space-y-1 text-slate-600">
-                        {advice.steps.map((step, sIdx) => (
-                          <li key={sIdx}>{step}</li>
-                        ))}
-                      </ol>
-                    </div>
-                  )}
-                  {advice.pitfalls && (
-                    <div className="mt-2 bg-rose-50 border border-rose-100 text-rose-800 p-2 rounded flex gap-1.5 items-start">
-                      <span className="text-[10px] font-black bg-rose-100 text-rose-700 px-1 rounded shrink-0">경고</span>
-                      <p className="leading-relaxed">{advice.pitfalls}</p>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         <div>
           <label className={labelClass}>제목 *</label>

@@ -204,15 +204,15 @@ export class OntologyRenderer {
 
       const labelText = node.label || '';
       
-      // 버퍼링 최적화 1: 텍스트 측정을 줌 레벨 1.0(12px) 기준으로 1회만 캐싱하여 매 프레임 발생하는 엄청난 연산 부하 제거
+      // 측정 캐시 최적화
       const weightStyle = (isActive || isTreeActive) ? '600' : '500';
       const cacheKey = weightStyle;
-      if (!(node as any)._cachedTextWidth) (node as any)._cachedTextWidth = {};
-      if (!(node as any)._cachedTextWidth[cacheKey]) {
+      if (!node._cachedTextWidth) node._cachedTextWidth = {};
+      if (!node._cachedTextWidth[cacheKey]) {
           ctx.font = `${weightStyle} 12px 'Pretendard', sans-serif`;
-          (node as any)._cachedTextWidth[cacheKey] = ctx.measureText(labelText).width;
+          node._cachedTextWidth[cacheKey] = ctx.measureText(labelText).width;
       }
-      const textWidth = (node as any)._cachedTextWidth[cacheKey] * zoom;
+      const textWidth = node._cachedTextWidth[cacheKey] * zoom;
 
       // NotebookLM 스타일: 콤팩트한 노드 사이즈
       const fontSize = 12 * zoom;

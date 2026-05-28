@@ -1,7 +1,6 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment, react-hooks/set-state-in-effect */
-// @ts-nocheck
+/* eslint-disable react-hooks/set-state-in-effect */
 import React, { useState, useEffect } from 'react';
-import { BudgetCategory } from '@/types';
+import { BudgetCategory, BudgetFundingSplit, BudgetCalculation, BudgetSubItem } from '@/types';
 import { Modal } from '@/components/ui/modal';
 import { ShieldAlert, X, FileCheck } from 'lucide-react';
 
@@ -11,6 +10,37 @@ interface CategoryEditModalProps {
   categoriesLength: number;
   initialData: BudgetCategory | Partial<BudgetCategory> | null;
   onSave: (isEdit: boolean, id: string | null, data: Partial<BudgetCategory>) => void;
+}
+
+interface UIFundingSplit {
+  source: string;
+  amount: string;
+}
+
+interface UICalculation {
+  id?: string;
+  name?: string;
+  calculation: string;
+  amount: string;
+  isCustomFunding?: boolean;
+  fundingSplits?: UIFundingSplit[];
+  isLocked?: boolean;
+  virtualAdjustment?: number;
+  note?: string;
+}
+
+interface UISubItem {
+  id?: string;
+  prefix?: string;
+  name: string;
+  calculation?: string;
+  amount: string;
+  isCustomFunding?: boolean;
+  fundingSplits?: UIFundingSplit[];
+  isLocked?: boolean;
+  virtualAdjustment?: number;
+  calculations?: UICalculation[];
+  note?: string;
 }
 
 const inputClass = "w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition-shadow";
@@ -30,8 +60,8 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
   const [catStatCode, setCatStatCode] = useState('');
   const [catStatName, setCatStatName] = useState('');
   const [catBudgetType, setCatBudgetType] = useState<'본예산' | '간주예산' | '추경'>('본예산');
-  const [catFundingSplits, setCatFundingSplits] = useState<{source: string, amount: string}[]>([{source: '구비', amount: ''}]);
-  const [catSubItems, setCatSubItems] = useState<any[]>([{prefix: '', name: '', calculation: '', amount: '', isCustomFunding: false, fundingSplits: [{source: '구비', amount: ''}], calculations: []}]);
+  const [catFundingSplits, setCatFundingSplits] = useState<UIFundingSplit[]>([{source: '구비', amount: ''}]);
+  const [catSubItems, setCatSubItems] = useState<UISubItem[]>([{prefix: '', name: '', calculation: '', amount: '', isCustomFunding: false, fundingSplits: [{source: '구비', amount: ''}], calculations: []}]);
 
   const isEdit = initialData && 'id' in initialData && !!initialData.id;
   const editCatId = isEdit ? (initialData as BudgetCategory).id : null;
@@ -69,7 +99,7 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
       setCatBudgetType(initialData.budgetType || '본예산');
       
       if (initialData.fundingSplits && initialData.fundingSplits.length > 0) {
-        setCatFundingSplits(initialData.fundingSplits.map((s: any) => ({ source: s.source, amount: s.amount ? s.amount.toLocaleString() : '' })));
+        setCatFundingSplits(initialData.fundingSplits.map((s: BudgetFundingSplit) => ({ source: s.source, amount: s.amount ? s.amount.toLocaleString() : '' })));
       } else {
         const rawFunding = initialData.fundingSource || '구비';
         const parsedSplits = [];
@@ -89,7 +119,7 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
       }
       
       if (initialData.subItems && initialData.subItems.length > 0) {
-        setCatSubItems(initialData.subItems.map((s: any) => ({ 
+        setCatSubItems(initialData.subItems.map((s) => ({ 
           id: s.id,
           prefix: s.prefix || '', 
           name: s.name, 
@@ -97,8 +127,10 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
           amount: s.amount ? s.amount.toLocaleString() : '', 
           isCustomFunding: s.isCustomFunding || false,
           isLocked: s.isLocked || false,
-          fundingSplits: s.fundingSplits && s.fundingSplits.length > 0 ? s.fundingSplits.map((fs: any) => ({ source: fs.source, amount: fs.amount ? fs.amount.toLocaleString() : '' })) : [{source: '구비', amount: ''}],
-          calculations: s.calculations ? s.calculations.map((c: any) => ({ id: c.id, name: c.name || undefined, calculation: c.calculation || "", amount: c.amount ? c.amount.toLocaleString() : "", isCustomFunding: c.isCustomFunding || false, isLocked: c.isLocked || false, fundingSplits: c.fundingSplits && c.fundingSplits.length > 0 ? c.fundingSplits.map((fs: any) => ({source: fs.source, amount: fs.amount ? fs.amount.toLocaleString() : ""})) : [{source: "구비", amount: ""}] })) : []
+          virtualAdjustment: s.virtualAdjustment || 0,
+          note: s.note || '',
+          fundingSplits: s.fundingSplits && s.fundingSplits.length > 0 ? s.fundingSplits.map((fs) => ({ source: fs.source, amount: fs.amount ? fs.amount.toLocaleString() : '' })) : [{source: '구비', amount: ''}],
+          calculations: s.calculations ? s.calculations.map((c) => ({ id: c.id, name: c.name || undefined, calculation: c.calculation || "", amount: c.amount ? c.amount.toLocaleString() : "", isCustomFunding: c.isCustomFunding || false, isLocked: c.isLocked || false, virtualAdjustment: c.virtualAdjustment || 0, note: c.note || '', fundingSplits: c.fundingSplits && c.fundingSplits.length > 0 ? c.fundingSplits.map((fs) => ({source: fs.source, amount: fs.amount ? fs.amount.toLocaleString() : ""})) : [{source: "구비", amount: ""}] })) : []
         })));
       } else {
         setCatSubItems([{prefix: '', name: '', calculation: '', amount: '', isCustomFunding: false, fundingSplits: [{source: '구비', amount: ''}], calculations: []}]);
@@ -118,10 +150,10 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
     let hasCustomFunding = false;
     let customFundingTotal = 0;
 
-    catSubItems.forEach((sub: any) => {
+    catSubItems.forEach((sub: UISubItem) => {
       if (sub.isCustomFunding && sub.fundingSplits) {
         hasCustomFunding = true;
-        sub.fundingSplits.forEach((fs: any) => {
+        sub.fundingSplits.forEach((fs: UIFundingSplit) => {
           const amt = Number((fs.amount || '0').replace(/,/g, ''));
           if (amt > 0) {
             totals[fs.source] = (totals[fs.source] || 0) + amt;
@@ -130,11 +162,11 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
         });
       } else {
         const subHasCalc = sub.calculations && sub.calculations.length > 0;
-        if (subHasCalc) {
-          sub.calculations.forEach((calc: any) => {
+        if (subHasCalc && sub.calculations) {
+          sub.calculations.forEach((calc: UICalculation) => {
             if (calc.isCustomFunding && calc.fundingSplits) {
               hasCustomFunding = true;
-              calc.fundingSplits.forEach((fs: any) => {
+              calc.fundingSplits.forEach((fs: UIFundingSplit) => {
                 const amt = Number((fs.amount || '0').replace(/,/g, ''));
                 if (amt > 0) {
                   totals[fs.source] = (totals[fs.source] || 0) + amt;
@@ -177,15 +209,15 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
     const combinedStat = catStatCode ? `${catStatCode} ${catStatName}`.trim() : catStatName;
     const finalName = combinedStat || combinedFormation || '무명 예산과목';
     
-    const hasAmounts = catFundingSplits.some((s: any) => s.amount);
-    const totalAmount = catFundingSplits.reduce((sum: number, s: any) => sum + Number((s.amount || '0').replace(/,/g, '')), 0);
+    const hasAmounts = catFundingSplits.some((s: UIFundingSplit) => s.amount);
+    const totalAmount = catFundingSplits.reduce((sum: number, s: UIFundingSplit) => sum + Number((s.amount || '0').replace(/,/g, '')), 0);
     
     if (hasAmounts && totalAmount > 0 && Math.abs(totalAmount - targetBudget) > 10) {
       alert(`입력하신 재원 금액 합계(${totalAmount.toLocaleString()}원)가 총 예산액(${targetBudget.toLocaleString()}원)과 일치하지 않습니다.`);
       return;
     }
 
-    const finalFunding = catFundingSplits.map((s: any) => {
+    const finalFunding = catFundingSplits.map((s: UIFundingSplit) => {
       const amt = Number((s.amount || '0').replace(/,/g, ''));
       if (amt === 0) return '';
       const r = targetBudget > 0 ? (amt / targetBudget) * 100 : 0;
@@ -193,30 +225,32 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
       return `${s.source} (${ratioStr}%)`;
     }).filter(Boolean).join(', ') || '구비';
 
-    const finalSplitsArray = catFundingSplits.map((s: any) => ({
+    const finalSplitsArray = catFundingSplits.map((s: UIFundingSplit) => ({
       source: s.source,
       amount: Number((s.amount || '0').replace(/,/g, ''))
-    })).filter((s: any) => s.amount > 0);
+    })).filter((s: {amount: number}) => s.amount > 0);
 
-    const finalSubItemsArray = catSubItems.map((s: any) => {
-      const calcArray = (s.calculations || []).map((calc: any) => {
-        const res: any = {
+    const finalSubItemsArray = catSubItems.map((s: UISubItem) => {
+      const calcArray = (s.calculations || []).map((calc: UICalculation) => {
+        const res: BudgetCalculation = {
           id: calc.id || crypto.randomUUID(),
           calculation: calc.calculation,
           amount: Number((calc.amount || '0').replace(/,/g, ''))
         };
         if (calc.name) res.name = calc.name;
         if (calc.isLocked !== undefined) res.isLocked = calc.isLocked;
+        if (calc.virtualAdjustment !== undefined) res.virtualAdjustment = calc.virtualAdjustment;
+        if (calc.note !== undefined) res.note = calc.note;
         if (calc.isCustomFunding) {
           res.isCustomFunding = true;
-          res.fundingSplits = calc.fundingSplits && calc.fundingSplits.length > 0 ? calc.fundingSplits.map((fs: any) => ({source: fs.source, amount: Number((fs.amount || '0').replace(/,/g, ''))})).filter((fs: any) => fs.amount > 0) : undefined;
+          res.fundingSplits = calc.fundingSplits && calc.fundingSplits.length > 0 ? calc.fundingSplits.map((fs: UIFundingSplit) => ({source: fs.source, amount: Number((fs.amount || '0').replace(/,/g, ''))})).filter((fs: {amount: number}) => fs.amount > 0) : undefined;
         }
         return res;
-      }).filter((c: any) => c.calculation.trim() !== '' || c.amount > 0);
+      }).filter((c: BudgetCalculation) => c.calculation.trim() !== '' || c.amount > 0);
       
       const isParent = calcArray.length > 0;
-      const computedAmount = isParent ? calcArray.reduce((sum: number, c: any) => sum + c.amount, 0) : Number((s.amount || '0').replace(/,/g, ''));
-
+      const computedAmount = isParent ? calcArray.reduce((sum: number, c: BudgetCalculation) => sum + c.amount, 0) : Number((s.amount || '0').replace(/,/g, ''));
+ 
       return {
         id: s.id || crypto.randomUUID(),
         prefix: s.prefix || undefined,
@@ -225,13 +259,15 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
         amount: computedAmount,
         isCustomFunding: s.isCustomFunding,
         isLocked: s.isLocked,
+        virtualAdjustment: s.virtualAdjustment || 0,
+        note: s.note || '',
         calculations: isParent ? calcArray : undefined,
-        fundingSplits: s.isCustomFunding && s.fundingSplits && s.fundingSplits.length > 0 ? s.fundingSplits.map((fs: any) => ({
+        fundingSplits: s.isCustomFunding && s.fundingSplits && s.fundingSplits.length > 0 ? s.fundingSplits.map((fs: UIFundingSplit) => ({
           source: fs.source,
           amount: Number((fs.amount || '0').replace(/,/g, ''))
-        })).filter((fs: any) => fs.amount > 0) : undefined
+        })).filter((fs: {amount: number}) => fs.amount > 0) : undefined
       };
-    }).filter((s: any) => s.name.trim() !== '' || (s.prefix && s.prefix.trim() !== '') || s.amount > 0 || (s.calculations && s.calculations.length > 0) || (s.calculation && s.calculation.trim() !== ''));
+    }).filter((s) => s.name.trim() !== '' || (s.prefix && s.prefix.trim() !== '') || s.amount > 0 || (s.calculations && s.calculations.length > 0) || (s.calculation && s.calculation.trim() !== ''));
 
     const updates: Partial<BudgetCategory> = {
       name: finalName, 
@@ -271,7 +307,7 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
               <div className="flex gap-4">
                 {['본예산', '간주예산', '추경'].map(type => (
                   <label key={type} className="flex items-center gap-1.5 text-sm cursor-pointer hover:bg-gray-50 px-2 py-1 rounded-md transition-colors">
-                    <input type="radio" name="catBudgetType" value={type} checked={catBudgetType === type} onChange={() => setCatBudgetType(type as any)} className="text-[var(--color-primary)] border-gray-300 focus:ring-[var(--color-primary)]" />
+                    <input type="radio" name="catBudgetType" value={type} checked={catBudgetType === type} onChange={() => setCatBudgetType(type as '본예산' | '간주예산' | '추경')} className="text-[var(--color-primary)] border-gray-300 focus:ring-[var(--color-primary)]" />
                     {type}
                   </label>
                 ))}
@@ -308,7 +344,7 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
                 <span className="font-bold flex items-center gap-1.5"><ShieldAlert size={14} className="text-gray-400"/> 재원 구분 및 금액 분할 *</span>
                 {(() => {
                   const tb = Number(catBudget.replace(/,/g, ''));
-                  const totalAmt = catFundingSplits.reduce((sum: number, s: any) => sum + Number((s.amount || '0').replace(/,/g, '')), 0);
+                  const totalAmt = catFundingSplits.reduce((sum: number, s: UIFundingSplit) => sum + Number((s.amount || '0').replace(/,/g, '')), 0);
                   const isMatch = tb > 0 && totalAmt === tb;
                   return (
                     <span className={`text-[11px] px-2 py-0.5 rounded font-bold ${isMatch ? 'text-green-700 bg-green-100' : 'text-red-600 bg-red-100'}`}>
@@ -371,9 +407,9 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
                 <span className="font-bold flex items-center gap-1.5 text-indigo-800"><FileCheck size={14} className="text-indigo-400"/> 세부 산출 내역 (옵션)</span>
                 {(() => {
                   const tb = Number(catBudget.replace(/,/g, ''));
-                  const totalSub = catSubItems.reduce((sum: number, s: any) => {
+                  const totalSub = catSubItems.reduce((sum: number, s: UISubItem) => {
                     if (s.calculations && s.calculations.length > 0) {
-                      return sum + s.calculations.reduce((subSum: number, c: any) => subSum + Number((c.amount || '0').replace(/,/g, '')), 0);
+                      return sum + s.calculations.reduce((subSum: number, c: UICalculation) => subSum + Number((c.amount || '0').replace(/,/g, '')), 0);
                     }
                     return sum + Number((s.amount || '0').replace(/,/g, ''));
                   }, 0);
@@ -389,7 +425,7 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
               <div className="space-y-2.5">
 {catSubItems.map((sub, idx) => {
                   const hasCalculations = sub.calculations && sub.calculations.length > 0;
-                  const autoComputedAmount = hasCalculations ? sub.calculations.reduce((s: number, c: any) => s + Number((c.amount || '0').replace(/,/g, '')), 0) : null;
+                  const autoComputedAmount = hasCalculations && sub.calculations ? sub.calculations.reduce((s: number, c: UICalculation) => s + Number((c.amount || '0').replace(/,/g, '')), 0) : null;
                   const displayAmount = hasCalculations ? autoComputedAmount?.toLocaleString() : sub.amount;
 
                   return (
@@ -469,7 +505,7 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
                              const newSubs = [...catSubItems];
                              newSubs[idx].isLocked = e.target.checked;
                              if (e.target.checked && newSubs[idx].calculations) {
-                               newSubs[idx].calculations.forEach((c: any) => c.isLocked = false);
+                               newSubs[idx].calculations.forEach((c: UICalculation) => c.isLocked = false);
                              }
                              setCatSubItems(newSubs);
                          }} className="w-3.5 h-3.5 rounded border-red-300 focus:ring-red-500 cursor-pointer text-red-500" title="이 항목 예산 지출 방지(잠금) 설정" />
@@ -495,13 +531,13 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
                              
                              <input type="text" value={calc.name || ''} onChange={e => {
                                 const newSubs = [...catSubItems];
-                                newSubs[idx].calculations[cIdx].name = e.target.value;
+                                newSubs[idx].calculations![cIdx].name = e.target.value;
                                 setCatSubItems(newSubs);
                              }} className={`${inputClass} text-[12px] bg-white border-transparent focus:border-indigo-300 shadow-sm`} style={{ flex: '1 0 auto', maxWidth: '200px' }} placeholder="세부 산출명 (예: 식비)" />
                              
                              <input type="text" value={calc.calculation || ''} onChange={e => {
                                 const newSubs = [...catSubItems];
-                                newSubs[idx].calculations[cIdx].calculation = e.target.value;
+                                newSubs[idx].calculations![cIdx].calculation = e.target.value;
                                 setCatSubItems(newSubs);
                              }} onBlur={e => {
                                 const calcStr = e.target.value;
@@ -519,7 +555,7 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
                                 }
                                 if (valid) {
                                    const newSubs = [...catSubItems];
-                                   newSubs[idx].calculations[cIdx].amount = Math.round(total).toLocaleString();
+                                   newSubs[idx].calculations![cIdx].amount = Math.round(total).toLocaleString();
                                    setCatSubItems(newSubs);
                                 }
                              }} className={`${inputClass} text-[12px] font-mono bg-white border-transparent focus:border-indigo-300 shadow-sm`} style={{ flex: '1' }} placeholder="상세식 (예: 8,000*30)" />
@@ -528,7 +564,7 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
                                <input type="text" value={calc.amount || ''} onChange={e => {
                                  const val = e.target.value.replace(/[^0-9]/g, '');
                                  const newSubs = [...catSubItems];
-                                 newSubs[idx].calculations[cIdx].amount = val ? Number(val).toLocaleString() : '';
+                                 newSubs[idx].calculations![cIdx].amount = val ? Number(val).toLocaleString() : '';
                                  setCatSubItems(newSubs);
                                }} className={`${inputClass} pr-7 text-[15px] text-right font-extrabold text-slate-700 bg-white border-transparent focus:border-indigo-300 shadow-sm tracking-tight`} placeholder="금액" />
                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 text-[11px] font-bold pointer-events-none">원</span>
@@ -537,9 +573,9 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
                              <label className="flex items-center gap-1 cursor-pointer shrink-0 ml-1 whitespace-nowrap">
                                 <input type="checkbox" checked={calc.isCustomFunding || false} onChange={e => {
                                     const newSubs = [...catSubItems];
-                                    newSubs[idx].calculations[cIdx].isCustomFunding = e.target.checked;
-                                    if (e.target.checked && (!newSubs[idx].calculations[cIdx].fundingSplits || newSubs[idx].calculations[cIdx].fundingSplits.length === 0)) {
-                                      newSubs[idx].calculations[cIdx].fundingSplits = [{source: '구비', amount: ''}];
+                                    newSubs[idx].calculations![cIdx].isCustomFunding = e.target.checked;
+                                    if (e.target.checked && (!newSubs[idx].calculations![cIdx].fundingSplits || newSubs[idx].calculations![cIdx].fundingSplits!.length === 0)) {
+                                      newSubs[idx].calculations![cIdx].fundingSplits = [{source: '구비', amount: ''}];
                                     }
                                     setCatSubItems(newSubs);
                                 }} className="w-3.5 h-3.5 text-teal-600 rounded border-gray-300 focus:ring-teal-500 cursor-pointer" title="이 세부 항목을 개별재원으로 지정" />
@@ -549,7 +585,7 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
                              <label className={`flex items-center gap-1 cursor-pointer shrink-0 ml-1 px-1.5 py-1 rounded transition-colors border ${calc.isLocked ? 'bg-red-50 border-red-200 hover:bg-red-100' : 'bg-transparent border-transparent hover:bg-gray-100'}`}>
                                 <input type="checkbox" checked={calc.isLocked || false} onChange={e => {
                                     const newSubs = [...catSubItems];
-                                    newSubs[idx].calculations[cIdx].isLocked = e.target.checked;
+                                    newSubs[idx].calculations![cIdx].isLocked = e.target.checked;
                                     setCatSubItems(newSubs);
                                 }} disabled={sub.isLocked} className="w-3.5 h-3.5 text-red-500 rounded border-red-300 focus:ring-red-500 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed" title={sub.isLocked ? "상위 그룹이 이미 잠겨 있습니다" : "이 상세 내역 지출 방지(잠금) 설정"} />
                                 <span className={`text-[11px] font-extrabold tracking-tight ${calc.isLocked ? 'text-red-600' : 'text-gray-400'} ${sub.isLocked ? 'opacity-50' : ''}`}>🔒 잠금</span>
@@ -557,7 +593,7 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
                              
                              <button type="button" onClick={() => {
                                 const newSubs = [...catSubItems];
-                                newSubs[idx].calculations = newSubs[idx].calculations.filter((_, i) => i !== cIdx);
+                                newSubs[idx].calculations = newSubs[idx].calculations!.filter((_, i) => i !== cIdx);
                                 setCatSubItems(newSubs);
                              }} className="p-1 text-slate-300 hover:bg-red-50 hover:text-red-500 rounded transition-colors ml-1" title="상세 산출내역 삭제"><X size={14}/></button>
                            </div>
@@ -568,7 +604,7 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
                                  <div key={fIdx} className="flex items-center gap-1.5 bg-teal-50/50 p-1.5 rounded-md border border-teal-100 w-max shrink-0">
                                    <select value={split.source} onChange={e => {
                                      const newSubs = [...catSubItems];
-                                     newSubs[idx].calculations[cIdx].fundingSplits![fIdx].source = e.target.value;
+                                     newSubs[idx].calculations![cIdx].fundingSplits![fIdx].source = e.target.value;
                                      setCatSubItems(newSubs);
                                    }} className="px-2 py-1 text-[12px] bg-white border border-teal-200 rounded font-medium text-teal-800 w-[80px] outline-none">
                                      <option value="국비">국비</option>
@@ -581,7 +617,7 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
                                      <input type="text" value={split.amount} onChange={e => {
                                        const val = e.target.value.replace(/[^0-9]/g, '');
                                        const newSubs = [...catSubItems];
-                                       newSubs[idx].calculations[cIdx].fundingSplits![fIdx].amount = val ? Number(val).toLocaleString() : '';
+                                       newSubs[idx].calculations![cIdx].fundingSplits![fIdx].amount = val ? Number(val).toLocaleString() : '';
                                        setCatSubItems(newSubs);
                                      }} className="w-full px-2 py-1.5 text-[12px] text-right bg-white border border-teal-200 rounded font-bold text-teal-900 pr-5 outline-none shadow-sm" placeholder="금액" />
                                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-teal-500 text-[10px] pointer-events-none">원</span>
@@ -597,7 +633,7 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
                                    {(calc.fundingSplits && calc.fundingSplits.length > 1) ? (
                                      <button type="button" onClick={() => {
                                        const newSubs = [...catSubItems];
-                                       newSubs[idx].calculations[cIdx].fundingSplits = newSubs[idx].calculations[cIdx].fundingSplits!.filter((_, i) => i !== fIdx);
+                                       newSubs[idx].calculations![cIdx].fundingSplits = newSubs[idx].calculations![cIdx].fundingSplits!.filter((_, i) => i !== fIdx);
                                        setCatSubItems(newSubs);
                                      }} className="text-red-400 hover:text-red-600 rounded transition-colors ml-1 p-0.5" title="재원 삭제"><X size={14}/></button>
                                    ) : (
@@ -608,15 +644,15 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
                                <div className="flex items-center w-full max-w-[215px] mt-0.5">
                                  <button type="button" onClick={() => {
                                     const newSubs = [...catSubItems];
-                                    if (!newSubs[idx].calculations[cIdx].fundingSplits) newSubs[idx].calculations[cIdx].fundingSplits = [];
-                                    newSubs[idx].calculations[cIdx].fundingSplits.push({source: '구비', amount: ''});
+                                    if (!newSubs[idx].calculations![cIdx].fundingSplits) newSubs[idx].calculations![cIdx].fundingSplits = [];
+                                    newSubs[idx].calculations![cIdx].fundingSplits!.push({source: '구비', amount: ''});
                                     setCatSubItems(newSubs);
                                  }} className="text-[10px] text-teal-600 font-bold hover:bg-teal-50 px-1.5 py-1 rounded transition-colors flex-shrink-0">+ 비율 추가</button>
 
                                  <div className="ml-auto text-[10px] font-bold text-right pl-2">
                                     {(() => {
                                       const itemAmt = Number((String(calc.amount) || '0').replace(/,/g, ''));
-                                      const fTotal = (calc.fundingSplits || []).reduce((sum: number, f: any) => sum + Number((f.amount || '0').replace(/,/g, '')), 0);
+                                      const fTotal = (calc.fundingSplits || []).reduce((sum: number, f: UIFundingSplit) => sum + Number((f.amount || '0').replace(/,/g, '')), 0);
                                       if (itemAmt > 0 && fTotal === itemAmt) return <span className="text-teal-600">금액 일치 정상</span>;
                                       return <span className="text-red-500">진행중 ({fTotal.toLocaleString()}원)</span>;
                                     })()}
@@ -648,7 +684,7 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
                               <div className="flex items-center gap-1">
                                 <select value={split.source} onChange={e => {
                                   const newSubs = [...catSubItems];
-                                  newSubs[idx].fundingSplits[fIdx].source = e.target.value;
+                                  newSubs[idx].fundingSplits![fIdx].source = e.target.value;
                                   setCatSubItems(newSubs);
                                 }} className="px-1.5 py-1 text-[11px] bg-white border border-teal-200 rounded font-medium text-teal-800 w-[70px] outline-none">
                                   <option value="국비">국비</option>
@@ -661,7 +697,7 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
                                   <input type="text" value={split.amount} onChange={e => {
                                     const val = e.target.value.replace(/[^0-9]/g, '');
                                     const newSubs = [...catSubItems];
-                                    newSubs[idx].fundingSplits[fIdx].amount = val ? Number(val).toLocaleString() : '';
+                                    newSubs[idx].fundingSplits![fIdx].amount = val ? Number(val).toLocaleString() : '';
                                     setCatSubItems(newSubs);
                                   }} className="w-full px-2 py-1 text-[11px] text-right bg-white border border-teal-200 rounded font-bold text-teal-900 pr-5 outline-none shadow-sm" placeholder="분할 금액" />
                                   <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-teal-500 text-[9px] pointer-events-none">원</span>
@@ -677,7 +713,7 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
                                 {(sub.fundingSplits && sub.fundingSplits.length > 1) ? (
                                   <button type="button" onClick={() => {
                                     const newSubs = [...catSubItems];
-                                    newSubs[idx].fundingSplits = newSubs[idx].fundingSplits.filter((_, i) => i !== fIdx);
+                                    newSubs[idx].fundingSplits = newSubs[idx].fundingSplits!.filter((_, i) => i !== fIdx);
                                     setCatSubItems(newSubs);
                                   }} className="p-1 text-red-400 hover:bg-white rounded transition-colors" title="재원 삭제"><X size={12}/></button>
                                 ) : (
@@ -690,14 +726,14 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
                           <button type="button" onClick={() => {
                              const newSubs = [...catSubItems];
                              if (!newSubs[idx].fundingSplits) newSubs[idx].fundingSplits = [];
-                             newSubs[idx].fundingSplits.push({source: '구비', amount: ''});
+                             newSubs[idx].fundingSplits!.push({source: '구비', amount: ''});
                              setCatSubItems(newSubs);
                           }} className="text-[10px] text-teal-600 font-bold hover:bg-teal-50 px-2 py-1.5 rounded transition-colors h-[28px]">+ 비율 추가</button>
 
                           <div className="ml-auto text-[10px] font-bold">
                              {(() => {
                                const itemAmt = Number((String(displayAmount) || '0').replace(/,/g, ''));
-                               const fTotal = (sub.fundingSplits || []).reduce((sum: number, f: any) => sum + Number((f.amount || '0').replace(/,/g, '')), 0);
+                               const fTotal = (sub.fundingSplits || []).reduce((sum: number, f: UIFundingSplit) => sum + Number((f.amount || '0').replace(/,/g, '')), 0);
                                if (itemAmt > 0 && fTotal === itemAmt) return <span className="text-teal-600 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-100">결과 정상 일치</span>;
                                return <span className="text-red-500 bg-red-50 px-1.5 py-0.5 rounded border border-red-100">합산 진행중 ({fTotal.toLocaleString()}원)</span>;
                              })()}

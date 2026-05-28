@@ -84,6 +84,7 @@ export interface OntologyNode {
   renderSize?: number;         // blended size (0-1)
   netWeight?: number;          // sum of signed edge weights
   isHedge?: boolean;           // true if netWeight < 0
+  _cachedTextWidth?: Record<string, number>; // canvas layout rendering optimization cache
 }
 
 // ============ Orbital Node (Runtime) ============
