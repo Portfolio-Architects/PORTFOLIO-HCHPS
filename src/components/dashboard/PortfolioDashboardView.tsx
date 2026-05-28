@@ -475,11 +475,17 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                         let subVirtualAdjustment = 0;
                         if (sub.subItems) {
                           sub.subItems.forEach((s: any) => {
-                            if (typeof s.virtualAdjustment === 'number') subVirtualAdjustment += s.virtualAdjustment;
-                            if (s.calculations) {
+                            const hasCalcs = s.calculations && s.calculations.length > 0;
+                            if (hasCalcs) {
                               s.calculations.forEach((c: any) => {
-                                if (typeof c.virtualAdjustment === 'number') subVirtualAdjustment += c.virtualAdjustment;
+                                if (typeof c.virtualAdjustment === 'number') {
+                                  subVirtualAdjustment += c.virtualAdjustment;
+                                }
                               });
+                            } else {
+                              if (typeof s.virtualAdjustment === 'number') {
+                                subVirtualAdjustment += s.virtualAdjustment;
+                              }
                             }
                           });
                         }
@@ -952,7 +958,8 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                                                 };
                                                                 updatedSubItems[sIdx] = {
                                                                   ...updatedSubItems[sIdx],
-                                                                  calculations: updatedCalcs
+                                                                  calculations: updatedCalcs,
+                                                                  virtualAdjustment: updatedCalcs.reduce((sum: number, x: any) => sum + (x.virtualAdjustment || 0), 0)
                                                                 };
                                                                 updateCategory(sub.id, { subItems: updatedSubItems });
                                                                 setTimeout(() => setActiveInputId(null), 150);
@@ -1022,7 +1029,8 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                                                 };
                                                                 updatedSubItems[sIdx] = {
                                                                   ...updatedSubItems[sIdx],
-                                                                  calculations: updatedCalcs
+                                                                  calculations: updatedCalcs,
+                                                                  virtualAdjustment: updatedCalcs.reduce((sum: number, x: any) => sum + (x.virtualAdjustment || 0), 0)
                                                                 };
                                                                 updateCategory(sub.id, { subItems: updatedSubItems });
                                                                 setTimeout(() => setActiveInputId(null), 150);
@@ -1075,7 +1083,8 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                                                             };
                                                             updatedSubItems[sIdx] = {
                                                               ...updatedSubItems[sIdx],
-                                                              calculations: updatedCalcs
+                                                              calculations: updatedCalcs,
+                                                              virtualAdjustment: updatedCalcs.reduce((sum: number, x: any) => sum + (x.virtualAdjustment || 0), 0)
                                                             };
                                                             updateCategory(sub.id, { subItems: updatedSubItems });
                                                           }}
