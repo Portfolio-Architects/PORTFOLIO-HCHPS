@@ -386,25 +386,28 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
             const isExpanded = expandedCategory === item.name;
             const subItems = budgetCategories.filter(c => c.detailedProject === item.name);
             
-            // 대카테고리 수준에서 모든 소카테고리의 설계 확정 금액(가상 조정액) 합산
+            // 대카테고리 수준에서 모든 소카테고리의 설계 확정 금액(가상 조정액) 합산 (개별 소분류 수준의 하한선 보정 적용)
             let categoryVirtualAdjustment = 0;
             subItems.forEach((sub: any) => {
+              let subVirtualAdjustment = 0;
               if (sub.subItems) {
                 sub.subItems.forEach((s: any) => {
                   const hasCalcs = s.calculations && s.calculations.length > 0;
                   if (hasCalcs) {
                     s.calculations.forEach((c: any) => {
                       if (typeof c.virtualAdjustment === 'number') {
-                        categoryVirtualAdjustment += c.virtualAdjustment;
+                        subVirtualAdjustment += c.virtualAdjustment;
                       }
                     });
                   } else {
                     if (typeof s.virtualAdjustment === 'number') {
-                      categoryVirtualAdjustment += s.virtualAdjustment;
+                      subVirtualAdjustment += s.virtualAdjustment;
                     }
                   }
                 });
               }
+              const subSpent = getCategoryStats(sub.id)?.spent || 0;
+              categoryVirtualAdjustment += Math.max(subSpent, subVirtualAdjustment);
             });
 
             // 대카테고리 수준의 남은 차액 (총 본예산 - 설계 확정 금액 합산)
@@ -471,7 +474,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                       {subItems.map((sub: any, sIdx: number) => {
                         const isSubExpanded = expandedSubCategory === sub.id;
                         
-                        // 통계목의 가상 조정액 계산
+                        // 통계목의 가상 조정액 계산 (실제 지출액을 하한선으로 삼아 집행률이 설계확정률을 넘지 않도록 통제)
                         let subVirtualAdjustment = 0;
                         if (sub.subItems) {
                           sub.subItems.forEach((s: any) => {
@@ -489,6 +492,8 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                             }
                           });
                         }
+                        const subSpent = getCategoryStats(sub.id)?.spent || 0;
+                        subVirtualAdjustment = Math.max(subSpent, subVirtualAdjustment);
                         
                         const subRemainingDiff = sub.totalBudget - subVirtualAdjustment;
 

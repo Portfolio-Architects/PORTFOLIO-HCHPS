@@ -89,23 +89,36 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
         .filter(e => e.isPlanned && catIds.has(e.categoryId))
         .reduce((sum, e) => sum + e.amount, 0);
 
-      // 이 세부사업의 가상 조정액 총합
+      // 이 세부사업의 가상 조정액 총합 (개별 카테고리(통계목) 단위로 실제 집행액을 하한선으로 보정)
       let virtualAdjustmentInProject = 0;
       cats.forEach(cat => {
+        let catVirtualAdjustment = 0;
         if (cat.subItems) {
           cat.subItems.forEach(sub => {
-            if (typeof sub.virtualAdjustment === 'number') {
-              virtualAdjustmentInProject += sub.virtualAdjustment;
-            }
-            if (sub.calculations) {
-              sub.calculations.forEach(calc => {
+            const hasCalcs = sub.calculations && sub.calculations.length > 0;
+            if (hasCalcs) {
+              sub.calculations?.forEach(calc => {
                 if (typeof calc.virtualAdjustment === 'number') {
-                  virtualAdjustmentInProject += calc.virtualAdjustment;
+                  catVirtualAdjustment += calc.virtualAdjustment;
                 }
               });
+            } else {
+              if (typeof sub.virtualAdjustment === 'number') {
+                catVirtualAdjustment += sub.virtualAdjustment;
+              }
             }
           });
         }
+
+        // 개별 카테고리(통계목) 단위의 실제 집행액 계산
+        const catExecuted = budgetEntries
+          .filter(e => e.categoryId === cat.id && !e.isPlanned && e.actionType !== 'settle')
+          .reduce((s, e) => {
+            if (e.actionType === 'transfer') return s - e.amount;
+            return s + e.amount;
+          }, 0);
+
+        virtualAdjustmentInProject += Math.max(catExecuted, catVirtualAdjustment);
       });
 
       // 미설계 잔액 = 남은예산 - 가계획 - 가상조정액
@@ -219,23 +232,36 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
       }
     });
 
-    // 가상 조정액(Virtual Adjustment) 총합 계산
+    // 가상 조정액(Virtual Adjustment) 총합 계산 (개별 카테고리 단위로 실제 집행액을 하한선으로 보정)
     let totalVirtualAdjustment = 0;
     filteredCategories.forEach(cat => {
+      let catVirtualAdjustment = 0;
       if (cat.subItems) {
         cat.subItems.forEach(sub => {
-          if (typeof sub.virtualAdjustment === 'number') {
-            totalVirtualAdjustment += sub.virtualAdjustment;
-          }
-          if (sub.calculations) {
-            sub.calculations.forEach(calc => {
+          const hasCalcs = sub.calculations && sub.calculations.length > 0;
+          if (hasCalcs) {
+            sub.calculations?.forEach(calc => {
               if (typeof calc.virtualAdjustment === 'number') {
-                totalVirtualAdjustment += calc.virtualAdjustment;
+                catVirtualAdjustment += calc.virtualAdjustment;
               }
             });
+          } else {
+            if (typeof sub.virtualAdjustment === 'number') {
+              catVirtualAdjustment += sub.virtualAdjustment;
+            }
           }
         });
       }
+
+      // 개별 카테고리(통계목) 단위의 실제 집행액 계산
+      const catExecuted = budgetEntries
+        .filter(e => e.categoryId === cat.id && !e.isPlanned && e.actionType !== 'settle')
+        .reduce((s, e) => {
+          if (e.actionType === 'transfer') return s - e.amount;
+          return s + e.amount;
+        }, 0);
+
+      totalVirtualAdjustment += Math.max(catExecuted, catVirtualAdjustment);
     });
 
     const totalPlannedInDraft = plannedMonthlyAmounts.reduce((sum, val) => sum + val, 0);
