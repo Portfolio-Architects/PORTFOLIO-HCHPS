@@ -544,6 +544,10 @@ sequenceDiagram
 * **하한선 보정용 지출에서 교부액 배제**: 일상경비 교부(`issuance`) 건은 실제 최종 지출이 아니라 부서에 예산 한도를 부여한 내역입니다. 이를 실제 지출액으로 취급해 하한선 보정에 사용하면 설계 확정액이 1,000만 원으로 과다 보정되는 비정합성이 발생하여, 이를 하한선 보정식에서 배제하도록 핫픽스를 적용했습니다.
 * **실제 최종 지출액 기준 보정**: `usePortfolioAnalytics.ts`의 `catExecuted` 계산 시 `actionType !== 'issuance'` 필터를 추가하고, `PortfolioDashboardView.tsx`에서 하한선 기준을 `getCategoryStats(sub.id)?.spent` 대신 `stats.generalSpent + stats.dailyExpenseSpent`의 합(실제 사용액)으로 수정하여 사용자가 기재한 세부 산출 내역 대조 테이블의 수치들과 완벽하게 정합되도록 조치했습니다.
 
+### 윈도우 환경 파일 락 충돌 방지를 위한 safeRename 재시도 및 사전 예외 검증 고도화 (2026-05-28)
+* **지연 재시도 모델 이식**: Next.js dev 서버 및 백신 감시기 등의 동시 점유로 인해 `MAP_CUSTOMIZATION.json.tmp` 파일의 rename 과정에서 `ENOENT` / `EPERM` 에러가 나고 API 500이 반환되던 문제를 해결하고자, 실패 시 50ms 대기 후 최대 3회 재시도(Retry with Delay)하는 회복력 모델을 `safeRename` 헬퍼에 도입했습니다.
+* **이동 완료 사전 검증(fs.access) 우회로 탑재**: 윈도우 환경에서 rename 작업이 백그라운드에서 완료되었음에도 에러를 던지는 상황에 대비하여, `ENOENT` 에러 발생 시 dest 파일의 존재 여부 및 접근 가능 여부를 `fs.access`로 사전 검증해 성공으로 간주하는 예외 처리 안전장치를 탑재했습니다.
+
 ---
 
 

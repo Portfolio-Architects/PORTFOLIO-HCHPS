@@ -23,16 +23,35 @@ function getFilePath(sheet: string): string {
   return path.join(process.cwd(), 'data', `${sheet}.json`);
 }
 
-async function safeRename(src: string, dest: string): Promise<void> {
-  try {
-    await fs.rename(src, dest);
-  } catch (err) {
+async function safeRename(src: string, dest: string, retries = 3, delay = 50): Promise<void> {
+  for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      await fs.copyFile(src, dest);
-      await fs.unlink(src);
-    } catch (fallbackErr) {
-      console.error(`[File System] safeRename fallback failed from ${src} to ${dest}:`, fallbackErr);
-      throw err;
+      await fs.rename(src, dest);
+      return;
+    } catch (err: any) {
+      // 윈도우 OS rename 완료 후 지연 응답으로 인한 ENOENT 우회: 목적 파일이 존재하면 성공 간주
+      if (err.code === 'ENOENT') {
+        try {
+          await fs.access(dest);
+          return;
+        } catch (accessErr) {
+          // dest가 존재하지 않는다면 진짜 누락이므로 다음 재시도 또는 fallback 진행
+        }
+      }
+
+      if (attempt === retries) {
+        try {
+          await fs.copyFile(src, dest);
+          await fs.unlink(src);
+          return;
+        } catch (fallbackErr) {
+          console.error(`[File System] safeRename fallback failed after ${retries} attempts from ${src} to ${dest}:`, fallbackErr);
+          throw err;
+        }
+      }
+      
+      // 파일 락이 풀리도록 대기 후 재시도
+      await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
 }
