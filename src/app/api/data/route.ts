@@ -23,34 +23,21 @@ function getFilePath(sheet: string): string {
   return path.join(process.cwd(), 'data', `${sheet}.json`);
 }
 
-async function safeRename(src: string, dest: string, retries = 3, delay = 50): Promise<void> {
+async function safeWriteFile(filePath: string, dataStr: string, retries = 5, delay = 50): Promise<void> {
+  const dirPath = path.dirname(filePath);
+  try {
+    await fs.mkdir(dirPath, { recursive: true });
+  } catch (e) {}
+
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      await fs.rename(src, dest);
+      await fs.writeFile(filePath, dataStr, 'utf-8');
       return;
     } catch (err: any) {
-      // 윈도우 OS rename 완료 후 지연 응답으로 인한 ENOENT 우회: 목적 파일이 존재하면 성공 간주
-      if (err.code === 'ENOENT') {
-        try {
-          await fs.access(dest);
-          return;
-        } catch (accessErr) {
-          // dest가 존재하지 않는다면 진짜 누락이므로 다음 재시도 또는 fallback 진행
-        }
-      }
-
       if (attempt === retries) {
-        try {
-          await fs.copyFile(src, dest);
-          await fs.unlink(src);
-          return;
-        } catch (fallbackErr) {
-          console.error(`[File System] safeRename fallback failed after ${retries} attempts from ${src} to ${dest}:`, fallbackErr);
-          throw err;
-        }
+        console.error(`[File System] Write failed after ${retries} attempts for path ${filePath}:`, err);
+        throw err;
       }
-      
-      // 파일 락이 풀리도록 대기 후 재시도
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
@@ -108,16 +95,11 @@ async function backupDataFile(sheet: string, data: any[]): Promise<void> {
 
     // 1. Son 백업 (최근 20개 변경 이력)
     const backupDir = path.join(process.cwd(), 'data', 'backups', sheet);
-    await fs.mkdir(backupDir, { recursive: true });
-    
-    // ISO format suitable for filenames: YYYY-MM-DDTHH-mm-ss-SSSZ
     const timestamp = now.toISOString().replace(/[:.]/g, '-');
     const backupFile = path.join(backupDir, `${timestamp}_${sheet}.json`);
     
-    // 원자적 파일 백업 쓰기
-    const tmpBackupFile = `${backupFile}.tmp`;
-    await fs.writeFile(tmpBackupFile, dataStr, 'utf-8');
-    await safeRename(tmpBackupFile, backupFile);
+    // 직접 안전 파일 쓰기
+    await safeWriteFile(backupFile, dataStr);
     
     // Prune old backups (keep only the 20 most recent)
     const files = await fs.readdir(backupDir);
@@ -135,14 +117,10 @@ async function backupDataFile(sheet: string, data: any[]): Promise<void> {
 
     // 2. Father 백업 (일별 아카이브 - 최대 7일 보존)
     const dailyDir = path.join(process.cwd(), 'data', 'backups', 'daily', sheet);
-    await fs.mkdir(dailyDir, { recursive: true });
-    
     const dayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const dailyFile = path.join(dailyDir, `${dayStr}_${sheet}.json`);
     
-    const tmpDailyFile = `${dailyFile}.tmp`;
-    await fs.writeFile(tmpDailyFile, dataStr, 'utf-8');
-    await safeRename(tmpDailyFile, dailyFile);
+    await safeWriteFile(dailyFile, dataStr);
     
     const dailyFiles = (await fs.readdir(dailyDir)).filter(f => f.endsWith('.json') && !f.endsWith('.tmp')).sort();
     if (dailyFiles.length > 7) {
@@ -158,15 +136,11 @@ async function backupDataFile(sheet: string, data: any[]): Promise<void> {
 
     // 3. Grandfather 백업 (주별 아카이브 - 최대 4주 보존)
     const weeklyDir = path.join(process.cwd(), 'data', 'backups', 'weekly', sheet);
-    await fs.mkdir(weeklyDir, { recursive: true });
-    
     const weekNo = getWeekNumber(now);
     const weekStr = `${now.getFullYear()}-W${String(weekNo).padStart(2, '0')}`;
     const weeklyFile = path.join(weeklyDir, `${weekStr}_${sheet}.json`);
     
-    const tmpWeeklyFile = `${weeklyFile}.tmp`;
-    await fs.writeFile(tmpWeeklyFile, dataStr, 'utf-8');
-    await safeRename(tmpWeeklyFile, weeklyFile);
+    await safeWriteFile(weeklyFile, dataStr);
     
     const weeklyFiles = (await fs.readdir(weeklyDir)).filter(f => f.endsWith('.json') && !f.endsWith('.tmp')).sort();
     if (weeklyFiles.length > 4) {
@@ -192,17 +166,10 @@ async function writeDataToFile(sheet: string, data: any[]): Promise<void> {
   }
 
   const filePath = getFilePath(sheet);
+  const dataStr = JSON.stringify(data, null, 2);
   
-  // Ensure the data directory exists
-  const dirPath = path.dirname(filePath);
-  try {
-    await fs.mkdir(dirPath, { recursive: true });
-  } catch (e) {}
-
-  // 2. 원자적 파일 쓰기 (Write to .tmp first, then rename)
-  const tmpPath = `${filePath}.tmp`;
-  await fs.writeFile(tmpPath, JSON.stringify(data, null, 2), 'utf-8');
-  await safeRename(tmpPath, filePath);
+  // 2. 직접 안전 파일 쓰기 (재시도 및 지연 내장)
+  await safeWriteFile(filePath, dataStr);
   
   // Trigger backup
   await backupDataFile(sheet, data);

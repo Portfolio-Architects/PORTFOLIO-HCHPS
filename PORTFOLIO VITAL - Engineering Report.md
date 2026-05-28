@@ -548,6 +548,10 @@ sequenceDiagram
 * **지연 재시도 모델 이식**: Next.js dev 서버 및 백신 감시기 등의 동시 점유로 인해 `MAP_CUSTOMIZATION.json.tmp` 파일의 rename 과정에서 `ENOENT` / `EPERM` 에러가 나고 API 500이 반환되던 문제를 해결하고자, 실패 시 50ms 대기 후 최대 3회 재시도(Retry with Delay)하는 회복력 모델을 `safeRename` 헬퍼에 도입했습니다.
 * **이동 완료 사전 검증(fs.access) 우회로 탑재**: 윈도우 환경에서 rename 작업이 백그라운드에서 완료되었음에도 에러를 던지는 상황에 대비하여, `ENOENT` 에러 발생 시 dest 파일의 존재 여부 및 접근 가능 여부를 `fs.access`로 사전 검증해 성공으로 간주하는 예외 처리 안전장치를 탑재했습니다.
 
+### 파일 락 교착 원천 차단 및 safeWriteFile 도입 핫픽스 (2026-05-28)
+* **임시 파일 생성 방식 폐기**: 윈도우 OS 환경의 Next.js Turbopack HMR 와처가 임시 파일(`.tmp`)을 감시 및 선점해 발생하는 rename 교착(Lock Deadlock) 현상을 원천 방지하기 위해, 임시 파일 생성 단계를 전면 생략하고 직접 파일에 쓰도록 구조를 전환했습니다.
+* **safeWriteFile 직접 쓰기 헬퍼 도입**: 직접 파일에 쓰되, 파일 락 충돌 상황에서 50ms 간격으로 최대 5회 지연 재시도(Retry with Delay)하는 `safeWriteFile` 헬퍼 함수를 추가하고, 메인 데이터 쓰기 및 3중 백업 저장부 전체에 적용하여 파일 락으로 인한 API 500 에러를 원천 차단했습니다.
+
 ---
 
 
