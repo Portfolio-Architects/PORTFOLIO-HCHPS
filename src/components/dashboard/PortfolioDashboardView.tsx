@@ -406,8 +406,9 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                   }
                 });
               }
-              const subSpent = getCategoryStats(sub.id)?.spent || 0;
-              categoryVirtualAdjustment += Math.max(subSpent, subVirtualAdjustment);
+              const stats = getCategoryStats(sub.id);
+              const subActualSpent = stats ? (stats.generalSpent + stats.dailyExpenseSpent) : 0;
+              categoryVirtualAdjustment += Math.max(subActualSpent, subVirtualAdjustment);
             });
 
             // 대카테고리 수준의 남은 차액 (총 본예산 - 설계 확정 금액 합산)
@@ -492,8 +493,9 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                             }
                           });
                         }
-                        const subSpent = getCategoryStats(sub.id)?.spent || 0;
-                        subVirtualAdjustment = Math.max(subSpent, subVirtualAdjustment);
+                        const stats = getCategoryStats(sub.id);
+                        const subActualSpent = stats ? (stats.generalSpent + stats.dailyExpenseSpent) : 0;
+                        subVirtualAdjustment = Math.max(subActualSpent, subVirtualAdjustment);
                         
                         const subRemainingDiff = sub.totalBudget - subVirtualAdjustment;
 

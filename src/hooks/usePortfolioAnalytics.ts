@@ -110,9 +110,9 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
           });
         }
 
-        // 개별 카테고리(통계목) 단위의 실제 집행액 계산
+        // 개별 카테고리(통계목) 단위의 실제 집행액 계산 (단순 한도 배정인 issuance 교부 건은 제외)
         const catExecuted = budgetEntries
-          .filter(e => e.categoryId === cat.id && !e.isPlanned && e.actionType !== 'settle')
+          .filter(e => e.categoryId === cat.id && !e.isPlanned && e.actionType !== 'settle' && e.actionType !== 'issuance')
           .reduce((s, e) => {
             if (e.actionType === 'transfer') return s - e.amount;
             return s + e.amount;
@@ -253,9 +253,9 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
         });
       }
 
-      // 개별 카테고리(통계목) 단위의 실제 집행액 계산
+      // 개별 카테고리(통계목) 단위의 실제 집행액 계산 (단순 한도 배정인 issuance 교부 건은 제외)
       const catExecuted = budgetEntries
-        .filter(e => e.categoryId === cat.id && !e.isPlanned && e.actionType !== 'settle')
+        .filter(e => e.categoryId === cat.id && !e.isPlanned && e.actionType !== 'settle' && e.actionType !== 'issuance')
         .reduce((s, e) => {
           if (e.actionType === 'transfer') return s - e.amount;
           return s + e.amount;

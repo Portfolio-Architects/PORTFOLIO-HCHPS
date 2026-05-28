@@ -540,6 +540,10 @@ sequenceDiagram
 * **개별 통계목 단위 실제 집행액 하한선 보정 도입**: `BUDGET_ENTRIES.json`에 기록된 실제 지출 실적(집행액)보다 설계 확정 금액이 작게 표기되어 `실제 집행률 > 설계 확정률`로 나타나는 정합성 결함을 해결하고자, 개별 통계목(소분류) 및 대분류 수준의 가상 조정액 계산 시 `Math.max(spent, virtualAdjustment)` 공식을 적용해 집행률이 확정률을 초과하지 않도록 보정하였습니다.
 * **대분류-소분류 간 수치 정합성 동기화**: `usePortfolioAnalytics.ts` 및 `PortfolioDashboardView.tsx` 내부의 대분류 가상조정액 집계 로직을 수정하여, 하위 개별 소분류(통계목) 단위로 실제 집행액 하한선 보정이 먼저 완결된 금액들을 합산하도록 일관화하였습니다. 이를 통해 아코디언 헤더 우측의 수치들과 대조 테이블 내부 요약 수치가 100% 일치하도록 보장하였습니다.
 
+### 설계 확정 금액 하한선 보정 시 일상경비 교부액(issuance) 제외 핫픽스 (2026-05-28)
+* **하한선 보정용 지출에서 교부액 배제**: 일상경비 교부(`issuance`) 건은 실제 최종 지출이 아니라 부서에 예산 한도를 부여한 내역입니다. 이를 실제 지출액으로 취급해 하한선 보정에 사용하면 설계 확정액이 1,000만 원으로 과다 보정되는 비정합성이 발생하여, 이를 하한선 보정식에서 배제하도록 핫픽스를 적용했습니다.
+* **실제 최종 지출액 기준 보정**: `usePortfolioAnalytics.ts`의 `catExecuted` 계산 시 `actionType !== 'issuance'` 필터를 추가하고, `PortfolioDashboardView.tsx`에서 하한선 기준을 `getCategoryStats(sub.id)?.spent` 대신 `stats.generalSpent + stats.dailyExpenseSpent`의 합(실제 사용액)으로 수정하여 사용자가 기재한 세부 산출 내역 대조 테이블의 수치들과 완벽하게 정합되도록 조치했습니다.
+
 ---
 
 
