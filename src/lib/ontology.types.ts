@@ -42,7 +42,10 @@ export type EdgeType =
   | 'DEPENDENCY'
   | 'FEEDBACK_LOOP'
   | 'BOTTLENECK'
-  | 'DECOUPLING';
+  | 'DECOUPLING'
+  | 'ASSIGNEE'
+  | 'BUDGET_SOURCE'
+  | 'COMPONENTS';
 
 export const EDGE_TYPE_DASH: Record<EdgeType, number[]> = {
   CAUSAL_DRIVE:  [],               // ──────── solid
@@ -50,6 +53,9 @@ export const EDGE_TYPE_DASH: Record<EdgeType, number[]> = {
   FEEDBACK_LOOP: [3, 3],           // - - - -  short dash
   BOTTLENECK:    [2, 2],           // ········ dotted
   DECOUPLING:    [10, 3, 3, 3],    // ── · ── · dash-dot
+  ASSIGNEE:      [5, 5],           // 담당자 지정 점선
+  BUDGET_SOURCE: [1, 5],           // 예산 출처 촘촘한 도트
+  COMPONENTS:    [],               // 구성 요소 solid
 };
 
 export const EDGE_TYPE_LABELS: Record<EdgeType, string> = {
@@ -58,6 +64,9 @@ export const EDGE_TYPE_LABELS: Record<EdgeType, string> = {
   FEEDBACK_LOOP: '피드백 루프',
   BOTTLENECK:    '병목',
   DECOUPLING:    '디커플링',
+  ASSIGNEE:      '담당자 지정',
+  BUDGET_SOURCE: '예산 배정',
+  COMPONENTS:    '구성 요소',
 };
 
 // ============ Node ============

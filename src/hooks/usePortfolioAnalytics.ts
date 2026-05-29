@@ -363,7 +363,7 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
       unplannedRemainingAmount,
       totalVirtualAdjustment
     };
-  }, [filteredCategories, budgetEntries, executedBudget, breakdownData, totalBudget, routineSpend]);
+  }, [filteredCategories, budgetEntries, executedBudget, totalBudget]);
 
   return {
     selectedProject, setSelectedProject,

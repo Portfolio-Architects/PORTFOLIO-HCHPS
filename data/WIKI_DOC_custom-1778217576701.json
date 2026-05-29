@@ -1,35 +1,6 @@
 [
   {
     "id": "singleton",
-    "blocks": [
-      {
-        "id": "5734ee16-fc8e-49a3-b082-bdfed8791fef",
-        "type": "paragraph",
-        "props": {
-          "backgroundColor": "default",
-          "textColor": "default",
-          "textAlignment": "left"
-        },
-        "content": [
-          {
-            "type": "text",
-            "text": "0234590135",
-            "styles": {}
-          }
-        ],
-        "children": []
-      },
-      {
-        "id": "669587f7-ab31-472e-9d9a-52e0a4b4af41",
-        "type": "paragraph",
-        "props": {
-          "backgroundColor": "default",
-          "textColor": "default",
-          "textAlignment": "left"
-        },
-        "content": [],
-        "children": []
-      }
-    ]
+    "_enc": "Yx2gS0odwaYcoCssBDPSjmnowqKQ8yoEbypJwS8904EikjJGCTB5xv/f6BhHm58gdo8BFiMEAiW20OnbHnKyxUOzFmnn8c/4lGCavxybgWkQdFBn8n1eAK7CUNDIdiLDLKmUUGYI0VPM/Mi6IF1+p7AIm1c6mm8Mj9Qjset8qJVeVckfh1IoGhdLoTqdWoICBPYdHEhrl1vEfZyny+qwuNdF8dY69qse6i3ISsDV1ZvVQhS6eoZ+IxjTq9G/mpIvxiHzJ+Yo8L8jdeul/xhjz8esxg+Bbd264Ag5nLPXvAhdEWAzMtxprt3tTOgWPtzrf6VGGiVNQASdvtOI52lQuWR5dE000O40RoEkDIBYKrBd4a7swdm3CZG76URktWd3GE43G9n85qSWCFjz7vnqzSiJMSoFydO1SPRzzkxEv3ZTJdFRH8YIYUkggG4m8/6WBOijQ8kmXeCJwVudJRApWTPsfEkod3HNYK/eI0zaoQPGG4Cp4VjdMYKvktmifz3aszJfe/UEyNVoB7sBYXX/0eo94/GeYP6mLojT6uW6gqO1QtFykqF2Rsir1gXhdOJVQPQVwho="
   }
 ]

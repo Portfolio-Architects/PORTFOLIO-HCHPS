@@ -14,6 +14,7 @@ import { ScheduleAlertBanner } from '@/components/mindmap/ui/ScheduleAlertBanner
 import { Sidebar } from '@/components/Sidebar';
 import { QuickInput } from '@/components/QuickInput';
 import { WorkspaceView } from '@/components/WorkspaceView';
+import { InventoryList } from '@/components/inventory/InventoryList';
 import { MindMap3D } from '@/components/MindMap3D';
 import { PortfolioDashboardView } from '@/components/dashboard/PortfolioDashboardView';
 import { SearchResultModal } from '@/components/SearchResultModal';
@@ -24,6 +25,7 @@ import { useGlobalSearch } from '@/hooks/useGlobalSearch';
 import { AIAssistantModal } from '@/components/ai/AIAssistantModal';
 import { useMergedSignals } from '@/hooks/useMergedSignals';
 import { syncTombstones } from '@/lib/sheets-api';
+import { useGraphCustomization } from '@/hooks/useGraphCustomization';
 
 // Error Boundary for MindMap3D — prevents signal map crash from breaking entire app
 class MindMapErrorBoundary extends React.Component<
@@ -81,6 +83,7 @@ function ProtectedApp({ appMode, onModeChange }: ProtectedAppProps) {
 
   const { searchModalOpen, searchQuery, searchResults, handleGlobalSearch, closeSearchModal } = useGlobalSearch();
   const { mergedKeywordMap, mergedEntries } = useMergedSignals(signalEntries, keywordMap, tasks, projects, meetings, budgetEntries, inventoryItems);
+  const { customNodes, customEdges, deletedEdges, overrides } = useGraphCustomization();
 
   // Prevent hydration mismatch — hooks read localStorage data on client
   useEffect(() => {
@@ -188,7 +191,7 @@ function ProtectedApp({ appMode, onModeChange }: ProtectedAppProps) {
     
     // Minimum horizontal swipe distance
     if (Math.abs(distance) > 60) {
-      const order: ModuleType[] = ['dashboard', 'mindmap', 'workspace'];
+      const order: ModuleType[] = ['dashboard', 'mindmap', 'workspace', 'inventory'];
       const currentIndex = order.indexOf(activeModule);
       
       if (distance > 0 && currentIndex < order.length - 1) {
@@ -260,6 +263,18 @@ function ProtectedApp({ appMode, onModeChange }: ProtectedAppProps) {
           />
         );
 
+      case 'inventory':
+        return (
+          <InventoryList
+            items={inventoryItems}
+            addItem={addItem}
+            updateItem={updateItem}
+            deleteItem={deleteItem}
+            adjustStock={adjustStock}
+            getItemHistory={getItemHistory}
+          />
+        );
+
       case 'mindmap':
         return (
           <div className="flex flex-col h-full">
@@ -302,8 +317,45 @@ function ProtectedApp({ appMode, onModeChange }: ProtectedAppProps) {
       />
 
       <main id="main-scroll-container" className="flex-1 pb-32 sm:pb-8 overflow-y-auto custom-scrollbar">
-        <div className="max-w-[1800px] mx-auto px-2 sm:px-3 lg:px-4 pt-4 sm:pt-6 lg:pt-8">
-          {renderContent()}
+        <div className="max-w-[1800px] mx-auto px-2 sm:px-3 lg:px-4 pt-4 sm:pt-6 lg:pt-8 flex flex-col gap-3">
+          
+          {/* Global Module Header & Divider Container */}
+          <div className="flex flex-col gap-12 pt-3 sm:pt-4 lg:pt-5 shrink-0">
+            <div className="flex flex-col gap-3">
+              <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 flex items-center gap-4">
+                <div className="w-12 h-12 bg-white rounded-[1rem] shadow-sm border border-slate-100 flex items-center justify-center overflow-hidden">
+                  <img src="/icon-192x192.png" alt={`${appMode} Logo`} className="w-full h-full object-cover" />
+                </div>
+                {activeModule === 'dashboard' 
+                  ? `PORTFOLIO ${appMode}` 
+                  : `${appMode} ${
+                      activeModule === 'mindmap' 
+                        ? '마인드맵' 
+                        : activeModule === 'workspace' 
+                        ? '예산관리' 
+                        : activeModule === 'inventory' 
+                        ? '홍보물' 
+                        : ''
+                    }`
+                }
+              </h1>
+              <div className="flex items-center gap-3 ml-2">
+                <div className={`w-1 h-5 ${appMode === 'HCHPS' ? 'bg-emerald-600' : 'bg-blue-600'} rounded-full`} />
+                <p className="text-[13px] font-medium text-slate-500 tracking-wide">
+                  {appMode === 'HCHPS' 
+                    ? '사내 업무 편성, 지식 자산화, 그리고 인물 시맨틱 온톨로지 시각화를 위한 초개인화 인텔리전스 워크스페이스' 
+                    : 'Vital Information & Task Architecture Ledger — converging public health resources, tasks, and budget execution into a unified management topology'}
+                </p>
+              </div>
+            </div>
+            {/* Divider Line */}
+            <div className="h-[1px] w-full bg-slate-200 dark:bg-slate-700" />
+          </div>
+
+          {/* Module Content */}
+          <div className="flex-1 min-h-0">
+            {renderContent()}
+          </div>
         </div>
       </main>
 
@@ -326,7 +378,12 @@ function ProtectedApp({ appMode, onModeChange }: ProtectedAppProps) {
           contextData={{
             signals: mergedEntries,
             budgetEntries: budgetEntries,
-            budgetCategories: budgetCategories
+            budgetCategories: budgetCategories,
+            customNodes,
+            customEdges,
+            deletedEdges,
+            overrides,
+            keywordMap: mergedKeywordMap
           }}
           appMode={appMode}
         />

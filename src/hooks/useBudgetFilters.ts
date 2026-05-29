@@ -128,7 +128,7 @@ export function useBudgetFilters(
     });
 
     return { totalBudget, remaining, totalSpent, totalPlanned, dailyExpenseIssued, dailyExpenseSpent, dailyExpenseRemaining };
-  }, [filteredCategoriesTree, getCategoryStats, entries]);
+  }, [filteredCategoriesTree, getCategoryStats]);
 
   return {
     filterPolicy, setFilterPolicy,

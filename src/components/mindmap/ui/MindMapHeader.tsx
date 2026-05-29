@@ -20,15 +20,15 @@ export function MindMapHeader({
   onOpenWiki
 }: MindMapHeaderProps) {
   return (
-    <div className="flex items-start justify-between">
-      <div>
-        <h2 className="text-xl font-bold flex items-center gap-2">
-          <Radio size={22} className="text-emerald-500" />
-          마인드맵
-        </h2>
-        <div className="mt-1 flex items-center gap-3 text-xs text-[var(--color-text-tertiary)]">
-          <span>노드 <strong className="text-[var(--color-primary)]">{stats.nodes}</strong>개</span>
-          <span>연결 <strong className="text-[var(--color-success)]">{stats.edges}</strong>개</span>
+    <div className="flex items-center justify-between py-1">
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+          노드 <span className="text-slate-900 dark:text-white font-bold ml-0.5">{stats.nodes}</span>개
+        </div>
+        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+          연결 <span className="text-slate-900 dark:text-white font-bold ml-0.5">{stats.edges}</span>개
         </div>
       </div>
       <div className="flex items-center gap-2">

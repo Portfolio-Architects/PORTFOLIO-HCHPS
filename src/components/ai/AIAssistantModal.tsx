@@ -3,6 +3,8 @@ import { Sparkles, X, Settings, Send, Trash2, Loader2, Bot, User } from 'lucide-
 import { useAIChat } from '@/hooks/useAIChat';
 import { BudgetCategory, BudgetEntry } from '@/types';
 import { SignalEntry } from '@/hooks/useSignal';
+import { buildSignalGraph } from '@/lib/signal-graph';
+import { OntologyNetwork } from '@/lib/engine/OntologyNetwork';
 
 interface AIAssistantModalProps {
   isOpen: boolean;
@@ -12,13 +14,37 @@ interface AIAssistantModalProps {
     budgetEntries?: BudgetEntry[];
     budgetCategories?: BudgetCategory[];
     budgets?: BudgetCategory[];
+    customNodes?: any[];
+    customEdges?: any[];
+    deletedEdges?: string[];
+    overrides?: Record<string, any>;
+    keywordMap?: Record<string, number>;
   };
   appMode?: 'HCHPS' | 'VITAL';
 }
 
+// Helper function to extract plain text from editor block structure (BlockNote schema)
+function extractTextFromBlocks(blocks: any[]): string {
+  if (!blocks || !Array.isArray(blocks)) return '';
+  let text = '';
+  for (const block of blocks) {
+    if (block.content && Array.isArray(block.content)) {
+      const line = block.content.map((c: any) => c.text || '').join('');
+      if (line.trim()) {
+        text += line + '\n';
+      }
+    }
+    if (block.children && block.children.length > 0) {
+      text += extractTextFromBlocks(block.children);
+    }
+  }
+  return text;
+}
+
 export function AIAssistantModal({ isOpen, onClose, contextData, appMode = 'VITAL' }: AIAssistantModalProps) {
-  const { messages, addMessage, clearMessages, isTyping, setIsTyping } = useAIChat();
+  const { messages, addMessage, clearMessages: baseClearMessages, isTyping, setIsTyping } = useAIChat();
   const [input, setInput] = useState('');
+  const [wikiContextMap, setWikiContextMap] = useState<Record<string, string>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom
@@ -27,6 +53,11 @@ export function AIAssistantModal({ isOpen, onClose, contextData, appMode = 'VITA
   }, [messages, isTyping]);
 
   if (!isOpen) return null;
+
+  const clearMessages = () => {
+    baseClearMessages();
+    setWikiContextMap({});
+  };
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -37,13 +68,153 @@ export function AIAssistantModal({ isOpen, onClose, contextData, appMode = 'VITA
     addMessage({ role: 'user', content: userQuery });
     setIsTyping(true);
 
+    // ── 동적 마인드맵 노드 매핑 및 위키 RAG 컨텍스트 추출 ──
+    let updatedWikiMap = { ...wikiContextMap };
+    let hasNewMatch = false;
+    try {
+      const customNodes = contextData?.customNodes || [];
+      const overrides = contextData?.overrides || {};
+      
+      for (const cn of customNodes) {
+        const override = overrides[cn.id];
+        const nodeLabel = override?.customLabel || cn.label || '';
+        
+        if (nodeLabel.length >= 2 && userQuery.includes(nodeLabel)) {
+          const getCanonicalId = (id: string) => {
+            if (id.startsWith('leaf-')) {
+              if (id.startsWith('leaf-tag-')) {
+                const parts = id.split('-');
+                if (parts.length >= 4) return `leaf-kw-${parts.slice(3).join('-')}`;
+              }
+              const parts = id.split('-');
+              if (parts[1] === 'kw') return id;
+              return `leaf-kw-${parts.slice(1).join('-')}`;
+            }
+            return id;
+          };
+          
+          const canonicalId = getCanonicalId(cn.id);
+          const wikiStr = localStorage.getItem(`HCHPS-Wiki-${canonicalId}`) || localStorage.getItem(`HCHPS-Wiki-${cn.id}`);
+          
+          if (wikiStr) {
+            const blocks = JSON.parse(wikiStr);
+            const wikiContent = extractTextFromBlocks(blocks);
+            if (wikiContent.trim()) {
+              const formattedContent = `- [노드: ${nodeLabel}] 관련 위키 내용:\n${wikiContent.trim()}\n\n`;
+              updatedWikiMap[nodeLabel] = formattedContent;
+              hasNewMatch = true;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to extract matching wiki context:', e);
+    }
+
+    if (hasNewMatch) {
+      setWikiContextMap(updatedWikiMap);
+    }
+
+    // 누적된 모든 위키 컨텍스트 병합
+    const matchedWikiText = Object.values(updatedWikiMap).join('');
+
+    // ── 온톨로지 지식 그래프 RAG 코퍼스 생성 및 시맨틱 추론 ──
+    let knowledgeGraphText = '';
+    try {
+      const signals = contextData?.signals || [];
+      const keywordMap = contextData?.keywordMap || {};
+      const customNodes = contextData?.customNodes || [];
+      const customEdges = contextData?.customEdges || [];
+      const deletedEdges = contextData?.deletedEdges || [];
+      const overrides = contextData?.overrides || {};
+
+      const graph = buildSignalGraph(keywordMap, signals, {
+        overrides,
+        customNodes,
+        customEdges,
+        deletedEdges
+      });
+
+      // 1. 질문에 포함된 노드 필터링
+      const matchedNodes = graph.nodes.filter(node => {
+        const label = node.label || node.id;
+        return label.length >= 2 && userQuery.includes(label);
+      });
+
+      if (matchedNodes.length > 0) {
+        const matchedNodeIds = new Set(matchedNodes.map(n => n.id));
+        const subgraphNodeIds = new Set<string>();
+        
+        // 1-Hop 인접 노드 확장
+        graph.edges.forEach(edge => {
+          if (matchedNodeIds.has(edge.source) || matchedNodeIds.has(edge.target)) {
+            subgraphNodeIds.add(edge.source);
+            subgraphNodeIds.add(edge.target);
+          }
+        });
+        
+        // 매칭된 노드가 고립된 경우 대비
+        matchedNodes.forEach(n => subgraphNodeIds.add(n.id));
+
+        const subgraphNodes = graph.nodes.filter(n => subgraphNodeIds.has(n.id));
+        const subgraphEdges = graph.edges.filter(edge => 
+          subgraphNodeIds.has(edge.source) && subgraphNodeIds.has(edge.target)
+        );
+
+        // 노드 레이블 맵 작성
+        const nodeLabelMap = new Map<string, string>();
+        graph.nodes.forEach(n => nodeLabelMap.set(n.id, n.label || n.id));
+
+        // SPO 트리플 생성
+        const triples: string[] = [];
+        subgraphEdges.forEach(edge => {
+          const sLabel = nodeLabelMap.get(edge.source);
+          const tLabel = nodeLabelMap.get(edge.target);
+          if (sLabel && tLabel) {
+            let relType: string = edge.type || '연결';
+            if (edge.type === 'DEPENDENCY') relType = '의존성';
+            else if (edge.type === 'CAUSAL_DRIVE') relType = '인과구동';
+            else if (edge.type === 'FEEDBACK_LOOP') relType = '피드백루프';
+            else if (edge.type === 'ASSIGNEE') relType = '담당자';
+            else if (edge.type === 'BUDGET_SOURCE') relType = '예산원천';
+            else if (edge.type === 'COMPONENTS') relType = '구성요소';
+            
+            triples.push(`- [관계] ${sLabel} --(${relType})--> ${tLabel}`);
+          }
+        });
+
+        // 규칙 기반 시맨틱 추론기 구동
+        const inferences = OntologyNetwork.inferSemanticRelations(subgraphNodes, subgraphEdges);
+
+        // XML 조각 빌드
+        knowledgeGraphText = `<knowledge_graph>\n`;
+        if (triples.length > 0) {
+          knowledgeGraphText += `  <relations>\n    ${triples.join('\n    ')}\n  </relations>\n`;
+        } else {
+          knowledgeGraphText += `  <relations>없음</relations>\n`;
+        }
+        if (inferences.length > 0) {
+          knowledgeGraphText += `  <inferences>\n    ${inferences.join('\n    ')}\n  </inferences>\n`;
+        } else {
+          knowledgeGraphText += `  <inferences>없음</inferences>\n`;
+        }
+        knowledgeGraphText += `</knowledge_graph>`;
+      }
+    } catch (err) {
+      console.warn('Failed to build knowledge graph:', err);
+    }
+
     try {
       const res = await fetch('/llm/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: [...messages, { role: 'user', content: userQuery }],
-          contextData,
+          contextData: {
+            ...contextData,
+            matchedWiki: matchedWikiText || undefined,
+            knowledgeGraph: knowledgeGraphText || undefined
+          },
           appMode
         })
       });

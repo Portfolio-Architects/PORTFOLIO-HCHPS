@@ -14,11 +14,7 @@ export const MIN_TILT = 0.3;
 export const MAX_TILT = 1.0;
 export const CULL_MARGIN = 80;  
 
-// Layout parameters
-const X_SPACING = 240; // horizontal distance between parent and child
-const Y_SPACING = 20;  // vertical padding between siblings
-const NODE_HEIGHT = 48; // estimated rendering height for math
-const NODE_WIDTH_ESTIMATE = 140;
+// Layout parameters - defined inside computePositions
 
 export class OntologyLayout {
   public static lastTreeChildrenMap = new Map<string, string[]>();
@@ -302,10 +298,13 @@ export class OntologyLayout {
 
     // (BFS로 모든 노드를 순회하여 treeChildrenMap을 만들었으므로 고아 노드는 더 이상 없음)
 
-    // 6. Camera 변환 (World -> Screen)
-    // Orbit Layout과 달리 Tidy Tree는 직교 좌표계이므로 카메라 Tilt(3D 기울임)를 무시하거나 약하게 적용
+    // 6. Camera 변환 (World -> Screen - 3D Perspective Projection 적용)
+    // Y축 기울임 효과를 적용하여 표면적을 조절하고 입체감을 높임
     const cx = canvasW / 2 + cameraOffsetX;
     const cy = canvasH / 2 + cameraOffsetY;
+
+    const tiltAngle = 40 * Math.PI / 180; // 40도 눕힘 (10% 추가 기울임)
+    const cameraDist = 1000; // 카메라 원근 투영 거리
 
     for (const node of nodes) {
       if (!visibleNodes.has(node.id)) {
@@ -322,26 +321,25 @@ export class OntologyLayout {
       const worldX = node.worldX || 0;
       const worldY = node.worldY || 0;
       
-      const targetRenderX = cx + worldX * zoom;
-      const targetRenderY = cy + worldY * zoom;
+      const rotatedY = worldY * Math.cos(tiltAngle);
+      // worldY가 음수(위쪽)일 때 뒤로 기울어지므로 depth는 증가(카메라에서 멀어짐)
+      const depth = -worldY * Math.sin(tiltAngle);
+      const perspectiveScale = cameraDist / (cameraDist + depth);
+
+      const targetRenderX = cx + worldX * zoom * perspectiveScale;
+      const targetRenderY = cy + rotatedY * zoom * perspectiveScale;
 
       // 만약 방금 전까지 숨겨진 상태(-999999)였다면 날아오지 않도록 즉시 해당 좌표로 순간이동
       if (node.renderX === -999999) {
         node.renderX = targetRenderX;
         node.renderY = targetRenderY;
       } else {
-        // 평면 뷰 목표치 업데이트 (물리 엔진이 이 목표값을 향해 보간함)
-        // 여기서는 그냥 값만 업데이트 해도 되지만, layout 로직의 단순화를 위해 renderX 할당 방식 유지
-        // Engine의 updatePhysics에서 부드럽게 이동하게 됨.
-        // 엔진과의 간섭을 줄이기 위해 Layout에서 renderX 덮어쓰기를 멈추고 Physics에 위임하는게 정석.
-        // 하지만 기존 코드가 덮어쓰고 있었다면 유지.
-        // 기존: node.renderX = cx + worldX * zoom; -> Physics 엔진 무시하고 즉시 반영됨.
-        // Tidy Tree는 움직이지 않는 고정 메뉴 체계이므로 즉시 반영이 더 깔끔함.
         node.renderX = targetRenderX;
         node.renderY = targetRenderY;
       }
       
-      node.renderZ = 0; // Flat UI
+      node.renderZ = depth;
+      (node as any).perspectiveScale = perspectiveScale;
       
       // 반경 대신 box 너비/높이 렌더링에 사용할 기준값 설정 (호환성 유지 용도)
       node.nodeRadius = 24; 
@@ -349,7 +347,7 @@ export class OntologyLayout {
   }
 
   // 더 이상 사용하지 않음
-  public static computeOrbitRadii(canvasW: number, canvasH: number): number[] {
+  public static computeOrbitRadii(_canvasW: number, _canvasH: number): number[] {
     return [];
   }
 }

@@ -5,7 +5,6 @@
 
 import {
   OntologyNode, OntologyEdge, OntologyGraph, OrbitalNode,
-  GROUP_COLORS, OntologyGroup, EdgeType,
 } from './ontology.types';
 import { OntologyNetwork } from './engine/OntologyNetwork';
 import { OntologyRenderer } from './engine/OntologyRenderer';
@@ -13,16 +12,12 @@ import { OntologyRenderer } from './engine/OntologyRenderer';
 import {
   OntologyLayout,
   NUM_ORBITS,
-  ELLIPSE_RATIO,
   MIN_NODE_R,
   MAX_NODE_R,
   ORBIT_SPEED_BASE,
   LERP_SPEED,
   MIN_ZOOM,
   MAX_ZOOM,
-  MIN_TILT,
-  MAX_TILT,
-  CULL_MARGIN,
 } from './engine/OntologyLayout';
 
 // ============ Callbacks ============
@@ -142,8 +137,6 @@ export class OntologyCanvasEngine {
       }
       return (connectionMap.get(b.id) ?? 0) - (connectionMap.get(a.id) ?? 0);
     });
-
-    const nodesPerOrbit = Math.max(1, Math.ceil(otherNodes.length / NUM_ORBITS));
 
     // 이전 엔진 상태(현재 공전 각도)를 백업해두어, 색상 변경 등으로 재초기화될 때 노드가 시작 좌표로 순간이동하는 현상(Whiplash)을 방지합니다.
     const previousNodeMap = new Map<string, OrbitalNode>();
@@ -612,7 +605,7 @@ export class OntologyCanvasEngine {
 
   // ── Interaction ──
 
-  handleDragStart(nx: number, ny: number, isShiftKey: boolean = false): void {
+  handleDragStart(nx: number, ny: number, _isShiftKey: boolean = false): void {
     this.isDragging = true;
     this.hasDragged = false;
     this.dragStartX = nx;
@@ -639,7 +632,7 @@ export class OntologyCanvasEngine {
     }
   }
 
-  handleDragMove(nx: number, ny: number, w: number, h: number): void {
+  handleDragMove(nx: number, ny: number, _w: number, _h: number): void {
     if (!this.isDragging) return;
 
     if (Math.abs(nx - this.dragStartX) > 5 || Math.abs(ny - this.dragStartY) > 5) {

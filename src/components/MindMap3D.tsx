@@ -21,7 +21,7 @@ import {
   Radio, Loader2, RefreshCw, AlertTriangle, BookOpen,
   Circle, Link2, X, ChevronRight, ChevronUp, ChevronDown, Zap, Maximize2, Minimize2,
   Trash2, FileText, Edit2, Plus, Palette, PinOff, PlusSquare, Waypoints, Eraser, Play, Pause,
-  CheckCircle, Unlink, Crosshair, CloudUpload, CloudDownload, Printer
+  CheckCircle, Unlink, Crosshair, CloudUpload, CloudDownload, Printer, Search
 } from 'lucide-react';
 
 
@@ -61,6 +61,11 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   const [stats, setStats] = useState({ nodes: 0, edges: 0 });
   const [isAddingNode, setIsAddingNode] = useState(false);
   const [newNodeName, setNewNodeName] = useState("");
+  
+  // ── Node Search States ──
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [selectedSearchIndex, setSelectedSearchIndex] = useState(-1);
   const { overrides = {}, customNodes = [], customEdges = [], deletedEdges = [], undo, redo, setNodeOverride, batchSetNodeOverrides, clearNodeOverride, addCustomNode, deleteCustomNode, updateCustomNodeText, addCustomEdge, deleteCustomEdge, removeCustomTombstone, renameNodeId, clearOverrides, resetLayoutOverrides, clearAll, syncToCloud, fetchFromCloud, isCloudLoaded } = useGraphCustomization();
   useEffect(() => {
     const handleOpenWiki = (e: CustomEvent<{ id: string; label: string }>) => {
@@ -522,9 +527,32 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
     if (!engine) return;
     const node = engine.getNodeById(nodeId);
     if (node) {
+      // 1. 부모 노드가 접혀 있다면 루트 부모까지 거슬러 올라가며 접힘 상태를 전부 해제
+      let parentId = node.parentId;
+      while (parentId) {
+        if (engine.collapsedNodeIds.has(parentId)) {
+          engine.collapsedNodeIds.delete(parentId);
+        }
+        const parentNode = engine.getNodeById(parentId);
+        parentId = parentNode?.parentId;
+      }
+      
+      // 자기 자신이 접혀있을 수 있으므로 해제
+      if (engine.collapsedNodeIds.has(nodeId)) {
+        engine.collapsedNodeIds.delete(nodeId);
+      }
+
+      // 2. 노드 선택 및 카메라 포커싱
       engine.activeNode = node;
-      // Camera follow
-      engine.handleClick(node.renderX, node.renderY);
+      engine.pendingCameraTargetId = node.id;
+      engine.needsRedraw = true;
+
+      // 3. UI 리액트 상태 동기화
+      setActiveNode(node);
+      setConnectedEdges(engine.getConnectedEdges(node.id));
+      
+      // 4. 콜백 호출
+      engine.callbacks.onActiveNodeChange?.(node);
     }
   }, []);
 
@@ -805,6 +833,124 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
           />
+
+          {/* Floating Search Bar (top-left) */}
+          <div className="absolute top-4 left-4 z-20 flex flex-col w-72 pointer-events-auto">
+            <div className="relative flex items-center bg-white/80 backdrop-blur-md border border-slate-200/50 shadow-lg rounded-xl transition-all duration-200 focus-within:bg-white focus-within:ring-2 focus-within:ring-[var(--color-primary)]/20 focus-within:border-[var(--color-primary)]">
+              <Search className="absolute left-3.5 text-slate-400 w-4.5 h-4.5 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="노드 검색..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setSelectedSearchIndex(-1);
+                }}
+                onFocus={() => setIsSearchFocused(true)}
+                onBlur={() => {
+                  // 리스트 안의 요소를 마우스로 클릭할 때 바로 닫히지 않도록 약간의 지연 시간 설정
+                  setTimeout(() => {
+                    setIsSearchFocused(false);
+                  }, 200);
+                }}
+                onKeyDown={(e) => {
+                  const filtered = searchQuery.trim() && engineRef.current
+                    ? engineRef.current.nodes.filter(node => 
+                        node.label.toLowerCase().includes(searchQuery.trim().toLowerCase())
+                      )
+                    : [];
+
+                  if (filtered.length === 0) return;
+
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setSelectedSearchIndex(prev => (prev + 1) % filtered.length);
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setSelectedSearchIndex(prev => (prev - 1 + filtered.length) % filtered.length);
+                  } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const targetIdx = selectedSearchIndex >= 0 ? selectedSearchIndex : 0;
+                    if (filtered[targetIdx]) {
+                      handleNodeClickInPanel(filtered[targetIdx].id);
+                      setSearchQuery("");
+                      setIsSearchFocused(false);
+                      setSelectedSearchIndex(-1);
+                    }
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    setIsSearchFocused(false);
+                    setSelectedSearchIndex(-1);
+                    (e.target as HTMLInputElement).blur();
+                  }
+                }}
+                className="w-full pl-10 pr-10 py-2.5 text-sm bg-transparent rounded-xl outline-none text-slate-800 placeholder-slate-400 font-medium"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => {
+                    setSearchQuery("");
+                    setSelectedSearchIndex(-1);
+                  }}
+                  className="absolute right-3 p-1 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Auto-complete Results Dropdown */}
+            {isSearchFocused && searchQuery.trim() && (
+              <div className="absolute top-[48px] left-0 right-0 max-h-60 overflow-y-auto bg-white/95 backdrop-blur-md border border-slate-200/50 rounded-xl shadow-xl z-50 custom-scrollbar animate-in fade-in slide-in-from-top-1 duration-150">
+                {(() => {
+                  const filtered = engineRef.current
+                    ? engineRef.current.nodes.filter(node => 
+                        node.label.toLowerCase().includes(searchQuery.trim().toLowerCase())
+                      )
+                    : [];
+
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="px-4 py-3 text-xs text-slate-400 text-center font-medium">
+                        검색 결과가 없습니다
+                      </div>
+                    );
+                  }
+
+                  return filtered.map((node, index) => {
+                    const isSelected = index === selectedSearchIndex;
+                    const groupColor = GROUP_COLORS[node.group as OntologyGroup] || '#ccc';
+                    const groupLabel = GROUP_LABELS[node.group as OntologyGroup] || '기타';
+
+                    return (
+                      <div
+                        key={node.id}
+                        onMouseDown={() => {
+                          handleNodeClickInPanel(node.id);
+                          setSearchQuery("");
+                          setSelectedSearchIndex(-1);
+                        }}
+                        className={`px-3.5 py-2 text-sm flex items-center justify-between cursor-pointer transition-colors duration-150 ${
+                          isSelected ? 'bg-slate-100 text-[var(--color-primary)] font-semibold' : 'hover:bg-slate-50 text-slate-700'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span 
+                            className="w-2 h-2 rounded-full shrink-0" 
+                            style={{ backgroundColor: groupColor }} 
+                          />
+                          <span className="truncate">{node.label}</span>
+                        </div>
+                        <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium shrink-0">
+                          {groupLabel}
+                        </span>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            )}
+          </div>
 
           {/* Performance HUD Overlay */}
           <div className="absolute top-4 right-4 z-20 flex flex-col gap-1 p-2.5 rounded-xl bg-white/70 backdrop-blur-md border border-slate-200/50 shadow-lg text-[10px] font-mono text-slate-700 pointer-events-none select-none min-w-[130px]">

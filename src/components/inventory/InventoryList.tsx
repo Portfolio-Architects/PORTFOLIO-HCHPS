@@ -61,14 +61,14 @@ export function InventoryList({ items, addItem, updateItem, deleteItem, adjustSt
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold">재고 관리</h2>
+        <h2 className="text-xl font-bold">홍보물 관리</h2>
         <button onClick={() => { setSelectedItem(null); resetForm(); setShowAddModal(true); }} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[var(--color-primary)] text-white text-sm font-medium hover:opacity-90 transition-opacity cursor-pointer">
           <Plus size={16} /> 품목 추가
         </button>
       </div>
 
       {items.length === 0 ? (
-        <Card><div className="px-5 py-10 text-center text-sm text-[var(--color-text-tertiary)]"><Package size={32} className="mx-auto mb-2 opacity-30" />재고 품목을 추가해 보세요</div></Card>
+        <Card><div className="px-5 py-10 text-center text-sm text-[var(--color-text-tertiary)]"><Package size={32} className="mx-auto mb-2 opacity-30" />홍보물 품목을 추가해 보세요</div></Card>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {items.map(item => {

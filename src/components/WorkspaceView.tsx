@@ -1,19 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { BudgetCategory, BudgetEntry, InventoryItem, StockChange } from '@/types';
 import { BudgetDashboard } from '@/components/budget/BudgetDashboard';
-import { InventoryList } from '@/components/inventory/InventoryList';
-import { WeeklyReportView } from '@/components/WeeklyReportView';
-import { Wallet, Package, CalendarDays } from 'lucide-react';
-
-type SubTab = 'budget' | 'inventory' | 'report';
-
-const subTabs: { id: SubTab; label: string; icon: React.ElementType }[] = [
-  { id: 'budget', label: '예산', icon: Wallet },
-  { id: 'inventory', label: '재고', icon: Package },
-  { id: 'report', label: '주간보고', icon: CalendarDays },
-];
 
 interface WorkspaceViewProps {
   // Budget
@@ -33,87 +22,30 @@ interface WorkspaceViewProps {
     totalBudget: number; totalSpent: number; totalPlanned: number; remaining: number;
     dailyExpenseIssued: number; dailyExpenseSpent: number; dailyExpenseRemaining: number;
   };
-  // Inventory
+  // Inventory (상위 컴포넌트 호환용)
   inventoryItems: InventoryItem[];
   addItem: (item: Omit<InventoryItem, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateItem: (id: string, updates: Partial<InventoryItem>) => void;
   deleteItem: (id: string) => void;
   adjustStock: (itemId: string, change: number, reason: string) => void;
   getItemHistory: (itemId: string) => StockChange[];
-  // Signal
+  // Signal (상위 컴포넌트 호환용)
   addSignal?: (text: string) => void;
 }
 
 export function WorkspaceView(props: WorkspaceViewProps) {
-  const [activeTab, setActiveTab] = useState<SubTab>('budget');
-
-  const renderSubContent = () => {
-    switch (activeTab) {
-      case 'budget':
-        return (
-          <BudgetDashboard
-            categories={props.budgetCategories}
-            entries={props.budgetEntries}
-            addCategory={props.addCategory}
-            updateCategory={props.updateCategory}
-            deleteCategory={props.deleteCategory}
-            addEntry={props.addEntry}
-            updateEntry={props.updateEntry}
-            deleteEntry={props.deleteEntry}
-            getCategoryStats={props.getCategoryStats}
-            overallStats={props.overallStats}
-          />
-        );
-
-      case 'inventory':
-        return (
-          <InventoryList
-            items={props.inventoryItems}
-            addItem={props.addItem}
-            updateItem={props.updateItem}
-            deleteItem={props.deleteItem}
-            adjustStock={props.adjustStock}
-            getItemHistory={props.getItemHistory}
-          />
-        );
-
-      case 'report':
-        return (
-          <WeeklyReportView
-            addSignal={props.addSignal}
-          />
-        );
-
-      default:
-        return null;
-    }
-  };
-
   return (
-    <>
-      <div className="flex items-center gap-1 sm:gap-2 mb-6 border-b border-[var(--color-border-light)] pb-3 overflow-x-auto no-scrollbar touch-pan-x">
-        {subTabs.map(tab => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 sm:py-3 text-[13px] sm:text-[15px] font-medium cursor-pointer transition-all border-b-2 -mb-[13px] whitespace-nowrap ${
-                isActive
-                  ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
-                  : 'border-transparent text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:border-gray-200'
-              }`}
-              title={tab.label}
-            >
-              <Icon size={18} className="sm:w-[20px] sm:h-[20px]" />
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {renderSubContent()}
-    </>
+    <BudgetDashboard
+      categories={props.budgetCategories}
+      entries={props.budgetEntries}
+      addCategory={props.addCategory}
+      updateCategory={props.updateCategory}
+      deleteCategory={props.deleteCategory}
+      addEntry={props.addEntry}
+      updateEntry={props.updateEntry}
+      deleteEntry={props.deleteEntry}
+      getCategoryStats={props.getCategoryStats}
+      overallStats={props.overallStats}
+    />
   );
 }

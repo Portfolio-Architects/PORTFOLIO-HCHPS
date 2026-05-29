@@ -162,7 +162,7 @@ export interface DocumentEntry {
   status: 'draft' | 'ready' | 'done'; // 상태
 }
 
-export type ModuleType = 'workspace' | 'mindmap' | 'dashboard';
+export type ModuleType = 'workspace' | 'mindmap' | 'dashboard' | 'inventory';
 
 // ============ Utility ============
 export function generateId(): string {

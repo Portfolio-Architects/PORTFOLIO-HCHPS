@@ -114,23 +114,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
 
     <div className="w-full flex flex-col gap-6 animate-in fade-in duration-300 relative min-h-screen font-sans">
       
-      {/* Header */}
-      <div className="flex flex-col gap-3 mt-4 mb-2">
-        <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-slate-900 flex items-center gap-4">
-          <div className="w-12 h-12 bg-white rounded-[1rem] shadow-sm border border-slate-100 flex items-center justify-center overflow-hidden">
-            <img src="/icon-192x192.png" alt={`${appMode} Logo`} className="w-full h-full object-cover" />
-          </div>
-          PORTFOLIO {appMode}
-        </h1>
-        <div className="flex items-center gap-3 ml-2">
-          <div className={`w-1 h-5 ${isHchps ? 'bg-emerald-600' : 'bg-blue-600'} rounded-full`} />
-          <p className="text-[13px] font-semibold text-slate-500 tracking-wide">
-            {isHchps 
-              ? '사내 업무 편성, 지식 자산화, 그리고 인물 시맨틱 온톨로지 시각화를 위한 초개인화 인텔리전스 워크스페이스' 
-              : 'Vital Information & Task Architecture Ledger — converging public health resources, tasks, and budget execution into a unified management topology'}
-          </p>
-        </div>
-      </div>
+
 
       {/* Main Panels */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 mt-4">
@@ -500,35 +484,53 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                         const subRemainingDiff = sub.totalBudget - subVirtualAdjustment;
 
                         return (
-                          <div key={sIdx} className="flex flex-col rounded-2xl border border-slate-100 hover:border-slate-200/80 transition-all bg-slate-50/20 shadow-sm overflow-hidden">
+                          <div 
+                            key={sIdx} 
+                            className="flex flex-col rounded-[1.25rem] border border-slate-100 bg-white hover:bg-slate-50/20 hover:border-slate-200/60 shadow-sm transition-all duration-300 overflow-hidden relative group"
+                            style={{ borderLeft: `5px solid ${themeColors[idx % themeColors.length] || '#cbd5e1'}` }}
+                          >
                             {/* 통계목 헤더 */}
                             <div 
-                              className="flex flex-col sm:flex-row sm:items-center justify-between p-4 cursor-pointer hover:bg-slate-50/40 transition-colors gap-3 sm:gap-0"
+                              className="flex flex-col lg:flex-row lg:items-center justify-between p-4 cursor-pointer hover:bg-slate-50/50 transition-colors gap-4"
                               onClick={() => setExpandedSubCategory(isSubExpanded ? null : sub.id)}
                             >
-                              <div className="flex items-center gap-3">
-                                <div className="flex flex-col">
-                                  <span className="font-black text-[18px] text-slate-800">{sub.name}</span>
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="flex flex-col min-w-0">
+                                  <span className="font-black text-[17px] text-slate-800 tracking-tight leading-tight group-hover:text-slate-900 transition-colors">{sub.name}</span>
                                   {sub.formationItem && (
-                                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{sub.formationItem} {sub.statItem && `| ${sub.statItem}`}</span>
+                                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mt-1.5 block">
+                                      {sub.formationItem} {sub.statItem && `• ${sub.statItem}`}
+                                    </span>
                                   )}
                                 </div>
                               </div>
                               
-                              <div className="flex items-center justify-between sm:justify-end gap-6 w-full sm:w-auto">
-                                <div className="flex flex-col sm:items-end">
-                                  <span className="text-[13px] font-semibold text-slate-400">총 본예산</span>
-                                  <span className="font-extrabold text-[15px] text-slate-700">{sub.totalBudget.toLocaleString()}원</span>
+                              <div className="flex flex-wrap items-center gap-3 shrink-0 ml-auto sm:ml-0 lg:ml-auto">
+                                {/* 소카테고리 총 본예산 칩 */}
+                                <div className="flex flex-col items-end px-3 py-1 rounded-xl bg-slate-50/80 border border-slate-100/50 shadow-[inset_0_1px_1px_rgba(0,0,0,0.01)] min-w-[95px] sm:min-w-[115px]">
+                                  <span className="text-[10px] font-bold text-slate-400 leading-none">총 본예산</span>
+                                  <span className="font-extrabold text-[14px] text-slate-700 mt-1">{sub.totalBudget.toLocaleString()}원</span>
                                 </div>
-                                <div className="flex flex-col sm:items-end">
-                                  <span className="text-[13px] font-semibold text-indigo-600/90">설계 확정 금액</span>
-                                  <span className="font-black text-[15px] text-indigo-600">{subVirtualAdjustment.toLocaleString()}원</span>
+            
+                                {/* 소카테고리 합산 설계확정 금액 칩 */}
+                                <div className="flex flex-col items-end px-3 py-1 rounded-xl bg-indigo-50/20 border border-indigo-100/40 shadow-[inset_0_1px_1px_rgba(79,70,229,0.01)] min-w-[95px] sm:min-w-[115px]">
+                                  <span className="text-[10px] font-bold text-indigo-500/80 leading-none">설계 확정액</span>
+                                  <span className="font-black text-[14px] text-indigo-600 mt-1">{subVirtualAdjustment.toLocaleString()}원</span>
                                 </div>
-                                <div className="flex flex-col sm:items-end">
-                                  <span className="text-[13px] font-semibold text-slate-400">남은 차액</span>
-                                  <span className={`font-black text-[15px] ${subRemainingDiff === 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{subRemainingDiff.toLocaleString()}원</span>
+            
+                                {/* 소카테고리 남은 차액 칩 */}
+                                <div className={`flex flex-col items-end px-3 py-1 rounded-xl border min-w-[95px] sm:min-w-[115px] ${
+                                  subRemainingDiff === 0 
+                                    ? 'bg-emerald-50/20 border-emerald-100/40 shadow-[inset_0_1px_1px_rgba(16,185,129,0.01)]' 
+                                    : 'bg-rose-50/20 border-rose-100/40 shadow-[inset_0_1px_1px_rgba(244,63,94,0.01)]'
+                                }`}>
+                                  <span className={`text-[10px] font-bold leading-none ${subRemainingDiff === 0 ? 'text-emerald-500' : 'text-rose-500'}`}>남은 차액</span>
+                                  <span className={`font-black text-[14px] mt-1 ${subRemainingDiff === 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{subRemainingDiff.toLocaleString()}원</span>
                                 </div>
-                                {isSubExpanded ? <ChevronUp className="w-4 h-4 text-slate-400 shrink-0" /> : <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />}
+
+                                <div className="pl-1 shrink-0 flex items-center justify-center">
+                                  {isSubExpanded ? <ChevronUp className="w-4 h-4 text-slate-400 transition-transform duration-300" /> : <ChevronDown className="w-4 h-4 text-slate-400 transition-transform duration-300" />}
+                                </div>
                               </div>
                             </div>
 

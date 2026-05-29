@@ -1,4 +1,4 @@
-import { OrbitalNode, OntologyEdge, OntologyGroup, GROUP_COLORS } from '../ontology.types';
+import { OrbitalNode, OntologyEdge, EDGE_TYPE_LABELS, EdgeType } from '../ontology.types';
 import { CULL_MARGIN, OntologyLayout } from './OntologyLayout';
 
 export interface RenderContext {
@@ -103,29 +103,34 @@ export class OntologyRenderer {
 
       // Smooth step bezier variables (좌에서 우로)
       // 콤팩트해진 텍스트 박스 크기에 맞춰 선의 시작점을 안쪽으로 축소
-      const leftRightX = leftNode.renderX + 30 * rc.zoom;
-      const rightLeftX = rightNode.renderX - 30 * rc.zoom;
+      const leftScale = (leftNode as any).perspectiveScale ?? 1.0;
+      const rightScale = (rightNode as any).perspectiveScale ?? 1.0;
+      const avgScale = (leftScale + rightScale) / 2;
+
+      // 콤팩트해진 텍스트 박스 크기에 맞춰 선의 시작점을 안쪽으로 축소 (원근 스케일 적용)
+      const leftRightX = leftNode.renderX + 30 * rc.zoom * leftScale;
+      const rightLeftX = rightNode.renderX - 30 * rc.zoom * rightScale;
       
       const cpDist = Math.max(15, Math.abs(rightLeftX - leftRightX) / 2);
       
       // 엣지 투명도 및 두께 조절
       const themeColor = tgt.themeColor || '#94A3B8';
       let alpha = 0.15;
-      let lineWidth = 0.5 * rc.zoom;
+      let lineWidth = 0.5 * rc.zoom * avgScale;
 
       if (isDirectlyConnectedToActive) {
           alpha = 0.7; // 직접 선택된 노드의 엣지는 가장 선명하게
-          lineWidth = 1.8 * rc.zoom;
+          lineWidth = 1.8 * rc.zoom * avgScale;
       } else if (isConnectedToTree) {
           alpha = 0.4; // 활성 트리에 속한 엣지는 약간 선명하게
-          lineWidth = 1.0 * rc.zoom;
+          lineWidth = 1.0 * rc.zoom * avgScale;
       } else if (isCrossEdge) {
           // [네트워크 토폴로지] 활성화되지 않은 비계층적 간선은 은은한 배경 거미줄로 배치
           alpha = 0.08; 
-          lineWidth = 0.4 * rc.zoom;
+          lineWidth = 0.4 * rc.zoom * avgScale;
       }
       
-      ctx.globalAlpha = alpha;
+      ctx.globalAlpha = alpha * Math.max(0.3, avgScale);
       ctx.strokeStyle = themeColor;
       ctx.lineWidth = lineWidth;
       
@@ -141,6 +146,60 @@ export class OntologyRenderer {
         rightLeftX, rightNode.renderY
       );
       ctx.stroke();
+
+      // 4. 활성화된 노드나 마우스가 올라간 노드에 연결된 엣지에만 관계 텍스트(Edge Label) 렌더링
+      const isDirectlyConnectedToHover = rc.hoveredNodeId && (rc.hoveredNodeId === src.id || rc.hoveredNodeId === tgt.id);
+      const shouldDrawLabel = (isDirectlyConnectedToActive || isDirectlyConnectedToHover) && !isCrossEdge;
+
+      if (shouldDrawLabel) {
+        ctx.save();
+        
+        // 3차 베지어 곡선의 중간 지점 (t = 0.5) 연산
+        const t = 0.5;
+        const mt = 1 - t;
+        const mt3 = mt * mt * mt;
+        const t3 = t * t * t;
+        const mt2t = 3 * mt * mt * t;
+        const mtt2 = 3 * mt * t * t;
+
+        const midX = mt3 * leftRightX + mt2t * (leftRightX + cpDist) + mtt2 * (rightLeftX - cpDist) + t3 * rightLeftX;
+        const midY = mt3 * leftNode.renderY + mt2t * leftNode.renderY + mtt2 * rightNode.renderY + t3 * rightNode.renderY;
+
+        const labelText = EDGE_TYPE_LABELS[edge.type as EdgeType] || '';
+        if (labelText) {
+          const fontSize = 8.5 * rc.zoom * avgScale;
+          ctx.font = `600 ${fontSize}px 'Pretendard', sans-serif`;
+          
+          const labelWidth = ctx.measureText(labelText).width;
+          const padX = 6 * rc.zoom * avgScale;
+          const padY = 4 * rc.zoom * avgScale;
+          const rectW = labelWidth + padX * 2;
+          const rectH = fontSize + padY * 2;
+
+          ctx.globalAlpha = Math.min(1.0, alpha * 1.5);
+          
+          // 배경 둥근 사각 박스
+          ctx.beginPath();
+          if (ctx.roundRect) {
+            ctx.roundRect(midX - rectW / 2, midY - rectH / 2, rectW, rectH, 4 * rc.zoom * avgScale);
+          } else {
+            ctx.rect(midX - rectW / 2, midY - rectH / 2, rectW, rectH);
+          }
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fill();
+          ctx.strokeStyle = themeColor;
+          ctx.lineWidth = 1 * rc.zoom * avgScale;
+          ctx.stroke();
+
+          // 관계 텍스트
+          ctx.fillStyle = '#1E293B';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(labelText, midX, midY + 0.5 * rc.zoom * avgScale);
+        }
+        
+        ctx.restore();
+      }
     }
     ctx.globalAlpha = 1.0;
     ctx.setLineDash([]);
@@ -200,6 +259,9 @@ export class OntologyRenderer {
       const opacity = (!activeNodeId || isTreeActive || isActive) ? 1 : 0.3;
 
       ctx.save();
+      const nodeScale = (node as any).perspectiveScale ?? 1.0;
+      const localZoom = zoom * nodeScale;
+
       ctx.globalAlpha = opacity;
 
       const labelText = node.label || '';
@@ -212,32 +274,32 @@ export class OntologyRenderer {
           ctx.font = `${weightStyle} 12px 'Pretendard', sans-serif`;
           node._cachedTextWidth[cacheKey] = ctx.measureText(labelText).width;
       }
-      const textWidth = node._cachedTextWidth[cacheKey] * zoom;
+      const textWidth = node._cachedTextWidth[cacheKey] * localZoom;
 
       // NotebookLM 스타일: 콤팩트한 노드 사이즈
-      const fontSize = 12 * zoom;
+      const fontSize = 12 * localZoom;
       ctx.font = `${weightStyle} ${fontSize}px 'Pretendard', sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
-      const paddingX = 14 * zoom; // 좌우 여백 (기존 24 -> 14)
-      const paddingY = 10 * zoom; // 상하 여백 (기존 16 -> 10)
+      const paddingX = 14 * localZoom; // 좌우 여백 (기존 24 -> 14)
+      const paddingY = 10 * localZoom; // 상하 여백 (기존 16 -> 10)
       
       // Node Dimensions
-      const boxW = Math.max(60 * zoom, textWidth + paddingX * 2); // 100 -> 60
-      const boxH = Math.max(28 * zoom, fontSize + paddingY * 2);  // 40 -> 28
+      const boxW = Math.max(60 * localZoom, textWidth + paddingX * 2); // 100 -> 60
+      const boxH = Math.max(28 * localZoom, fontSize + paddingY * 2);  // 40 -> 28
 
       const themeColor = node.isCompleted ? '#CBD5E1' : (node.themeColor || '#94A3B8'); // 완료된 노드는 회색 처리
 
       // Shadow and Glow setup (버퍼링 최적화 2: 캔버스 성능을 갉아먹는 무의미한 미세 그림자 연산 제거)
       if (node.isHighlighted) {
         ctx.shadowColor = 'rgba(245, 158, 11, 0.6)'; // Amber-500 glow 
-        ctx.shadowBlur = 8 * zoom;
+        ctx.shadowBlur = 8 * localZoom;
         ctx.shadowOffsetY = 0;
       } else if (isActive || isHovered) {
         ctx.shadowColor = 'rgba(0, 0, 0, 0.08)';
-        ctx.shadowBlur = 8 * zoom;
-        ctx.shadowOffsetY = 3 * zoom;
+        ctx.shadowBlur = 8 * localZoom;
+        ctx.shadowOffsetY = 3 * localZoom;
       } else {
         // 일반 평상시 노드의 그림자는 가장 무거운 렌더링 부하를 일으키므로 생략 (Flat UI 강화)
         ctx.shadowColor = 'transparent';
@@ -248,7 +310,7 @@ export class OntologyRenderer {
       // Box Draw (Clean White Background)
       ctx.beginPath();
       if (ctx.roundRect) {
-        ctx.roundRect(node.renderX - boxW / 2, node.renderY - boxH / 2, boxW, boxH, 6 * zoom);
+        ctx.roundRect(node.renderX - boxW / 2, node.renderY - boxH / 2, boxW, boxH, 6 * localZoom);
       } else {
         ctx.rect(node.renderX - boxW / 2, node.renderY - boxH / 2, boxW, boxH);
       }
@@ -257,23 +319,23 @@ export class OntologyRenderer {
 
       // Border Outline
       if (node.isHighlighted) {
-        ctx.lineWidth = 2 * zoom;
+        ctx.lineWidth = 2 * localZoom;
         ctx.strokeStyle = '#F59E0B'; // Amber-500
         ctx.stroke();
       } else if (isActive) {
-        ctx.lineWidth = 2 * zoom;
+        ctx.lineWidth = 2 * localZoom;
         ctx.strokeStyle = themeColor;
         ctx.stroke();
       } else if (isTreeActive) {
         // Subtle outline for nodes in the same branch
-        ctx.lineWidth = 1.5 * zoom;
+        ctx.lineWidth = 1.5 * localZoom;
         ctx.strokeStyle = themeColor;
         ctx.globalAlpha = 0.4;
         ctx.stroke();
         ctx.globalAlpha = opacity;
       } else {
         // Very faint outline for rest
-        ctx.lineWidth = 1 * zoom;
+        ctx.lineWidth = 1 * localZoom;
         ctx.strokeStyle = '#F8FAFC'; // slate-50
         ctx.stroke();
       }
@@ -290,24 +352,24 @@ export class OntologyRenderer {
       if (ctx.roundRect) {
         if (isLeftSide) {
           // 좌측 노드: 우측 모서리에 엑센트 (tl, tr, br, bl)
-          ctx.roundRect(node.renderX + boxW / 2 - 6 * zoom, node.renderY - boxH / 2, 6 * zoom, boxH, [
+          ctx.roundRect(node.renderX + boxW / 2 - 6 * localZoom, node.renderY - boxH / 2, 6 * localZoom, boxH, [
             0,
-            6 * zoom,
-            6 * zoom,
+            6 * localZoom,
+            6 * localZoom,
             0
           ]);
         } else {
           // 우측 노드: 좌측 모서리에 엑센트 (tl, tr, br, bl)
-          ctx.roundRect(node.renderX - boxW / 2, node.renderY - boxH / 2, 6 * zoom, boxH, [
-            6 * zoom,
+          ctx.roundRect(node.renderX - boxW / 2, node.renderY - boxH / 2, 6 * localZoom, boxH, [
+            6 * localZoom,
             0,
             0,
-            6 * zoom
+            6 * localZoom
           ]);
         }
       } else {
-        const ax = isLeftSide ? (node.renderX + boxW / 2 - 6 * zoom) : (node.renderX - boxW / 2);
-        ctx.rect(ax, node.renderY - boxH / 2, 6 * zoom, boxH);
+        const ax = isLeftSide ? (node.renderX + boxW / 2 - 6 * localZoom) : (node.renderX - boxW / 2);
+        ctx.rect(ax, node.renderY - boxH / 2, 6 * localZoom, boxH);
       }
       ctx.fillStyle = themeColor;
       ctx.fill();
@@ -319,7 +381,7 @@ export class OntologyRenderer {
         ctx.fillStyle = (isActive || isTreeActive) ? '#1E293B' : '#64748B';
       }
       // 텍스트 쏠림 보정 (엑센트 바 피하기)
-      const textOffsetX = isLeftSide ? -2 * zoom : 2 * zoom;
+      const textOffsetX = isLeftSide ? -2 * localZoom : 2 * localZoom;
       ctx.fillText(labelText, node.renderX + textOffsetX, node.renderY); 
 
       // Strikethrough for completed nodes

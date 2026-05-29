@@ -219,7 +219,7 @@ export function useWikiStorage(
     return () => {
       isCancelled = true;
     };
-  }, [nodeId, nodeLabel]);
+  }, [nodeId, nodeLabel, setNodeOverride]);
 
   // 새로운 블록 배열 저장 (자동 클라우드 백업)
   const saveBlocks = useCallback((nodeIdToSave: string, newBlocks: PartialBlock[]) => {

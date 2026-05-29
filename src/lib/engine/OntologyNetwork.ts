@@ -9,7 +9,7 @@ export class OntologyNetwork {
   public static getActiveTreeSet(
     rootId: string, 
     nodeMap: Map<string, OrbitalNode>, 
-    edges: OntologyEdge[]
+    _edges: OntologyEdge[]
   ): Set<string> {
     const set = new Set<string>();
     if (!rootId) return set;
@@ -62,5 +62,78 @@ export class OntologyNetwork {
     }
     
     return set;
+  }
+  /**
+   * 규칙 기반 시맨틱 추론기 (Semantic Reasoner)
+   * 1. 이행적 의존성(Transitive Dependency): A -> B 이고 B -> C 이면 A -> C (이행적 의존)
+   * 2. 병목 노드(Bottleneck Driver): 여러 주요 노드들이 동시에 한 노드에 집중 의존하는 경우 검출
+   */
+  public static inferSemanticRelations(
+    nodes: any[],
+    edges: OntologyEdge[]
+  ): string[] {
+    const inferences: string[] = [];
+    if (!nodes || !edges) return inferences;
+
+    const nodeLabelMap = new Map<string, string>(nodes.map(n => [n.id, n.customLabel || n.label || n.id]));
+
+    // 1. 인접 리스트 생성 (의존성 방향: A가 B에 의존하면 A -> B)
+    const adj = new Map<string, Set<string>>();
+    edges.forEach(edge => {
+      if (edge.type === 'DEPENDENCY' || edge.type === 'CAUSAL_DRIVE') {
+        if (!adj.has(edge.source)) adj.set(edge.source, new Set());
+        adj.get(edge.source)!.add(edge.target);
+      }
+    });
+
+    // 2. 이행적 의존성 (Transitive Dependency) BFS 탐색
+    nodes.forEach(startNode => {
+      const visited = new Set<string>();
+      const queue: string[] = [startNode.id];
+      visited.add(startNode.id);
+
+      while (queue.length > 0) {
+        const curr = queue.shift()!;
+        const neighbors = adj.get(curr);
+        if (neighbors) {
+          for (const next of neighbors) {
+            if (!visited.has(next)) {
+              visited.add(next);
+              queue.push(next);
+              
+              const directNeighbors = adj.get(startNode.id);
+              if (next !== startNode.id && (!directNeighbors || !directNeighbors.has(next))) {
+                const startLabel = nodeLabelMap.get(startNode.id);
+                const nextLabel = nodeLabelMap.get(next);
+                if (startLabel && nextLabel) {
+                  inferences.push(`- [추론 관계] ${startLabel}은(는) 간접적으로 ${nextLabel}에 의존(이행적 의존)하고 있습니다.`);
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // 3. 병목 노드 (Bottleneck Driver) 분석
+    const inDegrees = new Map<string, string[]>();
+    edges.forEach(edge => {
+      if (edge.type === 'DEPENDENCY' || edge.type === 'CAUSAL_DRIVE') {
+        if (!inDegrees.has(edge.target)) inDegrees.set(edge.target, []);
+        inDegrees.get(edge.target)!.push(edge.source);
+      }
+    });
+
+    for (const [targetId, sources] of inDegrees.entries()) {
+      if (sources.length >= 3) {
+        const targetLabel = nodeLabelMap.get(targetId);
+        const sourceLabels = sources.map(s => nodeLabelMap.get(s)).filter(Boolean);
+        if (targetLabel && sourceLabels.length >= 3) {
+          inferences.push(`- [추론 병목] ${targetLabel}은(는) ${sources.length}개 노드(${sourceLabels.slice(0, 3).join(', ')} 등)가 집중 의존하고 있는 핵심 병목(Bottleneck) 요인입니다.`);
+        }
+      }
+    }
+
+    return inferences;
   }
 }
