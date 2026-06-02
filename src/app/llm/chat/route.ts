@@ -147,9 +147,9 @@ export async function POST(req: Request) {
         parts: [{ text: msg.content }],
       }));
 
-    // Use gemma-4-31b-it for high rate limits (14.4K RPD)
+    // Use gemini-2.5-flash for stable and fast response
     const model = genAI.getGenerativeModel({ 
-      model: 'gemma-4-31b-it',
+      model: 'gemini-2.5-flash',
       systemInstruction: systemPrompt,
       generationConfig: {
         maxOutputTokens: 1024,

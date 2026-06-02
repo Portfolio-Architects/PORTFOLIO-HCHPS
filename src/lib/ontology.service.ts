@@ -98,53 +98,158 @@ export function computeCentrality(
   nodes: OntologyNode[],
   edges: OntologyEdge[],
 ): OntologyNode[] {
-  const baseValueMap = new Map<string, number>();
-  for (const node of nodes) baseValueMap.set(node.id, node.baseValue);
+  const nodeCount = nodes.length;
+  if (nodeCount === 0) return [];
 
-  // Step 1: Eigenvector-weighted centrality
-  // centrality[A] += |weight| × (baseValue_of_B / 100)
+  const nodeMap = new Map<string, OntologyNode>();
+  for (const node of nodes) nodeMap.set(node.id, node);
+
+  // 1. Power Iteration을 통한 고유벡터 중심성 (Eigenvector Centrality) 연산
+  // 초기 중요도 설정: baseValue 기반 (최소 0.1)
   const centrality = new Map<string, number>();
-  const netWeightMap = new Map<string, number>();
+  for (const node of nodes) {
+    centrality.set(node.id, Math.max(0.1, node.baseValue / 100));
+  }
 
+  // 인접 리스트 빌드 (양방향 연결성 가중치 적용)
+  const adj = new Map<string, Array<{ neighbor: string; weight: number }>>();
+  for (const node of nodes) adj.set(node.id, []);
   for (const edge of edges) {
     const w = Math.abs(edge.weight);
-    const sourceBase = (baseValueMap.get(edge.source) ?? 50) / 100;
-    const targetBase = (baseValueMap.get(edge.target) ?? 50) / 100;
+    adj.get(edge.source)?.push({ neighbor: edge.target, weight: w });
+    adj.get(edge.target)?.push({ neighbor: edge.source, weight: w });
+  }
 
-    centrality.set(edge.source, (centrality.get(edge.source) || 0) + w * targetBase);
-    centrality.set(edge.target, (centrality.get(edge.target) || 0) + w * sourceBase);
+  const MAX_ITER = 15;
+  const EPSILON = 1e-4;
+  let converged = false;
 
-    // Step 3: signed weight accumulation — 구조적 업무 병목 감지
+  for (let iter = 0; iter < MAX_ITER && !converged; iter++) {
+    const nextCentrality = new Map<string, number>();
+    let l2Norm = 0;
+
+    // Power step
+    for (const node of nodes) {
+      // 기저 값(기초 중요도) 주입 (0.2 가중치)
+      let sum = 0.2 * (node.baseValue / 100);
+      
+      // 이웃 노드 전파 합산 (0.8 가중치)
+      const neighbors = adj.get(node.id) || [];
+      for (const edgeInfo of neighbors) {
+        const neighborVal = centrality.get(edgeInfo.neighbor) ?? 0;
+        sum += 0.8 * edgeInfo.weight * neighborVal;
+      }
+      nextCentrality.set(node.id, sum);
+      l2Norm += sum * sum;
+    }
+
+    l2Norm = Math.sqrt(l2Norm);
+    if (l2Norm < 0.001) l2Norm = 0.001;
+
+    // 정규화 및 수렴 체크
+    let maxDiff = 0;
+    for (const node of nodes) {
+      const prevVal = centrality.get(node.id) ?? 0;
+      const newVal = (nextCentrality.get(node.id) ?? 0) / l2Norm;
+      centrality.set(node.id, newVal);
+      
+      const diff = Math.abs(newVal - prevVal);
+      if (diff > maxDiff) maxDiff = diff;
+    }
+
+    if (maxDiff < EPSILON) {
+      converged = true;
+    }
+  }
+
+  // 2. signed weight accumulation (병목 감지용 netWeight)
+  const netWeightMap = new Map<string, number>();
+  for (const edge of edges) {
     netWeightMap.set(edge.source, (netWeightMap.get(edge.source) || 0) + edge.weight);
     netWeightMap.set(edge.target, (netWeightMap.get(edge.target) || 0) + edge.weight);
   }
 
-  // Normalize centrality to [0, 1]
-  const maxCentrality = Math.max(...Array.from(centrality.values()), 0.001);
+  // 3. 리스크 전파 모델 (Risk Propagation Score) 구현
+  // SYSTEM_RISK 노드 또는 netWeight가 강한 음수(<-0.4)인 병목 노드를 리스크의 근원지로 규정
+  const riskSource = new Map<string, number>();
+  for (const node of nodes) {
+    const netW = netWeightMap.get(node.id) ?? 0;
+    if (node.group === 'SYSTEM_RISK' || netW < -0.4) {
+      riskSource.set(node.id, node.group === 'SYSTEM_RISK' ? 1.0 : Math.min(1.0, Math.abs(netW)));
+    }
+  }
 
-  // 앵커 노드 보장: base_value 최대 노드에 기본 centrality 부스트
-  // (엣지가 없어도 중심에 배치되도록)
-  const maxBaseValue = Math.max(...nodes.map(n => n.baseValue));
+  const riskFactors = new Map<string, number>();
+  for (const node of nodes) {
+    if (riskSource.has(node.id)) {
+      riskFactors.set(node.id, riskSource.get(node.id) ?? 1.0);
+      continue;
+    }
+
+    // 1-step 인접 엣지들을 통해 유입되는 리스크 가중합 전파 계산
+    let maxRiskFromNeighbor = 0;
+    const neighbors = adj.get(node.id) || [];
+    for (const edgeInfo of neighbors) {
+      if (riskSource.has(edgeInfo.neighbor)) {
+        const sourceRisk = riskSource.get(edgeInfo.neighbor) ?? 1.0;
+        // 리스크 엣지 가중치 곱
+        const propagatedRisk = sourceRisk * edgeInfo.weight;
+        if (propagatedRisk > maxRiskFromNeighbor) {
+          maxRiskFromNeighbor = propagatedRisk;
+        }
+      }
+    }
+    riskFactors.set(node.id, maxRiskFromNeighbor);
+  }
+
+  // 중심성 [0, 1] 범위로 Min-Max 정규화
+  const centValues = Array.from(centrality.values());
+  const minCent = Math.min(...centValues, 0);
+  const maxCent = Math.max(...centValues, 0.001);
+  const centRange = maxCent - minCent;
+
+  // 4. 레이어 보너스 (Layer Boost) 및 최종 renderSize 비선형 스케일 바인딩
+  const maxBaseValue = Math.max(...nodes.map(n => n.baseValue), 1);
 
   return nodes.map(node => {
-    const raw = centrality.get(node.id) || 0;
-    // base_value가 최대인 노드에 centrality 보너스 (앵커 보장)
-    const anchorBoost = node.baseValue === maxBaseValue ? maxCentrality * 0.1 : 0;
-    const normalizedCentrality = Math.min(1, (raw + anchorBoost) / maxCentrality);
+    const rawCent = centrality.get(node.id) || 0;
+    // 앵커 부스트 보장
+    const anchorBoost = node.baseValue === maxBaseValue ? centRange * 0.05 : 0;
+    const normalizedCentrality = Math.min(1, Math.max(0, (rawCent - minCent + anchorBoost) / centRange));
+    
     const netWeight = netWeightMap.get(node.id) ?? 0;
+    const riskFactor = riskFactors.get(node.id) ?? 0;
 
-    // Step 2: Non-Linear Scaling (Convexity Injection)
-    // 0.4 × pow(baseValue/100, 1.2) + 0.6 × pow(centrality, 1.5)
-    const renderSize =
-      0.4 * Math.pow(node.baseValue / 100, 1.2) +
-      0.6 * Math.pow(normalizedCentrality, 1.5);
+    // 수직적 레이어 보너스 (Layer Boost)
+    // 0: 인물 (0.05), 1: 예산/비품 (0.10), 2: 업무/회의 (0.15), 3: 위키/문서 (0.22)
+    const layer = node.layerId ?? node.effectiveLayer ?? 2;
+    let layerBoost = 0.15;
+    if (layer === 0) layerBoost = 0.05;
+    else if (layer === 1) layerBoost = 0.10;
+    else if (layer === 2) layerBoost = 0.15;
+    else if (layer === 3) layerBoost = 0.22;
+
+    // 비선형 스케일링 공식 (0.25 * baseValue + 0.50 * centrality^1.2 + 0.25 * layerBoost)
+    let renderSize =
+      0.25 * (node.baseValue / 100) +
+      0.50 * Math.pow(normalizedCentrality, 1.2) +
+      0.25 * layerBoost;
+
+    // 리스크가 극심한 주의 노드는 시각적 강조를 위해 미세 스케일 보정 (+0.03)
+    if (riskFactor > 0.5) {
+      renderSize += 0.03;
+    }
+
+    // [0.4, 1.0] 범위로 안전 클램핑 적용
+    renderSize = Math.max(0.4, Math.min(1.0, renderSize));
 
     return {
       ...node,
       centralityScore: normalizedCentrality,
       renderSize,
       netWeight,
-      isHedge: netWeight < 0,
+      riskFactor,
+      isHedge: netWeight < 0 || riskFactor > 0.3,
     };
   });
 }

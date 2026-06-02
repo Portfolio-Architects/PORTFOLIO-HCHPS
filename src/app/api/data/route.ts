@@ -2,6 +2,14 @@ import { NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { getDomainSchema } from '@/lib/schemas';
+import { startWatcherDaemon } from '@/lib/engine/watcher';
+
+// 백엔드 데몬 가동
+if (typeof window === 'undefined') {
+  startWatcherDaemon().catch(err => {
+    console.error('[Watcher Daemon Initialization Error]', err);
+  });
+}
 
 // Allowed sheets
 const ALLOWED_SHEETS = new Set([
@@ -11,7 +19,9 @@ const ALLOWED_SHEETS = new Set([
   'SIGNAL_LOG',
   'MAP_CUSTOMIZATION',
   'PLANNING_MAP_CUSTOMIZATION',
-  'DELETED_SIGNALS', 'GLOBAL_TOMBSTONES'
+  'DELETED_SIGNALS', 'GLOBAL_TOMBSTONES',
+  'EXTERNAL_DOCS',
+  'CLASSIFICATION_WORDS'
 ]);
 
 function validateSheet(sheet: string): boolean {
@@ -43,10 +53,29 @@ async function safeWriteFile(filePath: string, dataStr: string, retries = 5, del
   }
 }
 
+async function safeReadFile(filePath: string, retries = 5, delay = 50): Promise<string> {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const content = await fs.readFile(filePath, 'utf-8');
+      return content;
+    } catch (err: any) {
+      if (err.code === 'ENOENT') {
+        throw err;
+      }
+      if (attempt === retries) {
+        console.error(`[File System] Read failed after ${retries} attempts for path ${filePath}:`, err);
+        throw err;
+      }
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  throw new Error(`[File System] Read failed for path ${filePath}`);
+}
+
 async function readData(sheet: string): Promise<any[]> {
   const filePath = getFilePath(sheet);
   try {
-    const data = await fs.readFile(filePath, 'utf-8');
+    const data = await safeReadFile(filePath);
     const parsed = JSON.parse(data);
     if (sheet === 'BUDGET_CATEGORIES') {
       console.log(`[API] Returning ${parsed.length} categories for BUDGET_CATEGORIES!`);

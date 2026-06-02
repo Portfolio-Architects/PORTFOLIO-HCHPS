@@ -7,6 +7,7 @@
 import { OntologyGraph, OntologyNode, OntologyEdge, OntologyGroup } from './ontology.types';
 import { SignalEntry } from '@/hooks/useSignal';
 import { NodeOverride } from '@/hooks/useGraphCustomization';
+import { computeCentrality } from './ontology.service';
 
 export type PartialOntologyEdge = OntologyEdge & { isCustom?: boolean };
 export type PartialOntologyNode = OntologyNode & { isExplicitColor?: boolean };
@@ -34,6 +35,7 @@ export function buildSignalGraph(
   console.log('[DEBUG] buildSignalGraph START. entries.length=', entries.length, 'customNodes.length=', customData?.customNodes.length);
   const nodes: OntologyNode[] = [];
   const edges: OntologyEdge[] = [];
+  let forcedCenterNode: OntologyNode | undefined = undefined;
 
   if (entries.length === 0) {
     if (customData && customData.customNodes.length > 0) {
@@ -346,6 +348,123 @@ export function buildSignalGraph(
 
     // (DeletedEdges processing moved to the end of custom mapping to catch customParent generated edges)
 
+    // 4.9. Topology-driven Hierarchical Reparenting (자동 계층형 부모 승격 알고리즘)
+    forcedCenterNode = customData ? nodes.find(n => customData.overrides[n.id]?.customOrbitIndex === 0) : undefined;
+
+    // 대상: parentId가 없거나 대분류 태그 ID('tag-')/중앙 노드인 모든 노드 (태그/루트 본인 제외)
+    const leafNodesForReparent = nodes.filter(n => {
+      if (n.id.startsWith('tag-') || n.id === 'root-HCHPS' || (forcedCenterNode && n.id === forcedCenterNode.id)) {
+        return false;
+      }
+      const currentParent = n.parentId;
+      return !currentParent || currentParent.startsWith('tag-') || currentParent === 'root-HCHPS' || (forcedCenterNode && currentParent === forcedCenterNode.id);
+    });
+    
+    // 리프 노드들 간에 연결된 엣지 관계 파악 (양방향 지원을 위한 세트 구성)
+    const connectedPairs = new Set<string>();
+    edges.forEach(e => {
+      if (
+        e.type === 'DEPENDENCY' ||
+        e.type === 'CAUSAL_DRIVE' ||
+        e.type === 'COMPONENTS' ||
+        e.type === 'BUDGET_SOURCE'
+      ) {
+        connectedPairs.add(`${e.source}|||${e.target}`);
+        connectedPairs.add(`${e.target}|||${e.source}`);
+      }
+    });
+
+    // 순환 참조(Cycle)를 검사하는 DFS 헬퍼
+    const hasCycle = (startId: string, parentIdToSet: string): boolean => {
+      const visited = new Set<string>();
+      let curr = parentIdToSet;
+      while (curr) {
+        if (curr === startId) return true;
+        if (visited.has(curr)) break;
+        visited.add(curr);
+        const parentNode = nodes.find(n => n.id === curr);
+        curr = parentNode?.parentId || '';
+      }
+      return false;
+    };
+
+    // 계층 재배치 수행
+    leafNodesForReparent.forEach(nodeX => {
+      // 이미 customData.overrides에서 customParent를 수동 정의하고 있다면 스킵
+      const hasUserOverride = customData?.overrides[nodeX.id]?.customParent !== undefined;
+      if (hasUserOverride) return;
+
+      // nodeX를 가리키는 횡적 DEPENDENCY 등의 엣지를 보낸 source 노드(Y)들을 찾음
+      const parentCandidates: Array<{ nodeY: OntologyNode; score: number }> = [];
+
+      nodes.forEach(nodeY => {
+        if (nodeY.id === nodeX.id) return;
+        if (nodeY.id === 'root-HCHPS' || nodeY.id.startsWith('root-')) return;
+
+        let score = 0;
+
+        // 1. 엣지 연결성 점수 (양방향 엣지가 존재하는가?)
+        const hasEdge = connectedPairs.has(`${nodeY.id}|||${nodeX.id}`);
+        if (hasEdge) {
+          score += 15; // 엣지 연결 시 우선순위 가중치 15점 부여
+        }
+
+        // 2. 텍스트 포함 시맨틱 점수 (Y의 레이블이 X의 레이블에 부분 포함되는가?)
+        const labelX = nodeX.label || '';
+        const labelY = nodeY.label || '';
+
+        if (labelY.length > 1 && labelX.includes(labelY)) {
+          score += 15;
+        }
+        
+        // 특수한 시맨틱 텍스트 결합 문맥 가중치 추가
+        if (hasEdge && (
+          (labelX.includes('검진') && labelY.includes('체크업')) ||
+          (labelX.includes('비용') && labelY.includes('구매')) ||
+          (labelX.includes('회의록') && labelY.includes('회의'))
+        )) {
+          score += 5;
+        }
+
+        if (score > 0) {
+          parentCandidates.push({ nodeY, score });
+        }
+      });
+
+      if (parentCandidates.length > 0) {
+        parentCandidates.sort((a, b) => b.score - a.score);
+        const bestCandidate = parentCandidates[0].nodeY;
+
+        if (!hasCycle(nodeX.id, bestCandidate.id)) {
+          // 기존 부모, 태그 노드, 또는 중앙 노드와 nodeX 사이에 걸려있던 구조적 엣지 제거
+          const oldParentId = nodeX.parentId;
+          const centerId = forcedCenterNode ? forcedCenterNode.id : 'root-HCHPS';
+          
+          for (let i = edges.length - 1; i >= 0; i--) {
+            const e = edges[i];
+            if (e.target === nodeX.id && !((e as PartialOntologyEdge).isCustom)) {
+              if (e.source === oldParentId || e.source === centerId || e.source.startsWith('tag-')) {
+                edges.splice(i, 1);
+              }
+            }
+          }
+
+          nodeX.parentId = bestCandidate.id;
+
+          // 새로운 부모-자식 연결 엣지 추가
+          const hasEdge = edges.some(e => e.source === bestCandidate.id && e.target === nodeX.id);
+          if (!hasEdge) {
+            edges.push({
+              source: bestCandidate.id,
+              target: nodeX.id,
+              weight: 0.7,
+              type: 'DEPENDENCY',
+            });
+          }
+        }
+      }
+    });
+
     // Apply Overrides (Pins, Colors, Labels, Groups)
     nodes.forEach(n => {
       const override = customData.overrides[n.id];
@@ -423,7 +542,6 @@ export function buildSignalGraph(
   let finalEdges = edges;
 
   // 5. Center Node Override Processing (Hijack Root Mode)
-  const forcedCenterNode = finalNodes.find(n => customData?.overrides[n.id]?.customOrbitIndex === 0);
   if (forcedCenterNode) {
     forcedCenterNode.centralityScore = 9999999;
     forcedCenterNode.parentId = undefined;
@@ -586,5 +704,6 @@ export function buildSignalGraph(
   });
 
   console.log('[DEBUG] buildSignalGraph END. finalNodes.length=', finalNodes.length, 'finalEdges.length=', finalEdges.length);
-  return { nodes: finalNodes, edges: finalEdges };
+  const scoredNodes = computeCentrality(finalNodes, finalEdges);
+  return { nodes: scoredNodes, edges: finalEdges };
 }

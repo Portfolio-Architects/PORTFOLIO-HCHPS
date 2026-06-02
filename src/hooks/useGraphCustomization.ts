@@ -481,6 +481,65 @@ export function useGraphCustomization() {
     return () => clearTimeout(timer);
   }, [data, syncToCloud]);
 
+  // 3초 간격 백엔드 로컬 DB 실시간 폴링 및 Yjs CRDT 실시간 병합
+  useEffect(() => {
+    if (!isCloudLoaded) return;
+    let active = true;
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const { readSheet } = await import('@/lib/sheets-api');
+        const rows = await readSheet<MapCustomizationData & { id: string }>('MAP_CUSTOMIZATION');
+        
+        if (rows && rows.length > 0 && rows[0].id === 'singleton' && active) {
+          const dbData = rows[0];
+          
+          ydoc.transact(() => {
+            const customNodesMap = ydoc.getMap('customNodesMap') as Y.Map<OntologyNode>;
+            const customEdgesMap = ydoc.getMap('customEdgesMap') as Y.Map<OntologyEdge>;
+            
+            let changed = false;
+
+            // 1. 신규 노드 추가
+            if (dbData.customNodes) {
+              dbData.customNodes.forEach((n: OntologyNode) => {
+                if (!customNodesMap.has(n.id)) {
+                  customNodesMap.set(n.id, n);
+                  changed = true;
+                  console.info(`[Watcher Poll] AI 신규 노드 감지 및 화면 병합: ${n.label} (${n.id})`);
+                }
+              });
+            }
+            
+            // 2. 신규 엣지 추가
+            if (dbData.customEdges) {
+              dbData.customEdges.forEach((e: OntologyEdge) => {
+                const k = `${e.source}|||${e.target}`;
+                const r = `${e.target}|||${e.source}`;
+                if (!customEdgesMap.has(k) && !customEdgesMap.has(r)) {
+                  customEdgesMap.set(k, e);
+                  changed = true;
+                  console.info(`[Watcher Poll] AI 신규 관계 감지 및 화면 병합: ${e.source} -> ${e.target}`);
+                }
+              });
+            }
+
+            if (changed) {
+              console.log('[Watcher Poll] Yjs 데이터 실시간 동기화 완료.');
+            }
+          });
+        }
+      } catch (err) {
+        console.error('[Watcher Poll Error] Failed to auto-sync watcher DB:', err);
+      }
+    }, 3000);
+
+    return () => {
+      active = false;
+      clearInterval(pollInterval);
+    };
+  }, [ydoc, isCloudLoaded]);
+
   return {
     ...data,
     isCloudLoaded,

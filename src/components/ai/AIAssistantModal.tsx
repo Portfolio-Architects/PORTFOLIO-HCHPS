@@ -161,15 +161,55 @@ export function AIAssistantModal({ isOpen, onClose, contextData, appMode = 'VITA
           subgraphNodeIds.has(edge.source) && subgraphNodeIds.has(edge.target)
         );
 
-        // 노드 레이블 맵 작성
+        // 노드 레이블 및 레이어 정보 맵 작성
         const nodeLabelMap = new Map<string, string>();
-        graph.nodes.forEach(n => nodeLabelMap.set(n.id, n.label || n.id));
+        const nodeLayerMap = new Map<string, string>();
+        
+        const layerLabels: Record<number, string> = {
+          0: 'L0:인물/조직',
+          1: 'L1:예산/비품',
+          2: 'L2:업무/회의',
+          3: 'L3:위키/문서'
+        };
 
-        // SPO 트리플 생성
+        const getLayerLabel = (n: any) => {
+          let layerId = 3;
+          if (n.layerId !== undefined && n.layerId !== null) {
+            layerId = Number(n.layerId);
+          } else {
+            const label = n.label || '';
+            const id = n.id || '';
+            if (/[가-힣]+ (이사|대리|부장|과장|사원|담당|대표|팀장|주임)/.test(label) || label.endsWith('님') || id.startsWith('user_') || id.includes('person')) {
+              layerId = 0;
+            } else if (label.includes('예산') || label.includes('비용') || label.includes('구매') || label.includes('임대') || label.includes('비품') || label.includes('원') || id.includes('budget') || id.includes('inventory')) {
+              layerId = 1;
+            } else if (label.includes('회의') || label.includes('개발') || label.includes('추진') || label.includes('기획') || label.includes('구축') || label.includes('작업') || id.startsWith('task-') || id.startsWith('project-') || id.startsWith('meeting-')) {
+              layerId = 2;
+            }
+          }
+          return layerLabels[layerId] || 'L3:위키/문서';
+        };
+
+        subgraphNodes.forEach(n => {
+          nodeLabelMap.set(n.id, n.label || n.id);
+          nodeLayerMap.set(n.id, getLayerLabel(n));
+        });
+
+        // 1. 노드 목록 및 레이어 구조 텍스트 생성
+        const nodeLayerText = subgraphNodes.map(n => {
+          const label = nodeLabelMap.get(n.id);
+          const layerName = nodeLayerMap.get(n.id);
+          return `- [노드] ${label} (${layerName})`;
+        }).join('\n    ');
+
+        // 2. SPO 트리플 생성
         const triples: string[] = [];
         subgraphEdges.forEach(edge => {
           const sLabel = nodeLabelMap.get(edge.source);
           const tLabel = nodeLabelMap.get(edge.target);
+          const sLayer = nodeLayerMap.get(edge.source);
+          const tLayer = nodeLayerMap.get(edge.target);
+          
           if (sLabel && tLabel) {
             let relType: string = edge.type || '연결';
             if (edge.type === 'DEPENDENCY') relType = '의존성';
@@ -179,7 +219,7 @@ export function AIAssistantModal({ isOpen, onClose, contextData, appMode = 'VITA
             else if (edge.type === 'BUDGET_SOURCE') relType = '예산원천';
             else if (edge.type === 'COMPONENTS') relType = '구성요소';
             
-            triples.push(`- [관계] ${sLabel} --(${relType})--> ${tLabel}`);
+            triples.push(`- [관계] ${sLabel}(${sLayer}) --(${relType})--> ${tLabel}(${tLayer})`);
           }
         });
 
@@ -188,6 +228,9 @@ export function AIAssistantModal({ isOpen, onClose, contextData, appMode = 'VITA
 
         // XML 조각 빌드
         knowledgeGraphText = `<knowledge_graph>\n`;
+        if (nodeLayerText) {
+          knowledgeGraphText += `  <nodes>\n    ${nodeLayerText}\n  </nodes>\n`;
+        }
         if (triples.length > 0) {
           knowledgeGraphText += `  <relations>\n    ${triples.join('\n    ')}\n  </relations>\n`;
         } else {

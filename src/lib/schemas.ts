@@ -118,12 +118,37 @@ export const ProjectSchema = z.object({
   updatedAt: z.string().catch(new Date().toISOString()),
 });
 
+export const ExternalDocSchema = z.object({
+  id: z.string().catch('unknown-doc-id'),
+  name: z.string().catch('문서 이름 없음'),
+  path: z.string().catch(''),
+  size: z.number().catch(0),
+  lastModified: z.string().catch(new Date().toISOString()),
+  content: z.string().optional().catch(''),
+  parsedAt: z.string().optional().catch(''),
+  layerId: z.number().default(3).catch(3), // 3: 위키/문서 레이어
+});
+
+export type ExternalDocDto = z.infer<typeof ExternalDocSchema>;
+
+export const ClassificationWordsSchema = z.object({
+  id: z.string().catch('classification_rules'),
+  agents: z.array(z.string()).default([]).catch([]),
+  resources: z.array(z.string()).default([]).catch([]),
+  executions: z.array(z.string()).default([]).catch([]),
+});
+
+export type ClassificationWordsDto = z.infer<typeof ClassificationWordsSchema>;
+
 export const getDomainSchema = (sheetName: string) => {
   switch (sheetName.toUpperCase()) {
     case 'TASKS': return TaskSchema;
     case 'BUDGET_CATEGORIES': return BudgetCategorySchema;
     case 'BUDGET_ENTRIES': return BudgetEntrySchema;
     case 'PROJECTS': return ProjectSchema;
+    case 'EXTERNAL_DOCS': return ExternalDocSchema;
+    case 'CLASSIFICATION_WORDS': return ClassificationWordsSchema;
     default: return z.any(); // Fallback for unstructured arrays
   }
 };
+

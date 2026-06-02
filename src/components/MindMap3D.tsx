@@ -17,11 +17,14 @@ import { MindMapInspector } from './MindMapInspector';
 import { MindMapHeader } from './mindmap/ui/MindMapHeader';
 import { MindMapHUD } from './mindmap/ui/MindMapHUD';
 import { useWikiStorage } from '@/hooks/useWikiStorage';
+import { extractSemanticGraph, mergeExtractedGraph } from '@/lib/engine/ontology-extractor';
+import { useYjsStore } from '@/hooks/useYjsStore';
+import { decryptPayload, isCryptoReady } from '@/lib/crypto';
 import {
   Radio, Loader2, RefreshCw, AlertTriangle, BookOpen,
   Circle, Link2, X, ChevronRight, ChevronUp, ChevronDown, Zap, Maximize2, Minimize2,
   Trash2, FileText, Edit2, Plus, Palette, PinOff, PlusSquare, Waypoints, Eraser, Play, Pause,
-  CheckCircle, Unlink, Crosshair, CloudUpload, CloudDownload, Printer, Search
+  CheckCircle, Unlink, Crosshair, CloudUpload, CloudDownload, Printer, Search, FolderOpen, Database
 } from 'lucide-react';
 
 
@@ -62,11 +65,102 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   const [isAddingNode, setIsAddingNode] = useState(false);
   const [newNodeName, setNewNodeName] = useState("");
   
+  // ── 수직 적층 온톨로지 레이어 필터 상태 ──
+  const [activeLayers, setActiveLayers] = useState<Set<number>>(new Set([0, 1, 2, 3]));
+  const activeLayersRef = useRef(activeLayers);
+  useEffect(() => {
+    activeLayersRef.current = activeLayers;
+    if (engineRef.current) {
+      engineRef.current.needsRedraw = true;
+    }
+  }, [activeLayers]);
+  
   // ── Node Search States ──
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [selectedSearchIndex, setSelectedSearchIndex] = useState(-1);
   const { overrides = {}, customNodes = [], customEdges = [], deletedEdges = [], undo, redo, setNodeOverride, batchSetNodeOverrides, clearNodeOverride, addCustomNode, deleteCustomNode, updateCustomNodeText, addCustomEdge, deleteCustomEdge, removeCustomTombstone, renameNodeId, clearOverrides, resetLayoutOverrides, clearAll, syncToCloud, fetchFromCloud, isCloudLoaded } = useGraphCustomization();
+  const { ydoc } = useYjsStore();
+
+  // ── Drive Scan States ──
+  const [isDriveScanOpen, setIsDriveScanOpen] = useState(false);
+  const [scannedFiles, setScannedFiles] = useState<any[]>([]);
+  const [isScanningFiles, setIsScanningFiles] = useState(false);
+  const [parsingFileId, setParsingFileId] = useState<string | null>(null);
+  const [extractionResult, setExtractionResult] = useState<any | null>(null);
+  const [selectedNodes, setSelectedNodes] = useState<Set<string>>(new Set());
+  const [selectedEdges, setSelectedEdges] = useState<Set<string>>(new Set());
+
+  // 로컬 드라이브 (바탕화면 및 F드라이브) 파일 스캔
+  const handleScanDrive = async () => {
+    setIsScanningFiles(true);
+    setExtractionResult(null);
+    try {
+      const res = await fetch('/api/drive');
+      const json = await res.json();
+      if (json.success) {
+        setScannedFiles(json.data);
+        setIsDriveScanOpen(true);
+      } else {
+        alert('로컬 파일 스캔 실패: ' + json.error);
+      }
+    } catch (e: any) {
+      alert('로컬 파일 스캔 오류: ' + e.message);
+    } finally {
+      setIsScanningFiles(false);
+    }
+  };
+
+  // 특정 파일 파싱 및 AI 시맨틱 추출
+  const handleParseAndExtract = async (file: any) => {
+    setParsingFileId(file.id);
+    setExtractionResult(null);
+    try {
+      const parseRes = await fetch('/api/drive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filePath: file.path }),
+      });
+      const parseJson = await parseRes.json();
+      if (!parseJson.success) {
+        throw new Error(parseJson.error || '로컬 파일 파싱 실패');
+      }
+
+      const textContent = parseJson.content;
+      if (!textContent || textContent.trim().length === 0) {
+        throw new Error('문서에서 텍스트 내용을 추출할 수 없습니다.');
+      }
+
+      // 속도와 API 한도를 위해 상위 3,500자로 제한하여 고속 추출
+      const extracted = await extractSemanticGraph(textContent.substring(0, 3500));
+      setExtractionResult(extracted);
+      
+      // 자동 전체 선택 초기화
+      setSelectedNodes(new Set(extracted.nodes.map((n: any) => n.id)));
+      setSelectedEdges(new Set(extracted.edges.map((e: any) => `${e.source}|||${e.target}`)));
+    } catch (e: any) {
+      alert('시맨틱 구조 추출 실패: ' + e.message);
+    } finally {
+      setParsingFileId(null);
+    }
+  };
+
+  // 최종 선택 데이터를 Yjs 온톨로지에 융합
+  const handleMergeToOntology = () => {
+    if (!extractionResult) return;
+    
+    const filteredNodes = extractionResult.nodes.filter((n: any) => selectedNodes.has(n.id));
+    const filteredEdges = extractionResult.edges.filter((e: any) => selectedEdges.has(`${e.source}|||${e.target}`));
+    
+    mergeExtractedGraph(ydoc, { nodes: filteredNodes, edges: filteredEdges });
+    
+    alert(`성공적으로 ${filteredNodes.length}개의 노드와 ${filteredEdges.length}개의 시맨틱 관계를 온톨로지에 융합 병합했습니다!`);
+    setExtractionResult(null);
+    setIsDriveScanOpen(false);
+    
+    // 리렌더링 격발
+    setTimeout(() => initEngine(), 50);
+  };
   useEffect(() => {
     const handleOpenWiki = (e: CustomEvent<{ id: string; label: string }>) => {
       // Find the actual node if it exists in the engine, otherwise mock enough properties for WikiEditor to work
@@ -108,6 +202,37 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
       setPerfMetrics(PerformanceProfiler.getInstance().getMetrics());
     }, 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const fetchClassificationWords = async () => {
+      try {
+        const res = await fetch('/api/data?sheet=CLASSIFICATION_WORDS');
+        const json = await res.json();
+        if (json.success && json.data && json.data[0]) {
+          const entry = json.data[0];
+          if (entry._enc) {
+            const decrypted = await decryptPayload<{ agents: string[], resources: string[], executions: string[] }>(entry._enc);
+            OntologyLayout.dynamicRules = decrypted;
+            if (engineRef.current) {
+              engineRef.current.needsRedraw = true;
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[MindMap3D] CLASSIFICATION_WORDS 로드 실패:', err);
+      }
+    };
+
+    window.addEventListener('crypto-ready', fetchClassificationWords);
+
+    if (isCryptoReady()) {
+      fetchClassificationWords();
+    }
+
+    return () => {
+      window.removeEventListener('crypto-ready', fetchClassificationWords);
+    };
   }, []);
 
   // ── Keyboard Shortcuts (Undo/Redo) ──
@@ -349,7 +474,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
       const isDirty = engine.tick();
       if (isDirty) {
         const t0 = performance.now();
-        engine.render(ctx, w, h);
+        engine.render(ctx, w, h, activeLayersRef.current);
         const t1 = performance.now();
         PerformanceProfiler.getInstance().recordRender(t1 - t0);
       }
@@ -588,6 +713,11 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
            const orderA = overrides[a.id]?.customSortOrder ?? 0;
            const orderB = overrides[b.id]?.customSortOrder ?? 0;
            if (orderA !== orderB) return orderA - orderB;
+           
+           const weightA = a.renderSize ?? 0.5;
+           const weightB = b.renderSize ?? 0.5;
+           if (weightB !== weightA) return weightB - weightA;
+           
            return a.label.localeCompare(b.label);
         })
         .map(n => n.id);
@@ -789,12 +919,26 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
               </div>
             </div>
           ) : (
-            <button
-              onClick={() => { setIsAddingNode(true); setNewNodeName(""); }}
-              className="w-full shrink-0 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-[var(--color-primary)] text-white text-sm font-semibold hover:opacity-90 shadow-sm border border-[var(--color-primary)] cursor-pointer transition-colors"
-            >
-              <PlusSquare size={16} /> 노드 추가
-            </button>
+            <div className="w-full shrink-0 flex gap-2">
+              <button
+                onClick={() => { setIsAddingNode(true); setNewNodeName(""); }}
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-[var(--color-primary)] text-white text-xs font-semibold hover:opacity-90 shadow-sm border border-[var(--color-primary)] cursor-pointer transition-colors"
+              >
+                <PlusSquare size={14} /> 노드 추가
+              </button>
+              <button
+                onClick={handleScanDrive}
+                disabled={isScanningFiles}
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-slate-800 text-white text-xs font-semibold hover:opacity-90 disabled:bg-slate-400 shadow-sm cursor-pointer transition-colors"
+              >
+                {isScanningFiles ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <FolderOpen size={14} />
+                )}
+                외부문서 스캔
+              </button>
+            </div>
           )}
           
           <div className="flex-1 min-h-0 relative">
@@ -815,10 +959,13 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
           ref={containerRef}
           className={
             isFullscreen 
-              ? 'fixed inset-0 z-[100] bg-[#f8f9fc]' 
+              ? 'fixed inset-0 z-[100]' 
               : 'relative rounded-xl overflow-hidden border border-[var(--color-border-light)] order-1 lg:order-none flex-1 aspect-square md:aspect-auto md:h-[min(600px,70vh)]'
           }
-          style={{ backgroundColor: '#f8f9fc', ...(isFullscreen ? { height: '100vh' } : {}) }}
+          style={{
+            background: 'radial-gradient(circle at center, rgba(255, 255, 255, 0.9) 0%, #f8fafc 100%)',
+            ...(isFullscreen ? { height: '100vh' } : {})
+          }}
         >
           <canvas
             ref={canvasRef}
@@ -1014,6 +1161,240 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                 onClose={() => setIsWikiOpen(false)} 
                 addCustomEdge={addCustomEdge}
               />
+            </div>
+          )}
+
+          {/* ── 온톨로지 레이어 필터 (좌측 하단) ── */}
+          <div className="absolute bottom-4 left-4 z-20 flex flex-col gap-1.5 p-3 rounded-xl bg-white/80 backdrop-blur-md border border-slate-200/50 shadow-lg pointer-events-auto min-w-[170px]">
+            <span className="text-[11px] font-bold text-slate-800 mb-1 flex items-center gap-1.5">
+              <Waypoints size={12} className="text-[var(--color-primary)]" />
+              수직 레이어 필터
+            </span>
+            {[0, 1, 2, 3].map((layerId) => {
+              const layerLabels: Record<number, string> = {
+                0: '인물 (Agent)',
+                1: '예산/비품 (Resource)',
+                2: '업무/회의 (Execution)',
+                3: '위키/문서 (Knowledge)'
+              };
+              const layerColors: Record<number, string> = {
+                0: 'border-blue-200 bg-blue-50/50 text-blue-700',
+                1: 'border-emerald-200 bg-emerald-50/50 text-emerald-700',
+                2: 'border-violet-200 bg-violet-50/50 text-violet-700',
+                3: 'border-amber-200 bg-amber-50/50 text-amber-700'
+              };
+              const isChecked = activeLayers.has(layerId);
+              return (
+                <button
+                  key={layerId}
+                  onClick={() => {
+                    const next = new Set(activeLayers);
+                    if (next.has(layerId)) {
+                      if (next.size > 1) next.delete(layerId); // 최소 1개는 활성화 상태 유지
+                    } else {
+                      next.add(layerId);
+                    }
+                    setActiveLayers(next);
+                  }}
+                  className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition-all cursor-pointer select-none text-left ${
+                    isChecked 
+                      ? layerColors[layerId] 
+                      : 'border-slate-200 bg-slate-50/50 text-slate-400 opacity-60 hover:opacity-90'
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${
+                    isChecked 
+                      ? (layerId === 0 ? 'bg-blue-500' : layerId === 1 ? 'bg-emerald-500' : layerId === 2 ? 'bg-violet-500' : 'bg-amber-500') 
+                      : 'bg-slate-300'
+                  }`} />
+                  {layerLabels[layerId]}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* ── 외부 문서 스캔 및 시맨틱 융합 모달 (Drive Scan Modal) ── */}
+          {isDriveScanOpen && (
+            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm z-[200] flex items-center justify-center p-6 pointer-events-auto">
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                
+                {/* 모달 헤더 */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+                  <div className="flex items-center gap-2">
+                    <FolderOpen size={20} className="text-slate-700" />
+                    <h3 className="font-bold text-slate-800 text-base">외부 문서 스캔 & 시맨틱 온톨로지 융합</h3>
+                  </div>
+                  <button 
+                    onClick={() => { setIsDriveScanOpen(false); setExtractionResult(null); }}
+                    className="p-1 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                {/* 모달 본문 */}
+                <div className="flex-1 overflow-y-auto p-6 custom-scrollbar grid grid-cols-1 md:grid-cols-2 gap-6 min-h-0">
+                  
+                  {/* 왼쪽: 파일 목록 */}
+                  <div className="flex flex-col gap-3 min-h-0 border-r border-slate-100 pr-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-500">바탕화면 및 로컬 드라이브(F) 탐색 파일 ({scannedFiles.length})</span>
+                      <button 
+                        onClick={handleScanDrive} 
+                        className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors flex items-center gap-1 text-[10px] font-semibold border border-slate-200"
+                      >
+                        <RefreshCw size={10} /> 새로고침
+                      </button>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                      {scannedFiles.length === 0 ? (
+                        <div className="text-center py-12 text-slate-400 text-xs font-medium">
+                          스캔된 지원 문서가 없습니다.
+                        </div>
+                      ) : (
+                        scannedFiles.map((file) => {
+                          const isParsing = parsingFileId === file.id;
+                          return (
+                            <div 
+                              key={file.id} 
+                              className="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200/50 rounded-xl flex flex-col gap-2 transition-colors duration-150"
+                            >
+                              <div className="flex items-start gap-2.5 min-w-0">
+                                <FileText size={16} className="text-slate-500 mt-0.5 shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-xs font-bold text-slate-800 truncate" title={file.name}>{file.name}</div>
+                                  <div className="text-[9px] text-slate-400 font-mono truncate" title={file.path}>{file.path}</div>
+                                </div>
+                              </div>
+                              <div className="flex items-center justify-between gap-2 mt-1">
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                  {(file.size / 1024).toFixed(1)} KB
+                                </span>
+                                <button
+                                  onClick={() => handleParseAndExtract(file)}
+                                  disabled={parsingFileId !== null}
+                                  className="px-2.5 py-1.5 bg-slate-800 text-white text-[10px] font-bold rounded-lg hover:opacity-90 disabled:bg-slate-300 flex items-center gap-1 transition-opacity cursor-pointer"
+                                >
+                                  {isParsing ? (
+                                    <>
+                                      <Loader2 size={10} className="animate-spin" /> AI 추출중...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Zap size={10} /> 시맨틱 추출
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 오른쪽: AI 추출된 시맨틱 미리보기 및 선택 */}
+                  <div className="flex flex-col gap-4 min-h-0">
+                    <span className="text-xs font-bold text-slate-500">AI 시맨틱 요소 융합 검토</span>
+
+                    {!extractionResult ? (
+                      <div className="flex-1 flex flex-col items-center justify-center border border-dashed border-slate-200 rounded-2xl bg-slate-50/50 text-slate-400 p-6 text-center">
+                        <Database size={32} className="text-slate-300 mb-2" />
+                        <p className="text-xs font-medium">왼쪽 목록에서 파일의<br />[시맨틱 추출] 버튼을 눌러주세요.</p>
+                      </div>
+                    ) : (
+                      <div className="flex-1 flex flex-col min-h-0 gap-3">
+                        
+                        {/* 추출된 노드 목록 */}
+                        <div className="flex-1 min-h-0 flex flex-col border border-slate-100 rounded-xl p-3 bg-slate-50/30 animate-in fade-in duration-200">
+                          <span className="text-[10px] font-bold text-slate-400 mb-2">추출 노드 ({extractionResult.nodes.length})</span>
+                          <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
+                            {extractionResult.nodes.map((node: any) => {
+                              const isChecked = selectedNodes.has(node.id);
+                              const groupColor = GROUP_COLORS[node.group as OntologyGroup] || '#ccc';
+                              const groupLabel = GROUP_LABELS[node.group as OntologyGroup] || '기타';
+                              return (
+                                <label 
+                                  key={node.id}
+                                  className="flex items-center gap-2 p-2 bg-white border border-slate-200/60 rounded-lg text-xs cursor-pointer select-none hover:bg-slate-50"
+                                >
+                                  <input 
+                                    type="checkbox" 
+                                    checked={isChecked}
+                                    onChange={() => {
+                                      const next = new Set(selectedNodes);
+                                      if (next.has(node.id)) next.delete(node.id);
+                                      else next.add(node.id);
+                                      setSelectedNodes(next);
+                                    }}
+                                    className="rounded border-slate-300 text-[var(--color-primary)] focus:ring-[var(--color-primary)]/20"
+                                  />
+                                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: groupColor }} />
+                                  <span className="font-bold text-slate-700 flex-1 truncate">{node.label}</span>
+                                  <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-mono shrink-0">
+                                    {groupLabel} (L{node.layerId})
+                                  </span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* 추출된 관계 엣지 목록 */}
+                        <div className="flex-1 min-h-0 flex flex-col border border-slate-100 rounded-xl p-3 bg-slate-50/30 animate-in fade-in duration-200">
+                          <span className="text-[10px] font-bold text-slate-400 mb-2">추출 관계 ({extractionResult.edges.length})</span>
+                          <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
+                            {extractionResult.edges.map((edge: any) => {
+                              const edgeKey = `${edge.source}|||${edge.target}`;
+                              const isChecked = selectedEdges.has(edgeKey);
+                              const srcNode = extractionResult.nodes.find((n: any) => n.id === edge.source);
+                              const tgtNode = extractionResult.nodes.find((n: any) => n.id === edge.target);
+                              const relationship = EDGE_TYPE_LABELS[edge.type as EdgeType] || edge.type;
+                              
+                              return (
+                                <label 
+                                  key={edgeKey}
+                                  className="flex items-center gap-2 p-2 bg-white border border-slate-200/60 rounded-lg text-[10px] cursor-pointer select-none hover:bg-slate-50"
+                                >
+                                  <input 
+                                    type="checkbox" 
+                                    checked={isChecked}
+                                    onChange={() => {
+                                      const next = new Set(selectedEdges);
+                                      if (next.has(edgeKey)) next.delete(edgeKey);
+                                      else next.add(edgeKey);
+                                      setSelectedEdges(next);
+                                    }}
+                                    className="rounded border-slate-300 text-[var(--color-primary)] focus:ring-[var(--color-primary)]/20"
+                                  />
+                                  <div className="flex-1 min-w-0 flex items-center gap-1 font-medium text-slate-600 truncate">
+                                    <span className="font-bold text-slate-800 truncate">{srcNode?.label || edge.source}</span>
+                                    <span className="text-slate-400 font-mono text-[9px] shrink-0">({relationship})</span>
+                                    <span className="text-slate-400 shrink-0">→</span>
+                                    <span className="font-bold text-slate-800 truncate">{tgtNode?.label || edge.target}</span>
+                                  </div>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* 모달 융합 실행 버튼 */}
+                        <button
+                          onClick={handleMergeToOntology}
+                          disabled={selectedNodes.size === 0}
+                          className="w-full py-2.5 bg-[var(--color-primary)] disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl hover:opacity-90 shadow-sm transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                        >
+                          <Database size={14} />
+                          선택한 {selectedNodes.size}개 시맨틱 요소 융합
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+              </div>
             </div>
           )}
 

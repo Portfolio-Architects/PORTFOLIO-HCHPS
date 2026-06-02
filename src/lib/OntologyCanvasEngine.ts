@@ -43,7 +43,10 @@ export class OntologyCanvasEngine {
   zoom = 1;
   targetZoom = 1;
   public needsRedraw: boolean = true;
+  public layoutWorldGeometryDirty: boolean = true;
   public cameraOffsetX = 0;
+  private activeTreeSetCache: Set<string> = new Set();
+  private lastActiveNodeIdForTree: string | null = null;
   cameraOffsetY = 0;
   targetOffsetX = 0;
   targetOffsetY = 0;
@@ -91,6 +94,7 @@ export class OntologyCanvasEngine {
       this.edges = graph.edges;
       this.nodeCount = graph.nodes.length;
       this.edgeCount = graph.edges.length;
+      this.layoutWorldGeometryDirty = true;
   
       // 메모리에 잔존하는 NaN 카메라 좌표를 초기화하여 복구 (Hot Reload 시 캔버스 백화현상 방지)
       if (isNaN(this.cameraOffsetX) || isNaN(this.cameraOffsetY) || 
@@ -360,6 +364,8 @@ export class OntologyCanvasEngine {
       this.needsRedraw = false;
     }
 
+    // 활성 노드/호버 펄스 애니메이션 소거에 따른 강제 리드로잉 조건 제거
+
     return isDirty;
   }
 
@@ -367,7 +373,12 @@ export class OntologyCanvasEngine {
 
   // ============ Compute Positions ============
 
-    private computePositions(canvasW: number, canvasH: number): void {
+  private computePositions(canvasW: number, canvasH: number, activeLayers?: Set<number>): void {
+    const isCameraMoving = Math.abs(this.targetOffsetX - this.cameraOffsetX) > 1.0 || 
+                           Math.abs(this.targetOffsetY - this.cameraOffsetY) > 1.0 ||
+                           Math.abs(this.targetZoom - this.zoom) > 0.01;
+    const isInteractive = this.isDragging || isCameraMoving;
+
     OntologyLayout.computePositions(
       this.nodes,
       this.nodeMap,
@@ -377,8 +388,12 @@ export class OntologyCanvasEngine {
       this.cameraOffsetX,
       this.cameraOffsetY,
       this.zoom,
-      this.collapsedNodeIds
+      this.collapsedNodeIds,
+      activeLayers,
+      isInteractive,
+      this.layoutWorldGeometryDirty
     );
+    this.layoutWorldGeometryDirty = false;
 
     // Apply pending camera tracking instantly (after positions are known)
     if (this.pendingCameraTargetId) {
@@ -386,12 +401,21 @@ export class OntologyCanvasEngine {
       if (target && typeof target.worldX === 'number' && !isNaN(target.worldX) && 
           typeof target.worldY === 'number' && !isNaN(target.worldY)) {
         
-        // 중심 노드를 화면의 중앙에 배치 (모바일 화면 등에서 좌측에 쏠리지 않도록 50% 위치에 배치)
-        const screenCenterX = canvasW * 0.5; 
-        const screenCenterY = canvasH / 2;
-        
-        const snapX = screenCenterX - (canvasW / 2) - (target.worldX * this.zoom);
-        const snapY = screenCenterY - (canvasH / 2) - (target.worldY * this.zoom);
+        // 3D Perspective Projection을 반영하여 스크린 상 노드의 실제 2D 투영 정중앙 위치로 카메라 스냅 보정
+        const effectiveLayer = target.effectiveLayer ?? 3;
+        const LAYER_GAP = 190;
+        const tiltAngle = 42 * Math.PI / 180;
+        const cameraDist = 1000;
+
+        const h = effectiveLayer * LAYER_GAP;
+        const depthH = effectiveLayer * LAYER_GAP;
+
+        const rotatedY = target.worldY * Math.cos(tiltAngle) - h * Math.sin(tiltAngle);
+        const depth = -target.worldY * Math.sin(tiltAngle) + depthH * Math.cos(tiltAngle);
+        const perspectiveScale = cameraDist / (cameraDist + depth);
+
+        const snapX = -(target.worldX * this.zoom * perspectiveScale);
+        const snapY = -(rotatedY * this.zoom * perspectiveScale);
         
         if (!isNaN(snapX) && !isNaN(snapY)) {
           this.targetOffsetX = snapX;
@@ -412,7 +436,10 @@ export class OntologyCanvasEngine {
               this.cameraOffsetX,
               this.cameraOffsetY,
               this.zoom,
-              this.collapsedNodeIds
+              this.collapsedNodeIds,
+              activeLayers,
+              isInteractive,
+              this.layoutWorldGeometryDirty // will be false since we reset it above
             );
           }
         }
@@ -423,10 +450,10 @@ export class OntologyCanvasEngine {
 
   // ============ Render ============
 
-  render(ctx: CanvasRenderingContext2D, width: number, height: number): void {
+  render(ctx: CanvasRenderingContext2D, width: number, height: number, activeLayers?: Set<number>): void {
     this.canvasW = width;
     this.canvasH = height;
-    this.computePositions(width, height);
+    this.computePositions(width, height, activeLayers);
 
     OntologyRenderer.render({
       ctx,
@@ -443,13 +470,27 @@ export class OntologyCanvasEngine {
       centerNode: this.centerNode,
       sortedNodesBuffer: this.sortedNodes,
       collapsedNodeIds: this.collapsedNodeIds,
+      cameraOffsetX: this.cameraOffsetX,
+      cameraOffsetY: this.cameraOffsetY,
+      activeLayers: activeLayers
     });
   }
 
   public getActiveTreeSet(): Set<string> {
     const rootId = this.activeNode?.id;
-    if (!rootId) return new Set();
-    return OntologyNetwork.getActiveTreeSet(rootId, this.nodeMap, this.edges);
+    if (!rootId) {
+      if (this.activeTreeSetCache.size > 0) this.activeTreeSetCache.clear();
+      this.lastActiveNodeIdForTree = null;
+      return this.activeTreeSetCache;
+    }
+    
+    // activeNodeId가 변경되었거나, 레이아웃/더티 상태일 때만 트리 탐색 재연산
+    if (this.lastActiveNodeIdForTree !== rootId || this.layoutWorldGeometryDirty) {
+      this.activeTreeSetCache = OntologyNetwork.getActiveTreeSet(rootId, this.nodeMap, this.edges);
+      this.lastActiveNodeIdForTree = rootId;
+    }
+    
+    return this.activeTreeSetCache;
   }
   // ============ Interaction ============
 
@@ -547,6 +588,7 @@ export class OntologyCanvasEngine {
       
       // 항상 활성화된 노드 단위를 바라보도록 카메라 패닝 지정
       this.pendingCameraTargetId = this.activeNode?.id || null;
+      this.layoutWorldGeometryDirty = true;
     } else {
       // 바탕 배경 클릭 시 활성 상태 유지 (선택이 풀리지 않도록 함)
       // this.activeNode = this.centerNode;
@@ -558,6 +600,7 @@ export class OntologyCanvasEngine {
 
   expandAll(): void {
     this.collapsedNodeIds.clear();
+    this.layoutWorldGeometryDirty = true;
     this.needsRedraw = true;
   }
 
@@ -582,6 +625,7 @@ export class OntologyCanvasEngine {
          }
        }
     }
+    this.layoutWorldGeometryDirty = true;
     this.needsRedraw = true;
   }
 

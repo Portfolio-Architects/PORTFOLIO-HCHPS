@@ -71,12 +71,22 @@ export const EDGE_TYPE_LABELS: Record<EdgeType, string> = {
 
 // ============ Node ============
 
+export type OntologyLayerId = 0 | 1 | 2 | 3;
+
+export const LAYER_LABELS: Record<OntologyLayerId, string> = {
+  0: '인물 (Agent)',
+  1: '예산/비품 (Resource)',
+  2: '업무/회의 (Execution)',
+  3: '위키/문서 (Knowledge)',
+};
+
 export interface OntologyNode {
   id: string;
   label: string;
   group: OntologyGroup;
   baseValue: number;           // 0-100, user-input importance
   parentId?: string;           // Optional parent ID for radial branch alignment
+  layerId?: OntologyLayerId;   // 0: 인물, 1: 예산/비품, 2: 업무/회의, 3: 위키/문서
   // === User Overrides ===
   fixedX?: number;             // User pinned X coordinate
   fixedY?: number;             // User pinned Y coordinate
@@ -93,6 +103,8 @@ export interface OntologyNode {
   renderSize?: number;         // blended size (0-1)
   netWeight?: number;          // sum of signed edge weights
   isHedge?: boolean;           // true if netWeight < 0
+  riskFactor?: number;         // accumulated risk impact (0-1)
+  effectiveLayer?: number;     // cached layer id for rendering and physics
   _cachedTextWidth?: Record<string, number>; // canvas layout rendering optimization cache
 }
 
@@ -110,7 +122,8 @@ export interface OrbitalNode extends OntologyNode {
   renderZ: number;             // depth (-1 to 1)
   connectionToCenter: number;  // connection weight to center node
   nodeRadius: number;          // pixel radius
-  layoutHidden?: boolean;      // true if hidden by parent collapse
+  layoutHidden?: boolean;      // true if hidden by parent collapse or layer filter
+  topoHidden?: boolean;        // true if hidden topologically by parent collapse
 }
 
 // ============ Edge ============

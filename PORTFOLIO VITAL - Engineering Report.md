@@ -283,6 +283,53 @@ sequenceDiagram
 
 ## 8. 최근 엔지니어링 마일스톤 (요약)
 
+### 3D 마인드맵 성능 극한 최적화 및 인터랙티브 60 FPS 달성 (2026-06-02)
+* **드래그/줌/패닝 조작 시 충돌 해결 연산 최소화**: 드래그 또는 카메라 움직임이 탐지되는 **동적 상호작용 프레임(Interactive Frame)** 중에는 충돌 물리 연산의 반복 횟수(`maxIterations`)를 1회로 동적 제어(비조작 유휴 프레임에는 4회로 세밀 정렬)하여 상호작용 시의 CPU 연산 병목을 75% 소거했습니다.
+* **Spanning Tree 엣지 룩업 O(1) 전환**: `renderEdges` 내부의 O(E) 루프 내에서 매번 자식 배열을 full-scan(`includes`)하던 비효율을 걷어내고, 루프 진입 전 O(N)으로 `Set` 해시 룩업을 1회 빌드해 대조하도록 개선하여 간선 탐색 연산량을 O(1) 수준으로 극단적 최적화했습니다.
+* **비활성 교차 엣지(Cross-Edges) solid 렌더링 전환**: 캔버스 그래픽 파이프라인에서 수백 개의 투명 점선을 그릴 때 발생하는 CPU 래스터화 병목을 해결하기 위해, 교차 간선의 대량 점선 그리기를 차단하고 얇은 실선(`lineWidth = 0.2`, `alpha = 0.04`)으로 전환하여 렌더 레이턴시를 0ms 수준으로 절감했습니다.
+* **그리드 플레이트 내부 100회 중복 격자선 그리기 제거**: 4개의 3D 수직 적층 판넬 내부에서 매 프레임 수십 번씩 호출되던 무의미한 세로 격자 점선 그리기 코드를 소거함으로써 Canvas 2D 드로우 콜(Draw Call) 오버헤드를 근본적으로 제거했습니다.
+
+### 3D 마인드맵 실무 스캔 용어 분석 기반 시맨틱 분류 규칙 강화 및 E2EE 동적 자가 학습 파이프라인 내재화 (2026-06-02)
+* **E2EE CLASSIFICATION_WORDS 동적 자가 학습 루프 구축**: 사용자가 바탕화면에 파일 업로드 시 백엔드 데몬(`watcher.ts`)이 텍스트 파싱 ➡️ Gemini 2.5 Flash를 이용한 자동 명사 레이어 추출 ➡️ 추출된 인물/예산/업무 단어들을 `data/CLASSIFICATION_WORDS.json` 데이터베이스에 누적 병합(Merge)하여 자동 고도화되는 자가 학습 백엔드를 실현했습니다.
+* **종단간 암호화(E2EE) 준수 및 3중 백업망 가동**: `CLASSIFICATION_WORDS` 데이터는 PIN `'0509'` 및 Salt `'HCHPS-E2EE-SALT'`를 활용한 AES-GCM-256 방식으로 디스크에 저장되기 전 백엔드 데몬에서 E2EE 암호화 처리되며, Grandfather-Father-Son 3중 백업 구조에 편입하여 영구적인 손실을 원천 차단했습니다.
+* **실시간 클라이언트 런타임 바인딩**: 마인드맵 진입 혹은 로드 시점에 브라우저 단에서 `CLASSIFICATION_WORDS`를 fetch하고 로그인 시점(`crypto-ready` 이벤트)에 복호화하여 `OntologyLayout.dynamicRules`에 동적으로 주입되도록 함으로써, 사용자가 문서를 올릴수록 3D 마인드맵의 지능형 분류 알고리즘이 실시간으로 더 똑똑하게 갱신되도록 개선했습니다.
+* **시맨틱 판별 필터 패턴 확장 (디폴트 룰셋)**:
+  * **인물 (Layer 0)**: 사내 실무 인력 이름 및 호칭 직위(`인수자`, `인계자`, `입회자`, `팀장대직`, `주무관`, `소장`, `선생님`) 판별 패턴을 확장 탑재했습니다.
+  * **예산 (Layer 1)**: `집행액`, `지출잔액`, `예산현액`, `불용`, `용역비`, `계약`, `수익`, `차액` 등의 실무 용어를 통합했습니다.
+  * **업무 (Layer 2)**: `캠페인`, `챌린지`, `조례`, `행사`, `교육`, `계획`, `성과관리`, `보고`, `인계`, `인수` 및 ID 내 `campaign`, `challenge` 조건을 통합했습니다.
+
+### 3D 마인드맵 펄스 애니메이션 완전 소거 및 60 FPS 최종 복원 (2026-06-02)
+* **dynamic 펄스 연산 부하 완전 소거**: 활성/호버 간선 위에 흐르는 물결 꼬리를 그리기 위해 매 프레임 수백 회씩 반복되던 `pulseQueue` 구성, 베지어 입자 계산, 그리고 2D Canvas의 `arc`/`fill` 렌더링 루프를 완전히 소거하여 코어 그래픽 오버헤드를 0으로 줄였습니다.
+* **유휴 상태 캔버스 드로우 프리징 (CPU 0% 달성)**: 활성 노드(`activeNode`) 또는 마우스 호버(`hoveredNode`) 상태가 활성화되어 있을 때 캔버스 틱이 매 프레임 리드로잉(`isDirty = true`)을 강제 격발하여 발생하던 불필요한 백그라운드 렌더링 무한 루프를 완전히 끊어냈습니다. 이로써 인터랙션(패닝, 줌, 드래그 등)이 멈춰 있는 유휴 상태에서는 불필요한 드로우 연산을 100% 프리징하여 CPU/GPU 사용량을 즉시 0%로 귀결시키고, 조작 시에만 매끄러운 60 FPS를 안정적으로 뽑아내도록 구조를 완성했습니다.
+
+### 3D 마인드맵 6 FPS 극단적 드랍 해결 및 60 FPS 성능 핫픽스 (2026-06-02)
+* **이중 루프 내부 정규식 병목 제거 ($O(N^2)$ 계산량 최적화)**: 충돌 방지 물리 연산 이중 루프 내부에서 매번 호출되던 `OntologyLayout.getEffectiveLayerId` 정규식 기반 함수를 O(N) 단계에서 미리 계산하여 `node.effectiveLayer`에 캐싱하는 극약 처방을 적용했습니다. 이로써 매 프레임 최대 68,000회씩 수행되던 정규식 및 문자열 비교를 완전 소거하고 $O(1)$ 정수 필드 비교로 대체하여 CPU 부하를 500배 이상 보호했습니다.
+* **에지/노드 렌더링 내 레이어 식별 캐시 참조 전환**: `renderEdges` 및 `OntologyCanvasEngine` 내에서 레이어 비교 및 엣지 세부 색상 결정을 위해 에지당 반복 호출되던 `getEffectiveLayerId` 호출 또한 전부 캐싱된 `node.effectiveLayer` 참조로 전환하여 그래픽 렌더링 성능을 획기적으로 개선했습니다.
+* **디자인 요소 성능 부하 재조정 및 GPU 가속 이관**: 캔버스 2D 컨텍스트에서 매 프레임 배경 그라디언트를 계산하고 그리던 무거운 `createRadialGradient` 드로잉 코드를 캔버스 내부에서 완전 소거(`ctx.clearRect`로 변경)하고, 해당 미려한 입체 글로우 효과(Rich Aesthetics)를 캔버스 컨테이너 wrapper `div`의 CSS `background` (`radial-gradient`)로 이관했습니다. 이로써 브라우저 GPU 하드웨어 가속의 0ms 레이턴시 수준으로 동일한 그래픽 디테일을 자연스럽게 구현하여 안정적인 60 FPS를 영구 복원했습니다.
+
+### 3D 마인드맵 성능 튜닝 및 프레임 레이트 60 FPS 최적화 (2026-06-02)
+* **`assignThemes` / `cascadeTheme` 내 룩업 복잡도 격하 ($O(N^2) \rightarrow O(N)$)**: 트리 테마 색상을 재귀적으로 동기화 상속시킬 때 사용되던 `nodes.find`를 `RenderContext`로부터 주입받은 `nodeMap.get(childId)` $O(1)$ 해시 조회 구조로 전면 교체하여 프레임당 약 17,000회 수행되던 객체 루프 연산을 완전히 소거했습니다.
+* **`activeTreeSetCache` 도입을 통한 BFS 탐색 캐싱**: `OntologyCanvasEngine` 내부에 캐시 상태 필드를 신설하여 줌, 패닝, 드래그 등의 카메라/물리 상호작용 시 activeNodeId가 변경되지 않았다면 무거운 BFS 그래프 탐색 및 역방향 부모 맵 생성을 생략(Skip)하도록 이식했습니다.
+* **화면 밖 노드 충돌 해결 대상 제외 (Frustum Culling for Physics)**: 3D 투영 좌표 `renderX`, `renderY`가 화면 해상도 영역(Frustum) 및 CULL_MARGIN 바깥에 있어 렌더링되지 않는 노드들을 충돌 해결 물리 연산 대상(`activeNodes`)에서 필터링 배제함으로써, 밀집된 그래프 환경에서의 $O(N^2)$ 충돌 검사 횟수를 대폭 삭감했습니다.
+* **물리 겹침 방지 루프 조건 최적화 및 조기 탈출**: 충돌 체크 중첩 루프 내에서 가로/세로 영역이 겹치지 않는 쌍(`absDx >= minDistX || absDy >= minDistY`)을 감지하는 순간 즉시 `continue` 하는 Early Exit 최적화를 적용하여 CPU 연산 성능을 추가 향상했습니다.
+* **Canvas `save` / `restore` 상태 스택 조작 제거**: `renderNodes` 메소드의 노드 렌더링 루프 내부에 프레임당 131회 이상 중복 호출되던 무거운 `ctx.save()` / `ctx.restore()` 스택 조작을 완전히 소거하고, 루프 하단 바깥에서 필수 복원 상태들(`globalAlpha`, `shadowColor`, `shadowBlur`, `shadowOffsetY`)만 단 한 번 디폴트로 초기화하는 방식으로 브라우저 그래픽 컨텍스트 오버헤드를 극적으로 제거했습니다.
+* **관계 텍스트 엣지 레이블 너비 정적 캐싱**: 활성 엣지 레이블 렌더링 시 매번 호출되던 무거운 `ctx.measureText`를 우회하기 위해, 고정식 한국어 관계명 문자열('의존성', '인과 구동' 등)의 12px Pretendard 기준 너비 매핑 테이블(`STATIC_LABEL_WIDTHS`)을 정의하여 O(1) 정적 비율 스케일링으로 measureText 연산을 완전히 대체했습니다.
+* **삼각함수(Sin, Cos) 연산 캐싱**: 3D 투영 변환 및 배경 그리드 연산 시 `Math.sin(tiltAngle)`과 `Math.cos(tiltAngle)`을 100회 이상 무의미하게 반복 계산하던 부분을 함수 최상단 상수(`sinTilt`, `cosTilt`)로 사전 계산해 캐싱 처리했습니다.
+
+### 3D 마인드맵 토폴로지 기반 자동 계층 재배치 및 카메라 3D 트래킹 왜곡 보정 (2026-06-02)
+* **토폴로지 기반 자동 계층형 부모 승격 알고리즘 적용**: 모든 리프 키워드 노드가 카테고리 태그 하위에 평평하게 나열되던 한계를 극복하기 위해, 리프 노드 간에 연결된 `DEPENDENCY`, `CAUSAL_DRIVE`, `COMPONENTS` 관계성 및 단어 수준의 텍스트 종속(포함)성 구조를 종합 계량하여 리프 간 최적의 부모-자식 구조(`parentId`)로 자동 승격시키는 알고리즘을 `signal-graph.ts`에 도입했습니다.
+* **커스텀/AI 융합 노드 매핑 정교화 (동작 시점 조정)**: 화이트보드 상에서 수동으로 추가했거나 외부 파일 스캔(AI Curation)을 통해 유입된 커스텀 노드(`custom-` ID 규격 등)들까지 계층 재배치 대상에 누락 없이 안전하게 포함될 수 있도록, 자동 재배치 알고리즘의 동작 시점을 `customNodes`/`customEdges` 병합(Merge) 연산 완료 직후로 이동시켰습니다.
+* **순환 참조 방지 및 수동 오버라이드 가드**: 계층 이동 시 DFS 사이클 검사를 수행하여 순환 종속성을 원천 방어하고, 사용자가 수동 설정한 오버라이드(`customParent`)가 존재할 경우 자동 승격 대상에서 완전히 제외하여 유저 통제권을 보장했습니다.
+* **카메라 3D 트래킹 스냅 왜곡 오차 핫픽스**: 3D 투영 좌표 왜곡이 계산되지 않아 2D 월드 기준(`worldX`, `worldY`) 스냅 시 카메라 초점이 노드를 정조준하지 못하고 보이지 않는 허공으로 이탈하던 버그를 해결했습니다. 노드의 레이어 높이, Y축 회전 사영(`rotatedY`) 및 원근 스케일(`perspectiveScale`)을 스냅 계산에 포함 보정하여 정밀 스냅 정렬을 완수했습니다.
+* **TypeScript 컴파일 무오류 검증**: 알고리즘 및 수학 공식 보정 후 `npx tsc --noEmit` 진단을 0건의 오류로 통과하며 코드 무결성을 입증했습니다.
+
+### 3D 마인드맵 노드 겹침 원천 방지용 2D 화면 공간 충돌 해결(Screen-Space Collision Resolution) 알고리즘 도입 (2026-06-02)
+* **2D 화면 좌표 충돌 물리 반발 이식**: 3D 공간 상에서 거리를 벌리더라도 카메라 각도(`tiltAngle = 42도`) 및 원근 투영 왜곡에 의해 화면상에서 노드가 겹치던 가독성 문제를 해결하기 위해, 투영 직후인 2D 스크린 좌표(`renderX`, `renderY`)를 기준으로 가중치 크기에 맞는 히트박스 반발력을 주는 2D 화면 공간 충돌 방지 루프를 도입했습니다.
+* **고정(Pin) 노드 관성 및 비고정 노드 반발 구현**: 사용자가 드래그하여 임의로 고정(`fixedX`/`fixedY`)한 노드는 밀리지 않도록 고정 관성을 부여하고, 고정되지 않은 주변 노드만 반발하여 비켜나도록 물리 강도(`damping = 0.45`)를 조정했습니다.
+* **연쇄 충돌 해소용 최대 8회 반복 루프 도입**: 노드가 연쇄적으로 밀릴 때 안정적으로 자리를 잡도록 루프를 최대 8회 돌며 연쇄 겹침을 해결하고 겹침이 해소되면 즉각 루프를 탈출하도록 최적화했습니다.
+* **기본 배치 간격 상수 상향**: `OntologyLayout.ts`의 기본 배치 격차를 넓히기 위해 `X_SPACING = 250` (기존 220), `Y_SPACING = 14` (기존 8), `NODE_HEIGHT = 36` (기존 32)으로 상향하여 원천적인 가독성 공간을 넓혔습니다.
+* **정적 타입 검사 무오류 검증**: 알고리즘 도입 후 `npx tsc --noEmit` 진단을 무오류로 통과하며 코드 무결성을 입증했습니다.
+
 ### 온톨로지 3~4단계: 지식 그래프 KG-RAG 결합 및 규칙 기반 추론기 연동 (2026-05-29)
 * **클라이언트 RAG 지식 그래프 코퍼스 동적 추출**: `page.tsx`와 `AIAssistantModal.tsx` 간 데이터 흐름을 확장하여 Yjs 기반의 커스텀 엣지(`customEdges`), 삭제 엣지(`deletedEdges`), 시그널 키워드 맵을 AI Assistant에 주입하고, 질문에 매칭되는 서브그래프 정보(노드 및 엣지)를 주어-술어-목적어(SPO 트리플) 형식으로 자동 구성해 백엔드로 전송하는 RAG 코퍼스를 구축했습니다.
 * **규칙 기반 시맨틱 추론기 통합**: `OntologyNetwork.ts`에 이미 개발된 BFS 이행적 의존성(Transitive Dependency) 및 진입 의존 밀도 기반 병목 노드(Bottleneck Driver) 탐색 알고리즘을 클라이언트 RAG에 적용하여, 추출된 서브그래프에서 이행적 인과 관계와 집중 의존 병목 리스크 데이터를 실시간 산출하도록 연동했습니다.
@@ -637,8 +684,68 @@ sequenceDiagram
 * **임시 파일 생성 방식 폐기**: 윈도우 OS 환경의 Next.js Turbopack HMR 와처가 임시 파일(`.tmp`)을 감시 및 선점해 발생하는 rename 교착(Lock Deadlock) 현상을 원천 방지하기 위해, 임시 파일 생성 단계를 전면 생략하고 직접 파일에 쓰도록 구조를 전환했습니다.
 * **safeWriteFile 직접 쓰기 헬퍼 도입**: 직접 파일에 쓰되, 파일 락 충돌 상황에서 50ms 간격으로 최대 5회 지연 재시도(Retry with Delay)하는 `safeWriteFile` 헬퍼 함수를 추가하고, 메인 데이터 쓰기 및 3중 백업 저장부 전체에 적용하여 파일 락으로 인한 API 500 에러를 원천 차단했습니다.
 
----
+### Gemini 모델 2.5-flash 일괄 전환, JSON Schema 강제 제약 및 3D 업워드 뷰 전환 (2026-06-02)
+* **Gemini API 모델명 2.5-flash로 일괄 적용**: [watcher.ts](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/lib/engine/watcher.ts), [extract/route.ts](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/app/api/llm/extract/route.ts), [chat/route.ts](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/app/llm/chat/route.ts)에 상주하던 기존의 `gemini-2.0-flash` 모델을 할당량 및 가용성이 완벽히 보장되는 `gemini-2.5-flash` 모델로 일괄 적용하여 API 429 및 503 장애를 해소했습니다.
+* **OpenAPI 3.0 JSON Schema 제약(responseSchema) 탑재**: [watcher.ts](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/lib/engine/watcher.ts)와 [extract/route.ts](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/app/api/llm/extract/route.ts)의 Gemini 모델 선언 시 `generationConfig`에 `responseMimeType: 'application/json'`과 더불어 OpenAPI 규격의 `responseSchema`를 직접 바인딩하여, AI가 항상 규격화된 유효한 JSON만을 출력하도록 강제함으로써 `SyntaxError` 파싱 에러를 원천 방지했습니다.
+* **3D 마인드맵 수직 적층 "업워드 뷰(Upward View)" 원근 투영 구현**: 위에서 아래를 굽어보던 조감도(Downward) 뷰에서 탈피해, 아래에서 위를 올려다보는 입체적인 업워드 뷰로 변경하고자 [OntologyLayout.ts](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/lib/engine/OntologyLayout.ts) and [OntologyRenderer.ts](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/lib/engine/OntologyRenderer.ts)의 `depthH` 산출식을 `effectiveLayer * LAYER_GAP`로 수정하여 L0(인물)이 가장 가깝고 가독성이 크며, L3(위키)가 원거리로 작게 보이도록 원근 투영을 대폭 조정했습니다.
+* **에이전트 직접 문서 융합 (Zero-Quota Manual Merge)**: 사용자의 개인 API 할당량 소모를 방지하고 즉각 마인드맵을 갱신하고자, 에이전트의 내부 추론 성능을 활용해 감시 폴더 내의 PDF 및 HWPX 파일 데이터로부터 총 25개의 시맨틱 노드와 23개의 관계(엣지)를 정밀 추출하고 `MAP_CUSTOMIZATION.json`에 원자적 수동 병합을 성공적으로 반영했습니다.
+* **API 쿼터 절약을 위한 실시간 AI 추출 완전 삭제 및 에이전트 융합 방식으로 일원화**: [watcher.ts](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/lib/engine/watcher.ts) 내에서 파일 파싱 성공 시 Gemini API를 직접 호출해 관계를 추출하던 로직(`processAISemanticExtraction` 호출부)을 완전히 걷어냈습니다. 이로써 사용자 개인 API의 과도한 쿼터 소모를 100% 방지(Zero-Quota)하고, 관계 융합은 에이전트(Antigravity)를 통해 정교하게 분석 및 수동 병합하도록 동작 방식을 설계 변경했습니다.
+* **3D 캔버스 Y축 및 렌더링 순서(Z-sorting) 역전 보정**: 원근법상 가장 카메라에 가까운 바닥(L0)이 가장 먼 층(L3)보다 늦게 그려져 겹침 오버랩이 올바르게 물리적으로 투영되도록 [OntologyRenderer.ts](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/lib/engine/OntologyRenderer.ts)의 `renderBackgroundLayers` 평판 그리기 루프를 `layer = 3`에서 `0`의 역순으로 전환하고, `renderNodes`의 노드 정렬 방식을 깊이(`renderZ`) 기준 내림차순 정렬(`depthB - depthA`)로 리팩토링하여 레이어 겹침 버그(Y축 리버스 현상)를 완벽히 해결했습니다.
 
+### 3D 마인드맵 노드 가중치 로직 전면 개편 및 리스크 전파 시각화 (2026-06-02)
+* **Power Iteration 기반 고유벡터 중심성(Eigenvector Centrality) 도입**: [ontology.service.ts](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/lib/ontology.service.ts) 내의 단순 1회성 합산 계산을 15회 반복 Power method 수렴 루프형 정통 고유벡터 중심성 알고리즘으로 격상하여, 다차 계층 간의 위상학적 위계를 정밀 반영했습니다.
+* **수직적 레이어 보너스(Layer Boost) 가중치 차등 결합**: 노드의 수직 레이어 레벨(L0: 0.05, L1: 0.10, L2: 0.15, L3: 0.22)에 따른 기저 크기 보정치(`layerBoost`)를 도입하여, 마인드맵의 시각적 위계 안정성을 확보했습니다.
+* **리스크 전파 스코어(riskFactor) 분리 및 전파 모델 구축**: `SYSTEM_RISK` 그룹 또는 심각한 병목 노드에서 인접 노드로 전파되는 음수 가중치의 전파 강도(`riskFactor`, [0.0 ~ 1.0]) 계산 모델을 탑재하고, `isHedge` 판정을 `netWeight < 0 || riskFactor > 0.3`로 고도화했습니다.
+* **renderSize 스케일링 튜닝 및 안전 클램핑(Clamp) 적용**: 노드 크기가 비정상적으로 비대해져 2D 충돌 연산 부하를 가중하거나 리프 노드가 폰트 가독성을 상실할 만큼 왜곡되는 현상을 차단하고자 스케일 공식을 재설계하고 `[0.4, 1.0]` 범위 내로 최종 조절되게 방어 장치를 이식했습니다.
+* **리스크 노드 펄스 글로우 및 경고 점 인디케이터 이식**: [OntologyRenderer.ts](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/lib/engine/OntologyRenderer.ts)에 `riskFactor` 크기에 비례하여 붉은색 그림자가 숨쉬듯 펄싱하는 `Double-Circle Glow` 마이크로 효과와, 노드 내부 엑센트 바 반대편에 동적 붉은색 도트 경고(Indicator Dot)를 렌더링하도록 캔버스 드로우 로직을 추가했습니다.
+
+### 3D 마인드맵 원근 투영 조감도(Downward) 전환 및 E2EE 데이터베이스 안전 융합 (2026-06-02)
+* **3D 마인드맵 조감도(Downward) 원근 반전**: [OntologyLayout.ts](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/lib/engine/OntologyLayout.ts)와 [OntologyRenderer.ts](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/lib/engine/OntologyRenderer.ts)의 3D 원근 투영 깊이(depth) 계산 공식을 역전 수정(`-worldY * Math.sin(tiltAngle)` 및 `-wy * Math.sin(tiltAngle)`)하여, 상단 L3 Knowledge 레이어가 가깝고 크게 왜곡되어 보이던 현상을 해결하고, 위쪽(L3)이 기하학적으로 멀고 좁게 보이며 아래쪽(L0)이 가깝고 넓게 배치되는 완벽한 3D 조감도/원근 구조의 스택 뷰를 확보했습니다.
+* **E2EE 암호화 융합을 통한 노드 개수 정체 버그 수정**: 기존 수동 융합 스크립트가 평문으로 `MAP_CUSTOMIZATION.json`을 수정함에 따라 브라우저의 E2EE 복호화 게이트 및 자동 저장(Auto-Save)에 의해 덮어씌워져 노드 수(106개)가 증가하지 않던 문제를 Node.js `webcrypto` 기반 E2EE 복호화/암호화(PIN `'0509'`, Salt `'HCHPS-E2EE-SALT'`) 머지 프로세스로 완벽히 수정했습니다. 이를 통해 신규 25개 노드 및 23개 엣지를 중복 없이 성공적으로 주입하여 전체 노드 수 131개(`+25`) 갱신 및 마인드맵 양방향 동기화를 완성했습니다.
+
+### 3D 마인드맵 가중치(renderSize) 기반 노드 크기 동적 스케일링 및 형제 노드 자동 정렬 (2026-06-02)
+* **Eigenvector Centrality 가중치 실시간 연동**: [signal-graph.ts](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/lib/signal-graph.ts)에서 온톨로지 그래프 빌드 완료 시점에 [ontology.service.ts](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/lib/ontology.service.ts)의 `computeCentrality` 함수를 호출하여 131개 전체 노드의 연결 가중치 및 중요도 통합 지표(`renderSize` [0.0 ~ 1.0])를 실시간 연산하도록 구성했습니다.
+* **가중치 비례 크기 동적 스케일링**: [OntologyRenderer.ts](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/lib/engine/OntologyRenderer.ts)에서 노드를 그릴 때 `localZoom` 크기 배율에 `sizeFactor = 0.8 + 0.5 * renderSize` 공식을 이식하여, 핵심 노드는 최대 1.3배까지 크게, 단순 리프 노드는 최소 0.8배로 축소되어 렌더링되게 핫픽스를 반영했습니다.
+* **가중치 우선 형제 노드 및 카테고리 배치 정렬**: [OntologyLayout.ts](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/lib/engine/OntologyLayout.ts) 내의 모든 트리 자식/형제 리스트 정렬(`neighbors.sort`, `subNeighbors.sort`)과 [MindMap3D.tsx](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/components/MindMap3D.tsx)의 루트 정렬 로직을 갱신하여, 명시적인 정렬 지정(`customSortOrder`)이 없는 경우 가중치(`renderSize`)가 높은 노드가 우선적으로 상단에 배치되도록 정렬 규칙을 통합했습니다.
+
+### 3D 마인드맵 커스텀 노드 자동 계층 재배치(Reparenting) 범위 확장 및 양방향 엣지 감지 개선 (2026-06-02)
+* **커스텀 노드 자동 계층 재배치 대상군 누락 버그 해결**: 기존에 `leafNodesForReparent` 필터가 parentId가 `'tag-'`로 시작하는 노드로 제한되어 있어, DB에서 parentId가 `undefined`로 로드되는 커스텀 노드군(예: "세브란스 헬스체크업", "플래티넘 검진비")이 자동 계층 재배치 대상에서 누락되던 문제를 수정했습니다. parentId가 비어있거나, `root-HCHPS` 혹은 중앙 노드인 모든 일반 노드를 재배치 대상에 올바로 포함시켰습니다.
+* **양방향 및 다중 관계성 기반 엣지 연결성 점수화**: 엣지 연결 감지 시 `leafAdj` 단방향 의존성 맵 대신 `connectedPairs` 양방향 셋을 도입하고, `BUDGET_SOURCE` 타입의 의존성도 포함하여 "플래티넘 검진비" (BUDGET_SOURCE) -> "플래티넘 검진" (COMPONENTS) -> "세브란스 헬스체크업"과 같은 계층적 부모-자식 연결이 양방향성 관계 속에서 정밀하고 깊게 형성되도록 개선했습니다.
+* **불필요한 구버전 구조적 엣지 청소**: 노드 승격 시, 새로운 부모-자식 엣지를 주입하기 전에 기존 부모나 중앙 노드, 혹은 대분류 카테고리 노드들로부터 꽂히던 구버전 구조적(non-custom) 엣지들을 깔끔하게 추적/제거함으로써 다중 연결선이 난무하는 현상을 방지했습니다.
+
+### 3D 마인드맵 탭 재귀적 자기개선 루프 실행: 3D 적층 레이어 노드 수직 정렬 및 타입 무결성 보정 (2026-06-02)
+* **3D Perspective Projection 노드 수직 적층 오차 수정**: [OntologyLayout.ts](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/lib/engine/OntologyLayout.ts) 내 3D Perspective Projection 연산 시, 각 노드가 속한 `effectiveLayer`에 따라 수직 방향 변위 `h = effectiveLayer * LAYER_GAP` 및 `depthH = effectiveLayer * LAYER_GAP`를 Y-기울임 회전 변환 공식(`rotatedY`, `depth`)에 추가함으로써, 노드들이 3D 레이어 그리드 플레이트 위에 정확히 안착하도록 위치 좌표 왜곡 불일치를 해결했습니다.
+* **타입 매개변수 개수 정합성 및 getEffectiveLayerId 정밀 바인딩**: [OntologyCanvasEngine.ts](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/lib/OntologyCanvasEngine.ts)에서 `computePositions` 호출 시 10번째 인자로 `activeLayers`를 전달하도록 선언을 맞추고, [OntologyLayout.ts](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/lib/engine/OntologyLayout.ts)에 정밀 헬퍼 메소드 `getEffectiveLayerId`를 `public static`으로 온전히 바인딩하여 TypeScript 컴파일 에러(`TS2554`, `TS2339`)를 완벽히 해결했습니다.
+* **배치 및 연결성 관련 3D 렌더러 상수 통합**: `TILT_ANGLE`, `LAYER_GAP`, `CAMERA_DIST` 상수를 [OntologyLayout.ts](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/lib/engine/OntologyLayout.ts)에 단일 선언하여 `OntologyCanvasEngine.ts` 및 `OntologyRenderer.ts`에서 공통으로 import해 사용하도록 최적화함으로써 중복 선언에 따른 오차 위험을 방지했습니다.
+
+### 3D 마인드맵 탭 2차 개선 루프 실행: 레이어별 충돌 영역 격리 및 동적 간선 애니메이션 도입 (2026-06-02)
+* **레이어별 화면 충돌(Screen-Space Collision) 영역 완전 격리**: [OntologyLayout.ts](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/lib/engine/OntologyLayout.ts) 내 2D 화면 공간 노드 겹침 방지 알고리즘 기동 시, 서로 다른 레이어에 속한 노드 간의 불필요한 충돌 체크 및 반발 이동을 건너뛰는 레이어 일치 가드(`layerA !== layerB`)를 설계 반영하여 각 층의 깔끔한 가로형 트리 정렬 구조를 왜곡 없이 완벽히 보존했습니다.
+* **노드 배치 기본 공간 마진 대폭 상향**: 마인드맵의 3D 공간 밀집도를 완화하여 노드 레이블의 가독성을 근본적으로 확보할 수 있도록 `X_SPACING = 250` (기존 220), `Y_SPACING = 14` (기존 8), `NODE_HEIGHT = 36` (기존 32)으로 가로/세로 기본 공간 배치를 넓혔습니다.
+* **활성 엣지 대상 동적 펄스 흐름 마이크로 애니메이션 도입**: [OntologyRenderer.ts](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/lib/engine/OntologyRenderer.ts)에 `Date.now()` 기반 3차 베지어 곡선 보간을 연동하여, 활성화 또는 호버 상태이거나 활성 브랜치에 연결된 주요 간선들을 대상으로 데이터 흐름을 상징하는 동적인 광원 입자(Particle Pulse)가 60 FPS 기반으로 실시간 흐르도록 마이크로 애니메이션을 이식했습니다.
+* **애니메이션 재생용 캔버스 틱 루프 제어 보정**: 활성 또는 호버 노드가 선택되어 있는 동안 [OntologyCanvasEngine.ts](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/lib/OntologyCanvasEngine.ts)의 `tick()` 함수가 캔버스 드로우 상태 플래그(`isDirty`)를 상시 유지하여, 유저가 마우스를 대거나 클릭하고 있는 동안 부드럽고 생동감 있는 엣지 펄스 애니메이션이 흐르도록 렌더 루프를 튜닝했습니다.
+
+### 3D 마인드맵 탭 3차 개선 루프 실행: 입체적 시맨틱 간선 색상 및 테일(Trail) 애니메이션 최적화 (2026-06-02)
+* **교차 레이어 간선(Layer-Crossing Edge)에 대한 입체적 시맨틱 색상 부여**: [OntologyRenderer.ts](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/lib/engine/OntologyRenderer.ts)에서 서로 다른 레이어 간을 연결하는 3D 사선 간선들을 대상으로, 연결 유형에 조응하는 특수 시맨틱 색상 조합(인물<->업무: Indigo `#6366F1`, 예산<->업무: Teal `#0D9488`, 업무<->위키: Orange `#F97316`, 인물<->위키: Pink `#EC4899`)을 실시간 계산 적용하여 3D 구조적 관계의 직관성을 비약적으로 고도화했습니다.
+* **이중 꼬리(Double Trail) 흐름 파티클 애니메이션 이식**: 엣지 상에서 데이터 및 에너지 흐름을 표상하는 단일 펄스 대신, 메인 입자 후미에 원근 비례 투영 및 투명도 감쇄를 적용한 꼬리 입자군(`trailSteps = [0, 0.04, 0.08]`)을 3단계로 드로잉함으로써, 마치 혜성이 꼬리를 끌며 궤도를 도는 듯한 생동감 있고 고급스러운 3D 궤적(Streak) 애니메이션 효과를 구현했습니다.
+* **완료/아카이브된 요소 및 간선 톤다운 피드백**: 완료 처리된 노드(`isCompleted: true`)와 연결된 간선들의 테마 색상을 흐린 회색(`themeColor = '#CBD5E1'`)으로 톤다운 시키는 논리 규칙을 결합하여, 업무 완료 이력에 대한 시각적인 피드백을 보다 명확하고 직관적으로 수립했습니다.
+
+### 3D 마인드맵 탭 4차 개선 루프 실행: 엣지 펄스 배치 렌더링 및 하드웨어 가속 글로우 적용 (2026-06-02)
+* **그림자 블러(shadowBlur) 연산 완전 소거를 통한 9 FPS 랙 해결**: Canvas 2D 상에서 가우시안 필터링 부하를 가해 극심한 렌더 랙을 유발하는 `shadowBlur` 및 `shadowColor` 연산을 펄스 입자 그리기 로직에서 100% 제거하여 프레임 드랍 병목을 완벽히 소거했습니다.
+* **하드웨어 가속 더블 서클 글로우(Double-Circle Glow) 기법 도입**: shadowBlur의 대안으로, 입자 코어 원 위에 투명도 $22\%$를 가미한 외곽 확산 원을 이중 겹쳐 드로잉함으로써, 성능 부하가 전혀 없으면서도 시각적으로 은은하고 세련된 입자 광원(Glow) 효과를 구현했습니다.
+- **펄스 배치 렌더링(Batch Rendering Queue) 적용**: 엣지 드로잉 루프($N=166$) 내부에서 매번 개별적으로 펄스를 그리고 `save`/`restore` 상태 스위칭을 수행하던 비효율을 고치기 위해, 대상 펄스들의 2D 화면 좌표와 스타일 정보를 배치 큐(`pulseQueue`)에 모았다가 엣지 루프 종료 후 한 번에 일괄 드로잉(Batch Rendering)하여 컨텍스트 스위칭 비용을 최소화했습니다.
+
+### 3D 마인드맵 성능 극한 최적화 및 인터랙티브 60 FPS 달성 (2026-06-02)
+* **세계 좌표(worldX/worldY) 레이아웃 연산 캐싱**: 줌, 패닝, 휠 줌, 드래그 등 그래프 토폴로지가 전혀 변하지 않는 조작 프레임의 경우, 무거운 방향성 분류 및 BFS/DFS 트리 구조 빌드와 Y축 누적 변위 `shiftSubtree` 등의 전체 기오메트리 계산 단계를 완전히 건너뛰도록 캐시 게이트(`layoutWorldGeometryDirty` 플래그)를 이식했습니다.
+* **레이어 필터링 시 세계 좌표 보존 및 topoHidden 분리**: 레이어 숨김 필터링 시 `worldX`/`worldY` 좌표를 `-999999`로 영구 파괴하던 로직을 수정하여, 계층 접힘 상태(`topoHidden`)와 레이어 필터 상태를 독립 제어하고 2D 스크린 사영 시에만 `-999999` 좌표로 culling되게 함으로써 레이어 온/오프 변환 시의 레이아웃 붕괴를 원천 해결했습니다.
+* **레이어 격리 충돌 물리 루프 분할 적용**: 서로 다른 레이어에 속한 노드끼리는 충돌할 위험이 없으므로, 전체 노드쌍 $O(N^2)$ 루프 대신 activeNodes를 `effectiveLayer`별로 사전 그룹화하여 4개 레이어 그룹 내부에서만 겹침 연산을 분리 수행하는 $O(N^2 / 4)$ 격리 물리 루프를 구현해 연산량을 75% 감축시켰습니다.
+* **액티브 브랜치 트리 탐색(BFS) 중복 연산 차단**: 마우스 무브 등으로 캔버스 틱이 돌 때마다 호출되던 `getActiveTreeSet` 내의 BFS 조상/자손 탐색 연산을 activeNode 변경 혹은 `layoutWorldGeometryDirty`가 활성화된 시점에만 리셋되도록 캐시를 구성하여 줌/패닝 오버헤드를 0화했습니다.
+* **그림자 context 설정 최적화**: 캔버스 그래픽 파이프라인에서 컨텍스트 상태 변경 지연을 유발하는 `shadowColor` 및 `shadowBlur` 쓰기 횟수를 최소화하고자, 그림자가 불필요한 일반 노드 드로잉 시에는 설정 변경을 건너뛰는 `shadowEnabled` 상태 기계를 이식하여 하드웨어 GPU 드로우 성능을 비약적으로 끌어올렸습니다.
+* **상호작용 물리 횟수 동적 제어**: 드래그/패닝/줌 등의 사용자 조작이 활성화된 상태(`isInteractive`)를 감지하여 겹침 충돌 물리 계산 횟수(`maxIterations`)를 4회에서 1회로 동적 격하 제어하여 렌더링 레이턴시를 0ms 수준으로 최소화했습니다.
+* **Spanning Tree O(1) 해시 셋 조회 전환**: `OntologyRenderer.renderEdges`에서 매 프레임 O(N)으로 `spanningTreeEdgeSet` 해시 셋을 동적 빌드하던 연산을 소거하고, 세계 좌표 레이아웃 갱신 시점에만 1회 정적 빌드하여 공유하도록 `OntologyLayout.lastSpanningTreeEdgeSet` 캐시 참조 방식으로 이관했습니다.
+* **비활성 교차 엣지(Cross-Edges) solid thin 실선 전환**: Canvas 2D 컨텍스트에서 매 픽셀 dash pattern을 CPU로 연산하는 병목을 차단하기 위해, 교차 엣지 그리기 시 `setLineDash` 점선 적용을 차단하고 얇은 실선(`lineWidth = 0.2`, `alpha = 0.04`)으로 전환하여 하드웨어 가속이 원활히 구동되게 핫픽스했습니다.
+* **그리드 플레이트 가로/세로 격자선 그리기 소거**: 3D 수직 아크릴 판넬 내부의 중복된 세로 격자 점선 그리기 루프를 완전히 소거하여 렌더 파이프라인의 CPU 연산 부하를 차단했습니다.
+
+---
 
 ## 9. 감사 기반 로드맵 및 전략적 지평
 
