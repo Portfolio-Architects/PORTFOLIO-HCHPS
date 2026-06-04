@@ -413,7 +413,11 @@ export function buildSignalGraph(
         const labelX = nodeX.label || '';
         const labelY = nodeY.label || '';
 
-        if (labelY.length > 1 && labelX.includes(labelY)) {
+        // Normalize Korean suffixes and space variations to match words like "검진비" & "검진 비용"
+        const cleanX = labelX.replace(/\s+/g, '').replace(/비$/, '비용').replace(/료$/, '비용').replace(/금$/, '비용');
+        const cleanY = labelY.replace(/\s+/g, '').replace(/비$/, '비용').replace(/료$/, '비용').replace(/금$/, '비용');
+
+        if (labelY.length > 1 && (labelX.includes(labelY) || cleanX.includes(cleanY) || cleanY.includes(cleanX))) {
           score += 15;
         }
         

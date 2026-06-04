@@ -65,6 +65,9 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   const [isAddingNode, setIsAddingNode] = useState(false);
   const [newNodeName, setNewNodeName] = useState("");
   
+  // ── 레이아웃 모드 상태 (우주 궤도 고정) ──
+  const layoutModeRef = useRef<'mindmap' | 'orbit'>('orbit');
+
   // ── 수직 적층 온톨로지 레이어 필터 상태 ──
   const [activeLayers, setActiveLayers] = useState<Set<number>>(new Set([0, 1, 2, 3]));
   const activeLayersRef = useRef(activeLayers);
@@ -215,6 +218,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
             const decrypted = await decryptPayload<{ agents: string[], resources: string[], executions: string[] }>(entry._enc);
             OntologyLayout.dynamicRules = decrypted;
             if (engineRef.current) {
+              engineRef.current.layoutWorldGeometryDirty = true;
               engineRef.current.needsRedraw = true;
             }
           }
@@ -313,6 +317,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
       // Init WITHOUT callbacks to avoid triggering setState during init
       engine.init(graph, undefined, engineRef.current ? engineRef.current.nodes : undefined);
       engine.isOrbiting = false;
+      engine.layoutMode = layoutModeRef.current;
 
       // ----- 카메라 및 선택 상태 유지 (깜빡임/리셋 방지) -----
       if (engineRef.current) {
@@ -490,7 +495,12 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
       if (e.cancelable) e.preventDefault();
       e.stopPropagation();
       const engine = engineRef.current;
-      if (engine) engine.handleWheel(e.deltaY);
+      if (engine) {
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        engine.handleWheel(e.deltaY, mx, my);
+      }
     };
     canvas.addEventListener('wheel', wheelHandler, { passive: false });
 
@@ -598,9 +608,14 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
     if (e.touches.length === 2 && touchStartRef.current.pinchDist) {
       const newDist = getTouchDist(e);
       const delta = touchStartRef.current.pinchDist - newDist;
-      // Proportional multiplier: engine.handleWheel now uses Math.exp, so scaling delta by 3.5 
-      // yields a smooth, 50% reduced sensitivity pinch-to-zoom (prevents exponential explosive zooming)
-      engine.handleWheel(delta * 3.5);
+      
+      const rect = canvas.getBoundingClientRect();
+      const clientX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const clientY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      const mx = clientX - rect.left;
+      const my = clientY - rect.top;
+
+      engine.handleWheel(delta * 3.5, mx, my);
       touchStartRef.current.pinchDist = newDist;
       return;
     }

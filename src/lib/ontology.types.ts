@@ -117,6 +117,8 @@ export interface OrbitalNode extends OntologyNode {
   themeColor?: string;         // Computed Branch Theme Color for inheritance
   worldX?: number;             // Optional: Local World X tracking for radial physics layout
   worldY?: number;             // Optional: Local World Y tracking for radial physics layout
+  targetWorldX?: number;       // Optional: Target X coordinate for LERP morphing animation
+  targetWorldY?: number;       // Optional: Target Y coordinate for LERP morphing animation
   renderX: number;             // canvas X
   renderY: number;             // canvas Y
   renderZ: number;             // depth (-1 to 1)

@@ -142,7 +142,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
           <div className="flex-1 w-full h-[250px] flex flex-col sm:flex-row items-stretch justify-center mb-6 gap-6 sm:gap-8 md:gap-12 lg:gap-16">
             <div className="w-full sm:w-[260px] h-[250px] flex-shrink-0 flex justify-center items-center">
               <div className="w-[230px] h-[230px] relative flex-shrink-0">
-                <ResponsiveContainer width="100%" height={230}>
+                <ResponsiveContainer width="100%" height={230} minWidth={0}>
                   <PieChart>
                     <Pie
                       data={dynamicPieData}
@@ -311,8 +311,8 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
             </div>
 
             {/* Monthly Trend Chart */}
-            <div className="flex-1 mt-6 relative min-h-0 w-full h-full">
-              <ResponsiveContainer width="100%" height="100%" minHeight={385}>
+            <div className="flex-1 mt-6 relative w-full min-h-[385px] h-[385px]">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                 <ComposedChart data={monthlyExecutionData} margin={{ top: 25, right: 10, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorCumulative" x1="0" y1="0" x2="0" y2="1">

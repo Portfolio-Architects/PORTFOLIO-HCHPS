@@ -147,12 +147,12 @@ export async function POST(req: Request) {
         parts: [{ text: msg.content }],
       }));
 
-    // Use gemini-2.5-flash for stable and fast response
+    // Use gemini-3.5-flash for stable and fast response
     const model = genAI.getGenerativeModel({ 
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.5-flash',
       systemInstruction: systemPrompt,
       generationConfig: {
-        maxOutputTokens: 1024,
+        maxOutputTokens: 4096,
         temperature: 0.2
       }
     });

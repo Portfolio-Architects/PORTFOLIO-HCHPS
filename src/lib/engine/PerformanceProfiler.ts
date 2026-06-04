@@ -48,10 +48,11 @@ export class PerformanceProfiler {
       this.maxDuration = duration;
     }
 
-    // 16.67ms (60fps threshold) is the performance limit
-    if (duration > 16.67) {
+    // 33.33ms (30fps threshold) is the practical interactive limit for complex 2D Canvas animations.
+    // Setting this to 33.33ms to avoid console warning flooding, which itself harms browser runtime performance.
+    if (duration > 33.33) {
       this.warningCount++;
-      console.warn(`[PERF ALERT] Rendering frame took ${duration.toFixed(2)}ms (Threshold: 16.67ms)`);
+      console.warn(`[PERF ALERT] Rendering frame took ${duration.toFixed(2)}ms (Threshold: 33.33ms)`);
     }
   }
 

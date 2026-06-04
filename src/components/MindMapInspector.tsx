@@ -82,6 +82,96 @@ export function MindMapInspector(props: MindMapInspectorProps) {
     return unique;
   }, [connectedEdges]);
 
+  const handleSelectNode = (node: OrbitalNode) => {
+    if (engineRef.current) {
+      let parentId = node.parentId;
+      const engine = engineRef.current as any;
+      if (engine && engine.collapsedNodeIds) {
+        while (parentId) {
+          engine.collapsedNodeIds.delete(parentId);
+          const parentNode = engine.nodes.find((n: any) => n.id === parentId);
+          parentId = parentNode?.parentId;
+        }
+        engine.collapsedNodeIds.delete(node.id);
+      }
+      
+      engine.activeNode = node;
+      engine.pendingCameraTargetId = node.id;
+      engine.needsRedraw = true;
+      setActiveNode(node);
+    }
+  };
+
+  const priorityNodes = React.useMemo(() => {
+    if (engineNodes.length === 0) return [];
+
+    const scored = engineNodes
+      .filter((n) => n.id !== 'root-HCHPS' && !n.isCompleted && !n.layoutHidden)
+      .map((node) => {
+        let score = (node.renderSize || 0.5) * 15;
+        const reasons: string[] = [];
+
+        // 1. Due Date (마감 임계치)
+        if (node.dueDate) {
+          const parts = node.dueDate.split('-');
+          if (parts.length === 3) {
+            const targetZero = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+            const today = new Date();
+            const todayZero = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+            const diffTime = targetZero.getTime() - todayZero.getTime();
+            const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+            if (diffDays < 0) {
+              score += 50;
+              reasons.push(`⏰ 마감 기한 도과 (${Math.abs(diffDays)}일 경과)`);
+            } else if (diffDays === 0) {
+              score += 40;
+              reasons.push(`⏰ 오늘 마감 (D-Day)`);
+            } else if (diffDays <= 3) {
+              score += 30;
+              reasons.push(`⏰ 마감 임박 (D-${diffDays})`);
+            } else if (diffDays <= 7) {
+              score += 15;
+              reasons.push(`⏰ 일주일 내 마감 (D-${diffDays})`);
+            } else {
+              score += 5;
+              reasons.push(`📅 마감 기한 지정 (D-${diffDays})`);
+            }
+          }
+        }
+
+        // 2. Risk Factor (리스크 스코어)
+        const risk = (node as any).riskFactor ?? 0;
+        const isRiskOrigin = node.group === 'SYSTEM_RISK';
+        if (isRiskOrigin) {
+          score += 45;
+          reasons.push(`🚨 시스템 리스크 발원지`);
+        } else if (risk > 0.3) {
+          score += risk * 30;
+          reasons.push(`⚠️ 리스크 영향 감지 (위험도: ${(risk * 100).toFixed(0)}%)`);
+        }
+
+        // 3. Centrality (핵심 허브)
+        if ((node.renderSize || 0.5) > 0.75 && reasons.length === 0) {
+          reasons.push(`🌟 네트워크 위상학적 핵심 허브`);
+        }
+
+        if (reasons.length === 0) {
+          reasons.push(`🔍 위상 분석 및 잠재적 모니터링 대상`);
+        }
+
+        return {
+          node,
+          score,
+          reasons,
+        };
+      });
+
+    return scored
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5);
+  }, [engineNodes]);
+
   const renderNodeDetails = (isOverlay: boolean) => {
     return (
       <div 
@@ -505,13 +595,70 @@ export function MindMapInspector(props: MindMapInspectorProps) {
 
                   </div>
                 ) : (
-                  <div className="text-center py-8">
-                    <Radio size={28} className="mx-auto mb-3 text-[var(--color-text-tertiary)] opacity-30" />
-                    <div className="text-sm text-[var(--color-text-tertiary)] leading-relaxed">
-                      노드를 선택해보세요<br />
-                      그래프의 점을 클릭하면<br />
-                      연결된 관계를 확인할 수 있어요
-                    </div>
+                  <div className="p-4 flex flex-col h-full">
+                    {priorityNodes.length > 0 ? (
+                      <div className="flex-1 flex flex-col">
+                        <div className="mb-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-xl p-3.5 shadow-sm">
+                          <div className="flex items-center gap-2 mb-1.5 text-blue-700">
+                            <Bot size={18} className="animate-pulse" />
+                            <h4 className="text-xs font-bold uppercase tracking-wider">스마트 포커스 레이더</h4>
+                          </div>
+                          <p className="text-[11px] text-slate-600 leading-normal">
+                            전체 {engineNodes.length}개 노드 중 위상 중요도, 마감 기한, 리스크 영향도를 실시간 종합 분석하여 지금 가장 집중해야 할 노드를 추천합니다.
+                          </p>
+                        </div>
+
+                        <div className="text-[11px] font-bold text-slate-400 mb-2 px-1 flex items-center gap-1.5">
+                          <Activity size={12} className="text-indigo-500 animate-pulse" /> 핵심 요주의 노드 Top 5
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                          {priorityNodes.map(({ node, score, reasons }) => {
+                            const groupColor = GROUP_COLORS[node.group as OntologyGroup] || '#94A3B8';
+                            return (
+                              <button
+                                key={node.id}
+                                onClick={() => handleSelectNode(node)}
+                                className="w-full text-left bg-white hover:bg-slate-50 border border-slate-200/80 hover:border-indigo-300 rounded-xl p-3 shadow-sm hover:shadow transition-all duration-200 flex items-start gap-2.5 group cursor-pointer"
+                              >
+                                <div 
+                                  className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-white text-xs font-bold"
+                                  style={{ backgroundColor: groupColor }}
+                                >
+                                  {node.label.charAt(0)}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center justify-between gap-1 mb-1">
+                                    <span className="font-semibold text-xs text-slate-800 group-hover:text-indigo-700 truncate transition-colors">
+                                      {node.label}
+                                    </span>
+                                    <span className="shrink-0 px-1 text-[8.5px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 rounded">
+                                      점수: {score.toFixed(0)}
+                                    </span>
+                                  </div>
+                                  <div className="flex flex-col gap-0.5">
+                                    {reasons.map((r, idx) => (
+                                      <span key={idx} className="text-[10px] text-slate-500 flex items-center gap-1">
+                                        {r}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 my-auto">
+                        <Radio size={28} className="mx-auto mb-3 text-[var(--color-text-tertiary)] opacity-30" />
+                        <div className="text-sm text-[var(--color-text-tertiary)] leading-relaxed">
+                          노드를 선택해보세요<br />
+                          그래프의 점을 클릭하면<br />
+                          연결된 관계를 확인할 수 있어요
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
         </div>

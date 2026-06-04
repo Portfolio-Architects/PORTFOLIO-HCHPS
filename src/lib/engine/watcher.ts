@@ -207,27 +207,41 @@ async function mergeToLocalDatabase(extracted: { nodes: any[]; edges: any[] }) {
       if (e.code !== 'ENOENT') throw e;
     }
 
-    // 싱글톤 구조가 없으면 생성
+    // Find existing singleton (either encrypted or plaintext)
     let singleton = dbData.find(item => item.id === 'singleton');
-    if (!singleton) {
-      singleton = {
-        id: 'singleton',
-        overrides: {},
-        customNodes: [],
-        customEdges: [],
-        deletedEdges: []
-      };
-      dbData.push(singleton);
+
+    // Decrypt existing state if _enc exists, otherwise initialize empty
+    let decryptedPayload: any = {
+      overrides: {},
+      customNodes: [],
+      customEdges: [],
+      deletedEdges: []
+    };
+
+    if (singleton) {
+      if (singleton._enc) {
+        try {
+          decryptedPayload = await decryptData(singleton._enc);
+        } catch (decErr) {
+          console.error('[Watcher Daemon] MAP_CUSTOMIZATION 복호화 실패, 초기화 진행:', decErr);
+        }
+      } else {
+        // Plaintext fallback for legacy/migration
+        if (singleton.overrides) decryptedPayload.overrides = singleton.overrides;
+        if (singleton.customNodes) decryptedPayload.customNodes = singleton.customNodes;
+        if (singleton.customEdges) decryptedPayload.customEdges = singleton.customEdges;
+        if (singleton.deletedEdges) decryptedPayload.deletedEdges = singleton.deletedEdges;
+      }
     }
 
-    if (!singleton.overrides) singleton.overrides = {};
-    if (!singleton.customNodes) singleton.customNodes = [];
-    if (!singleton.customEdges) singleton.customEdges = [];
-    if (!singleton.deletedEdges) singleton.deletedEdges = [];
+    if (!decryptedPayload.overrides) decryptedPayload.overrides = {};
+    if (!decryptedPayload.customNodes) decryptedPayload.customNodes = [];
+    if (!decryptedPayload.customEdges) decryptedPayload.customEdges = [];
+    if (!decryptedPayload.deletedEdges) decryptedPayload.deletedEdges = [];
 
-    const customNodesMap = new Map<string, any>(singleton.customNodes.map((n: any) => [n.id, n]));
-    const customEdgesMap = new Map<string, any>(singleton.customEdges.map((e: any) => [`${e.source}|||${e.target}`, e]));
-    const deletedEdgesSet = new Set<string>(singleton.deletedEdges);
+    const customNodesMap = new Map<string, any>(decryptedPayload.customNodes.map((n: any) => [n.id, n]));
+    const customEdgesMap = new Map<string, any>(decryptedPayload.customEdges.map((e: any) => [`${e.source}|||${e.target}`, e]));
+    const deletedEdgesSet = new Set<string>(decryptedPayload.deletedEdges);
 
     let nodesAdded = 0;
     let edgesAdded = 0;
@@ -264,16 +278,28 @@ async function mergeToLocalDatabase(extracted: { nodes: any[]; edges: any[] }) {
       }
     });
 
-    singleton.customNodes = Array.from(customNodesMap.values());
-    singleton.customEdges = Array.from(customEdgesMap.values());
-    singleton.deletedEdges = Array.from(deletedEdgesSet);
+    decryptedPayload.customNodes = Array.from(customNodesMap.values());
+    decryptedPayload.customEdges = Array.from(customEdgesMap.values());
+    decryptedPayload.deletedEdges = Array.from(deletedEdgesSet);
+
+    // Re-encrypt the merged payload
+    const encrypted = await encryptData(decryptedPayload);
+    
+    // Clear top-level plaintext fields and remove any old duplicates by reconstructing dbData
+    const newSingleton = {
+      id: 'singleton',
+      _enc: encrypted
+    };
+
+    dbData = dbData.filter(item => item.id !== 'singleton');
+    dbData.push(newSingleton);
 
     // 원자적 파일 저장 및 자동 3중 백업망 가동
     const tempPath = `${DB_FILE}.tmp`;
     await fs.writeFile(tempPath, JSON.stringify(dbData, null, 2), 'utf-8');
     await fs.rename(tempPath, DB_FILE);
 
-    console.info(`[Watcher Daemon] 시맨틱 자동 융합 성공! 추가된 노드: ${nodesAdded}개, 추가된 관계: ${edgesAdded}개`);
+    console.info(`[Watcher Daemon] 시맨틱 자동 융합 성공 (E2EE 암호화 적용)! 추가된 노드: ${nodesAdded}개, 관계: ${edgesAdded}개`);
 
     // 백업 폴더 기동 (Next.js route.ts 복제)
     const backupDir = path.join(process.cwd(), 'data', 'backups', 'MAP_CUSTOMIZATION');
@@ -356,17 +382,17 @@ ${text}
 `;
   let result: any = null;
   try {
-    const maxRetries = 5;
+    const maxRetries = 6;
     let attempt = 0;
-    let delay = 2000;
+    let delay = 8000;
 
     while (attempt < maxRetries) {
       try {
         attempt++;
         const model = genAI.getGenerativeModel({
-          model: 'gemini-2.5-flash',
+          model: 'gemini-3.5-flash',
           generationConfig: {
-            maxOutputTokens: 2048,
+            maxOutputTokens: 8192,
             temperature: 0.1,
             responseMimeType: 'application/json',
             responseSchema: responseSchema
@@ -493,8 +519,8 @@ async function processQueue() {
       try {
         console.info(`[Watcher Daemon] 순차 큐 처리 시작: ${path.basename(filePath)}`);
         await processFile(filePath);
-        // API 요청 간에 최소 8초의 여유 간격을 두어 RPM/QPS 제한 방지
-        await new Promise(resolve => setTimeout(resolve, 8000));
+        // API 요청 간에 최소 20초의 여유 간격을 두어 RPM/QPS 제한 방지 및 동기화 무결성 확보
+        await new Promise(resolve => setTimeout(resolve, 20000));
       } catch (err) {
         console.error(`[Watcher Daemon] 순차 큐 파일 처리 에러: ${filePath}`, err);
       }

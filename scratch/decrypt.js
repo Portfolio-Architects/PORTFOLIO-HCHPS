@@ -52,6 +52,10 @@ decrypt(data[0]._enc).then(decrypted => {
   
   console.log('=== DELETED EDGES ===');
   console.log(decrypted.deletedEdges);
+
+  console.log('=== DATA COUNTS ===');
+  console.log('customNodes count:', decrypted.customNodes ? decrypted.customNodes.length : 0);
+  console.log('customEdges count:', decrypted.customEdges ? decrypted.customEdges.length : 0);
 }).catch(err => {
   console.error('Decryption failed:', err);
 });

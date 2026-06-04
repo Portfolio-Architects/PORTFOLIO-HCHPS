@@ -54,6 +54,7 @@ export class OntologyCanvasEngine {
   public collapsedNodeIds: Set<string> = new Set();
   public hasInitializedCollapse: boolean = false;
   public isInitialCameraSnap: boolean = true;
+  public layoutMode: 'mindmap' | 'orbit' = 'mindmap';
 
   // Physics / Interaction
   isOrbiting = false;
@@ -84,6 +85,21 @@ export class OntologyCanvasEngine {
   private sortedNodes: OrbitalNode[] = [];
   private canvasW = 0;
   private canvasH = 0;
+  private hasNodeMoved = false;
+
+  // Cache inputs for layout performance optimization
+  private lastSortedActiveNodeId: string | null = null;
+  private lastLayoutInputs?: {
+    canvasW: number;
+    canvasH: number;
+    cameraOffsetX: number;
+    cameraOffsetY: number;
+    zoom: number;
+    activeLayersKey: string;
+    collapsedNodesKey: string;
+    layoutMode: 'mindmap' | 'orbit';
+    isInteractive: boolean;
+  };
 
 
 
@@ -350,12 +366,44 @@ export class OntologyCanvasEngine {
       isDirty = true;
     }
 
+    // Node targetWorldX/Y LERP Morphing
+    let nodesMoving = false;
+    for (const node of this.nodes) {
+      if (node.targetWorldX !== undefined && node.targetWorldY !== undefined) {
+        if (node.worldX === undefined || isNaN(node.worldX)) {
+          node.worldX = node.targetWorldX;
+        }
+        if (node.worldY === undefined || isNaN(node.worldY)) {
+          node.worldY = node.targetWorldY;
+        }
+
+        const currentX = node.worldX ?? 0;
+        const currentY = node.worldY ?? 0;
+        const dx = node.targetWorldX - currentX;
+        const dy = node.targetWorldY - currentY;
+        if (Math.abs(dx) > 0.1 || Math.abs(dy) > 0.1) {
+          node.worldX = currentX + dx * LERP_SPEED;
+          node.worldY = currentY + dy * LERP_SPEED;
+          nodesMoving = true;
+        } else {
+          node.worldX = node.targetWorldX;
+          node.worldY = node.targetWorldY;
+        }
+      }
+    }
+    this.hasNodeMoved = nodesMoving;
+    if (nodesMoving) {
+      this.layoutWorldGeometryDirty = true;
+      isDirty = true;
+    }
+
     // Update orbital angles if enabled
     if (this.isOrbiting) {
       for (const node of this.nodes) {
         if (node.orbitIndex === 0) continue;
         node.orbitAngle += node.orbitSpeed;
       }
+      this.layoutWorldGeometryDirty = true;
       isDirty = true;
     }
     
@@ -374,10 +422,37 @@ export class OntologyCanvasEngine {
   // ============ Compute Positions ============
 
   private computePositions(canvasW: number, canvasH: number, activeLayers?: Set<number>): void {
-    const isCameraMoving = Math.abs(this.targetOffsetX - this.cameraOffsetX) > 1.0 || 
-                           Math.abs(this.targetOffsetY - this.cameraOffsetY) > 1.0 ||
-                           Math.abs(this.targetZoom - this.zoom) > 0.01;
+    const isCameraMoving = Math.abs(this.targetOffsetX - this.cameraOffsetX) > 0.5 || 
+                           Math.abs(this.targetOffsetY - this.cameraOffsetY) > 0.5 ||
+                           Math.abs(this.targetZoom - this.zoom) > 0.005;
     const isInteractive = this.isDragging || isCameraMoving;
+
+    const activeLayersKey = activeLayers ? Array.from(activeLayers).sort().join(',') : '';
+    const collapsedNodesKey = Array.from(this.collapsedNodeIds).sort().join(',');
+
+    const canSkip = !this.layoutWorldGeometryDirty &&
+                    !isCameraMoving &&
+                    !this.isDragging &&
+                    !this.hasNodeMoved &&
+                    this.lastLayoutInputs &&
+                    this.lastLayoutInputs.canvasW === canvasW &&
+                    this.lastLayoutInputs.canvasH === canvasH &&
+                    this.lastLayoutInputs.cameraOffsetX === this.cameraOffsetX &&
+                    this.lastLayoutInputs.cameraOffsetY === this.cameraOffsetY &&
+                    this.lastLayoutInputs.zoom === this.zoom &&
+                    this.lastLayoutInputs.activeLayersKey === activeLayersKey &&
+                    this.lastLayoutInputs.collapsedNodesKey === collapsedNodesKey &&
+                    this.lastLayoutInputs.layoutMode === this.layoutMode &&
+                    !this.lastLayoutInputs.isInteractive;
+
+    if (canSkip) {
+      // Viewport is stationary, world geometry is clean, and the last run was already non-interactive.
+      // We can skip the entire coordinate projection and collision check loop safely.
+      return;
+    }
+
+    const forceRecompute = this.layoutWorldGeometryDirty || 
+                           (!this.lastLayoutInputs || this.lastLayoutInputs.layoutMode !== this.layoutMode);
 
     OntologyLayout.computePositions(
       this.nodes,
@@ -391,13 +466,49 @@ export class OntologyCanvasEngine {
       this.collapsedNodeIds,
       activeLayers,
       isInteractive,
-      this.layoutWorldGeometryDirty
+      forceRecompute,
+      this.layoutMode
     );
     this.layoutWorldGeometryDirty = false;
 
+    // Cache layout inputs
+    this.lastLayoutInputs = {
+      canvasW,
+      canvasH,
+      cameraOffsetX: this.cameraOffsetX,
+      cameraOffsetY: this.cameraOffsetY,
+      zoom: this.zoom,
+      activeLayersKey,
+      collapsedNodesKey,
+      layoutMode: this.layoutMode,
+      isInteractive
+    };
+
+    // Cache pre-sorted nodes array to avoid 60 FPS sorting cost in Renderer
+    const activeNodeId = this.activeNode?.id || null;
+    const needsSort = activeNodeId !== this.lastSortedActiveNodeId || this.sortedNodes.length !== this.nodes.length;
+    
+    if (needsSort) {
+      this.sortedNodes = [...this.nodes];
+      this.sortedNodes.sort((a, b) => {
+        if (a.id === activeNodeId) return 1;
+        if (b.id === activeNodeId) return -1;
+
+        const depthA = a.renderZ || 0;
+        const depthB = b.renderZ || 0;
+        if (Math.abs(depthB - depthA) > 1) {
+          return depthB - depthA;
+        }
+        return (a.orbitIndex || 0) - (b.orbitIndex || 0);
+      });
+      this.lastSortedActiveNodeId = activeNodeId;
+    }
+
     // Apply pending camera tracking instantly (after positions are known)
-    if (this.pendingCameraTargetId) {
-      const target = this.nodeMap.get(this.pendingCameraTargetId);
+    // 💡 활성 노드가 있고 사용자가 드래그 중이 아닐 때는, 줌 조작이나 이동 시 중심이 어긋나지 않도록 카메라 타겟 오프셋을 실시간 추적(Lock)합니다.
+    const trackingTargetId = this.pendingCameraTargetId || (this.activeNode ? this.activeNode.id : null);
+    if (trackingTargetId && !this.isDragging) {
+      const target = this.nodeMap.get(trackingTargetId);
       if (target && typeof target.worldX === 'number' && !isNaN(target.worldX) && 
           typeof target.worldY === 'number' && !isNaN(target.worldY)) {
         
@@ -407,8 +518,9 @@ export class OntologyCanvasEngine {
         const tiltAngle = 42 * Math.PI / 180;
         const cameraDist = 1000;
 
-        const h = effectiveLayer * LAYER_GAP;
-        const depthH = effectiveLayer * LAYER_GAP;
+        // 궤도 모드일 때 Z축 높이 Gap을 0으로 맞췄던 계산 법칙과 정확히 대응시킵니다
+        const h = this.layoutMode === 'orbit' ? 0 : effectiveLayer * LAYER_GAP;
+        const depthH = this.layoutMode === 'orbit' ? 0 : effectiveLayer * LAYER_GAP;
 
         const rotatedY = target.worldY * Math.cos(tiltAngle) - h * Math.sin(tiltAngle);
         const depth = -target.worldY * Math.sin(tiltAngle) + depthH * Math.cos(tiltAngle);
@@ -427,6 +539,7 @@ export class OntologyCanvasEngine {
             this.isInitialCameraSnap = false;
             
             // 카메라가 0,0에서 snapX,snapY로 점프했으므로 방금 계산했던 구좌표 파기 후 현재 좌표로 재계산
+            // (이때 isInteractive는 false로 snap 위치에서 충돌 해결 유도)
             OntologyLayout.computePositions(
               this.nodes,
               this.nodeMap,
@@ -438,9 +551,22 @@ export class OntologyCanvasEngine {
               this.zoom,
               this.collapsedNodeIds,
               activeLayers,
-              isInteractive,
-              this.layoutWorldGeometryDirty // will be false since we reset it above
+              false, // force non-interactive for final snap collision resolution
+              this.layoutWorldGeometryDirty,
+              this.layoutMode
             );
+
+            // sortedNodes 재정렬도 강제 적용
+            this.sortedNodes = [...this.nodes];
+            this.sortedNodes.sort((a, b) => {
+              if (a.id === activeNodeId) return 1;
+              if (b.id === activeNodeId) return -1;
+              const depthA = a.renderZ || 0;
+              const depthB = b.renderZ || 0;
+              if (Math.abs(depthB - depthA) > 1) return depthB - depthA;
+              return (a.orbitIndex || 0) - (b.orbitIndex || 0);
+            });
+            this.lastSortedActiveNodeId = activeNodeId;
           }
         }
       }
@@ -472,7 +598,8 @@ export class OntologyCanvasEngine {
       collapsedNodeIds: this.collapsedNodeIds,
       cameraOffsetX: this.cameraOffsetX,
       cameraOffsetY: this.cameraOffsetY,
-      activeLayers: activeLayers
+      activeLayers: activeLayers,
+      layoutMode: this.layoutMode
     });
   }
 
@@ -499,6 +626,7 @@ export class OntologyCanvasEngine {
     let minDist = Infinity;
 
     for (const node of this.nodes) {
+      if (node.id === 'root-HCHPS') continue;
       const dx = mx - node.renderX;
       const dy = my - node.renderY;
       const dist = Math.sqrt(dx * dx + dy * dy);
@@ -588,7 +716,7 @@ export class OntologyCanvasEngine {
       
       // 항상 활성화된 노드 단위를 바라보도록 카메라 패닝 지정
       this.pendingCameraTargetId = this.activeNode?.id || null;
-      this.layoutWorldGeometryDirty = true;
+      // 노드 단순 클릭 시에는 전체 기하학 각도를 강제 리셋하지 않고 카메라만 포커스 이동시킵니다.
     } else {
       // 바탕 배경 클릭 시 활성 상태 유지 (선택이 풀리지 않도록 함)
       // this.activeNode = this.centerNode;
@@ -638,13 +766,67 @@ export class OntologyCanvasEngine {
     }
   }
 
-  handleWheel(delta: number): void {
-    // Proportional zoom: instead of a fixed 0.92/1.08 step irrespective of input magnitude,
-    // we scale smoothly. deltaY=100 (wheel) yields ~0.90 zoom.
+  handleWheel(delta: number, mx?: number, my?: number): void {
+    const oldZoom = this.zoom;
     const zoomFactor = Math.exp(-delta * 0.001);
-    this.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, this.zoom * zoomFactor));
-    this.targetZoom = this.zoom; // 유저가 수동 줌 할 경우 타겟을 덮어써서 물리 애니메이션 방해 차단
+    const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, this.zoom * zoomFactor));
+    
+    this.zoom = newZoom;
+    this.targetZoom = newZoom;
     this.needsRedraw = true;
+
+    // 활성 노드 락이 작동 중일 때: 줌 조작 시 LERP 지연 없이 새로운 줌 기준으로 즉각 카메라 좌표 동기화(스냅)
+    if (this.activeNode && !this.isDragging) {
+      const target = this.activeNode;
+      if (typeof target.worldX === 'number' && !isNaN(target.worldX) && 
+          typeof target.worldY === 'number' && !isNaN(target.worldY)) {
+        
+        const effectiveLayer = target.effectiveLayer ?? 3;
+        const LAYER_GAP = 190;
+        const tiltAngle = 42 * Math.PI / 180;
+        const cameraDist = 1000;
+
+        const h = this.layoutMode === 'orbit' ? 0 : effectiveLayer * LAYER_GAP;
+        const depthH = this.layoutMode === 'orbit' ? 0 : effectiveLayer * LAYER_GAP;
+
+        const rotatedY = target.worldY * Math.cos(tiltAngle) - h * Math.sin(tiltAngle);
+        const depth = -target.worldY * Math.sin(tiltAngle) + depthH * Math.cos(tiltAngle);
+        const perspectiveScale = cameraDist / (cameraDist + depth);
+
+        const snapX = -(target.worldX * newZoom * perspectiveScale);
+        const snapY = -(rotatedY * newZoom * perspectiveScale);
+
+        if (!isNaN(snapX) && !isNaN(snapY)) {
+          this.targetOffsetX = snapX;
+          this.targetOffsetY = snapY;
+          this.cameraOffsetX = snapX;
+          this.cameraOffsetY = snapY;
+        }
+      }
+    } else {
+      // 활성 노드가 없을 때: 피봇(마우스 커서 또는 화면 중심) 기준 줌 좌표 역산 보정
+      const hasPivot = mx !== undefined && my !== undefined && this.canvasW > 0 && this.canvasH > 0;
+      if (hasPivot) {
+        const cx = this.canvasW / 2;
+        const cy = this.canvasH / 2;
+        
+        const px = (mx - cx - this.cameraOffsetX) / oldZoom;
+        const py = (my - cy - this.cameraOffsetY) / oldZoom;
+
+        const nextOffsetX = mx - cx - px * newZoom;
+        const nextOffsetY = my - cy - py * newZoom;
+
+        this.cameraOffsetX = nextOffsetX;
+        this.cameraOffsetY = nextOffsetY;
+        this.targetOffsetX = nextOffsetX;
+        this.targetOffsetY = nextOffsetY;
+      } else {
+        this.cameraOffsetX = this.cameraOffsetX * (newZoom / oldZoom);
+        this.cameraOffsetY = this.cameraOffsetY * (newZoom / oldZoom);
+        this.targetOffsetX = this.cameraOffsetX;
+        this.targetOffsetY = this.cameraOffsetY;
+      }
+    }
   }
 
   // ── Interaction ──
@@ -662,6 +844,7 @@ export class OntologyCanvasEngine {
     let closestId = null;
     let minDist = Infinity;
     for (const node of this.nodes) {
+      if (node.id === 'root-HCHPS') continue;
       const dx = nx - node.renderX;
       const dy = ny - node.renderY;
       const dist = Math.sqrt(dx * dx + dy * dy);

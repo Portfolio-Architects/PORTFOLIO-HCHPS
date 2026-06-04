@@ -92,9 +92,9 @@ ${text}
 `;
 
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.5-flash',
       generationConfig: {
-        maxOutputTokens: 2048,
+        maxOutputTokens: 8192,
         temperature: 0.1, // 창의성 최소화하여 정밀 추출
         responseMimeType: 'application/json',
         responseSchema: responseSchema

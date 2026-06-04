@@ -39,11 +39,31 @@ async function safeWriteFile(filePath: string, dataStr: string, retries = 5, del
     await fs.mkdir(dirPath, { recursive: true });
   } catch (e) {}
 
+  // 1. Windows file-lock collisions isolated using unique temp files per write request
+  const tempFilePath = `${filePath}.${Date.now()}.${Math.random().toString(36).substring(2, 7)}.tmp`;
+
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      await fs.writeFile(filePath, dataStr, 'utf-8');
-      return;
+      await fs.writeFile(tempFilePath, dataStr, 'utf-8');
+      
+      // Retry loop specifically for renaming, in case files are briefly locked by read streams
+      let renamed = false;
+      for (let renameAttempt = 1; renameAttempt <= 3; renameAttempt++) {
+        try {
+          await fs.rename(tempFilePath, filePath);
+          renamed = true;
+          break;
+        } catch (renameErr) {
+          if (renameAttempt === 3) throw renameErr;
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+      if (renamed) return;
     } catch (err: any) {
+      try {
+        await fs.unlink(tempFilePath);
+      } catch {}
+
       if (attempt === retries) {
         console.error(`[File System] Write failed after ${retries} attempts for path ${filePath}:`, err);
         throw err;
@@ -72,22 +92,34 @@ async function safeReadFile(filePath: string, retries = 5, delay = 50): Promise<
   throw new Error(`[File System] Read failed for path ${filePath}`);
 }
 
-async function readData(sheet: string): Promise<any[]> {
+async function readData(sheet: string, retries = 5, delay = 50): Promise<any[]> {
   const filePath = getFilePath(sheet);
-  try {
-    const data = await safeReadFile(filePath);
-    const parsed = JSON.parse(data);
-    if (sheet === 'BUDGET_CATEGORIES') {
-      console.log(`[API] Returning ${parsed.length} categories for BUDGET_CATEGORIES!`);
+  
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const data = await safeReadFile(filePath);
+      // Empty string denotes split-second read during file truncation. Force retry.
+      if (!data.trim()) {
+        throw new Error('File is empty');
+      }
+      const parsed = JSON.parse(data);
+      if (sheet === 'BUDGET_CATEGORIES') {
+        console.log(`[API] Returning ${parsed.length} categories for BUDGET_CATEGORIES!`);
+      }
+      return parsed;
+    } catch (err: any) {
+      if (err.code === 'ENOENT') {
+        return [];
+      }
+      // If parsing fails due to incomplete writes (SyntaxError) or empty file, wait and retry.
+      if (attempt === retries) {
+        console.error(`[API] Read parsed failed for ${sheet} after ${retries} attempts:`, err);
+        throw err;
+      }
+      await new Promise(resolve => setTimeout(resolve, delay));
     }
-    return parsed;
-  } catch (err: any) {
-    // If file doesn't exist, return empty array
-    if (err.code === 'ENOENT') {
-      return [];
-    }
-    throw err;
   }
+  throw new Error(`[API] Read parsed failed for ${sheet}`);
 }
 
 // ISO 주차(Week Number) 구하기 함수
@@ -220,6 +252,7 @@ export async function GET(request: Request) {
     const data = await readData(sheet);
     return NextResponse.json({ success: true, data });
   } catch (e) {
+    console.error(`[API GET Error] Failed to read data for sheet ${sheet}:`, e);
     return NextResponse.json({ success: false, error: 'Internal error' }, { status: 500 });
   }
 }

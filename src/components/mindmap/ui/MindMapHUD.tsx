@@ -48,6 +48,7 @@ export function MindMapHUD({
 
       {/* Controls - Bottom Right */}
       <div className="absolute bottom-24 md:bottom-4 right-4 z-10 flex items-center gap-2">
+
         {onExpandAll && (
           <button
             onClick={onExpandAll}
