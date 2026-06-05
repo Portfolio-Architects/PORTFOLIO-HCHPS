@@ -107,25 +107,27 @@ export function WikiEditor(props: WikiEditorProps) {
                 // Vectorize DB 비동기 동기화 (Background)
                 try {
                   const docText = await editor.blocksToMarkdownLossy(editor.document);
-                  const apiBase = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
-                    ? '' : 'https://portfolio-hchps.pages.dev';
+                  const isLocal = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'));
                   
-                  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-                  try {
-                    const { getAuthToken } = await import('@/lib/crypto');
-                    headers['Authorization'] = `Bearer ${getAuthToken()}`;
-                  } catch {
-                     // ignore
-                  }
+                  if (!isLocal) {
+                    const apiBase = 'https://portfolio-hchps.pages.dev';
+                    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+                    try {
+                      const { getAuthToken } = await import('@/lib/crypto');
+                      headers['Authorization'] = `Bearer ${getAuthToken()}`;
+                    } catch {
+                       // ignore
+                    }
 
-                  fetch(`${apiBase}/api/embeddings`, {
-                    method: 'POST',
-                    headers,
-                    body: JSON.stringify({
-                      id: `HCHPS-Wiki-${nodeId}`,
-                      text: `${nodeTitle}\n\n${docText}`
-                    })
-                  }).catch(e => console.error(e));
+                    fetch(`${apiBase}/api/embeddings`, {
+                      method: 'POST',
+                      headers,
+                      body: JSON.stringify({
+                        id: `HCHPS-Wiki-${nodeId}`,
+                        text: `${nodeTitle}\n\n${docText}`
+                      })
+                    }).catch(e => console.error(e));
+                  }
                 } catch (e) {
                   console.error('Failed to sync to Vectorize:', e);
                 }

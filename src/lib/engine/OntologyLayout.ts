@@ -157,7 +157,7 @@ export class OntologyLayout {
     activeLayers?: Set<number>,
     isInteractive: boolean = false,
     recomputeWorldPositions: boolean = true,
-    layoutMode: 'mindmap' | 'orbit' = 'mindmap'
+    layoutMode: 'mindmap' | 'orbit' | 'cluster' = 'mindmap'
   ): void {
     if (nodes.length === 0) return;
 
@@ -379,6 +379,24 @@ export class OntologyLayout {
             }
           });
         }
+      } else if (layoutMode === 'cluster') {
+        // Grape Cluster (Force-Directed): 초기화 배치만 구성하고, 실제 위치는 물리 엔진이 매 프레임 업데이트함
+        const mainRoot = roots[0];
+        nodes.forEach(n => {
+          visibleNodes.add(n.id);
+          n.orbitIndex = n.parentId ? 2 : (n.id === mainRoot?.id ? 0 : 1);
+          if (n.id === mainRoot?.id) {
+            n.targetWorldX = 0;
+            n.targetWorldY = 0;
+          } else if (n.targetWorldX === undefined || isNaN(n.targetWorldX) || n.worldX === undefined || isNaN(n.worldX)) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 80 + Math.random() * 160;
+            n.targetWorldX = dist * Math.cos(angle);
+            n.targetWorldY = dist * Math.sin(angle);
+            n.worldX = n.targetWorldX;
+            n.worldY = n.targetWorldY;
+          }
+        });
       } else {
         const X_SPACING = 250; // 가로 간격을 조금 더 넓혀 가독성 향상 (상향 조정)
         const Y_SPACING = 14;  // 세로 간격 상향 조정
@@ -565,24 +583,26 @@ export class OntologyLayout {
       const worldY = node.worldY ?? 0;
       
       // 레이어 수직 높이 (Z축 방향 높이: 0층이 가장 아래, 3층이 가장 위)
-      // layoutMode === 'orbit' 일 때는 모든 노드가 단일 궤도선 상에 안착하도록 Z축 높이를 0으로 고정합니다.
-      const h = layoutMode === 'orbit' ? 0 : effectiveLayer * LAYER_GAP;
+      // layoutMode === 'orbit' 또는 'cluster' 일 때는 모든 노드가 단일 평면 상에 안착하도록 Z축 높이를 0으로 고정합니다.
+      const h = (layoutMode === 'orbit' || layoutMode === 'cluster') ? 0 : effectiveLayer * LAYER_GAP;
 
       // 아래에서 위를 올려다보는 뷰 (Upward 뷰)
-      const depthH = layoutMode === 'orbit' ? 0 : effectiveLayer * LAYER_GAP;
+      const depthH = (layoutMode === 'orbit' || layoutMode === 'cluster') ? 0 : effectiveLayer * LAYER_GAP;
 
       // 3D X축 회전 변환 공식 적용 (depthH를 활용해 원근 배율 조정)
       const rotatedY = worldY * Math.cos(tiltAngle) - h * Math.sin(tiltAngle);
       const depth = -worldY * Math.sin(tiltAngle) + depthH * Math.cos(tiltAngle);
       
-      const perspectiveScale = cameraDist / (cameraDist + depth);
+      const perspectiveScale = Math.max(0.05, cameraDist / (cameraDist + depth));
 
       node.renderX = cx + worldX * zoom * perspectiveScale;
       node.renderY = cy + rotatedY * zoom * perspectiveScale;
       
       node.renderZ = depth;
       (node as any).perspectiveScale = perspectiveScale;
-      node.nodeRadius = 24; 
+      node.nodeRadius = (layoutMode === 'cluster')
+        ? (24 + (node.renderSize ?? 0.5) * 26)
+        : 24; 
     }
 
     // 7. Screen-Space Collision Resolution (2D 화면 공간 충돌 방지 루프)
@@ -632,6 +652,10 @@ export class OntologyLayout {
     }
 
     const maxIterations = isInteractive ? 1 : 4;
+    
+    if (layoutMode === 'cluster') {
+      return; // 클러스터 모드는 물리 엔진(Force Solver)이 자체 반발력을 계산하므로 화면 공간 충돌 해결을 스킵합니다.
+    }
     
     layerGroups.forEach((group) => {
       const damping = layoutMode === 'orbit' ? 0.12 : 0.45;

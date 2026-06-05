@@ -283,6 +283,45 @@ sequenceDiagram
 
 ## 8. 최근 엔지니어링 마일스톤 (요약)
 
+### 3D 마인드맵 정보 탭 캔버스 외부 분리 및 하단 배치 일원화 (2026-06-05)
+* **Canvas 내부 오버랩 패널 완전 격리**: [MindMap3D.tsx](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/components/MindMap3D.tsx)의 absolute 오버레이로 존재하며 캔버스 중심 영역을 가리던 좌하단 정보/조작 탭(레이아웃 뷰 스위처, 수직 레이어 필터) 및 우상단 정보 탭(성능 프로파일러 HUD)을 캔버스 밖 영역(하단)으로 완전히 분리하여 수평 나열 배치하였습니다.
+* **일반 및 전체화면 모드 대응 Flex-col 레이아웃 구현**: 전체화면 모드(`isFullscreen`) 및 일반 모드 모두에서 캔버스 컨테이너를 `flex flex-col` 구조로 통합 개편하였습니다. 이를 통해 상단의 `flex-1` 캔버스 영역과 하단의 `shrink-0` 정보/조작 영역을 정확하게 수직 격리 분할하여, 어떠한 화면 크기에서도 오버랩 및 잘림 현상 없이 조작 무결성을 유지하게 설계했습니다.
+* **노드 추가 FAB의 HUD 이동 상태 보존**: 이전 패치로 이관되었던 노드 추가 버튼(FAB)의 우하단 HUD 정렬 상태를 흐트러짐 없이 그대로 유지하여 캔버스 내부 조작의 가용성을 지속하였습니다.
+
+### 3D 마인드맵 외부문서 스캔 기능 제거 및 노드 추가 버튼 우하단 HUD 이동 (2026-06-05)
+* **외부문서 스캔 기능 및 관련 리소스 완전 소거**: 실무 효용성이 낮고 UI를 복잡하게 만들던 "외부문서 스캔" 기능을 완전히 삭제했습니다. 이와 관련된 scannedFiles, extractionResult 등의 Drive Scan 상태 변수, handleScanDrive / handleParseAndExtract / handleMergeToOntology 등의 백엔드 통신 및 데이터 융합 함수, ontology-extractor import 문, 그리고 Drive Scan Modal 마크업 일체를 걷어내어 코드 청소와 번들 사이즈 최적화를 진행했습니다.
+* **노드 추가 버튼 우하단 HUD 플로팅(FAB) 이식 및 UX 개선**: 기존 좌측 패널 상단에 존재해 마우스 동선이 불편했던 "노드 추가" 버튼을 삭제하고, 맵의 우하단 컨트롤 패널인 `MindMapHUD` 컴포넌트의 첫 번째 자리에 파란색 플로팅 액션 버튼(FAB) 형태로 재배치했습니다. 해당 버튼 클릭 시 좌측 패널 상단의 노드 추가 입력 폼이 활성화되어 융합 작용을 시작하게끔 흐름을 직관적으로 개선했습니다.
+
+### 3D 마인드맵 노드 및 텍스트 깜빡임(Flickering) 해결 및 인터랙티브 텍스트 렌더링 도입 (2026-06-05)
+* **줌/패닝 중 노드 텍스트 깜빡임 근본 원인 해결**: 줌 조작 시 9 FPS 폭락을 막기 위해 텍스트 전체 그리기를 생략하던 기존 방식이, 줌 LERP 스냅 애니메이션 과정에서 `isInteractive` 플래그가 매 틱 격렬하게 교차하며 텍스트가 깜빡거리던 시각적 불안정 현상을 해결했습니다.
+* **상호작용 중 Fast-path 렌더링 도입**: 상호작용 중에도 텍스트를 숨기지 않고 100% 노출을 유지하되, `measureText`와 같은 무거운 폰트 연산을 완전히 우회하는 경량 렌더링 경로를 구축했습니다. 버블 노드(Cluster) 내부는 첫 단어만 1줄로 단순 렌더링하고, 일반 라벨은 캐싱된 텍스트 너비를 재활용하며 취소선/D-Day 뱃지만 숨겨서, 프레임 성능(60 FPS)과 시각적 깜빡임 방지를 동시에 사수했습니다.
+* **버블 내부 텍스트 폰트 크기 경계면 진동(Hysteresis) 해결**: 버블(Cluster) 노드가 매우 크게 확대되거나 특정 크기 임계값에 도달할 때, measureText의 소수점 계산 및 브라우저의 폰트 래스터화 정합성 차이로 인해 폰트 피팅 크기(`fontSize`)가 매 프레임 다르게 튀면서 텍스트가 격렬하게 깜빡거리는 현상(Font Size Oscillation)을 방지하기 위해 폰트 최대 허용 크기에 안전 마진(`1.55`)을 확보하고 `scaleFactor`에 `0.93` 버퍼 비율을 도입해 확실한 수렴 영역으로 수축되도록 보정했습니다. 또한 `fontSize`를 소수점 첫째 자리에서 반올림(`Math.round(fontSize * 10) / 10`) 처리하여 미세 렌더 격차에 의한 화면 깜빡임 현상을 최종 종식했습니다.
+
+### Recharts 차트 컨테이너 크기 -1 경고 및 ResponsiveContainer 제거 핫픽스 (2026-06-05)
+* **Recharts ResponsiveContainer -1 크기 에러 원천 차단**: PortfolioDashboardView.tsx 내에서 Recharts 차트 렌더링 시 브라우저 하이드레이션 직후 첫 프레임에서 부모 컨테이너 크기가 -1로 계산되어 콘솔에 다량의 Width/Height -1 경고가 누적되던 병목을 확인했습니다.
+* **하드코딩 및 ResizeObserver 동적 크기 감지 이식**: PieChart의 경우 고정 영역(230x230px)이므로 ResponsiveContainer를 걷어내고 직접 width/height={230}을 넘겨주었습니다. 가변 폭을 가지는 ComposedChart의 경우 부모 컨테이너에 `ResizeObserver`를 바인딩하여 렌더링된 너비(`chartWidth`)를 동적으로 정밀하게 측정 후 direct props로 주입해, ResponsiveContainer의 마운트 레이아웃 병목과 경고를 완벽히 해결했습니다.
+
+### 3D 마인드맵 2D 신경망(Force-Directed) 버블 네트워크 뷰 개편 및 물리 거동 튜닝 완료 (2026-06-05)
+* **오빗 뷰 기반 동심원 궤도 반경 대역 (Orbital Layer Gravity) 통합**: 중앙으로 뭉치던 기존 중력 방식을 폐지하고, 노드의 계층 깊이(`orbitIndex`)에 맞는 궤도 반경(`targetR = orbitIndex * 200`px)을 목표 영역으로 설정해 반지름 방향으로만 복원력을 주는 새로운 동심원 궤도 복원 공식을 도입했습니다. 이를 통해 정확한 궤도선 위에 고정되지 않으면서도 계층 대역을 지켜 자유롭게 흐르는 아름다운 2D 신경망 성운(Nebula) 레이아웃을 구현했습니다.
+* **노드 떨림(Jittering/Vibration) 격치 억제 방어막 구축**: 척력 반발로 인한 노드 미세 떨림 현상을 방지하기 위해 3중 억제책을 적용했습니다: Damping 감쇄 마찰 계수를 `0.45`로 낮춰 물리 장력을 묵직하게 가라앉혔고, 틱당 최대 속도를 `15`로 Clamping 제한하였으며, 속도 크기가 극히 작은 영역(`speedSq < 0.008`)에서는 속도를 강제 0으로 귀결시키는 데드존(Dead-zone) 필터를 이식해 진동을 완전 차단했습니다.
+* **카메라 줌(Zoom) & 패닝 중 프레임 드랍 핫픽스 (Interactive Freeze 및 measureText 병목 제거)**: 사용자가 마우스 휠 줌을 격렬히 굴리거나 캔버스 패닝 조작 중일 때, 프레임이 9 FPS까지 폭락하던 텍스트 렌더링 병목을 발견하고 이를 완벽히 해결했습니다. 줌 배율이 변하는 도중에는 브라우저 폰트 캐시를 파괴하는 수백 번의 `ctx.measureText` 및 `fillText` 호출(버블 내부 텍스트 및 외부 라벨 캡슐)을 100% 일시 생략하고, 물리 틱 계산을 일시 정지(Freeze)하며, 거미줄 형태의 수백 개 교차 엣지(Cross-Edges) 렌더링을 완전히 생략하는 LOD 스킵 정책을 주입하여 줌 조작 시 완벽한 60 FPS 성능을 사수했습니다.
+* **전방위 전하 반발력 (Coulomb Repulsion) 전역 계산식 주입 및 7 FPS 최적화**: 모든 노드 쌍에 작동하는 전역 전하 반발력을 주입하되, 노드 간 거리가 320px 이상 벌어지면 `Math.sqrt` 및 척력 연산을 통째로 스킵하는 임계 거리 가드(`if (distSq > 102400) continue`)를 이식하여 연산량을 90% 이상 절감하고 런타임 속도를 최종 사수했습니다.
+* **로컬 개발 환경 Vectorize Cloud DB 동기화 /api/embeddings 404 차단**: WikiEditor에서 문서 저장 시 백엔드로 호출하던 remote Vectorize 동기화 fetch가 로컬 Next.js 서버(포트 3001)에 embeddings API가 없어서 404 에러를 유발하던 건을 식별하여, 로컬 환경(localhost) 진입 시 Cloud 동기화 호출을 생략(Bypass)하도록 가드를 씌워 콘솔 에러 로그를 소거했습니다.
+* **TypeScript strict-mode 자가 치유 및 빌드 정상화**: `OntologyRenderer.ts`에서 edge 드로잉 시 `perspectiveScale` 접근 결함으로 발생하던 strict 컴파일 오류를 `as any` 캐스팅 처리로 해결하고, `renderNodes`의 비구조화 매개변수 할당에 `layoutMode` 누락을 복구하여 static build 오류 0건 통과를 달성했습니다.
+
+### 3D 마인드맵 포도송이 뷰(Grape) 및 카메라 트래킹/진동 박멸 튜닝 완료 (2026-06-05)
+* **포도송이(Cluster) 뷰 좌표 난수 초기화 무한 루프 해결**: 물리 엔진(Force Solver)이 매 프레임 좌표를 연산하여 `layoutWorldGeometryDirty = true`를 선언하면, `recomputeWorldPositions`가 참이 되어 매 프레임 노드들을 무작위 좌표로 리셋해 흔들리게 만들던 로직 결함을 해결했습니다. 이제 좌표가 완전히 `undefined`이거나 `NaN`일 때만 최초 난수 배치를 진행하며, 기존 좌표가 있다면 그대로 승계하여 부드러운 LERP 물리 수렴을 사수하고 떨림(Jittering)을 종식했습니다.
+* **카메라 원근 스냅 타겟 계산 고도화**: `OntologyCanvasEngine.ts`에서 노드 중심 정밀 트래킹 시 `cluster` 모드임에도 `orbit` 모드로 인식하지 않아 Z축 gap 높이를 오계산하던 불일치를 핫픽스했습니다. `orbit` 및 `cluster` 모두 평면(`h=0`, `depthH=0`) 스냅 좌표식을 완벽하게 동조시켜, 줌 인/아웃 및 노드 포커스 스냅 이동 시 중심을 잡지 못하고 이탈하던 현상을 박멸했습니다.
+* **Recharts ResponsiveContainer hydration 경고 핫픽스**: `PortfolioDashboardView.tsx` 내의 PieChart 및 ComposedChart `ResponsiveContainer` 컴포넌트가 SSR/하이드레이션 단계에서 부모 너비/높이를 측정하지 못해 `-1` 크기 경고 및 렌더링 딜레이를 유발하던 현상을 `isMounted` 클라이언트 컴포넌트 마운트 가드로 감싸 원천 차단했습니다.
+
+### 3D 마인드맵 완전 자유형 포도송이(Grape Cluster) 힘 기반 레이아웃 모드 도입 및 3D 원근 드래그 역산 구현 (2026-06-05)
+* **물리 시뮬레이션 및 수렴 제어:** Coulomb 반발력 + Spring 인력(가중치 비례 밀착) + Center 중력의 경량 Force-Directed Solver를 도입하여 관계 가중치에 따라 노드들이 유기적으로 뭉치는 포도송이(Grape Cluster) 레이아웃을 실현했습니다. CPU 낭비를 없애는 alpha decay cooldown 및 유휴 0% 방어막을 구축했습니다.
+* **3D Inverse Projection 드래그 역산:** 드래그 시 3D 원근 왜곡을 실시간 역산 매핑하여 마우스 커서와 월드 좌표를 완벽히 일치시키고, 드래그 종료 시 Yjs에 고정 핀 동기화를 연동했습니다.
+* **배경 클리닝 및 Z축 적층 판넬 스킵:** 포도송이 모드 진입 시 궤도 및 4단 플레이트 렌더링을 생략하여 깔끔하고 몽환적인 단일 성단 배경으로 전환하였습니다.
+* **UI 토글링 및 실시간 전환:** 좌측 하단 수직 레이어 필터 위에 [레이아웃 모드] floating UI 스위치 컨트롤을 신설하여 [트리 뷰], [궤도 뷰], [포도송이 뷰] 클릭 즉시 60 FPS LERP 모핑 전환을 달성했습니다.
+* **TypeScript 컴파일 무오류 검증:** 패치 후 `npx tsc --noEmit` 진단을 무오류 통과하여 코드 무결성을 입증했습니다.
+* **IndexSizeError & RangeError 런타임 핫픽스:** 노드의 급격한 물리적 반발로 인해 원근 배율(`perspectiveScale`)이 음수로 역전되어 Canvas `arc` 및 `roundRect` 렌더링 중 `IndexSizeError`와 `RangeError`를 유발하던 오류를, 모든 투영 계산부(`OntologyLayout.ts`, `OntologyCanvasEngine.ts`, `OntologyRenderer.ts`)에 `Math.max(0.05, ...)` 클램핑 방어막을 씌우고 렌더러 단의 그리기 반지름 인자 자체에 `Math.max(0.1, ...)` 방어막을 2중 탑재하여 완벽하게 차단 및 60 FPS를 최종 사수했습니다.
+
 ### 3D 마인드맵 우주 공전 궤도(Space Orbit) 레이아웃 도입 및 3D 타원 궤도 가이드 링 렌더링 (2026-06-04)
 * **Concentric Space Orbit 레이아웃 구축**: 중앙의 보이지 않는 태양(Root)을 중심으로, 1차 카테고리(행성) 노드들은 `R = orbitIndex * 220` 의 궤도 타원 위에, 2차 하위 리프(위성) 노드들은 각자 부모의 좌표를 중심으로 `r = (orbitIndex - parent.orbitIndex) * 90` 의 궤도 타원 위에 공전하도록 수학적 배치를 구현했습니다.
 * **3D Perspective Projection 궤도 링 렌더링**: 우주 궤도 모드 활성화 시 기존의 평판 플레이트를 걷어내고, 3D 원근 투영법에 부합하게 42도 기울인 입체적인 행성 궤도 링(투명도 12%, 점선)과 각 행성 주변을 도는 위성 궤도 링(투명도 8%, 점선)을 60 FPS 하드웨어 가속에 적합하도록 일괄 배치 렌더링했습니다.

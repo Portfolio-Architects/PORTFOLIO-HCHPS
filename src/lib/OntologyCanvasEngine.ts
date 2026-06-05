@@ -54,7 +54,8 @@ export class OntologyCanvasEngine {
   public collapsedNodeIds: Set<string> = new Set();
   public hasInitializedCollapse: boolean = false;
   public isInitialCameraSnap: boolean = true;
-  public layoutMode: 'mindmap' | 'orbit' = 'mindmap';
+  public layoutMode: 'mindmap' | 'orbit' | 'cluster' = 'mindmap';
+  public physicsAlpha = 1.0;
 
   // Physics / Interaction
   isOrbiting = false;
@@ -97,7 +98,7 @@ export class OntologyCanvasEngine {
     zoom: number;
     activeLayersKey: string;
     collapsedNodesKey: string;
-    layoutMode: 'mindmap' | 'orbit';
+    layoutMode: 'mindmap' | 'orbit' | 'cluster';
     isInteractive: boolean;
   };
 
@@ -353,8 +354,210 @@ export class OntologyCanvasEngine {
 
   // ============ Tick (per frame) ============
 
+  // force-directed simulation tick
+  private runPhysicsTick(): boolean {
+    if (this.physicsAlpha <= 0.005) {
+      return false;
+    }
+
+    const isCameraMoving = Math.abs(this.targetOffsetX - this.cameraOffsetX) > 0.8 || 
+                           Math.abs(this.targetOffsetY - this.cameraOffsetY) > 0.8 ||
+                           Math.abs(this.targetZoom - this.zoom) > 0.008;
+    // 줌/패닝 휠 조작 및 LERP 이동 중이거나 노드 드래그가 아닌 단순 화면 드래그 패닝 중에는 물리 틱을 프리즈하여 줌 성능 드랍 방지
+    if (isCameraMoving || (this.isDragging && !this.draggedNode)) {
+      return false;
+    }
+
+    const nodes = this.nodes;
+    const nodeMap = this.nodeMap;
+    const edges = this.edges;
+    
+    // 1. Initialize velocities & Lock centers to (0,0)
+    for (const node of nodes) {
+      if (node.id === this.centerNode?.id || node.id === 'root-HCHPS') {
+        node.worldX = 0;
+        node.worldY = 0;
+        node.targetWorldX = 0;
+        node.targetWorldY = 0;
+        node.vx = 0;
+        node.vy = 0;
+      } else {
+        node.vx = node.vx ?? 0;
+        node.vy = node.vy ?? 0;
+      }
+    }
+
+    // 2. Global Coulomb Repulsion & Overlap Prevention (전방위 전하 반발력 및 2중 겹침 방지)
+    const chargeStrength = 15000; // 전역 분산 자석 힘 세기
+    const NUM_NODES = nodes.length;
+    for (let i = 0; i < NUM_NODES; i++) {
+      const nodeA = nodes[i];
+      if (nodeA.layoutHidden || nodeA.id === this.centerNode?.id || nodeA.id === 'root-HCHPS') continue;
+      
+      const ax = nodeA.worldX ?? 0;
+      const ay = nodeA.worldY ?? 0;
+      const rA = nodeA.nodeRadius;
+
+      for (let j = i + 1; j < NUM_NODES; j++) {
+        const nodeB = nodes[j];
+        if (nodeB.layoutHidden || nodeB.id === this.centerNode?.id || nodeB.id === 'root-HCHPS') continue;
+
+        const bx = nodeB.worldX ?? 0;
+        const by = nodeB.worldY ?? 0;
+        const rB = nodeB.nodeRadius;
+
+        const dx = bx - ax;
+        const dy = by - ay;
+        const distSq = dx * dx + dy * dy;
+        
+        // 임계 거리(320px) 이상 떨어지면 힘이 극소하므로 제곱근 및 척력 연산을 생략해 60 FPS 사수
+        if (distSq > 102400) continue; 
+        
+        const dist = Math.sqrt(distSq) || 0.1;
+
+        // A. 전방위 분산 반발 (d3-force forceManyBody 유사식)
+        // 분모 폭발 방지를 위해 소프트 마진 200 추가
+        let force = chargeStrength / (distSq * dist + 200);
+
+        // B. 겹침 방지 (Overlapping Prevention) - 겹쳤을 때 강한 추가 척력 부여
+        const minDist = rA + rB + 45; // 버블 간 최소 마진 45px 확보
+        if (dist < minDist) {
+          force += ((minDist - dist) / dist) * 2.8;
+        }
+
+        nodeA.vx! -= dx * force;
+        nodeA.vy! -= dy * force;
+        nodeB.vx! += dx * force;
+        nodeB.vy! += dy * force;
+      }
+    }
+
+    // 3. Spring Attraction (용수철 인력)
+    const springStrength = 0.055;
+    for (const edge of edges) {
+      if (edge.source === 'root-HCHPS' || edge.target === 'root-HCHPS') continue;
+      const nodeA = nodeMap.get(edge.source);
+      const nodeB = nodeMap.get(edge.target);
+      
+      if (!nodeA || !nodeB || nodeA.layoutHidden || nodeB.layoutHidden) {
+        continue;
+      }
+
+      const ax = nodeA.worldX ?? 0;
+      const ay = nodeA.worldY ?? 0;
+      const bx = nodeB.worldX ?? 0;
+      const by = nodeB.worldY ?? 0;
+
+      const dx = bx - ax;
+      const dy = by - ay;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
+
+      const weight = Math.abs(edge.weight);
+      // 용수철 평형 거리 대폭 완화 (가중치가 높아도 최소 약 140px, 일반 200px 이상 유지되도록 설계)
+      const targetDist = 220 / (weight * 0.4 + 0.6); 
+      
+      const force = ((dist - targetDist) / dist) * springStrength * (weight * 0.3 + 0.5);
+      
+      // 센터 노드는 당겨지지 않고 자식 노드만 중심 방향으로 끌려오게 제한
+      if (nodeA.id !== this.centerNode?.id) {
+        nodeA.vx! += dx * force;
+        nodeA.vy! += dy * force;
+      }
+      if (nodeB.id !== this.centerNode?.id) {
+        nodeB.vx! -= dx * force;
+        nodeB.vy! -= dy * force;
+      }
+    }
+
+    // 4. Orbital Layer Gravity (오빗 뷰 기반 동심원 궤도 복원력)
+    // 노드를 그냥 (0,0)으로 당기지 않고, 노드의 계층 깊이(orbitIndex)에 맞는 궤도 반경 대역으로 끌려가도록 물리력 부여
+    const orbitalGravity = 0.016; // 궤도 대역 복원 강도
+    for (const node of nodes) {
+      if (node.layoutHidden || node.id === this.centerNode?.id || node.id === 'root-HCHPS') continue;
+
+      const ax = node.worldX ?? 0;
+      const ay = node.worldY ?? 0;
+      const distToCenter = Math.sqrt(ax * ax + ay * ay) || 0.1;
+      
+      // 오빗 반경 대역 계산 (1층=200px, 2층=380px, 3층=560px 등 계층 반경 분산)
+      const targetR = (node.orbitIndex ?? 1) * 200;
+      const rDiff = distToCenter - targetR;
+
+      // 중앙 방향으로의 단위 벡터 (ax/distToCenter, ay/distToCenter)에 오차와 복원 강도를 곱하여 속도에 반영
+      node.vx! -= (ax / distToCenter) * rDiff * orbitalGravity;
+      node.vy! -= (ay / distToCenter) * rDiff * orbitalGravity;
+    }
+
+    // 5. Apply velocities with damping & jitter clamping
+    const damping = 0.45; // 마찰 감쇄 강화하여 덜덜 떨리는 거동을 묵직하게 가라앉힘
+    const maxSpeed = 15;  // 속도 클램핑으로 과도한 반발 오버슛 방지
+    
+    for (const node of nodes) {
+      if (node.layoutHidden) continue;
+      
+      if (node.id === this.centerNode?.id || node.id === 'root-HCHPS') {
+        node.worldX = 0;
+        node.worldY = 0;
+        node.targetWorldX = 0;
+        node.targetWorldY = 0;
+        node.vx = 0;
+        node.vy = 0;
+        continue;
+      }
+
+      const isFixed = (node as any).fixedX !== undefined && (node as any).fixedY !== undefined;
+      const isDraggedNode = this.draggedNode?.id === node.id;
+      
+      if (isFixed || isDraggedNode) {
+        node.vx = 0;
+        node.vy = 0;
+        continue;
+      }
+
+      // 속도 감속 및 클램핑 적용
+      let vx = (node.vx ?? 0) * damping;
+      let vy = (node.vy ?? 0) * damping;
+      
+      vx = Math.max(-maxSpeed, Math.min(maxSpeed, vx));
+      vy = Math.max(-maxSpeed, Math.min(maxSpeed, vy));
+
+      // 미세 진동 방지 데드존 (Dead-zone) 필터
+      const speedSq = vx * vx + vy * vy;
+      if (speedSq < 0.008) {
+        node.vx = 0;
+        node.vy = 0;
+      } else {
+        node.vx = vx;
+        node.vy = vy;
+        
+        const dx = vx * this.physicsAlpha;
+        const dy = vy * this.physicsAlpha;
+
+        node.worldX = (node.worldX ?? 0) + dx;
+        node.worldY = (node.worldY ?? 0) + dy;
+      }
+      
+      node.targetWorldX = node.worldX;
+      node.targetWorldY = node.worldY;
+    }
+
+    // Decay alpha (0.94 -> 0.982로 완화하여 노드들이 평형 위치를 찾을 수 있는 충분한 시뮬레이션 동작 시간 제공)
+    this.physicsAlpha *= 0.982;
+    
+    this.layoutWorldGeometryDirty = true;
+    return true;
+  }
+
   tick(): boolean {
     let isDirty = false;
+
+    // Run physics simulation if in cluster mode
+    if (this.layoutMode === 'cluster') {
+      const physicsActive = this.runPhysicsTick();
+      if (physicsActive) {
+        isDirty = true;
+      }
+    }
 
     // Camera interpolation
     if (Math.abs(this.targetOffsetX - this.cameraOffsetX) > 0.5 || 
@@ -518,13 +721,13 @@ export class OntologyCanvasEngine {
         const tiltAngle = 42 * Math.PI / 180;
         const cameraDist = 1000;
 
-        // 궤도 모드일 때 Z축 높이 Gap을 0으로 맞췄던 계산 법칙과 정확히 대응시킵니다
-        const h = this.layoutMode === 'orbit' ? 0 : effectiveLayer * LAYER_GAP;
-        const depthH = this.layoutMode === 'orbit' ? 0 : effectiveLayer * LAYER_GAP;
+        // 궤도 및 포도송이 모드일 때 Z축 높이 Gap을 0으로 맞췄던 계산 법칙과 정확히 대응시킵니다
+        const h = (this.layoutMode === 'orbit' || this.layoutMode === 'cluster') ? 0 : effectiveLayer * LAYER_GAP;
+        const depthH = (this.layoutMode === 'orbit' || this.layoutMode === 'cluster') ? 0 : effectiveLayer * LAYER_GAP;
 
         const rotatedY = target.worldY * Math.cos(tiltAngle) - h * Math.sin(tiltAngle);
         const depth = -target.worldY * Math.sin(tiltAngle) + depthH * Math.cos(tiltAngle);
-        const perspectiveScale = cameraDist / (cameraDist + depth);
+        const perspectiveScale = Math.max(0.05, cameraDist / (cameraDist + depth));
 
         const snapX = -(target.worldX * this.zoom * perspectiveScale);
         const snapY = -(rotatedY * this.zoom * perspectiveScale);
@@ -581,6 +784,11 @@ export class OntologyCanvasEngine {
     this.canvasH = height;
     this.computePositions(width, height, activeLayers);
 
+    const isCameraMoving = Math.abs(this.targetOffsetX - this.cameraOffsetX) > 0.8 || 
+                           Math.abs(this.targetOffsetY - this.cameraOffsetY) > 0.8 ||
+                           Math.abs(this.targetZoom - this.zoom) > 0.008;
+    const isInteractive = this.isDragging || isCameraMoving;
+
     OntologyRenderer.render({
       ctx,
       canvasW: width,
@@ -599,7 +807,8 @@ export class OntologyCanvasEngine {
       cameraOffsetX: this.cameraOffsetX,
       cameraOffsetY: this.cameraOffsetY,
       activeLayers: activeLayers,
-      layoutMode: this.layoutMode
+      layoutMode: this.layoutMode,
+      isInteractive: isInteractive
     });
   }
 
@@ -786,12 +995,12 @@ export class OntologyCanvasEngine {
         const tiltAngle = 42 * Math.PI / 180;
         const cameraDist = 1000;
 
-        const h = this.layoutMode === 'orbit' ? 0 : effectiveLayer * LAYER_GAP;
-        const depthH = this.layoutMode === 'orbit' ? 0 : effectiveLayer * LAYER_GAP;
+        const h = (this.layoutMode === 'orbit' || this.layoutMode === 'cluster') ? 0 : effectiveLayer * LAYER_GAP;
+        const depthH = (this.layoutMode === 'orbit' || this.layoutMode === 'cluster') ? 0 : effectiveLayer * LAYER_GAP;
 
         const rotatedY = target.worldY * Math.cos(tiltAngle) - h * Math.sin(tiltAngle);
         const depth = -target.worldY * Math.sin(tiltAngle) + depthH * Math.cos(tiltAngle);
-        const perspectiveScale = cameraDist / (cameraDist + depth);
+        const perspectiveScale = Math.max(0.05, cameraDist / (cameraDist + depth));
 
         const snapX = -(target.worldX * newZoom * perspectiveScale);
         const snapY = -(rotatedY * newZoom * perspectiveScale);
@@ -841,6 +1050,11 @@ export class OntologyCanvasEngine {
     this.draggedNode = null;
     this.draggedSubTree = [];
 
+    // 드래그 시작 시 물리 연산 alpha 활성화 (클러스터 재시뮬레이션 가동)
+    if (this.layoutMode === 'cluster') {
+      this.physicsAlpha = 1.0;
+    }
+
     let closestId = null;
     let minDist = Infinity;
     for (const node of this.nodes) {
@@ -859,7 +1073,7 @@ export class OntologyCanvasEngine {
     }
   }
 
-  handleDragMove(nx: number, ny: number, _w: number, _h: number): void {
+  handleDragMove(nx: number, ny: number, w: number, h: number): void {
     if (!this.isDragging) return;
 
     if (Math.abs(nx - this.dragStartX) > 5 || Math.abs(ny - this.dragStartY) > 5) {
@@ -867,14 +1081,46 @@ export class OntologyCanvasEngine {
       this.needsRedraw = true;
     }
 
-    // Camera Panning (노드 위에서 드래그를 시작해도 카메라가 이동하도록 허용)
-    const dx = nx - this.lastDragX;
-    const dy = ny - this.lastDragY;
-    
-    this.cameraOffsetX += dx;
-    this.cameraOffsetY += dy;
-    this.targetOffsetX = this.cameraOffsetX; // 수동 드래그 시 카메라 타겟 덮어쓰기
-    this.targetOffsetY = this.cameraOffsetY; 
+    if (this.layoutMode === 'cluster' && this.draggedNode) {
+      // 포도송이(Cluster) 모드에서 노드 드래그: 3D 원근 투영 왜곡 역산 적용
+      const cx = w / 2;
+      const cy = h / 2;
+      
+      const tiltAngle = 42 * Math.PI / 180;
+      const cosT = Math.cos(tiltAngle);
+      const sinT = Math.sin(tiltAngle);
+      const cameraDist = 1000;
+      
+      const screenX = nx - cx - this.cameraOffsetX;
+      const screenY = ny - cy - this.cameraOffsetY;
+      
+      // 3D Inverse Projection 연산 (Z=0 가정)
+      const dyScale = screenY / (this.zoom * cameraDist);
+      const denominator = cosT + dyScale * sinT;
+      const worldY = denominator !== 0 ? (dyScale * cameraDist) / denominator : 0;
+      
+      const depth = -worldY * sinT;
+      const perspectiveScale = Math.max(0.05, cameraDist / (cameraDist + depth));
+      const worldX = perspectiveScale !== 0 ? screenX / (this.zoom * perspectiveScale) : 0;
+
+      if (!isNaN(worldX) && !isNaN(worldY)) {
+        this.draggedNode.worldX = worldX;
+        this.draggedNode.worldY = worldY;
+        this.draggedNode.targetWorldX = worldX;
+        this.draggedNode.targetWorldY = worldY;
+        this.layoutWorldGeometryDirty = true;
+        this.physicsAlpha = 1.0; // 드래그 중인 동안 물리 가동 유지
+      }
+    } else {
+      // 카메라 패닝 (노드가 없거나 타 모드일 때)
+      const dx = nx - this.lastDragX;
+      const dy = ny - this.lastDragY;
+      
+      this.cameraOffsetX += dx;
+      this.cameraOffsetY += dy;
+      this.targetOffsetX = this.cameraOffsetX; // 수동 드래그 시 카메라 타겟 덮어쓰기
+      this.targetOffsetY = this.cameraOffsetY; 
+    }
     
     this.needsRedraw = true;
     this.lastDragX = nx;
@@ -884,9 +1130,11 @@ export class OntologyCanvasEngine {
   handleDragEnd(): void {
     this.isDragging = false;
     
-    if (this.hasDragged && this.draggedNode) {
-      // 기존 드래그 종료 시 Yjs에 fixedX/Y를 동기화하던 로직(NodePin)을 비활성화 (선택지 1 정책 반영)
-      // 향후 여기에 drop 대상 노드를 찾아 Reparenting 이벤트(onNodeReparent)를 날리는 로직을 넣을 수 있습니다.
+    if (this.hasDragged && this.draggedNode && this.layoutMode === 'cluster') {
+      // 드래그가 끝났을 때 고정 좌표 Pinning 처리
+      if (this.draggedNode.worldX !== undefined && this.draggedNode.worldY !== undefined) {
+        this.callbacks.onNodePin?.(this.draggedNode.id, this.draggedNode.worldX, this.draggedNode.worldY);
+      }
     }
     
     this.draggedNode = null;

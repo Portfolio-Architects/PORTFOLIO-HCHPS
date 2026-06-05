@@ -19,7 +19,8 @@ export interface RenderContext {
   cameraOffsetX?: number;
   cameraOffsetY?: number;
   activeLayers?: Set<number>;
-  layoutMode?: 'mindmap' | 'orbit';
+  layoutMode?: 'mindmap' | 'orbit' | 'cluster';
+  isInteractive?: boolean;
 }
 
 export class OntologyRenderer {
@@ -43,6 +44,8 @@ export class OntologyRenderer {
     
     if (layoutMode === 'orbit') {
       this.renderOrbitRings(context);
+    } else if (layoutMode === 'cluster') {
+      // 포도송이(Cluster) 뷰: 궤도 링 및 4단 플레이트 모두 그리기를 건너뜁니다.
     } else {
       this.renderBackgroundLayers(ctx, canvasW, canvasH, cameraOffsetX, cameraOffsetY, zoom, activeLayers);
     }
@@ -107,7 +110,7 @@ export class OntologyRenderer {
       const project = (wx: number, wy: number) => {
         const rotatedY = wy * cosTilt - h * sinTilt;
         const depth = -wy * sinTilt + h * cosTilt;
-        const perspectiveScale = cameraDist / (cameraDist + depth);
+        const perspectiveScale = Math.max(0.05, cameraDist / (cameraDist + depth));
         return {
           x: cx + wx * zoom * perspectiveScale,
           y: cy + rotatedY * zoom * perspectiveScale,
@@ -150,7 +153,7 @@ export class OntologyRenderer {
       const project = (wx: number, wy: number) => {
         const rotatedY = wy * cosTilt - h * sinTilt;
         const depth = -wy * sinTilt + depthH * cosTilt;
-        const perspectiveScale = cameraDist / (cameraDist + depth);
+        const perspectiveScale = Math.max(0.05, cameraDist / (cameraDist + depth));
         return {
           x: cx + wx * zoom * perspectiveScale,
           y: cy + rotatedY * zoom * perspectiveScale,
@@ -235,7 +238,7 @@ export class OntologyRenderer {
 
         const rotatedY = wy * cosTilt - h * sinTilt;
         const depth = -wy * sinTilt + h * cosTilt;
-        const perspectiveScale = cameraDist / (cameraDist + depth);
+        const perspectiveScale = Math.max(0.05, cameraDist / (cameraDist + depth));
 
         const sx = cx + wx * zoom * perspectiveScale;
         const sy = cy + rotatedY * zoom * perspectiveScale;
@@ -285,9 +288,9 @@ export class OntologyRenderer {
          isCrossEdge = true;
       }
 
-      // LOD (Level of Detail) 최적화: 줌 레벨이 0.7 미만(축소 뷰)일 때는 화면을 깔끔하게 유지하고 
-      // 렌더링 성능을 극대화하기 위해 토폴로지 교차 간선(Cross-edge) 그리기를 건너뜁니다.
-      if (isCrossEdge && rc.zoom < 0.7) {
+      // LOD (Level of Detail) 및 상호작용(Interactive) 최적화: 
+      // 줌 레벨이 0.7 미만이거나 줌/패닝 조작 중일 때는 프레임 확보를 위해 교차 간선 그리기를 과감히 스킵
+      if (isCrossEdge && (rc.zoom < 0.7 || rc.isInteractive)) {
          continue;
       }
 
@@ -370,6 +373,48 @@ export class OntologyRenderer {
         // 궤도 모드에서는 복잡한 베지어 곡선을 그리지 않고 레퍼런스 스크린샷과 동일한 깔끔한 직선으로 연결하여 GPU 렌더링 성능을 3배 이상 극대화합니다.
         ctx.moveTo(leftRightX, leftNode.renderY);
         ctx.lineTo(rightLeftX, rightNode.renderY);
+      } else if (layoutMode === 'cluster') {
+        // 포도송이(Cluster) 모드에서는 노드의 2D 중심 경계에서 타겟 경계까지 깔끔하게 이어진 직선 화살표를 드로잉합니다.
+        const dx = tgt.renderX - src.renderX;
+        const dy = tgt.renderY - src.renderY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        if (dist > 10) {
+          const ux = dx / dist;
+          const uy = dy / dist;
+          
+          const srcR = src.nodeRadius * rc.zoom * ((src as any).perspectiveScale ?? 1.0);
+          const tgtR = tgt.nodeRadius * rc.zoom * ((tgt as any).perspectiveScale ?? 1.0);
+          
+          const startX = src.renderX + ux * srcR;
+          const startY = src.renderY + uy * srcR;
+          const endX = tgt.renderX - ux * tgtR;
+          const endY = tgt.renderY - uy * tgtR;
+          
+          ctx.moveTo(startX, startY);
+          ctx.lineTo(endX, endY);
+          
+          // 화살표 머리 깃 (Arrowhead) 드로잉
+          const arrowSize = 6.5 * rc.zoom * avgScale;
+          const angle = Math.atan2(dy, dx);
+          
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(endX, endY);
+          ctx.lineTo(
+            endX - arrowSize * Math.cos(angle - Math.PI / 6),
+            endY - arrowSize * Math.sin(angle - Math.PI / 6)
+          );
+          ctx.lineTo(
+            endX - arrowSize * Math.cos(angle + Math.PI / 6),
+            endY - arrowSize * Math.sin(angle + Math.PI / 6)
+          );
+          ctx.closePath();
+          ctx.fillStyle = themeColor;
+          ctx.globalAlpha = alpha * Math.max(0.3, avgScale);
+          ctx.fill();
+          ctx.restore();
+        }
       } else {
         ctx.moveTo(leftRightX, leftNode.renderY);
         ctx.bezierCurveTo(
@@ -438,7 +483,7 @@ export class OntologyRenderer {
           // 배경 둥근 사각 박스
           ctx.beginPath();
           if (ctx.roundRect) {
-            ctx.roundRect(midX - rectW / 2, midY - rectH / 2, rectW, rectH, 4 * rc.zoom * avgScale);
+            ctx.roundRect(midX - rectW / 2, midY - rectH / 2, rectW, rectH, Math.max(0.1, 4 * rc.zoom * avgScale));
           } else {
             ctx.rect(midX - rectW / 2, midY - rectH / 2, rectW, rectH);
           }
@@ -496,7 +541,7 @@ export class OntologyRenderer {
   // Legacy getColorPalette removed -> We use Flat Design and themeColor inheritance
 
   private static renderNodes(rc: RenderContext): void {
-    const { ctx, sortedNodesBuffer, nodes, activeNodeId, hoveredNodeId, activeTreeSet, canvasW, canvasH, zoom } = rc;
+    const { ctx, sortedNodesBuffer, nodes, activeNodeId, hoveredNodeId, activeTreeSet, canvasW, canvasH, zoom, layoutMode = 'mindmap' } = rc;
 
     // No-op sorting: sortedNodesBuffer is pre-sorted by the layout engine.
 
@@ -527,7 +572,7 @@ export class OntologyRenderer {
       if (isLODDot) {
         const themeColor = node.isCompleted ? '#CBD5E1' : (node.themeColor || '#94A3B8');
         ctx.beginPath();
-        ctx.arc(node.renderX, node.renderY, 5.5 * localZoom, 0, Math.PI * 2);
+        ctx.arc(node.renderX, node.renderY, Math.max(0.1, 5.5 * localZoom), 0, Math.PI * 2);
         ctx.fillStyle = themeColor;
         ctx.fill();
         ctx.strokeStyle = '#FFFFFF';
@@ -562,7 +607,10 @@ export class OntologyRenderer {
       const boxW = Math.max(60 * localZoom, textWidth + paddingX * 2); // 100 -> 60
       const boxH = Math.max(28 * localZoom, fontSize + paddingY * 2);  // 40 -> 28
 
-      const themeColor = node.isCompleted ? '#CBD5E1' : (node.themeColor || '#94A3B8'); // 완료된 노드는 회색 처리
+      const isCluster = layoutMode === 'cluster';
+      const themeColor = node.isCompleted 
+        ? (isCluster ? '#64748B' : '#CBD5E1') 
+        : (node.themeColor || '#94A3B8');
 
       // 1) 리스크 노드 및 리스크 영향이 큰 노드 감지
       const risk = (node as any).riskFactor ?? 0;
@@ -598,7 +646,8 @@ export class OntologyRenderer {
       }
 
       // 1) 노드 도트(Sphere) 반지름 계산
-      const dotRadius = (4 + 6 * sizeFactor) * localZoom * (isActive || isHovered ? 1.3 : 1.0);
+      const baseRadius = isCluster ? (24 + weight * 26) : (4 + 6 * sizeFactor);
+      const dotRadius = Math.max(0.1, baseRadius * localZoom * (isActive || isHovered ? 1.15 : 1.0));
 
       // Shadow and Glow setup for premium sphere looks
       const needsGlow = isActive || isHovered || isRiskHigh;
@@ -629,7 +678,7 @@ export class OntologyRenderer {
 
       // White Sphere Border
       ctx.strokeStyle = '#FFFFFF';
-      ctx.lineWidth = 1.5 * localZoom;
+      ctx.lineWidth = (isCluster ? 2.4 : 1.5) * localZoom;
       ctx.stroke();
 
       // Risk flashing core indicator
@@ -643,62 +692,70 @@ export class OntologyRenderer {
 
       ctx.shadowColor = 'transparent';
 
-      // 2) Text Label drawing
-      const textOffsetX = dotRadius + 6 * localZoom;
-      const textY = node.renderY;
-
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
-
-      // Semitransparent white label backing capsule for maximum readability on orbits
-      const textH = fontSize + 4 * localZoom;
-      const textW = textWidth + 8 * localZoom;
-      
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.72)';
-      ctx.beginPath();
-      if (ctx.roundRect) {
-        ctx.roundRect(node.renderX + textOffsetX - 4 * localZoom, textY - textH / 2, textW, textH, 4 * localZoom);
+      // 상호작용 중에도 텍스트를 그리되, measureText와 같은 헤비한 연산을 생략하여 성능을 사수하고 깜빡임을 완벽히 차단
+      if (isCluster) {
+        this.drawNodeTextInside(ctx, labelText, node.renderX, node.renderY, dotRadius, localZoom, isActive, !!rc.isInteractive);
       } else {
-        ctx.rect(node.renderX + textOffsetX - 4 * localZoom, textY - textH / 2, textW, textH);
-      }
-      ctx.fill();
+        // 2) Text Label drawing
+        const textOffsetX = dotRadius + 6 * localZoom;
+        const textY = node.renderY;
 
-      // Actual label text
-      if (node.isCompleted) {
-        ctx.fillStyle = '#94A3B8';
-      } else {
-        ctx.fillStyle = (isActive || isTreeActive) ? '#0F172A' : '#475569';
-      }
-      ctx.fillText(labelText, node.renderX + textOffsetX, textY);
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
 
-      // Strikethrough
-      if (node.isCompleted) {
+        // Semitransparent white label backing capsule for maximum readability on orbits
+        const textH = fontSize + 4 * localZoom;
+        const textW = textWidth + 8 * localZoom;
+        
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.72)';
         ctx.beginPath();
-        ctx.moveTo(node.renderX + textOffsetX, textY);
-        ctx.lineTo(node.renderX + textOffsetX + textWidth, textY);
-        ctx.lineWidth = 1.2 * zoom;
-        ctx.strokeStyle = '#94A3B8';
-        ctx.stroke();
-      }
+        if (ctx.roundRect) {
+          ctx.roundRect(node.renderX + textOffsetX - 4 * localZoom, textY - textH / 2, textW, textH, Math.max(0.1, 4 * localZoom));
+        } else {
+          ctx.rect(node.renderX + textOffsetX - 4 * localZoom, textY - textH / 2, textW, textH);
+        }
+        ctx.fill();
 
-      // Deadline (D-Day) badge overlay
-      if (isActive && node.dueDate) {
-        const parts = node.dueDate.split('-');
-        if (parts.length === 3) {
-          const targetZero = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
-          const today = new Date();
-          const todayZero = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-          
-          const diffTime = targetZero.getTime() - todayZero.getTime();
-          const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-          const dDayStr = diffDays > 0 ? `D-${diffDays}` : diffDays === 0 ? 'D-Day' : `D+${Math.abs(diffDays)}`;
-          
-          const dateText = `⏰ ${dDayStr}`;
-          ctx.font = `bold ${9 * zoom}px 'Pretendard', sans-serif`;
-          ctx.fillStyle = diffDays <= 3 ? '#EF4444' : '#64748B';
-          
-          ctx.textAlign = 'left';
-          ctx.fillText(dateText, node.renderX + textOffsetX + textWidth + 6 * localZoom, textY);
+        // Actual label text
+        if (node.isCompleted) {
+          ctx.fillStyle = '#94A3B8';
+        } else {
+          ctx.fillStyle = (isActive || isTreeActive) ? '#0F172A' : '#475569';
+        }
+        ctx.fillText(labelText, node.renderX + textOffsetX, textY);
+
+        // 상호작용 중이 아닐 때만 취소선 및 D-Day 뱃지 렌더링하여 오버헤드 방지
+        if (!rc.isInteractive) {
+          // Strikethrough
+          if (node.isCompleted) {
+            ctx.beginPath();
+            ctx.moveTo(node.renderX + textOffsetX, textY);
+            ctx.lineTo(node.renderX + textOffsetX + textWidth, textY);
+            ctx.lineWidth = 1.2 * zoom;
+            ctx.strokeStyle = '#94A3B8';
+            ctx.stroke();
+          }
+
+          // Deadline (D-Day) badge overlay
+          if (isActive && node.dueDate) {
+            const parts = node.dueDate.split('-');
+            if (parts.length === 3) {
+              const targetZero = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+              const today = new Date();
+              const todayZero = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+              
+              const diffTime = targetZero.getTime() - todayZero.getTime();
+              const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+              const dDayStr = diffDays > 0 ? `D-${diffDays}` : diffDays === 0 ? 'D-Day' : `D+${Math.abs(diffDays)}`;
+              
+              const dateText = `⏰ ${dDayStr}`;
+              ctx.font = `bold ${9 * zoom}px 'Pretendard', sans-serif`;
+              ctx.fillStyle = diffDays <= 3 ? '#EF4444' : '#64748B';
+              
+              ctx.textAlign = 'left';
+              ctx.fillText(dateText, node.renderX + textOffsetX + textWidth + 6 * localZoom, textY);
+            }
+          }
         }
       }
 
@@ -726,5 +783,85 @@ export class OntologyRenderer {
     ctx.shadowColor = 'transparent';
     ctx.shadowBlur = 0;
     ctx.shadowOffsetY = 0;
+  }
+
+  private static drawNodeTextInside(
+    ctx: CanvasRenderingContext2D,
+    text: string,
+    cx: number,
+    cy: number,
+    radius: number,
+    localZoom: number,
+    isActive: boolean,
+    isInteractive?: boolean
+  ): void {
+    if (isInteractive) {
+      // 상호작용(줌, 패닝, 드래그) 중일 때는 measureText를 절대 부르지 않는 최속(Fast-path) 렌더링
+      const fontSize = Math.max(7.5 * localZoom, 10 * localZoom * (isActive ? 1.12 : 1.0));
+      ctx.font = `bold ${fontSize}px 'Pretendard', sans-serif`;
+      ctx.fillStyle = '#FFFFFF';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      
+      // 글자 크기가 원 반지름에 맞지 않아 삐져나가는 것을 방지하기 위해, 상호작용 중에는 첫 단어만 노출하거나 적당히 잘라 1줄로 단순 렌더링
+      const words = text.split(/\s+/);
+      const displayStr = words[0] || '';
+      const finalStr = displayStr.length > 5 ? displayStr.slice(0, 4) + '..' : displayStr;
+      ctx.fillText(finalStr, cx, cy);
+      return;
+    }
+
+    // 1. Text wrapping: split by space or custom delimiters
+    const words = text.split(/\s+/);
+    const lines: string[] = [];
+    let currentLine = words[0] || '';
+
+    for (let i = 1; i < words.length; i++) {
+      const word = words[i];
+      if (currentLine.length + word.length > 7) {
+        lines.push(currentLine);
+        currentLine = word;
+      } else {
+        currentLine += ' ' + word;
+      }
+    }
+    if (currentLine) {
+      lines.push(currentLine);
+    }
+
+    // 2. Determine base font size based on radius
+    let fontSize = Math.max(8.0 * localZoom, 11 * localZoom * (isActive ? 1.12 : 1.0));
+    
+    // Fit text inside circle
+    ctx.font = `600 ${fontSize}px 'Pretendard', sans-serif`;
+    let maxLineWidth = 0;
+    for (const line of lines) {
+      const w = ctx.measureText(line).width;
+      if (w > maxLineWidth) maxLineWidth = w;
+    }
+    
+    const maxAllowedWidth = radius * 1.55; // 1.62 -> 1.55로 안전 마진 확보
+    const totalHeight = lines.length * fontSize * 1.22;
+    const maxAllowedHeight = radius * 1.55; // 1.62 -> 1.55
+
+    if (maxLineWidth > maxAllowedWidth || totalHeight > maxAllowedHeight) {
+      const scaleW = maxAllowedWidth / maxLineWidth;
+      const scaleH = maxAllowedHeight / totalHeight;
+      // 0.93 버퍼 비율을 적용하여 경계면에서의 폰트 크기 진동(Flickering) 현상 원천 차단
+      const scaleFactor = Math.min(scaleW, scaleH) * 0.93;
+      fontSize = Math.max(7.2 * localZoom, fontSize * scaleFactor);
+    }
+
+    // 소수점 1자리 수준으로 폰트 크기 수치를 클램핑하여 렌더 프레임 간 격차 해소
+    fontSize = Math.round(fontSize * 10) / 10;
+    ctx.font = `bold ${fontSize}px 'Pretendard', sans-serif`;
+    ctx.fillStyle = '#FFFFFF';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    const startY = cy - ((lines.length - 1) * fontSize * 1.2) / 2;
+    for (let i = 0; i < lines.length; i++) {
+      ctx.fillText(lines[i], cx, startY + i * fontSize * 1.2);
+    }
   }
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Printer, Maximize2, Minimize2, Network, Waypoints } from 'lucide-react';
+import { Printer, Maximize2, Minimize2, Network, Waypoints, PlusSquare } from 'lucide-react';
 import { OrbitalNode, GROUP_COLORS, OntologyGroup } from '@/lib/ontology.types';
 
 interface MindMapHUDProps {
@@ -13,6 +13,7 @@ interface MindMapHUDProps {
   onPrintPdf: () => void;
   onCollapseAll?: () => void;
   onExpandAll?: () => void;
+  onAddNodeClick?: () => void;
 }
 
 export function MindMapHUD({
@@ -23,7 +24,8 @@ export function MindMapHUD({
   onToggleFullscreen,
   onPrintPdf,
   onCollapseAll,
-  onExpandAll
+  onExpandAll,
+  onAddNodeClick
 }: MindMapHUDProps) {
   return (
     <>
@@ -48,6 +50,19 @@ export function MindMapHUD({
 
       {/* Controls - Bottom Right */}
       <div className="absolute bottom-24 md:bottom-4 right-4 z-10 flex items-center gap-2">
+
+        {onAddNodeClick && (
+          <button
+            onClick={onAddNodeClick}
+            className="bg-[var(--color-primary)] text-white rounded-lg p-2.5 shadow-sm hover:opacity-90 cursor-pointer flex items-center gap-1.5 transition-colors border border-[var(--color-primary)]"
+            title="새 노드 추가 (Add Node)"
+          >
+            <PlusSquare size={18} />
+            <span className="text-xs font-bold px-0.5">노드 추가</span>
+          </button>
+        )}
+
+        <div className="w-px h-6 bg-gray-300 mx-1"></div>
 
         {onExpandAll && (
           <button

@@ -119,6 +119,8 @@ export interface OrbitalNode extends OntologyNode {
   worldY?: number;             // Optional: Local World Y tracking for radial physics layout
   targetWorldX?: number;       // Optional: Target X coordinate for LERP morphing animation
   targetWorldY?: number;       // Optional: Target Y coordinate for LERP morphing animation
+  vx?: number;                 // Optional: Physics velocity X for force-directed solver
+  vy?: number;                 // Optional: Physics velocity Y for force-directed solver
   renderX: number;             // canvas X
   renderY: number;             // canvas Y
   renderZ: number;             // depth (-1 to 1)

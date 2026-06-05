@@ -17,7 +17,6 @@ import { MindMapInspector } from './MindMapInspector';
 import { MindMapHeader } from './mindmap/ui/MindMapHeader';
 import { MindMapHUD } from './mindmap/ui/MindMapHUD';
 import { useWikiStorage } from '@/hooks/useWikiStorage';
-import { extractSemanticGraph, mergeExtractedGraph } from '@/lib/engine/ontology-extractor';
 import { useYjsStore } from '@/hooks/useYjsStore';
 import { decryptPayload, isCryptoReady } from '@/lib/crypto';
 import {
@@ -66,7 +65,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   const [newNodeName, setNewNodeName] = useState("");
   
   // ── 레이아웃 모드 상태 (우주 궤도 고정) ──
-  const layoutModeRef = useRef<'mindmap' | 'orbit'>('orbit');
+  const layoutModeRef = useRef<'mindmap' | 'orbit' | 'cluster'>('orbit');
 
   // ── 수직 적층 온톨로지 레이어 필터 상태 ──
   const [activeLayers, setActiveLayers] = useState<Set<number>>(new Set([0, 1, 2, 3]));
@@ -85,85 +84,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   const { overrides = {}, customNodes = [], customEdges = [], deletedEdges = [], undo, redo, setNodeOverride, batchSetNodeOverrides, clearNodeOverride, addCustomNode, deleteCustomNode, updateCustomNodeText, addCustomEdge, deleteCustomEdge, removeCustomTombstone, renameNodeId, clearOverrides, resetLayoutOverrides, clearAll, syncToCloud, fetchFromCloud, isCloudLoaded } = useGraphCustomization();
   const { ydoc } = useYjsStore();
 
-  // ── Drive Scan States ──
-  const [isDriveScanOpen, setIsDriveScanOpen] = useState(false);
-  const [scannedFiles, setScannedFiles] = useState<any[]>([]);
-  const [isScanningFiles, setIsScanningFiles] = useState(false);
-  const [parsingFileId, setParsingFileId] = useState<string | null>(null);
-  const [extractionResult, setExtractionResult] = useState<any | null>(null);
-  const [selectedNodes, setSelectedNodes] = useState<Set<string>>(new Set());
-  const [selectedEdges, setSelectedEdges] = useState<Set<string>>(new Set());
 
-  // 로컬 드라이브 (바탕화면 및 F드라이브) 파일 스캔
-  const handleScanDrive = async () => {
-    setIsScanningFiles(true);
-    setExtractionResult(null);
-    try {
-      const res = await fetch('/api/drive');
-      const json = await res.json();
-      if (json.success) {
-        setScannedFiles(json.data);
-        setIsDriveScanOpen(true);
-      } else {
-        alert('로컬 파일 스캔 실패: ' + json.error);
-      }
-    } catch (e: any) {
-      alert('로컬 파일 스캔 오류: ' + e.message);
-    } finally {
-      setIsScanningFiles(false);
-    }
-  };
-
-  // 특정 파일 파싱 및 AI 시맨틱 추출
-  const handleParseAndExtract = async (file: any) => {
-    setParsingFileId(file.id);
-    setExtractionResult(null);
-    try {
-      const parseRes = await fetch('/api/drive', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filePath: file.path }),
-      });
-      const parseJson = await parseRes.json();
-      if (!parseJson.success) {
-        throw new Error(parseJson.error || '로컬 파일 파싱 실패');
-      }
-
-      const textContent = parseJson.content;
-      if (!textContent || textContent.trim().length === 0) {
-        throw new Error('문서에서 텍스트 내용을 추출할 수 없습니다.');
-      }
-
-      // 속도와 API 한도를 위해 상위 3,500자로 제한하여 고속 추출
-      const extracted = await extractSemanticGraph(textContent.substring(0, 3500));
-      setExtractionResult(extracted);
-      
-      // 자동 전체 선택 초기화
-      setSelectedNodes(new Set(extracted.nodes.map((n: any) => n.id)));
-      setSelectedEdges(new Set(extracted.edges.map((e: any) => `${e.source}|||${e.target}`)));
-    } catch (e: any) {
-      alert('시맨틱 구조 추출 실패: ' + e.message);
-    } finally {
-      setParsingFileId(null);
-    }
-  };
-
-  // 최종 선택 데이터를 Yjs 온톨로지에 융합
-  const handleMergeToOntology = () => {
-    if (!extractionResult) return;
-    
-    const filteredNodes = extractionResult.nodes.filter((n: any) => selectedNodes.has(n.id));
-    const filteredEdges = extractionResult.edges.filter((e: any) => selectedEdges.has(`${e.source}|||${e.target}`));
-    
-    mergeExtractedGraph(ydoc, { nodes: filteredNodes, edges: filteredEdges });
-    
-    alert(`성공적으로 ${filteredNodes.length}개의 노드와 ${filteredEdges.length}개의 시맨틱 관계를 온톨로지에 융합 병합했습니다!`);
-    setExtractionResult(null);
-    setIsDriveScanOpen(false);
-    
-    // 리렌더링 격발
-    setTimeout(() => initEngine(), 50);
-  };
   useEffect(() => {
     const handleOpenWiki = (e: CustomEvent<{ id: string; label: string }>) => {
       // Find the actual node if it exists in the engine, otherwise mock enough properties for WikiEditor to work
@@ -806,6 +727,138 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
     printWindow.document.close();
   }, []);
 
+  // ── Bottom Info Panels Content Renderer ──
+  const renderBottomInfoPanels = () => {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* 1. 레이아웃 모드 카드 */}
+        <div className="bg-white/85 backdrop-blur-md p-4 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col gap-2.5">
+          <span className="text-xs font-black text-slate-800 flex items-center gap-2">
+            <Zap size={14} className="text-[var(--color-primary)]" />
+            레이아웃 모드
+          </span>
+          <div className="grid grid-cols-3 gap-1.5">
+            {[
+              { id: 'mindmap', label: '트리 뷰' },
+              { id: 'orbit', label: '궤도 뷰' },
+              { id: 'cluster', label: '포도송이' }
+            ].map((mode) => {
+              const isActive = layoutModeRef.current === mode.id;
+              return (
+                <button
+                  key={mode.id}
+                  onClick={() => {
+                    layoutModeRef.current = mode.id as any;
+                    if (engineRef.current) {
+                      engineRef.current.layoutMode = mode.id as any;
+                      engineRef.current.layoutWorldGeometryDirty = true;
+                      if (mode.id === 'cluster') {
+                        engineRef.current.physicsAlpha = 1.0;
+                      }
+                      engineRef.current.needsRedraw = true;
+                    }
+                    setStats(prev => ({ ...prev }));
+                  }}
+                  className={`px-1 py-2 rounded-xl text-[10px] font-bold border text-center transition-all cursor-pointer select-none ${
+                    isActive 
+                      ? 'border-[var(--color-primary-light)] bg-[var(--color-primary-light)]/10 text-[var(--color-primary)] font-black' 
+                      : 'border-slate-200 bg-slate-50/50 text-slate-500 hover:bg-slate-100'
+                  }`}
+                >
+                  {mode.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 2. 수직 레이어 필터 카드 */}
+        <div className="bg-white/85 backdrop-blur-md p-4 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col gap-2.5">
+          <span className="text-xs font-black text-slate-800 flex items-center gap-2">
+            <Waypoints size={14} className="text-[var(--color-primary)]" />
+            수직 레이어 필터
+          </span>
+          <div className="grid grid-cols-2 gap-1.5">
+            {[0, 1, 2, 3].map((layerId) => {
+              const layerLabels: Record<number, string> = {
+                0: '인물 (Agent)',
+                1: '예산/비품 (Resource)',
+                2: '업무/회의 (Execution)',
+                3: '위키/문서 (Knowledge)'
+              };
+              const layerColors: Record<number, string> = {
+                0: 'border-blue-200 bg-blue-50/50 text-blue-700',
+                1: 'border-emerald-200 bg-emerald-50/50 text-emerald-700',
+                2: 'border-violet-200 bg-violet-50/50 text-violet-700',
+                3: 'border-amber-200 bg-amber-50/50 text-amber-700'
+              };
+              const isChecked = activeLayers.has(layerId);
+              return (
+                <button
+                  key={layerId}
+                  onClick={() => {
+                    const next = new Set(activeLayers);
+                    if (next.has(layerId)) {
+                      if (next.size > 1) next.delete(layerId);
+                    } else {
+                      next.add(layerId);
+                    }
+                    setActiveLayers(next);
+                  }}
+                  className={`flex items-center gap-1.5 px-2 py-1.5 rounded-xl text-[10px] font-bold border transition-all cursor-pointer select-none text-left truncate ${
+                    isChecked 
+                      ? layerColors[layerId] 
+                      : 'border-slate-200 bg-slate-50/50 text-slate-400 hover:bg-slate-100'
+                  }`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                    isChecked 
+                      ? (layerId === 0 ? 'bg-blue-500' : layerId === 1 ? 'bg-emerald-500' : layerId === 2 ? 'bg-violet-500' : 'bg-amber-500') 
+                      : 'bg-slate-300'
+                  }`} />
+                  <span className="truncate">{layerLabels[layerId].split(' ')[0]}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 3. 성능 프로파일러 카드 */}
+        <div className="bg-white/85 backdrop-blur-md p-4 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col gap-1.5 font-mono text-[9px] text-slate-600 min-w-[130px]">
+          <div className="flex items-center justify-between gap-3 mb-0.5">
+            <span className="font-sans font-bold text-xs text-slate-800 flex items-center gap-1.5">
+              <Radio size={12} className="text-slate-500" />
+              성능 프로파일러
+            </span>
+            <div className="flex items-center gap-1">
+              <span className={`w-1.5 h-1.5 rounded-full ${perfMetrics.fps >= 55 ? 'bg-emerald-500 animate-pulse' : perfMetrics.fps >= 30 ? 'bg-amber-500' : 'bg-rose-500'}`}></span>
+              <span className="font-sans font-black text-slate-800 text-[10px]">{perfMetrics.fps} FPS</span>
+            </div>
+          </div>
+          <div className="h-px bg-slate-200/40 my-0.5"></div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+            <div className="flex justify-between">
+              <span>최근 렌더:</span>
+              <span className="font-bold text-slate-900">{perfMetrics.lastRenderTime.toFixed(2)}ms</span>
+            </div>
+            <div className="flex justify-between">
+              <span>평균 렌더:</span>
+              <span className="font-bold text-slate-900">{perfMetrics.avgRenderTime.toFixed(2)}ms</span>
+            </div>
+            <div className="flex justify-between">
+              <span>최대 렌더:</span>
+              <span className="font-bold text-slate-900">{perfMetrics.maxRenderTime.toFixed(2)}ms</span>
+            </div>
+            <div className="flex justify-between">
+              <span>지연 경고:</span>
+              <span className={`font-bold ${perfMetrics.warningCount > 0 ? 'text-amber-600 font-extrabold animate-pulse' : 'text-slate-900'}`}>{perfMetrics.warningCount}회</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // ── Loading / Error States ──
   if (loading || !isCloudLoaded) {
     return (
@@ -830,12 +883,6 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
       </div>
     );
   }
-
-
-
-
-
-
 
   return (
     <div className="space-y-4">
@@ -933,28 +980,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                 </button>
               </div>
             </div>
-          ) : (
-            <div className="w-full shrink-0 flex gap-2">
-              <button
-                onClick={() => { setIsAddingNode(true); setNewNodeName(""); }}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-[var(--color-primary)] text-white text-xs font-semibold hover:opacity-90 shadow-sm border border-[var(--color-primary)] cursor-pointer transition-colors"
-              >
-                <PlusSquare size={14} /> 노드 추가
-              </button>
-              <button
-                onClick={handleScanDrive}
-                disabled={isScanningFiles}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-slate-800 text-white text-xs font-semibold hover:opacity-90 disabled:bg-slate-400 shadow-sm cursor-pointer transition-colors"
-              >
-                {isScanningFiles ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <FolderOpen size={14} />
-                )}
-                외부문서 스캔
-              </button>
-            </div>
-          )}
+          ) : null}
           
           <div className="flex-1 min-h-0 relative">
             <MindMapInspector
@@ -969,450 +995,206 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
           </div>
         </div>
 
-        {/* ── Canvas Container ── */}
-        <div
-          ref={containerRef}
-          className={
-            isFullscreen 
-              ? 'fixed inset-0 z-[100]' 
-              : 'relative rounded-xl overflow-hidden border border-[var(--color-border-light)] order-1 lg:order-none flex-1 aspect-square md:aspect-auto md:h-[min(600px,70vh)]'
-          }
-          style={{
-            background: 'radial-gradient(circle at center, rgba(255, 255, 255, 0.9) 0%, #f8fafc 100%)',
-            ...(isFullscreen ? { height: '100vh' } : {})
-          }}
-        >
-          <canvas
-            ref={canvasRef}
-            className="absolute inset-0 w-full h-full"
-            style={{ cursor: hoveredNode ? 'pointer' : 'grab', touchAction: 'none' }}
-            onClick={handleClick}
-            onMouseMove={handleMouseMove}
-            onMouseDown={handleMouseDown}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-          />
+        {/* ── Right Column: Canvas + Bottom Controls ── */}
+        <div className={isFullscreen ? '' : 'order-1 lg:order-none flex-1 flex flex-col gap-4 min-w-0'}>
+          {/* Canvas Container */}
+          <div
+            ref={containerRef}
+            className={
+              isFullscreen 
+                ? 'fixed inset-0 z-[100] flex flex-col' 
+                : 'relative rounded-xl overflow-hidden border border-[var(--color-border-light)] w-full h-[550px] md:h-[600px] flex-1'
+            }
+            style={{
+              background: 'radial-gradient(circle at center, rgba(255, 255, 255, 0.9) 0%, #f8fafc 100%)',
+              ...(isFullscreen ? { height: '100vh' } : {})
+            }}
+          >
+            {/* 캔버스 및 그 오버레이를 감싸는 Wrapper */}
+            <div className="flex-1 relative w-full min-h-0">
+              <canvas
+                ref={canvasRef}
+                className="absolute inset-0 w-full h-full"
+                style={{ cursor: hoveredNode ? 'pointer' : 'grab', touchAction: 'none' }}
+                onClick={handleClick}
+                onMouseMove={handleMouseMove}
+                onMouseDown={handleMouseDown}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseUp}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+              />
 
-          {/* Floating Search Bar (top-left) */}
-          <div className="absolute top-4 left-4 z-20 flex flex-col w-72 pointer-events-auto">
-            <div className="relative flex items-center bg-white/80 backdrop-blur-md border border-slate-200/50 shadow-lg rounded-xl transition-all duration-200 focus-within:bg-white focus-within:ring-2 focus-within:ring-[var(--color-primary)]/20 focus-within:border-[var(--color-primary)]">
-              <Search className="absolute left-3.5 text-slate-400 w-4.5 h-4.5 pointer-events-none" />
-              <input
-                type="text"
-                placeholder="노드 검색..."
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setSelectedSearchIndex(-1);
-                }}
-                onFocus={() => setIsSearchFocused(true)}
-                onBlur={() => {
-                  // 리스트 안의 요소를 마우스로 클릭할 때 바로 닫히지 않도록 약간의 지연 시간 설정
-                  setTimeout(() => {
-                    setIsSearchFocused(false);
-                  }, 200);
-                }}
-                onKeyDown={(e) => {
-                  const filtered = searchQuery.trim() && engineRef.current
-                    ? engineRef.current.nodes.filter(node => 
-                        node.label.toLowerCase().includes(searchQuery.trim().toLowerCase())
-                      )
-                    : [];
-
-                  if (filtered.length === 0) return;
-
-                  if (e.key === 'ArrowDown') {
-                    e.preventDefault();
-                    setSelectedSearchIndex(prev => (prev + 1) % filtered.length);
-                  } else if (e.key === 'ArrowUp') {
-                    e.preventDefault();
-                    setSelectedSearchIndex(prev => (prev - 1 + filtered.length) % filtered.length);
-                  } else if (e.key === 'Enter') {
-                    e.preventDefault();
-                    const targetIdx = selectedSearchIndex >= 0 ? selectedSearchIndex : 0;
-                    if (filtered[targetIdx]) {
-                      handleNodeClickInPanel(filtered[targetIdx].id);
-                      setSearchQuery("");
-                      setIsSearchFocused(false);
+              {/* Floating Search Bar (top-left) */}
+              <div className="absolute top-4 left-4 z-20 flex flex-col w-72 pointer-events-auto">
+                <div className="relative flex items-center bg-white/80 backdrop-blur-md border border-slate-200/50 shadow-lg rounded-xl transition-all duration-200 focus-within:bg-white focus-within:ring-2 focus-within:ring-[var(--color-primary)]/20 focus-within:border-[var(--color-primary)]">
+                  <Search className="absolute left-3.5 text-slate-400 w-4.5 h-4.5 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="노드 검색..."
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
                       setSelectedSearchIndex(-1);
-                    }
-                  } else if (e.key === 'Escape') {
-                    e.preventDefault();
-                    setIsSearchFocused(false);
-                    setSelectedSearchIndex(-1);
-                    (e.target as HTMLInputElement).blur();
+                    }}
+                    onFocus={() => setIsSearchFocused(true)}
+                    onBlur={() => {
+                      // 리스트 안의 요소를 마우스로 클릭할 때 바로 닫히지 않도록 약간의 지연 시간 설정
+                      setTimeout(() => {
+                        setIsSearchFocused(false);
+                      }, 200);
+                    }}
+                    onKeyDown={(e) => {
+                      const filtered = searchQuery.trim() && engineRef.current
+                        ? engineRef.current.nodes.filter(node => 
+                            node.label.toLowerCase().includes(searchQuery.trim().toLowerCase())
+                          )
+                        : [];
+
+                      if (filtered.length === 0) return;
+
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        setSelectedSearchIndex(prev => (prev + 1) % filtered.length);
+                      } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        setSelectedSearchIndex(prev => (prev - 1 + filtered.length) % filtered.length);
+                      } else if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const targetIdx = selectedSearchIndex >= 0 ? selectedSearchIndex : 0;
+                        if (filtered[targetIdx]) {
+                          handleNodeClickInPanel(filtered[targetIdx].id);
+                          setSearchQuery("");
+                          setIsSearchFocused(false);
+                          setSelectedSearchIndex(-1);
+                        }
+                      } else if (e.key === 'Escape') {
+                        e.preventDefault();
+                        setIsSearchFocused(false);
+                        setSelectedSearchIndex(-1);
+                        (e.target as HTMLInputElement).blur();
+                      }
+                    }}
+                    className="w-full pl-10 pr-10 py-2.5 text-sm bg-transparent rounded-xl outline-none text-slate-800 placeholder-slate-400 font-medium"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => {
+                        setSearchQuery("");
+                        setSelectedSearchIndex(-1);
+                      }}
+                      className="absolute right-3 p-1 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Auto-complete Results Dropdown */}
+                {isSearchFocused && searchQuery.trim() && (
+                  <div className="absolute top-[48px] left-0 right-0 max-h-60 overflow-y-auto bg-white/95 backdrop-blur-md border border-slate-200/50 rounded-xl shadow-xl z-50 custom-scrollbar animate-in fade-in slide-in-from-top-1 duration-150">
+                    {(() => {
+                      const filtered = engineRef.current
+                        ? engineRef.current.nodes.filter(node => 
+                            node.label.toLowerCase().includes(searchQuery.trim().toLowerCase())
+                          )
+                        : [];
+
+                      if (filtered.length === 0) {
+                        return (
+                          <div className="px-4 py-3 text-xs text-slate-400 text-center font-medium">
+                            검색 결과가 없습니다
+                          </div>
+                        );
+                      }
+
+                      return filtered.map((node, index) => {
+                        const isSelected = index === selectedSearchIndex;
+                        const groupColor = GROUP_COLORS[node.group as OntologyGroup] || '#ccc';
+                        const groupLabel = GROUP_LABELS[node.group as OntologyGroup] || '기타';
+
+                        return (
+                          <div
+                            key={node.id}
+                            onMouseDown={() => {
+                              handleNodeClickInPanel(node.id);
+                              setSearchQuery("");
+                              setSelectedSearchIndex(-1);
+                            }}
+                            className={`px-3.5 py-2 text-sm flex items-center justify-between cursor-pointer transition-colors duration-150 ${
+                              isSelected ? 'bg-slate-100 text-[var(--color-primary)] font-semibold' : 'hover:bg-slate-50 text-slate-700'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span 
+                                className="w-2 h-2 rounded-full shrink-0" 
+                                style={{ backgroundColor: groupColor }} 
+                              />
+                              <span className="truncate">{node.label}</span>
+                            </div>
+                            <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium shrink-0">
+                              {groupLabel}
+                            </span>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                )}
+              </div>
+
+              <MindMapHUD
+                containerWidth={containerRef.current?.getBoundingClientRect().width ?? 400}
+                hoveredNode={hoveredNode}
+                activeNode={activeNode}
+                isFullscreen={isFullscreen}
+                onToggleFullscreen={() => setIsFullscreen(!isFullscreen)}
+                onPrintPdf={handlePrintPdf}
+                onCollapseAll={() => {
+                  if (engineRef.current) {
+                    engineRef.current.collapseAll();
                   }
                 }}
-                className="w-full pl-10 pr-10 py-2.5 text-sm bg-transparent rounded-xl outline-none text-slate-800 placeholder-slate-400 font-medium"
+                onExpandAll={() => {
+                  if (engineRef.current) {
+                    engineRef.current.expandAll();
+                  }
+                }}
+                onAddNodeClick={() => { setIsAddingNode(true); setNewNodeName(""); }}
               />
-              {searchQuery && (
-                <button
-                  onClick={() => {
-                    setSearchQuery("");
-                    setSelectedSearchIndex(-1);
-                  }}
-                  className="absolute right-3 p-1 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
+
+              {/* Sliding Wiki Panel Overlay */}
+              {isWikiOpen && activeNode && wikiLoaded && (
+                <div className="absolute top-0 right-0 h-full bg-white z-[120] shadow-xl border-l border-slate-200 w-full md:w-[450px] lg:w-[500px]">
+                  <WikiEditor 
+                    key={activeNode.id}
+                    nodeId={activeNode.id} 
+                    nodeTitle={activeNode.label} 
+                    initialBlocks={wikiBlocks ?? undefined} 
+                    onChange={(blocks) => saveWikiBlocks(activeNode.id, blocks)} 
+                    onClose={() => setIsWikiOpen(false)} 
+                    addCustomEdge={addCustomEdge}
+                  />
+                </div>
               )}
             </div>
 
-            {/* Auto-complete Results Dropdown */}
-            {isSearchFocused && searchQuery.trim() && (
-              <div className="absolute top-[48px] left-0 right-0 max-h-60 overflow-y-auto bg-white/95 backdrop-blur-md border border-slate-200/50 rounded-xl shadow-xl z-50 custom-scrollbar animate-in fade-in slide-in-from-top-1 duration-150">
-                {(() => {
-                  const filtered = engineRef.current
-                    ? engineRef.current.nodes.filter(node => 
-                        node.label.toLowerCase().includes(searchQuery.trim().toLowerCase())
-                      )
-                    : [];
-
-                  if (filtered.length === 0) {
-                    return (
-                      <div className="px-4 py-3 text-xs text-slate-400 text-center font-medium">
-                        검색 결과가 없습니다
-                      </div>
-                    );
-                  }
-
-                  return filtered.map((node, index) => {
-                    const isSelected = index === selectedSearchIndex;
-                    const groupColor = GROUP_COLORS[node.group as OntologyGroup] || '#ccc';
-                    const groupLabel = GROUP_LABELS[node.group as OntologyGroup] || '기타';
-
-                    return (
-                      <div
-                        key={node.id}
-                        onMouseDown={() => {
-                          handleNodeClickInPanel(node.id);
-                          setSearchQuery("");
-                          setSelectedSearchIndex(-1);
-                        }}
-                        className={`px-3.5 py-2 text-sm flex items-center justify-between cursor-pointer transition-colors duration-150 ${
-                          isSelected ? 'bg-slate-100 text-[var(--color-primary)] font-semibold' : 'hover:bg-slate-50 text-slate-700'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span 
-                            className="w-2 h-2 rounded-full shrink-0" 
-                            style={{ backgroundColor: groupColor }} 
-                          />
-                          <span className="truncate">{node.label}</span>
-                        </div>
-                        <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium shrink-0">
-                          {groupLabel}
-                        </span>
-                      </div>
-                    );
-                  });
-                })()}
+            {/* 하단 정보 패널 (전체화면 모드일 때 Canvas Container 하단에 Flex로 렌더링되도록 함) */}
+            {isFullscreen && (
+              <div className="w-full bg-white/95 backdrop-blur-md border-t border-slate-200/80 p-4 shrink-0 shadow-lg z-20 pointer-events-auto">
+                {renderBottomInfoPanels()}
               </div>
             )}
           </div>
 
-          {/* Performance HUD Overlay */}
-          <div className="absolute top-4 right-4 z-20 flex flex-col gap-1 p-2.5 rounded-xl bg-white/70 backdrop-blur-md border border-slate-200/50 shadow-lg text-[10px] font-mono text-slate-700 pointer-events-none select-none min-w-[130px]">
-            <div className="flex items-center justify-between gap-3">
-              <span className="font-sans font-bold text-slate-900">성능 프로파일러</span>
-              <div className="flex items-center gap-1">
-                <span className={`w-1.5 h-1.5 rounded-full ${perfMetrics.fps >= 55 ? 'bg-emerald-500 animate-pulse' : perfMetrics.fps >= 30 ? 'bg-amber-500' : 'bg-rose-500'}`}></span>
-                <span className="font-bold text-slate-800">{perfMetrics.fps} FPS</span>
-              </div>
-            </div>
-            <div className="h-px bg-slate-200/40 my-1"></div>
-            <div className="flex justify-between">
-              <span>최근 렌더:</span>
-              <span className="font-bold text-slate-900">{perfMetrics.lastRenderTime.toFixed(2)}ms</span>
-            </div>
-            <div className="flex justify-between">
-              <span>평균 렌더:</span>
-              <span className="font-bold text-slate-900">{perfMetrics.avgRenderTime.toFixed(2)}ms</span>
-            </div>
-            <div className="flex justify-between">
-              <span>최대 렌더:</span>
-              <span className="font-bold text-slate-900">{perfMetrics.maxRenderTime.toFixed(2)}ms</span>
-            </div>
-            <div className="flex justify-between">
-              <span>지연 경고:</span>
-              <span className={`font-bold ${perfMetrics.warningCount > 0 ? 'text-amber-600 font-extrabold animate-pulse' : 'text-slate-900'}`}>{perfMetrics.warningCount}회</span>
-            </div>
-          </div>
-
-          {/* Whiteboard Toolbar (top-left) */}
-
-          <MindMapHUD
-            containerWidth={containerRef.current?.getBoundingClientRect().width ?? 400}
-            hoveredNode={hoveredNode}
-            activeNode={activeNode}
-            isFullscreen={isFullscreen}
-            onToggleFullscreen={() => setIsFullscreen(!isFullscreen)}
-            onPrintPdf={handlePrintPdf}
-            onCollapseAll={() => {
-              if (engineRef.current) {
-                engineRef.current.collapseAll();
-              }
-            }}
-            onExpandAll={() => {
-              if (engineRef.current) {
-                engineRef.current.expandAll();
-              }
-            }}
-          />
-
-
-          {/* Sliding Wiki Panel Overlay */}
-          {isWikiOpen && activeNode && wikiLoaded && (
-            <div className="absolute top-0 right-0 h-full bg-white z-[120] shadow-xl border-l border-slate-200 w-full md:w-[450px] lg:w-[500px]">
-              <WikiEditor 
-                key={activeNode.id}
-                nodeId={activeNode.id} 
-                nodeTitle={activeNode.label} 
-                initialBlocks={wikiBlocks ?? undefined} 
-                onChange={(blocks) => saveWikiBlocks(activeNode.id, blocks)} 
-                onClose={() => setIsWikiOpen(false)} 
-                addCustomEdge={addCustomEdge}
-              />
+          {/* 일반 모드일 때 캔버스 바깥 하단에 렌더링 */}
+          {!isFullscreen && (
+            <div className="w-full pointer-events-auto">
+              {renderBottomInfoPanels()}
             </div>
           )}
-
-          {/* ── 온톨로지 레이어 필터 (좌측 하단) ── */}
-          <div className="absolute bottom-4 left-4 z-20 flex flex-col gap-1.5 p-3 rounded-xl bg-white/80 backdrop-blur-md border border-slate-200/50 shadow-lg pointer-events-auto min-w-[170px]">
-            <span className="text-[11px] font-bold text-slate-800 mb-1 flex items-center gap-1.5">
-              <Waypoints size={12} className="text-[var(--color-primary)]" />
-              수직 레이어 필터
-            </span>
-            {[0, 1, 2, 3].map((layerId) => {
-              const layerLabels: Record<number, string> = {
-                0: '인물 (Agent)',
-                1: '예산/비품 (Resource)',
-                2: '업무/회의 (Execution)',
-                3: '위키/문서 (Knowledge)'
-              };
-              const layerColors: Record<number, string> = {
-                0: 'border-blue-200 bg-blue-50/50 text-blue-700',
-                1: 'border-emerald-200 bg-emerald-50/50 text-emerald-700',
-                2: 'border-violet-200 bg-violet-50/50 text-violet-700',
-                3: 'border-amber-200 bg-amber-50/50 text-amber-700'
-              };
-              const isChecked = activeLayers.has(layerId);
-              return (
-                <button
-                  key={layerId}
-                  onClick={() => {
-                    const next = new Set(activeLayers);
-                    if (next.has(layerId)) {
-                      if (next.size > 1) next.delete(layerId); // 최소 1개는 활성화 상태 유지
-                    } else {
-                      next.add(layerId);
-                    }
-                    setActiveLayers(next);
-                  }}
-                  className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition-all cursor-pointer select-none text-left ${
-                    isChecked 
-                      ? layerColors[layerId] 
-                      : 'border-slate-200 bg-slate-50/50 text-slate-400 opacity-60 hover:opacity-90'
-                  }`}
-                >
-                  <span className={`w-2 h-2 rounded-full shrink-0 ${
-                    isChecked 
-                      ? (layerId === 0 ? 'bg-blue-500' : layerId === 1 ? 'bg-emerald-500' : layerId === 2 ? 'bg-violet-500' : 'bg-amber-500') 
-                      : 'bg-slate-300'
-                  }`} />
-                  {layerLabels[layerId]}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* ── 외부 문서 스캔 및 시맨틱 융합 모달 (Drive Scan Modal) ── */}
-          {isDriveScanOpen && (
-            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm z-[200] flex items-center justify-center p-6 pointer-events-auto">
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                
-                {/* 모달 헤더 */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-                  <div className="flex items-center gap-2">
-                    <FolderOpen size={20} className="text-slate-700" />
-                    <h3 className="font-bold text-slate-800 text-base">외부 문서 스캔 & 시맨틱 온톨로지 융합</h3>
-                  </div>
-                  <button 
-                    onClick={() => { setIsDriveScanOpen(false); setExtractionResult(null); }}
-                    className="p-1 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
-                  >
-                    <X size={18} />
-                  </button>
-                </div>
-
-                {/* 모달 본문 */}
-                <div className="flex-1 overflow-y-auto p-6 custom-scrollbar grid grid-cols-1 md:grid-cols-2 gap-6 min-h-0">
-                  
-                  {/* 왼쪽: 파일 목록 */}
-                  <div className="flex flex-col gap-3 min-h-0 border-r border-slate-100 pr-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-500">바탕화면 및 로컬 드라이브(F) 탐색 파일 ({scannedFiles.length})</span>
-                      <button 
-                        onClick={handleScanDrive} 
-                        className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors flex items-center gap-1 text-[10px] font-semibold border border-slate-200"
-                      >
-                        <RefreshCw size={10} /> 새로고침
-                      </button>
-                    </div>
-
-                    <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-                      {scannedFiles.length === 0 ? (
-                        <div className="text-center py-12 text-slate-400 text-xs font-medium">
-                          스캔된 지원 문서가 없습니다.
-                        </div>
-                      ) : (
-                        scannedFiles.map((file) => {
-                          const isParsing = parsingFileId === file.id;
-                          return (
-                            <div 
-                              key={file.id} 
-                              className="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200/50 rounded-xl flex flex-col gap-2 transition-colors duration-150"
-                            >
-                              <div className="flex items-start gap-2.5 min-w-0">
-                                <FileText size={16} className="text-slate-500 mt-0.5 shrink-0" />
-                                <div className="flex-1 min-w-0">
-                                  <div className="text-xs font-bold text-slate-800 truncate" title={file.name}>{file.name}</div>
-                                  <div className="text-[9px] text-slate-400 font-mono truncate" title={file.path}>{file.path}</div>
-                                </div>
-                              </div>
-                              <div className="flex items-center justify-between gap-2 mt-1">
-                                <span className="text-[10px] text-slate-400 font-mono">
-                                  {(file.size / 1024).toFixed(1)} KB
-                                </span>
-                                <button
-                                  onClick={() => handleParseAndExtract(file)}
-                                  disabled={parsingFileId !== null}
-                                  className="px-2.5 py-1.5 bg-slate-800 text-white text-[10px] font-bold rounded-lg hover:opacity-90 disabled:bg-slate-300 flex items-center gap-1 transition-opacity cursor-pointer"
-                                >
-                                  {isParsing ? (
-                                    <>
-                                      <Loader2 size={10} className="animate-spin" /> AI 추출중...
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Zap size={10} /> 시맨틱 추출
-                                    </>
-                                  )}
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  </div>
-
-                  {/* 오른쪽: AI 추출된 시맨틱 미리보기 및 선택 */}
-                  <div className="flex flex-col gap-4 min-h-0">
-                    <span className="text-xs font-bold text-slate-500">AI 시맨틱 요소 융합 검토</span>
-
-                    {!extractionResult ? (
-                      <div className="flex-1 flex flex-col items-center justify-center border border-dashed border-slate-200 rounded-2xl bg-slate-50/50 text-slate-400 p-6 text-center">
-                        <Database size={32} className="text-slate-300 mb-2" />
-                        <p className="text-xs font-medium">왼쪽 목록에서 파일의<br />[시맨틱 추출] 버튼을 눌러주세요.</p>
-                      </div>
-                    ) : (
-                      <div className="flex-1 flex flex-col min-h-0 gap-3">
-                        
-                        {/* 추출된 노드 목록 */}
-                        <div className="flex-1 min-h-0 flex flex-col border border-slate-100 rounded-xl p-3 bg-slate-50/30 animate-in fade-in duration-200">
-                          <span className="text-[10px] font-bold text-slate-400 mb-2">추출 노드 ({extractionResult.nodes.length})</span>
-                          <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
-                            {extractionResult.nodes.map((node: any) => {
-                              const isChecked = selectedNodes.has(node.id);
-                              const groupColor = GROUP_COLORS[node.group as OntologyGroup] || '#ccc';
-                              const groupLabel = GROUP_LABELS[node.group as OntologyGroup] || '기타';
-                              return (
-                                <label 
-                                  key={node.id}
-                                  className="flex items-center gap-2 p-2 bg-white border border-slate-200/60 rounded-lg text-xs cursor-pointer select-none hover:bg-slate-50"
-                                >
-                                  <input 
-                                    type="checkbox" 
-                                    checked={isChecked}
-                                    onChange={() => {
-                                      const next = new Set(selectedNodes);
-                                      if (next.has(node.id)) next.delete(node.id);
-                                      else next.add(node.id);
-                                      setSelectedNodes(next);
-                                    }}
-                                    className="rounded border-slate-300 text-[var(--color-primary)] focus:ring-[var(--color-primary)]/20"
-                                  />
-                                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: groupColor }} />
-                                  <span className="font-bold text-slate-700 flex-1 truncate">{node.label}</span>
-                                  <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-mono shrink-0">
-                                    {groupLabel} (L{node.layerId})
-                                  </span>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        {/* 추출된 관계 엣지 목록 */}
-                        <div className="flex-1 min-h-0 flex flex-col border border-slate-100 rounded-xl p-3 bg-slate-50/30 animate-in fade-in duration-200">
-                          <span className="text-[10px] font-bold text-slate-400 mb-2">추출 관계 ({extractionResult.edges.length})</span>
-                          <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
-                            {extractionResult.edges.map((edge: any) => {
-                              const edgeKey = `${edge.source}|||${edge.target}`;
-                              const isChecked = selectedEdges.has(edgeKey);
-                              const srcNode = extractionResult.nodes.find((n: any) => n.id === edge.source);
-                              const tgtNode = extractionResult.nodes.find((n: any) => n.id === edge.target);
-                              const relationship = EDGE_TYPE_LABELS[edge.type as EdgeType] || edge.type;
-                              
-                              return (
-                                <label 
-                                  key={edgeKey}
-                                  className="flex items-center gap-2 p-2 bg-white border border-slate-200/60 rounded-lg text-[10px] cursor-pointer select-none hover:bg-slate-50"
-                                >
-                                  <input 
-                                    type="checkbox" 
-                                    checked={isChecked}
-                                    onChange={() => {
-                                      const next = new Set(selectedEdges);
-                                      if (next.has(edgeKey)) next.delete(edgeKey);
-                                      else next.add(edgeKey);
-                                      setSelectedEdges(next);
-                                    }}
-                                    className="rounded border-slate-300 text-[var(--color-primary)] focus:ring-[var(--color-primary)]/20"
-                                  />
-                                  <div className="flex-1 min-w-0 flex items-center gap-1 font-medium text-slate-600 truncate">
-                                    <span className="font-bold text-slate-800 truncate">{srcNode?.label || edge.source}</span>
-                                    <span className="text-slate-400 font-mono text-[9px] shrink-0">({relationship})</span>
-                                    <span className="text-slate-400 shrink-0">→</span>
-                                    <span className="font-bold text-slate-800 truncate">{tgtNode?.label || edge.target}</span>
-                                  </div>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        {/* 모달 융합 실행 버튼 */}
-                        <button
-                          onClick={handleMergeToOntology}
-                          disabled={selectedNodes.size === 0}
-                          className="w-full py-2.5 bg-[var(--color-primary)] disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl hover:opacity-90 shadow-sm transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                        >
-                          <Database size={14} />
-                          선택한 {selectedNodes.size}개 시맨틱 요소 융합
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-              </div>
-            </div>
-          )}
-
+        {/* Right Column 닫기 */}
         </div>
       </div>
     </div>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { PieChart, Pie, Cell, LineChart, Line, Bar, ReferenceLine, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area, CartesianGrid, ComposedChart } from 'recharts';
 import { Task, BudgetCategory, BudgetEntry } from '@/types';
 import { usePortfolioAnalytics } from '@/hooks/usePortfolioAnalytics';
@@ -68,6 +68,26 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
   const [chartType, setChartType] = useState<'monthly' | 'cumulative'>('monthly');
   const [expandedSubCategory, setExpandedSubCategory] = useState<string | null>(null);
   const [activeInputId, setActiveInputId] = useState<string | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
+  const chartContainerRef = React.useRef<HTMLDivElement>(null);
+  const [chartWidth, setChartWidth] = useState<number>(0);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isMounted || !chartContainerRef.current) return;
+    
+    const observer = new ResizeObserver((entries) => {
+      if (!entries || entries.length === 0) return;
+      const { width } = entries[0].contentRect;
+      setChartWidth(width);
+    });
+    
+    observer.observe(chartContainerRef.current);
+    return () => observer.disconnect();
+  }, [isMounted]);
 
   const { addEntry, updateEntry, deleteEntry, updateCategory, entries, getCategoryStats } = useBudget();
 
@@ -142,8 +162,8 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
           <div className="flex-1 w-full h-[250px] flex flex-col sm:flex-row items-stretch justify-center mb-6 gap-6 sm:gap-8 md:gap-12 lg:gap-16">
             <div className="w-full sm:w-[260px] h-[250px] flex-shrink-0 flex justify-center items-center">
               <div className="w-[230px] h-[230px] relative flex-shrink-0">
-                <ResponsiveContainer width="100%" height={230} minWidth={0}>
-                  <PieChart>
+                {isMounted && (
+                  <PieChart width={230} height={230}>
                     <Pie
                       data={dynamicPieData}
                       cx="50%"
@@ -166,7 +186,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                       itemStyle={{ fontSize: '12px', fontWeight: 'bold', color: '#1e293b' }}
                     />
                   </PieChart>
-                </ResponsiveContainer>
+                )}
                 {/* Center Text */}
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none mt-1">
                   <span className="text-[12px] font-extrabold text-slate-800 uppercase tracking-widest mb-1">TOTAL BUDGET</span>
@@ -311,9 +331,9 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
             </div>
 
             {/* Monthly Trend Chart */}
-            <div className="flex-1 mt-6 relative w-full min-h-[385px] h-[385px]">
-              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                <ComposedChart data={monthlyExecutionData} margin={{ top: 25, right: 10, left: -20, bottom: 0 }}>
+            <div ref={chartContainerRef} className="flex-1 mt-6 relative w-full min-h-[385px] h-[385px]">
+              {isMounted && chartWidth > 0 && (
+                <ComposedChart width={chartWidth} height={385} data={monthlyExecutionData} margin={{ top: 25, right: 10, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorCumulative" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor={isHchps ? '#10B981' : '#3B82F6'} stopOpacity={0.2}/>
@@ -352,7 +372,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
                     </>
                   )}
                 </ComposedChart>
-              </ResponsiveContainer>
+              )}
             </div>
           </div>
         </div>
