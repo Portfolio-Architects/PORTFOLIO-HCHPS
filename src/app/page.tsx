@@ -356,6 +356,18 @@ function ProtectedApp({ appMode, onModeChange }: ProtectedAppProps) {
           <div className="flex-1 min-h-0">
             {renderContent()}
           </div>
+
+          {/* Common Footer */}
+          <div id="dashboard-footer" className="mt-8 pt-8 pb-4 border-t border-slate-200/60 shrink-0">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 text-[10px] font-black text-slate-400 tracking-widest uppercase">
+              <span>© 2026 PORTFOLIO {appMode}. All rights reserved.</span>
+              <span className="flex items-center gap-3">
+                Precision Operations Intelligence
+                <span className="text-slate-300">|</span> 
+                <button onClick={handleLogout} className={`text-${appMode === 'HCHPS' ? 'emerald' : 'blue'}-500 hover:text-${appMode === 'HCHPS' ? 'emerald' : 'blue'}-600 transition-colors cursor-pointer`}>SECURE</button>
+              </span>
+            </div>
+          </div>
         </div>
       </main>
 

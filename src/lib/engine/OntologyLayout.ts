@@ -6,7 +6,7 @@ export const NUM_ORBITS = 8;
 export const ELLIPSE_RATIO = 1.3;  
 export const MIN_NODE_R = 3;
 export const MAX_NODE_R = 24;
-export const ORBIT_SPEED_BASE = 0.00025; 
+export const ORBIT_SPEED_BASE = 0.0006; 
 export const LERP_SPEED = 0.12;  
 export const MIN_ZOOM = 0.3;
 export const MAX_ZOOM = 3.0;
@@ -157,7 +157,8 @@ export class OntologyLayout {
     activeLayers?: Set<number>,
     isInteractive: boolean = false,
     recomputeWorldPositions: boolean = true,
-    layoutMode: 'mindmap' | 'orbit' | 'cluster' = 'mindmap'
+    layoutMode: 'orbit' = 'orbit',
+    isOrbiting: boolean = false
   ): void {
     if (nodes.length === 0) return;
 
@@ -200,7 +201,7 @@ export class OntologyLayout {
       nodes.forEach(n => treeChildrenMap.set(n.id, []));
       
       const roots: OrbitalNode[] = [];
-      const mainRoot = nodes.find(n => n.orbitIndex === 0) || nodes[0];
+      const mainRoot = nodes.find(n => n.id === 'root-HCHPS') || nodes.find(n => n.orbitIndex === 0) || nodes[0];
       roots.push(mainRoot);
 
       const visitedBfs = new Set<string>();
@@ -288,252 +289,119 @@ export class OntologyLayout {
       // 3. Bidirectional Depth-Based Contour Layout (양방향 마인드맵 전개) 또는 Concentric Orbit Layout (우주 궤도 배치)
       const visibleNodes = new Set<string>();
 
-      if (layoutMode === 'orbit') {
-        // Concentric Orbit Layout: 모든 노드를 중앙(0,0) 중심의 동심 궤도에 배치
-        const getNodeDepth = (nodeId: string): number => {
-          let depth = 0;
-          let curr = nodeMap.get(nodeId);
-          while (curr && curr.parentId) {
-            depth++;
-            curr = nodeMap.get(curr.parentId);
-          }
-          return depth;
-        };
+      // Concentric Orbit Layout: 모든 노드를 중앙(0,0) 중심의 동심 궤도에 배치
+      const getNodeDepth = (nodeId: string): number => {
+        let depth = 0;
+        let curr = nodeMap.get(nodeId);
+        while (curr && curr.parentId) {
+          depth++;
+          curr = nodeMap.get(curr.parentId);
+        }
+        return depth;
+      };
 
-        const layoutOrbitNode = (
-          nodeId: string,
-          parentNode: OrbitalNode | null,
-          assignedAngle: number,
-          arcWidth: number
-        ) => {
-          const node = nodeMap.get(nodeId);
-          if (!node) return;
+      const layoutOrbitNode = (
+        nodeId: string,
+        parentNode: OrbitalNode | null,
+        assignedAngle: number,
+        arcWidth: number
+      ) => {
+        const node = nodeMap.get(nodeId);
+        if (!node) return;
 
-          visibleNodes.add(nodeId);
+        visibleNodes.add(nodeId);
 
-          const depth = getNodeDepth(nodeId);
-          node.orbitIndex = depth;
-          node.orbitAngle = assignedAngle;
+        let depth = getNodeDepth(nodeId);
+        // 중앙 노드(mainRoot)가 아니면서 depth가 0인 고아 노드들은 강제로 1차 궤도에 안착시킵니다.
+        if (depth === 0 && nodeId !== mainRoot.id) {
+          depth = 1;
+        }
+        node.orbitIndex = depth;
+        node.orbitAngle = assignedAngle;
 
-          if (depth === 0) {
-            node.targetWorldX = 0;
-            node.targetWorldY = 0;
+        // 지그재그 반경 오프셋 속성 유지 및 초기화
+        (node as any).radialOffset = (node as any).radialOffset ?? 0;
+
+        // 허용 각도 쐐기 범위 계산 및 부여 (경계 간 겹침 방지 버퍼 0.02 적용)
+        const buffer = 0.02;
+        const halfArc = arcWidth / 2;
+        (node as any).minAngle = assignedAngle - halfArc + buffer;
+        (node as any).maxAngle = assignedAngle + halfArc - buffer;
+
+        if (depth === 0) {
+          node.targetWorldX = 0;
+          node.targetWorldY = 0;
+          (node as any).minAngle = -Infinity;
+          (node as any).maxAngle = Infinity;
+        } else {
+          if (!isOrbiting && node.fixedX !== undefined && node.fixedY !== undefined) {
+            node.targetWorldX = node.fixedX;
+            node.targetWorldY = node.fixedY;
+            node.worldX = node.fixedX;
+            node.worldY = node.fixedY;
           } else {
-            // R 간격을 조금 더 넓혀(240px) 공간감 확보
-            const R = depth * 240;
+            // R 간격을 조금 더 넓혀(240px) 공간감 확보하고, radialOffset(지그재그)을 합산합니다.
+            const rOffset = (node as any).radialOffset ?? 0;
+            const R = depth * 240 + rOffset;
             node.targetWorldX = R * Math.cos(assignedAngle) * ELLIPSE_RATIO;
             node.targetWorldY = R * Math.sin(assignedAngle);
           }
+        }
 
-          if (!collapsedNodeIds.has(nodeId)) {
-            const children = treeChildrenMap.get(nodeId) || [];
-            const N = children.length;
-            if (N > 0) {
-              const childArcWidth = Math.min(Math.PI * 1.5, arcWidth * 0.75);
-              const angleStep = N === 1 ? 0 : childArcWidth / (N - 1);
-              const startAngle = assignedAngle - childArcWidth / 2;
-
-              children.forEach((childId, idx) => {
-                const childNode = nodeMap.get(childId);
-                if (childNode) {
-                  const childAngle = N === 1 ? assignedAngle : startAngle + idx * angleStep;
-                  layoutOrbitNode(childId, node, childAngle, childArcWidth);
-                }
-              });
-            }
-          }
-        };
-
-        const mainRoot = roots[0];
-        if (mainRoot) {
-          mainRoot.orbitIndex = 0;
-          mainRoot.orbitAngle = 0;
-          mainRoot.targetWorldX = 0;
-          mainRoot.targetWorldY = 0;
-          visibleNodes.add(mainRoot.id);
-
-          const children = treeChildrenMap.get(mainRoot.id) || [];
+        if (!collapsedNodeIds.has(nodeId)) {
+          const children = treeChildrenMap.get(nodeId) || [];
           const N = children.length;
           if (N > 0) {
-            const angleStep = (Math.PI * 2) / N;
-            const orbitRotationOffset = 0.2; // 약간 경사진 느낌을 주기 위한 오프셋
+            const childArcWidth = Math.min(Math.PI * 1.5, arcWidth * 0.75);
+            const angleStep = N === 1 ? 0 : childArcWidth / (N - 1);
+            const startAngle = assignedAngle - childArcWidth / 2;
+
             children.forEach((childId, idx) => {
               const childNode = nodeMap.get(childId);
               if (childNode) {
-                const childAngle = (idx * angleStep) + orbitRotationOffset;
-                layoutOrbitNode(childId, mainRoot, childAngle, angleStep);
+                const childAngle = N === 1 ? assignedAngle : startAngle + idx * angleStep;
+                layoutOrbitNode(childId, node, childAngle, childArcWidth);
               }
             });
           }
         }
+      };
 
-        const orphanRoots = roots.slice(1);
-        const orphanCount = orphanRoots.length;
-        if (orphanCount > 0) {
-          const angleStep = (Math.PI * 2) / orphanCount;
-          orphanRoots.forEach((root, idx) => {
-            const rootNode = nodeMap.get(root.id);
-            if (rootNode) {
-              const assignedAngle = idx * angleStep;
-              layoutOrbitNode(root.id, null, assignedAngle, angleStep);
+      if (mainRoot) {
+        mainRoot.orbitIndex = 0;
+        mainRoot.orbitAngle = 0;
+        mainRoot.targetWorldX = 0;
+        mainRoot.targetWorldY = 0;
+        mainRoot.worldX = 0;
+        mainRoot.worldY = 0;
+        visibleNodes.add(mainRoot.id);
+
+        const children = treeChildrenMap.get(mainRoot.id) || [];
+        const N = children.length;
+        if (N > 0) {
+          const angleStep = (Math.PI * 2) / N;
+          const orbitRotationOffset = 0.2; // 약간 경사진 느낌을 주기 위한 오프셋
+          children.forEach((childId, idx) => {
+            const childNode = nodeMap.get(childId);
+            if (childNode) {
+              const childAngle = (idx * angleStep) + orbitRotationOffset;
+              layoutOrbitNode(childId, mainRoot, childAngle, angleStep);
             }
           });
         }
-      } else if (layoutMode === 'cluster') {
-        // Grape Cluster (Force-Directed): 초기화 배치만 구성하고, 실제 위치는 물리 엔진이 매 프레임 업데이트함
-        const mainRoot = roots[0];
-        nodes.forEach(n => {
-          visibleNodes.add(n.id);
-          n.orbitIndex = n.parentId ? 2 : (n.id === mainRoot?.id ? 0 : 1);
-          if (n.id === mainRoot?.id) {
-            n.targetWorldX = 0;
-            n.targetWorldY = 0;
-          } else if (n.targetWorldX === undefined || isNaN(n.targetWorldX) || n.worldX === undefined || isNaN(n.worldX)) {
-            const angle = Math.random() * Math.PI * 2;
-            const dist = 80 + Math.random() * 160;
-            n.targetWorldX = dist * Math.cos(angle);
-            n.targetWorldY = dist * Math.sin(angle);
-            n.worldX = n.targetWorldX;
-            n.worldY = n.targetWorldY;
+      }
+
+      const orphanRoots = roots.slice(1);
+      const orphanCount = orphanRoots.length;
+      if (orphanCount > 0) {
+        const angleStep = (Math.PI * 2) / orphanCount;
+        orphanRoots.forEach((root, idx) => {
+          const rootNode = nodeMap.get(root.id);
+          if (rootNode) {
+            const assignedAngle = idx * angleStep;
+            layoutOrbitNode(root.id, null, assignedAngle, angleStep);
           }
         });
-      } else {
-        const X_SPACING = 250; // 가로 간격을 조금 더 넓혀 가독성 향상 (상향 조정)
-        const Y_SPACING = 14;  // 세로 간격 상향 조정
-        const NODE_HEIGHT = 36; // 노드 가상 높이 상향 조정
-        
-        // 각 뎁스(Depth / X축 레벨)별로 왼쪽/오른쪽 트리의 최소 Y좌표를 추적
-        const leftDepthY: Record<number, number> = {};
-        const rightDepthY: Record<number, number> = {};
-
-        const shiftSubtree = (nodeId: string, shift: number) => {
-            const node = nodeMap.get(nodeId);
-            if (node) node.targetWorldY = (node.targetWorldY || 0) + shift;
-            
-            if (collapsedNodeIds.has(nodeId)) return;
-            const children = treeChildrenMap.get(nodeId) || [];
-            for (const childId of children) {
-                shiftSubtree(childId, shift);
-            }
-        };
-
-        const layoutNode = (nodeId: string, depth: number, depthX: number, direction: number, depthTracker: Record<number, number>): number => {
-          const node = nodeMap.get(nodeId);
-          if (!node) return 0;
-          
-          visibleNodes.add(nodeId);
-          node.targetWorldX = depthX;
-
-          const children = treeChildrenMap.get(nodeId) || [];
-          const hasVisibleChildren = children.length > 0 && !collapsedNodeIds.has(nodeId);
-
-          let myY = 0;
-          if (!hasVisibleChildren) {
-             myY = depthTracker[depth] || 0;
-             node.targetWorldY = myY;
-             depthTracker[depth] = myY + NODE_HEIGHT + Y_SPACING;
-             return myY;
-          } else {
-             let sumY = 0;
-             for (const childId of children) {
-                sumY += layoutNode(childId, depth + 1, depthX + (X_SPACING * direction), direction, depthTracker);
-             }
-             const avgY = sumY / children.length;
-             
-             const requiredY = depthTracker[depth] || 0;
-             myY = Math.max(requiredY, avgY);
-             const shift = myY - avgY; 
-             
-             if (shift > 0) {
-                shiftSubtree(nodeId, shift);
-                for (const dStr in depthTracker) {
-                    const d = parseInt(dStr);
-                    if (d > depth) {
-                        depthTracker[d] += shift;
-                    }
-                }
-             }
-             
-             node.targetWorldY = myY;
-             depthTracker[depth] = myY + NODE_HEIGHT + Y_SPACING;
-             return myY;
-          }
-        };
-
-        // 메인 루트 노드들 배치 시작점
-        for (const root of roots) {
-           const rootNode = nodeMap.get(root.id);
-           if (rootNode) {
-               rootNode.targetWorldX = 0; // 모든 루트 노드는 X축 중앙(0)에 고정
-               visibleNodes.add(root.id);
-               
-               const rootChildren = treeChildrenMap.get(root.id) || [];
-               if (rootChildren.length > 0 && !collapsedNodeIds.has(root.id)) {
-                   // 루트의 자식들을 좌우로 분배 (짝수는 오른쪽, 홀수는 왼쪽)
-                   const leftChildren = [];
-                   const rightChildren = [];
-                   for (let i = 0; i < rootChildren.length; i++) {
-                       if (i % 2 === 0) rightChildren.push(rootChildren[i]);
-                       else leftChildren.push(rootChildren[i]);
-                   }
-                   
-                   let leftSumY = 0;
-                   for (const c of leftChildren) leftSumY += layoutNode(c, 1, -X_SPACING, -1, leftDepthY);
-                   
-                   let rightSumY = 0;
-                   for (const c of rightChildren) rightSumY += layoutNode(c, 1, X_SPACING, 1, rightDepthY);
-                   
-                   if (root === roots[0]) {
-                       // 메인 루트: 완벽한 수직 대칭(나비 모양)을 위해 0에 고정 후, 양쪽 트리를 0에 맞춰 이동
-                       rootNode.targetWorldY = 0;
-                       if (leftChildren.length > 0) {
-                           const leftAvg = leftSumY / leftChildren.length;
-                           const shiftAmount = -leftAvg;
-                           if (shiftAmount !== 0) {
-                               for (const c of leftChildren) shiftSubtree(c, shiftAmount);
-                               for (const dStr in leftDepthY) leftDepthY[dStr] += shiftAmount;
-                           }
-                       }
-                       if (rightChildren.length > 0) {
-                           const rightAvg = rightSumY / rightChildren.length;
-                           const shiftAmount = -rightAvg;
-                           if (shiftAmount !== 0) {
-                               for (const c of rightChildren) shiftSubtree(c, shiftAmount);
-                               for (const dStr in rightDepthY) rightDepthY[dStr] += shiftAmount;
-                           }
-                       }
-                   } else {
-                       // 고아/독립 루트: 자식들이 depthTracker에 의해 안전하게 배치된 상태의 평균 Y값으로 이동
-                       const leftAvg = leftChildren.length > 0 ? leftSumY / leftChildren.length : null;
-                       const rightAvg = rightChildren.length > 0 ? rightSumY / rightChildren.length : null;
-                       
-                       if (leftAvg !== null && rightAvg !== null) rootNode.targetWorldY = (leftAvg + rightAvg) / 2;
-                       else if (leftAvg !== null) rootNode.targetWorldY = leftAvg;
-                       else if (rightAvg !== null) rootNode.targetWorldY = rightAvg;
-                   }
-
-                   // 루트 자신을 위한 depthTracker 최소공간 점유 처리
-                   const finalRootY = rootNode.worldY ?? 0;
-                   leftDepthY[0] = Math.max(leftDepthY[0] || 0, finalRootY + NODE_HEIGHT + Y_SPACING);
-                   rightDepthY[0] = Math.max(rightDepthY[0] || 0, finalRootY + NODE_HEIGHT + Y_SPACING);
-               } else {
-                   // 자식이 없는 빈 루트 (또는 접힘)
-                   if (root === roots[0]) {
-                       rootNode.worldY = 0;
-                   } else {
-                       // 기존 트리의 배치가 끝난 최하단에 배치
-                       rootNode.worldY = Math.max(leftDepthY[0] || 0, rightDepthY[0] || 0);
-                   }
-                   leftDepthY[0] = rootNode.worldY + NODE_HEIGHT + Y_SPACING;
-                   rightDepthY[0] = rootNode.worldY + NODE_HEIGHT + Y_SPACING;
-               }
-           }
-           
-           // 다중 루트(고립된 서브트리들) 렌더링 시, 이전 트리와의 간격을 위해 현재 뎁스의 최하단에서 약간의 여백만 추가합니다.
-           // 이를 통해 고립된 트리들이 화면 아래로 멀리 분리되지 않고 메인 트리 바로 아래에 타이트하게 붙어 렌더링됩니다.
-           for (const dStr in leftDepthY) leftDepthY[dStr] += Y_SPACING * 3;
-           for (const dStr in rightDepthY) rightDepthY[dStr] += Y_SPACING * 3;
-        }
       }
 
       // Build spanning tree edge set for fast O(1) rendering lookups
@@ -550,6 +418,24 @@ export class OntologyLayout {
       for (const node of nodes) {
         node.topoHidden = !visibleNodes.has(node.id);
       }
+    } else {
+      // Fast-path: 토폴로지가 변하지 않는 동안 공전 및 LERP 모핑을 지원하기 위한 targetWorldX/Y 최신화
+      for (const node of nodes) {
+        if (node.orbitIndex === 0) {
+          node.targetWorldX = 0;
+          node.targetWorldY = 0;
+        } else if (!isOrbiting && node.fixedX !== undefined && node.fixedY !== undefined) {
+          node.targetWorldX = node.fixedX;
+          node.targetWorldY = node.fixedY;
+          node.worldX = node.fixedX;
+          node.worldY = node.fixedY;
+        } else if (node.orbitIndex !== undefined && node.orbitAngle !== undefined) {
+          const R = node.orbitIndex * 240;
+          const rOffset = (node as any).radialOffset ?? 0;
+          node.targetWorldX = (R + rOffset) * Math.cos(node.orbitAngle) * ELLIPSE_RATIO;
+          node.targetWorldY = (R + rOffset) * Math.sin(node.orbitAngle);
+        }
+      }
     }
 
     // 6. Camera 변환 (World -> Screen - 3D Vertical Stacked Projection)
@@ -562,7 +448,8 @@ export class OntologyLayout {
 
     for (const node of nodes) {
       const effectiveLayer = node.effectiveLayer ?? 3;
-      const isFiltered = activeLayers && !activeLayers.has(effectiveLayer);
+      // 수직 레이어 필터 기능을 완전히 비활성화(삭제)하여 항상 보이도록 강제
+      const isFiltered = false;
 
       // 레이어 필터 또는 계층 접힘에 의해 최종적으로 숨김 여부 설정
       node.layoutHidden = node.topoHidden || isFiltered;
@@ -573,6 +460,10 @@ export class OntologyLayout {
         continue;
       }
       
+      if (!isOrbiting && node.fixedX !== undefined && node.fixedY !== undefined) {
+        node.worldX = node.fixedX;
+        node.worldY = node.fixedY;
+      }
       if (node.worldX === undefined || isNaN(node.worldX)) {
         node.worldX = node.targetWorldX ?? 0;
       }
@@ -582,12 +473,9 @@ export class OntologyLayout {
       const worldX = node.worldX ?? 0;
       const worldY = node.worldY ?? 0;
       
-      // 레이어 수직 높이 (Z축 방향 높이: 0층이 가장 아래, 3층이 가장 위)
-      // layoutMode === 'orbit' 또는 'cluster' 일 때는 모든 노드가 단일 평면 상에 안착하도록 Z축 높이를 0으로 고정합니다.
-      const h = (layoutMode === 'orbit' || layoutMode === 'cluster') ? 0 : effectiveLayer * LAYER_GAP;
-
-      // 아래에서 위를 올려다보는 뷰 (Upward 뷰)
-      const depthH = (layoutMode === 'orbit' || layoutMode === 'cluster') ? 0 : effectiveLayer * LAYER_GAP;
+      // 💡 Z축(수직 적층 레이어 높이)을 추가로 설정하여 4단 아크릴 판 위에 입체적으로 안착시킵니다.
+      const h = effectiveLayer * LAYER_GAP;
+      const depthH = effectiveLayer * LAYER_GAP;
 
       // 3D X축 회전 변환 공식 적용 (depthH를 활용해 원근 배율 조정)
       const rotatedY = worldY * Math.cos(tiltAngle) - h * Math.sin(tiltAngle);
@@ -600,9 +488,7 @@ export class OntologyLayout {
       
       node.renderZ = depth;
       (node as any).perspectiveScale = perspectiveScale;
-      node.nodeRadius = (layoutMode === 'cluster')
-        ? (24 + (node.renderSize ?? 0.5) * 26)
-        : 24; 
+      node.nodeRadius = 24; 
     }
 
     // 7. Screen-Space Collision Resolution (2D 화면 공간 충돌 방지 루프)
@@ -630,7 +516,7 @@ export class OntologyLayout {
       
       const w = Math.max(60 * scale, textW * scale + 28 * scale) + 16 * scale; // 가로 마진 포함
       const h = Math.max(28 * scale, 12 * scale + 20 * scale) + 12 * scale;  // 세로 마진 포함
-      const isFixed = (node as any).fixedX !== undefined && (node as any).fixedY !== undefined;
+      const isFixed = (!isOrbiting && (node as any).fixedX !== undefined && (node as any).fixedY !== undefined) || node.orbitIndex === 0;
       const layer = node.effectiveLayer ?? 3;
       
       return {
@@ -651,14 +537,14 @@ export class OntologyLayout {
       layerGroups.get(d.layer)!.push(d);
     }
 
-    const maxIterations = isInteractive ? 1 : 4;
-    
-    if (layoutMode === 'cluster') {
-      return; // 클러스터 모드는 물리 엔진(Force Solver)이 자체 반발력을 계산하므로 화면 공간 충돌 해결을 스킵합니다.
-    }
+    // 💡 줌 배율 조작 시 화면 공간 충돌 방지 반발력에 의해 노드가 요동치는 현상을 영구 박멸하고 CPU 병목을 소거하기 위해
+    // 궤도 공전 레이아웃에서는 충돌 방지 2D 물리 연산을 생략(maxIterations = 0)합니다.
+    const maxIterations = 0;
     
     layerGroups.forEach((group) => {
-      const damping = layoutMode === 'orbit' ? 0.12 : 0.45;
+      // 💡 공전 중인 환경에서 노드들이 튕기거나 요동치는 떨림(Jittering)을 박멸하기 위해,
+      // 충돌 반발력 감쇠(damping)를 극도로 낮추어 부드럽게 미끄러지며 분산되도록 튜닝합니다.
+      const damping = 0.015;
       for (let iter = 0; iter < maxIterations; iter++) {
         let hasOverlap = false;
         for (let i = 0; i < group.length; i++) {
@@ -684,104 +570,106 @@ export class OntologyLayout {
             const absDx = Math.abs(dx);
             const absDy = Math.abs(dy);
 
-            if (layoutMode === 'orbit') {
-              const distSq = dx * dx + dy * dy;
-              const minDist = (wA + wB) * 0.45;
-              
-              if (distSq >= minDist * minDist) {
-                continue;
-              }
+            const overlapX = minDistX - absDx;
+            const overlapY = minDistY - absDy;
+            
+            if (overlapX <= 0 || overlapY <= 0) {
+              continue;
+            }
 
-              hasOverlap = true;
-              const dist = Math.sqrt(distSq) || 0.1;
-              const overlap = minDist - dist;
+            hasOverlap = true;
+            const overlap = Math.min(overlapX, overlapY);
 
-              let angleDiff = (nodeB.orbitAngle || 0) - (nodeA.orbitAngle || 0);
-              while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-              while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+            let angleDiff = (nodeB.orbitAngle || 0) - (nodeA.orbitAngle || 0);
+            while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+            while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
 
-              const radiusA = (nodeA.orbitIndex || 1) * 240;
-              // 1회 충돌 반발 당 최대 밀기 회전각을 0.04라디안으로 제한하여 과도한 진동/발산 운동을 차단합니다.
-              const rawPushAngle = (overlap / Math.max(50, radiusA)) * damping;
-              const pushAngle = Math.min(0.04, rawPushAngle);
-              const direction = angleDiff >= 0 ? 1 : -1;
+            const radiusA = (nodeA.orbitIndex || 1) * 240;
+            // 1회 충돌 반발 당 최대 밀기 회전각을 0.04라디안으로 제한하여 과도한 진동/발산 운동을 차단합니다.
+            const rawPushAngle = (overlap / Math.max(50, radiusA)) * damping;
+            // 💡 1회 프레임당 가해지는 최대 밀기각 한도를 0.04 -> 0.005로 크게 줄여 급격한 각도 흔들림을 억제합니다.
+            const pushAngle = Math.min(0.005, rawPushAngle);
+            const direction = angleDiff >= 0 ? 1 : -1;
 
-              if (!isFixedA && !isFixedB) {
-                nodeA.orbitAngle = (nodeA.orbitAngle || 0) - pushAngle * 0.5 * direction;
-                nodeB.orbitAngle = (nodeB.orbitAngle || 0) + pushAngle * 0.5 * direction;
-              } else if (isFixedA && !isFixedB) {
-                nodeB.orbitAngle = (nodeB.orbitAngle || 0) + pushAngle * direction;
-              } else if (!isFixedA && isFixedB) {
-                nodeA.orbitAngle = (nodeA.orbitAngle || 0) - pushAngle * direction;
-              }
+            if (!isFixedA && !isFixedB) {
+              nodeA.orbitAngle = (nodeA.orbitAngle || 0) - pushAngle * 0.5 * direction;
+              nodeB.orbitAngle = (nodeB.orbitAngle || 0) + pushAngle * 0.5 * direction;
+            } else if (isFixedA && !isFixedB) {
+              nodeB.orbitAngle = (nodeB.orbitAngle || 0) + pushAngle * direction;
+            } else if (!isFixedA && isFixedB) {
+              nodeA.orbitAngle = (nodeA.orbitAngle || 0) - pushAngle * direction;
+            }
 
-              // worldX, worldY 즉시 싱크 (LERP 지연에 의해 이전 renderX/Y가 계속해서 반발되는 교착 떨림 현상을 해소합니다)
-              nodeA.targetWorldX = radiusA * Math.cos(nodeA.orbitAngle) * ELLIPSE_RATIO;
-              nodeA.targetWorldY = radiusA * Math.sin(nodeA.orbitAngle);
-              nodeA.worldX = nodeA.targetWorldX;
-              nodeA.worldY = nodeA.targetWorldY;
+            // 부모의 각도 쐐기 바운더리를 벗어나지 않도록 강제 제한 (Clamping)
+            if (!isFixedA && (nodeA as any).minAngle !== undefined) {
+              nodeA.orbitAngle = Math.max((nodeA as any).minAngle, Math.min((nodeA as any).maxAngle, nodeA.orbitAngle || 0));
+            }
+            if (!isFixedB && (nodeB as any).minAngle !== undefined) {
+              nodeB.orbitAngle = Math.max((nodeB as any).minAngle, Math.min((nodeB as any).maxAngle, nodeB.orbitAngle || 0));
+            }
 
-              const radiusB = (nodeB.orbitIndex || 1) * 240;
-              nodeB.targetWorldX = radiusB * Math.cos(nodeB.orbitAngle) * ELLIPSE_RATIO;
-              nodeB.targetWorldY = radiusB * Math.sin(nodeB.orbitAngle);
-              nodeB.worldX = nodeB.targetWorldX;
-              nodeB.worldY = nodeB.targetWorldY;
-
-              // 2D 스크린 투영 좌표 즉시 갱신 (이중 루프 내 후속 노드들의 겹침 계산에 즉각 반영하여 진동을 종식시킵니다)
-              const cosT = Math.cos(tiltAngle);
-              const sinT = Math.sin(tiltAngle);
-
-              const rotYA = nodeA.worldY * cosT;
-              const depthA = -nodeA.worldY * sinT;
-              const scaleA = cameraDist / (cameraDist + depthA);
-              nodeA.renderX = cx + nodeA.worldX * zoom * scaleA;
-              nodeA.renderY = cy + rotYA * zoom * scaleA;
-              (nodeA as any).perspectiveScale = scaleA;
-
-              const rotYB = nodeB.worldY * cosT;
-              const depthB = -nodeB.worldY * sinT;
-              const scaleB = cameraDist / (cameraDist + depthB);
-              nodeB.renderX = cx + nodeB.worldX * zoom * scaleB;
-              nodeB.renderY = cy + rotYB * zoom * scaleB;
-              (nodeB as any).perspectiveScale = scaleB;
-            } else {
-              if (absDx >= minDistX || absDy >= minDistY) {
-                continue;
-              }
-
-              hasOverlap = true;
-              
-              // 겹침 깊이
-              const overlapX = minDistX - absDx;
-              const overlapY = minDistY - absDy;
-              
-              // 충돌 반발 방향 벡터 설정 (0일 경우 방지)
-              const signX = dx === 0 ? (Math.random() > 0.5 ? 1 : -1) : Math.sign(dx);
-              const signY = dy === 0 ? (Math.random() > 0.5 ? 1 : -1) : Math.sign(dy);
-
-              let pushX = 0;
-              let pushY = 0;
-              
-              // 세로로 정렬
-              if (overlapX < overlapY * 1.5) {
-                pushX = overlapX * signX;
-              } else {
-                pushY = overlapY * signY;
-              }
-              
-              if (!isFixedA && !isFixedB) {
-                nodeA.renderX -= pushX * 0.5 * damping;
-                nodeA.renderY -= pushY * 0.5 * damping;
-                nodeB.renderX += pushX * 0.5 * damping;
-                nodeB.renderY += pushY * 0.5 * damping;
-              } else if (isFixedA && !isFixedB) {
-                nodeB.renderX += pushX * damping;
-                nodeB.renderY += pushY * damping;
-              } else if (!isFixedA && isFixedB) {
-                nodeA.renderX -= pushX * damping;
-                nodeA.renderY -= pushY * damping;
+            // 동일 궤도상 노드들 간 겹침 시 지그재그 반경 오프셋 적용
+            if (nodeA.orbitIndex === nodeB.orbitIndex && nodeA.orbitIndex > 0) {
+              const rawOverlap = overlap;
+              if (rawOverlap > 0) {
+                const maxOffset = 45;
+                // 💡 반경 방향 밀림 계수를 0.45에서 0.05로 크게 낮추어 궤도 반경 방향 튕김 현상을 억제합니다.
+                if (!isFixedA) {
+                  (nodeA as any).radialOffset = ((nodeA as any).radialOffset ?? 0) - rawOverlap * 0.05;
+                  (nodeA as any).radialOffset = Math.max(-maxOffset, Math.min(maxOffset, (nodeA as any).radialOffset));
+                }
+                if (!isFixedB) {
+                  (nodeB as any).radialOffset = ((nodeB as any).radialOffset ?? 0) + rawOverlap * 0.05;
+                  (nodeB as any).radialOffset = Math.max(-maxOffset, Math.min(maxOffset, (nodeB as any).radialOffset));
+                }
               }
             }
+
+            // worldX, worldY 즉시 싱크 (LERP 지연에 의해 이전 renderX/Y가 계속해서 반발되는 교착 떨림 현상을 해소합니다)
+            if (nodeA.orbitIndex !== 0) {
+              const rOffsetA = (nodeA as any).radialOffset ?? 0;
+              nodeA.targetWorldX = (radiusA + rOffsetA) * Math.cos(nodeA.orbitAngle) * ELLIPSE_RATIO;
+              nodeA.targetWorldY = (radiusA + rOffsetA) * Math.sin(nodeA.orbitAngle);
+              nodeA.worldX = nodeA.targetWorldX;
+              nodeA.worldY = nodeA.targetWorldY;
+            } else {
+              nodeA.targetWorldX = 0;
+              nodeA.targetWorldY = 0;
+              nodeA.worldX = 0;
+              nodeA.worldY = 0;
+            }
+
+            if (nodeB.orbitIndex !== 0) {
+              const radiusB = (nodeB.orbitIndex || 1) * 240;
+              const rOffsetB = (nodeB as any).radialOffset ?? 0;
+              nodeB.targetWorldX = (radiusB + rOffsetB) * Math.cos(nodeB.orbitAngle) * ELLIPSE_RATIO;
+              nodeB.targetWorldY = (radiusB + rOffsetB) * Math.sin(nodeB.orbitAngle);
+              nodeB.worldX = nodeB.targetWorldX;
+              nodeB.worldY = nodeB.targetWorldY;
+            } else {
+              nodeB.targetWorldX = 0;
+              nodeB.targetWorldY = 0;
+              nodeB.worldX = 0;
+              nodeB.worldY = 0;
+            }
+
+            // 2D 스크린 투영 좌표 즉시 갱신 (이중 루프 내 후속 노드들의 겹침 계산에 즉각 반영하여 진동을 종식시킵니다)
+            const cosT = Math.cos(tiltAngle);
+            const sinT = Math.sin(tiltAngle);
+
+            const rotYA = nodeA.worldY * cosT;
+            const depthA = -nodeA.worldY * sinT;
+            const scaleA = cameraDist / (cameraDist + depthA);
+            nodeA.renderX = cx + nodeA.worldX * zoom * scaleA;
+            nodeA.renderY = cy + rotYA * zoom * scaleA;
+            (nodeA as any).perspectiveScale = scaleA;
+
+            const rotYB = nodeB.worldY * cosT;
+            const depthB = -nodeB.worldY * sinT;
+            const scaleB = cameraDist / (cameraDist + depthB);
+            nodeB.renderX = cx + nodeB.worldX * zoom * scaleB;
+            nodeB.renderY = cy + rotYB * zoom * scaleB;
+            (nodeB as any).perspectiveScale = scaleB;
           }
         }
         if (!hasOverlap) break;

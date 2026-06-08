@@ -54,7 +54,7 @@ export class OntologyCanvasEngine {
   public collapsedNodeIds: Set<string> = new Set();
   public hasInitializedCollapse: boolean = false;
   public isInitialCameraSnap: boolean = true;
-  public layoutMode: 'mindmap' | 'orbit' | 'cluster' = 'mindmap';
+  public layoutMode: 'orbit' = 'orbit';
   public physicsAlpha = 1.0;
 
   // Physics / Interaction
@@ -98,7 +98,7 @@ export class OntologyCanvasEngine {
     zoom: number;
     activeLayersKey: string;
     collapsedNodesKey: string;
-    layoutMode: 'mindmap' | 'orbit' | 'cluster';
+    layoutMode: 'orbit';
     isInteractive: boolean;
   };
 
@@ -270,9 +270,9 @@ export class OntologyCanvasEngine {
             orbital.customColor = parent.customColor;
           }
           
-          // 부모가 공전하지 않는 '중앙 중심 노드(태양)'일 경우, 부모의 0.0 속도를 모방하면 평생 멈춰버리게 됩니다!
-          // 이때는 본인(orbital)이 스스로 계산한 고유의 공전 속도를 사용하고, 그 외의 자식들은 부모의 속도로 동기화합니다.
-          orbital.orbitSpeed = parent.orbitIndex === 0 ? orbital.orbitSpeed : parent.orbitSpeed; 
+          // 💡 화면상 모든 궤도의 물리적 선속도(Linear Velocity)를 균일하게 맞추기 위해,
+          // 각속도(orbitSpeed)를 궤도 반경(orbitIndex)에 반비례하도록 튜닝하여 바깥쪽 노드가 폭주하는 현상을 보정합니다.
+          orbital.orbitSpeed = (ORBIT_SPEED_BASE * 4.0) / Math.max(1, orbital.orbitIndex);
           this.nodes.push(orbital);
           this.nodeMap.set(orbital.id, orbital);
           
@@ -302,14 +302,8 @@ export class OntologyCanvasEngine {
     // 3. Restore Active Node / Camera Tracking
     if (this.previousActiveNodeId && this.nodeMap.has(this.previousActiveNodeId)) {
       this.activeNode = this.nodeMap.get(this.previousActiveNodeId)!;
-      // Tell render loop to pan camera to this node smoothly on next frame
-      this.pendingCameraTargetId = this.previousActiveNodeId;
     } else {
       this.activeNode = this.centerNode;
-      // Center camera naturally
-      if (this.centerNode) {
-        this.pendingCameraTargetId = this.centerNode.id;
-      }
     }
     this.callbacks.onActiveNodeChange?.(this.activeNode);
 
@@ -335,9 +329,8 @@ export class OntologyCanvasEngine {
     const maxR = MAX_NODE_R * densityScale;
     const minR = MIN_NODE_R;
     const nodeRadius = minR + renderSize * (maxR - minR);
-    // 맵 전체가 꼬이는 현상을 방지하기 위해 모든 노드가 동일한 속도(단일 팽이처럼)로 공전하도록 통일합니다.
-    // 기존의 무작위 속도 변수(speedVariation)가 파벌 간의 궤도 충돌을 유발했습니다.
-    const finalOrbitSpeed = orbitIndex === 0 ? 0 : ORBIT_SPEED_BASE * 0.8;
+    // 💡 화면상 모든 궤도의 물리적 선속도를 일치시켜 시각적 차분함과 가독성을 고도화합니다 (각속도를 반지름에 반비례 제어).
+    const finalOrbitSpeed = orbitIndex === 0 ? 0 : (ORBIT_SPEED_BASE * 4.0) / Math.max(1, orbitIndex);
 
     return {
       ...node,
@@ -551,14 +544,6 @@ export class OntologyCanvasEngine {
   tick(): boolean {
     let isDirty = false;
 
-    // Run physics simulation if in cluster mode
-    if (this.layoutMode === 'cluster') {
-      const physicsActive = this.runPhysicsTick();
-      if (physicsActive) {
-        isDirty = true;
-      }
-    }
-
     // Camera interpolation
     if (Math.abs(this.targetOffsetX - this.cameraOffsetX) > 0.5 || 
         Math.abs(this.targetOffsetY - this.cameraOffsetY) > 0.5 || 
@@ -596,7 +581,6 @@ export class OntologyCanvasEngine {
     }
     this.hasNodeMoved = nodesMoving;
     if (nodesMoving) {
-      this.layoutWorldGeometryDirty = true;
       isDirty = true;
     }
 
@@ -606,7 +590,6 @@ export class OntologyCanvasEngine {
         if (node.orbitIndex === 0) continue;
         node.orbitAngle += node.orbitSpeed;
       }
-      this.layoutWorldGeometryDirty = true;
       isDirty = true;
     }
     
@@ -637,6 +620,7 @@ export class OntologyCanvasEngine {
                     !isCameraMoving &&
                     !this.isDragging &&
                     !this.hasNodeMoved &&
+                    !this.isOrbiting && // 💡 공전 중일 때는 2D 투영 좌표 갱신 스킵을 차단하여 60 FPS 회전을 지속시킵니다.
                     this.lastLayoutInputs &&
                     this.lastLayoutInputs.canvasW === canvasW &&
                     this.lastLayoutInputs.canvasH === canvasH &&
@@ -670,7 +654,8 @@ export class OntologyCanvasEngine {
       activeLayers,
       isInteractive,
       forceRecompute,
-      this.layoutMode
+      this.layoutMode,
+      this.isOrbiting
     );
     this.layoutWorldGeometryDirty = false;
 
@@ -708,8 +693,11 @@ export class OntologyCanvasEngine {
     }
 
     // Apply pending camera tracking instantly (after positions are known)
-    // 💡 활성 노드가 있고 사용자가 드래그 중이 아닐 때는, 줌 조작이나 이동 시 중심이 어긋나지 않도록 카메라 타겟 오프셋을 실시간 추적(Lock)합니다.
-    const trackingTargetId = this.pendingCameraTargetId || (this.activeNode ? this.activeNode.id : null);
+    // 💡 초기 진입 시 전체 온톨로지를 화면 중앙에 놓거나, 명시적으로 pendingCameraTargetId가 지정된 1회성 스냅의 경우에만 작동합니다.
+    const trackingTargetId = (this.isInitialCameraSnap && this.centerNode)
+      ? this.centerNode.id
+      : this.pendingCameraTargetId;
+
     if (trackingTargetId && !this.isDragging) {
       const target = this.nodeMap.get(trackingTargetId);
       if (target && typeof target.worldX === 'number' && !isNaN(target.worldX) && 
@@ -722,8 +710,8 @@ export class OntologyCanvasEngine {
         const cameraDist = 1000;
 
         // 궤도 및 포도송이 모드일 때 Z축 높이 Gap을 0으로 맞췄던 계산 법칙과 정확히 대응시킵니다
-        const h = (this.layoutMode === 'orbit' || this.layoutMode === 'cluster') ? 0 : effectiveLayer * LAYER_GAP;
-        const depthH = (this.layoutMode === 'orbit' || this.layoutMode === 'cluster') ? 0 : effectiveLayer * LAYER_GAP;
+        const h = 0;
+        const depthH = 0;
 
         const rotatedY = target.worldY * Math.cos(tiltAngle) - h * Math.sin(tiltAngle);
         const depth = -target.worldY * Math.sin(tiltAngle) + depthH * Math.cos(tiltAngle);
@@ -756,7 +744,8 @@ export class OntologyCanvasEngine {
               activeLayers,
               false, // force non-interactive for final snap collision resolution
               this.layoutWorldGeometryDirty,
-              this.layoutMode
+              this.layoutMode,
+              this.isOrbiting
             );
 
             // sortedNodes 재정렬도 강제 적용
@@ -808,7 +797,8 @@ export class OntologyCanvasEngine {
       cameraOffsetY: this.cameraOffsetY,
       activeLayers: activeLayers,
       layoutMode: this.layoutMode,
-      isInteractive: isInteractive
+      isInteractive: isInteractive,
+      isOrbiting: this.isOrbiting
     });
   }
 
@@ -835,7 +825,6 @@ export class OntologyCanvasEngine {
     let minDist = Infinity;
 
     for (const node of this.nodes) {
-      if (node.id === 'root-HCHPS') continue;
       const dx = mx - node.renderX;
       const dy = my - node.renderY;
       const dist = Math.sqrt(dx * dx + dy * dy);
@@ -892,44 +881,19 @@ export class OntologyCanvasEngine {
          descendants.forEach(d => this.collapsedNodeIds.delete(d));
       } else {
          // 2. 이미 활성화(선택)된 노드를 "다시 한 번" 클릭했을 때 동작
-         if (hasChildren) {
-            // 자식이 있는 경우 접기/펼치기 수동 토글 지원
-            const getDescendants = (nodeId: string): string[] => {
-               const desc: string[] = [];
-               const q = [nodeId];
-               while (q.length > 0) {
-                  const curr = q.shift()!;
-                  const kids = treeChildrenMap.get(curr) || [];
-                  for (const kid of kids) {
-                     desc.push(kid);
-                     q.push(kid);
-                  }
-               }
-               return desc;
-            };
-
-            const descendants = getDescendants(hit.id);
-
-            if (this.collapsedNodeIds.has(hit.id)) {
-                this.collapsedNodeIds.delete(hit.id);
-            } else {
-                this.collapsedNodeIds.add(hit.id);
-                descendants.forEach(d => this.collapsedNodeIds.add(d));
-            }
-         } else {
+         // 수동 접기/펼치기 기능은 전면 삭제되었습니다.
+         if (!hasChildren) {
             // 자식이 없는 리프 노드를 재클릭하면 포커스 해제 (최상위 루트 노드로 돌아감)
             this.activeNode = this.centerNode;
             this.previousActiveNodeId = this.centerNode?.id || null;
          }
       }
       
-      // 항상 활성화된 노드 단위를 바라보도록 카메라 패닝 지정
-      this.pendingCameraTargetId = this.activeNode?.id || null;
-      // 노드 단순 클릭 시에는 전체 기하학 각도를 강제 리셋하지 않고 카메라만 포커스 이동시킵니다.
+      // 노드 단순 클릭 시에는 카메라 이동 스냅 및 기하학 각도 리셋을 수행하지 않습니다.
     } else {
-      // 바탕 배경 클릭 시 활성 상태 유지 (선택이 풀리지 않도록 함)
-      // this.activeNode = this.centerNode;
-      // this.previousActiveNodeId = this.centerNode?.id || null;
+      // 💡 바탕 배경(빈 곳) 클릭 시 활성 노드 선택을 해제하여 모든 노드를 100% 활성화(선명하게) 상태로 복원합니다.
+      this.activeNode = null;
+      this.previousActiveNodeId = null;
     }
     this.needsRedraw = true;
     this.callbacks.onActiveNodeChange?.(this.activeNode);
@@ -984,57 +948,27 @@ export class OntologyCanvasEngine {
     this.targetZoom = newZoom;
     this.needsRedraw = true;
 
-    // 활성 노드 락이 작동 중일 때: 줌 조작 시 LERP 지연 없이 새로운 줌 기준으로 즉각 카메라 좌표 동기화(스냅)
-    if (this.activeNode && !this.isDragging) {
-      const target = this.activeNode;
-      if (typeof target.worldX === 'number' && !isNaN(target.worldX) && 
-          typeof target.worldY === 'number' && !isNaN(target.worldY)) {
-        
-        const effectiveLayer = target.effectiveLayer ?? 3;
-        const LAYER_GAP = 190;
-        const tiltAngle = 42 * Math.PI / 180;
-        const cameraDist = 1000;
+    // 피봇(마우스 커서 또는 화면 중심) 기준 줌 좌표 역산 보정 (항상 작동)
+    const hasPivot = mx !== undefined && my !== undefined && this.canvasW > 0 && this.canvasH > 0;
+    if (hasPivot) {
+      const cx = this.canvasW / 2;
+      const cy = this.canvasH / 2;
+      
+      const px = (mx - cx - this.cameraOffsetX) / oldZoom;
+      const py = (my - cy - this.cameraOffsetY) / oldZoom;
 
-        const h = (this.layoutMode === 'orbit' || this.layoutMode === 'cluster') ? 0 : effectiveLayer * LAYER_GAP;
-        const depthH = (this.layoutMode === 'orbit' || this.layoutMode === 'cluster') ? 0 : effectiveLayer * LAYER_GAP;
+      const nextOffsetX = mx - cx - px * newZoom;
+      const nextOffsetY = my - cy - py * newZoom;
 
-        const rotatedY = target.worldY * Math.cos(tiltAngle) - h * Math.sin(tiltAngle);
-        const depth = -target.worldY * Math.sin(tiltAngle) + depthH * Math.cos(tiltAngle);
-        const perspectiveScale = Math.max(0.05, cameraDist / (cameraDist + depth));
-
-        const snapX = -(target.worldX * newZoom * perspectiveScale);
-        const snapY = -(rotatedY * newZoom * perspectiveScale);
-
-        if (!isNaN(snapX) && !isNaN(snapY)) {
-          this.targetOffsetX = snapX;
-          this.targetOffsetY = snapY;
-          this.cameraOffsetX = snapX;
-          this.cameraOffsetY = snapY;
-        }
-      }
+      this.cameraOffsetX = nextOffsetX;
+      this.cameraOffsetY = nextOffsetY;
+      this.targetOffsetX = nextOffsetX;
+      this.targetOffsetY = nextOffsetY;
     } else {
-      // 활성 노드가 없을 때: 피봇(마우스 커서 또는 화면 중심) 기준 줌 좌표 역산 보정
-      const hasPivot = mx !== undefined && my !== undefined && this.canvasW > 0 && this.canvasH > 0;
-      if (hasPivot) {
-        const cx = this.canvasW / 2;
-        const cy = this.canvasH / 2;
-        
-        const px = (mx - cx - this.cameraOffsetX) / oldZoom;
-        const py = (my - cy - this.cameraOffsetY) / oldZoom;
-
-        const nextOffsetX = mx - cx - px * newZoom;
-        const nextOffsetY = my - cy - py * newZoom;
-
-        this.cameraOffsetX = nextOffsetX;
-        this.cameraOffsetY = nextOffsetY;
-        this.targetOffsetX = nextOffsetX;
-        this.targetOffsetY = nextOffsetY;
-      } else {
-        this.cameraOffsetX = this.cameraOffsetX * (newZoom / oldZoom);
-        this.cameraOffsetY = this.cameraOffsetY * (newZoom / oldZoom);
-        this.targetOffsetX = this.cameraOffsetX;
-        this.targetOffsetY = this.cameraOffsetY;
-      }
+      this.cameraOffsetX = this.cameraOffsetX * (newZoom / oldZoom);
+      this.cameraOffsetY = this.cameraOffsetY * (newZoom / oldZoom);
+      this.targetOffsetX = this.cameraOffsetX;
+      this.targetOffsetY = this.cameraOffsetY;
     }
   }
 
@@ -1050,10 +984,7 @@ export class OntologyCanvasEngine {
     this.draggedNode = null;
     this.draggedSubTree = [];
 
-    // 드래그 시작 시 물리 연산 alpha 활성화 (클러스터 재시뮬레이션 가동)
-    if (this.layoutMode === 'cluster') {
-      this.physicsAlpha = 1.0;
-    }
+    // 드래그 시작
 
     let closestId = null;
     let minDist = Infinity;
@@ -1081,46 +1012,14 @@ export class OntologyCanvasEngine {
       this.needsRedraw = true;
     }
 
-    if (this.layoutMode === 'cluster' && this.draggedNode) {
-      // 포도송이(Cluster) 모드에서 노드 드래그: 3D 원근 투영 왜곡 역산 적용
-      const cx = w / 2;
-      const cy = h / 2;
-      
-      const tiltAngle = 42 * Math.PI / 180;
-      const cosT = Math.cos(tiltAngle);
-      const sinT = Math.sin(tiltAngle);
-      const cameraDist = 1000;
-      
-      const screenX = nx - cx - this.cameraOffsetX;
-      const screenY = ny - cy - this.cameraOffsetY;
-      
-      // 3D Inverse Projection 연산 (Z=0 가정)
-      const dyScale = screenY / (this.zoom * cameraDist);
-      const denominator = cosT + dyScale * sinT;
-      const worldY = denominator !== 0 ? (dyScale * cameraDist) / denominator : 0;
-      
-      const depth = -worldY * sinT;
-      const perspectiveScale = Math.max(0.05, cameraDist / (cameraDist + depth));
-      const worldX = perspectiveScale !== 0 ? screenX / (this.zoom * perspectiveScale) : 0;
-
-      if (!isNaN(worldX) && !isNaN(worldY)) {
-        this.draggedNode.worldX = worldX;
-        this.draggedNode.worldY = worldY;
-        this.draggedNode.targetWorldX = worldX;
-        this.draggedNode.targetWorldY = worldY;
-        this.layoutWorldGeometryDirty = true;
-        this.physicsAlpha = 1.0; // 드래그 중인 동안 물리 가동 유지
-      }
-    } else {
-      // 카메라 패닝 (노드가 없거나 타 모드일 때)
-      const dx = nx - this.lastDragX;
-      const dy = ny - this.lastDragY;
-      
-      this.cameraOffsetX += dx;
-      this.cameraOffsetY += dy;
-      this.targetOffsetX = this.cameraOffsetX; // 수동 드래그 시 카메라 타겟 덮어쓰기
-      this.targetOffsetY = this.cameraOffsetY; 
-    }
+    // 카메라 패닝 (orbit 뷰 전용)
+    const dx = nx - this.lastDragX;
+    const dy = ny - this.lastDragY;
+    
+    this.cameraOffsetX += dx;
+    this.cameraOffsetY += dy;
+    this.targetOffsetX = this.cameraOffsetX; // 수동 드래그 시 카메라 타겟 덮어쓰기
+    this.targetOffsetY = this.cameraOffsetY;
     
     this.needsRedraw = true;
     this.lastDragX = nx;
@@ -1129,14 +1028,6 @@ export class OntologyCanvasEngine {
 
   handleDragEnd(): void {
     this.isDragging = false;
-    
-    if (this.hasDragged && this.draggedNode && this.layoutMode === 'cluster') {
-      // 드래그가 끝났을 때 고정 좌표 Pinning 처리
-      if (this.draggedNode.worldX !== undefined && this.draggedNode.worldY !== undefined) {
-        this.callbacks.onNodePin?.(this.draggedNode.id, this.draggedNode.worldX, this.draggedNode.worldY);
-      }
-    }
-    
     this.draggedNode = null;
     this.draggedSubTree = [];
     this.needsRedraw = true;

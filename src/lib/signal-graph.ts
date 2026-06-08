@@ -346,6 +346,34 @@ export function buildSignalGraph(
       edges.push({ ...ce, source: finalSource, target: finalTarget, isCustom: true } as PartialOntologyEdge);
     });
 
+    // 4.5. Create default parent-child edges for custom nodes that have a parentId but no customEdges representation
+    customData.customNodes.forEach(cn => {
+      const finalId = mergedIdMap.get(cn.id) || cn.id;
+      const finalNode = nodes.find(n => n.id === finalId);
+      if (!finalNode) return;
+
+      const override = customData.overrides[finalId];
+      const parentId = (override && override.customParent !== undefined)
+        ? (override.customParent === 'NONE' ? undefined : override.customParent)
+        : finalNode.parentId;
+
+      if (parentId && parentId !== 'NONE' && nodes.some(n => n.id === parentId)) {
+        const hasEdge = edges.some(e =>
+          (e.source === parentId && e.target === finalId) ||
+          (e.source === finalId && e.target === parentId)
+        );
+        if (!hasEdge) {
+          edges.push({
+            source: parentId,
+            target: finalId,
+            weight: 0.7,
+            type: 'DEPENDENCY',
+            isCustom: true
+          } as PartialOntologyEdge);
+        }
+      }
+    });
+
     // (DeletedEdges processing moved to the end of custom mapping to catch customParent generated edges)
 
     // 4.9. Topology-driven Hierarchical Reparenting (자동 계층형 부모 승격 알고리즘)
@@ -694,16 +722,42 @@ export function buildSignalGraph(
   // Reachable하지 않은 고립 컴포넌트의 노드들을 모아 중앙 루트에 엣지를 생성
   finalNodes.forEach(n => {
     if (!reachable.has(n.id)) {
+      // n의 최상위 unreachable 조상(root)을 탐색
+      let root = n;
+      const visitedAncestors = new Set<string>([n.id]);
+      while (root.parentId) {
+        const parentNode = finalNodes.find(pn => pn.id === root.parentId);
+        if (parentNode && !reachable.has(parentNode.id) && !visitedAncestors.has(parentNode.id)) {
+          root = parentNode;
+          visitedAncestors.add(parentNode.id);
+        } else {
+          break;
+        }
+      }
+
+      // 최상위 조상 노드와 중앙 루트 연결
       finalEdges.push({
         source: actualCenter,
-        target: n.id,
+        target: root.id,
         weight: 0.5,
         type: 'DEPENDENCY',
         isCustom: true // Treat as custom so it isn't easily pruned
       } as PartialOntologyEdge);
       
-      // BFS 상에서 직접 루트에 붙였으므로 이제 reachable
-      reachable.add(n.id);
+      // BFS를 통해 해당 고립 컴포넌트 내의 모든 노드를 reachable로 등록
+      const subQ = [root.id];
+      reachable.add(root.id);
+      
+      while (subQ.length > 0) {
+        const curr = subQ.shift()!;
+        const neighbors = adj.get(curr) || [];
+        for (const nxt of neighbors) {
+          if (!reachable.has(nxt)) {
+            reachable.add(nxt);
+            subQ.push(nxt);
+          }
+        }
+      }
     }
   });
 

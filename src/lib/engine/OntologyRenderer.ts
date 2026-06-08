@@ -21,9 +21,17 @@ export interface RenderContext {
   activeLayers?: Set<number>;
   layoutMode?: 'mindmap' | 'orbit' | 'cluster';
   isInteractive?: boolean;
+  isOrbiting?: boolean;
 }
 
 export class OntologyRenderer {
+  private static currentFont = '';
+  private static setFont(ctx: CanvasRenderingContext2D, fontStr: string) {
+    if (this.currentFont !== fontStr) {
+      ctx.font = fontStr;
+      this.currentFont = fontStr;
+    }
+  }
   private static THEME_PALETTES = [
     '#3B82F6', // Blue
     '#10B981', // Emerald
@@ -36,6 +44,7 @@ export class OntologyRenderer {
   ];
 
   public static render(context: RenderContext): void {
+    this.currentFont = '';
     const { ctx, canvasW, canvasH, nodes, centerNode, cameraOffsetX = 0, cameraOffsetY = 0, zoom, activeLayers, nodeMap, layoutMode = 'mindmap' } = context;
 
     this.assignThemes(nodes, centerNode, nodeMap);
@@ -187,8 +196,8 @@ export class OntologyRenderer {
       // Draw the layer index text on top-right corners
       ctx.setLineDash([]);
       ctx.fillStyle = strokeColors[layer].replace('0.32', '0.75'); // 텍스트 라벨 투명도 상향
-      const fontSize = 10.5 * zoom * p2.scale;
-      ctx.font = `bold ${fontSize}px 'Pretendard', sans-serif`;
+      const fontSize = Math.round(10.5 * zoom * p2.scale);
+      this.setFont(ctx, `bold ${fontSize}px 'Pretendard', sans-serif`);
       ctx.textAlign = 'right';
       ctx.textBaseline = 'bottom';
       ctx.fillText(layerLabels[layer], p2.x - 15 * zoom * p2.scale, p2.y + 25 * zoom * p2.scale);
@@ -457,8 +466,8 @@ export class OntologyRenderer {
 
         const labelText = EDGE_TYPE_LABELS[edge.type as EdgeType] || '';
         if (labelText) {
-          const fontSize = 8.5 * rc.zoom * avgScale;
-          ctx.font = `600 ${fontSize}px 'Pretendard', sans-serif`;
+          const fontSize = Math.round(8.5 * rc.zoom * avgScale);
+          this.setFont(ctx, `600 ${fontSize}px 'Pretendard', sans-serif`);
           
           // 12px 기준 엣지 텍스트 고정 너비 매핑 테이블 (measureText 호출 병목 완전 우회)
           const STATIC_LABEL_WIDTHS: Record<EdgeType, number> = {
@@ -589,14 +598,14 @@ export class OntologyRenderer {
       const cacheKey = weightStyle;
       if (!node._cachedTextWidth) node._cachedTextWidth = {};
       if (!node._cachedTextWidth[cacheKey]) {
-          ctx.font = `${weightStyle} 12px 'Pretendard', sans-serif`;
+          this.setFont(ctx, `${weightStyle} 12px 'Pretendard', sans-serif`);
           node._cachedTextWidth[cacheKey] = ctx.measureText(labelText).width;
       }
       const textWidth = node._cachedTextWidth[cacheKey] * localZoom;
 
       // NotebookLM 스타일: 콤팩트한 노드 사이즈
-      const fontSize = 12 * localZoom;
-      ctx.font = `${weightStyle} ${fontSize}px 'Pretendard', sans-serif`;
+      const fontSize = Math.round(12 * localZoom);
+      this.setFont(ctx, `${weightStyle} ${fontSize}px 'Pretendard', sans-serif`);
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
@@ -749,7 +758,8 @@ export class OntologyRenderer {
               const dDayStr = diffDays > 0 ? `D-${diffDays}` : diffDays === 0 ? 'D-Day' : `D+${Math.abs(diffDays)}`;
               
               const dateText = `⏰ ${dDayStr}`;
-              ctx.font = `bold ${9 * zoom}px 'Pretendard', sans-serif`;
+              const badgeFontSize = Math.round(9 * zoom);
+              this.setFont(ctx, `bold ${badgeFontSize}px 'Pretendard', sans-serif`);
               ctx.fillStyle = diffDays <= 3 ? '#EF4444' : '#64748B';
               
               ctx.textAlign = 'left';
@@ -757,22 +767,6 @@ export class OntologyRenderer {
             }
           }
         }
-      }
-
-      // Collapse Plus indicator drawn directly inside parent dots
-      const children = OntologyLayout.lastTreeChildrenMap.get(node.id) || [];
-      const hasChildren = children.length > 0;
-      if (hasChildren && rc.collapsedNodeIds.has(node.id)) {
-        ctx.strokeStyle = '#FFFFFF';
-        ctx.lineWidth = 1.5 * localZoom;
-        const lineLen = dotRadius * 0.4;
-        
-        ctx.beginPath();
-        ctx.moveTo(node.renderX - lineLen, node.renderY);
-        ctx.lineTo(node.renderX + lineLen, node.renderY);
-        ctx.moveTo(node.renderX, node.renderY - lineLen);
-        ctx.lineTo(node.renderX, node.renderY + lineLen);
-        ctx.stroke();
       }
 
       node.nodeRadius = dotRadius / zoom;
@@ -797,8 +791,8 @@ export class OntologyRenderer {
   ): void {
     if (isInteractive) {
       // 상호작용(줌, 패닝, 드래그) 중일 때는 measureText를 절대 부르지 않는 최속(Fast-path) 렌더링
-      const fontSize = Math.max(7.5 * localZoom, 10 * localZoom * (isActive ? 1.12 : 1.0));
-      ctx.font = `bold ${fontSize}px 'Pretendard', sans-serif`;
+      const fontSize = Math.round(Math.max(7.5 * localZoom, 10 * localZoom * (isActive ? 1.12 : 1.0)));
+      this.setFont(ctx, `bold ${fontSize}px 'Pretendard', sans-serif`);
       ctx.fillStyle = '#FFFFFF';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -833,7 +827,8 @@ export class OntologyRenderer {
     let fontSize = Math.max(8.0 * localZoom, 11 * localZoom * (isActive ? 1.12 : 1.0));
     
     // Fit text inside circle
-    ctx.font = `600 ${fontSize}px 'Pretendard', sans-serif`;
+    const initialFontSize = Math.round(fontSize);
+    this.setFont(ctx, `600 ${initialFontSize}px 'Pretendard', sans-serif`);
     let maxLineWidth = 0;
     for (const line of lines) {
       const w = ctx.measureText(line).width;
@@ -847,21 +842,19 @@ export class OntologyRenderer {
     if (maxLineWidth > maxAllowedWidth || totalHeight > maxAllowedHeight) {
       const scaleW = maxAllowedWidth / maxLineWidth;
       const scaleH = maxAllowedHeight / totalHeight;
-      // 0.93 버퍼 비율을 적용하여 경계면에서의 폰트 크기 진동(Flickering) 현상 원천 차단
       const scaleFactor = Math.min(scaleW, scaleH) * 0.93;
       fontSize = Math.max(7.2 * localZoom, fontSize * scaleFactor);
     }
 
-    // 소수점 1자리 수준으로 폰트 크기 수치를 클램핑하여 렌더 프레임 간 격차 해소
-    fontSize = Math.round(fontSize * 10) / 10;
-    ctx.font = `bold ${fontSize}px 'Pretendard', sans-serif`;
+    const finalFontSize = Math.round(fontSize);
+    this.setFont(ctx, `bold ${finalFontSize}px 'Pretendard', sans-serif`);
     ctx.fillStyle = '#FFFFFF';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    const startY = cy - ((lines.length - 1) * fontSize * 1.2) / 2;
+    const startY = cy - ((lines.length - 1) * finalFontSize * 1.2) / 2;
     for (let i = 0; i < lines.length; i++) {
-      ctx.fillText(lines[i], cx, startY + i * fontSize * 1.2);
+      ctx.fillText(lines[i], cx, startY + i * finalFontSize * 1.2);
     }
   }
 }

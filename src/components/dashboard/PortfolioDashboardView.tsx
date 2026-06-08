@@ -1239,19 +1239,6 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
           })}
         </div>
       </div>
-
-
-      {/* Footer */}
-      <div className="mt-8 pt-8 pb-4 border-t border-slate-200/60">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 text-[10px] font-black text-slate-400 tracking-widest uppercase">
-          <span>© 2026 PORTFOLIO {appMode}. All rights reserved.</span>
-          <span className="flex items-center gap-3">
-            Precision Operations Intelligence
-            <span className="text-slate-300">|</span> 
-            <button onClick={onLogout} className={`text-${isHchps ? 'emerald' : 'blue'}-500 hover:text-${isHchps ? 'emerald' : 'blue'}-600 transition-colors`}>SECURE</button>
-          </span>
-        </div>
-      </div>
       
     </div>
   );

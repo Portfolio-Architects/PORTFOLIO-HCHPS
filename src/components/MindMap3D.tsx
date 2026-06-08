@@ -47,6 +47,8 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   const engineRef = useRef<OntologyCanvasEngine | null>(null);
   const animationRef = useRef<number>(0);
   const dprRef = useRef(1);
+  const zoomSliderRef = useRef<HTMLInputElement>(null);
+  const zoomLabelRef = useRef<HTMLSpanElement>(null);
 
   // Use refs for props to avoid re-creating initEngine on every data change
   const signalKeywordsRef = useRef(signalKeywords);
@@ -65,17 +67,9 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   const [newNodeName, setNewNodeName] = useState("");
   
   // ── 레이아웃 모드 상태 (우주 궤도 고정) ──
-  const layoutModeRef = useRef<'mindmap' | 'orbit' | 'cluster'>('orbit');
+  const layoutModeRef = useRef<'orbit'>('orbit');
 
-  // ── 수직 적층 온톨로지 레이어 필터 상태 ──
-  const [activeLayers, setActiveLayers] = useState<Set<number>>(new Set([0, 1, 2, 3]));
-  const activeLayersRef = useRef(activeLayers);
-  useEffect(() => {
-    activeLayersRef.current = activeLayers;
-    if (engineRef.current) {
-      engineRef.current.needsRedraw = true;
-    }
-  }, [activeLayers]);
+  // ── 수직 적층 온톨로지 레이어 필터 상태 삭제됨 ──
   
   // ── Node Search States ──
   const [searchQuery, setSearchQuery] = useState("");
@@ -237,7 +231,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
       
       // Init WITHOUT callbacks to avoid triggering setState during init
       engine.init(graph, undefined, engineRef.current ? engineRef.current.nodes : undefined);
-      engine.isOrbiting = false;
+      engine.isOrbiting = true; // 공전 기능 다시 활성화
       engine.layoutMode = layoutModeRef.current;
 
       // ----- 카메라 및 선택 상태 유지 (깜빡임/리셋 방지) -----
@@ -395,12 +389,20 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
       ctx.save();
       ctx.scale(dpr, dpr);
 
+      // Sync zoom slider and percentage text label at 60 FPS without React state overhead
+      if (zoomSliderRef.current) {
+        zoomSliderRef.current.value = String(engine.zoom);
+      }
+      if (zoomLabelRef.current) {
+        zoomLabelRef.current.textContent = `${Math.round(engine.zoom * 100)}%`;
+      }
+
       PerformanceProfiler.getInstance().tick();
 
       const isDirty = engine.tick();
       if (isDirty) {
         const t0 = performance.now();
-        engine.render(ctx, w, h, activeLayersRef.current);
+        engine.render(ctx, w, h);
         const t1 = performance.now();
         PerformanceProfiler.getInstance().recordRender(t1 - t0);
       }
@@ -686,6 +688,16 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
     setTimeout(() => initEngine(), 50);
   }, [activeNode, overrides, setNodeOverride, initEngine]);
 
+  const handleZoomSliderChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value);
+    const engine = engineRef.current;
+    if (engine) {
+      engine.zoom = val;
+      engine.targetZoom = val;
+      engine.needsRedraw = true;
+    }
+  }, []);
+
   const handlePrintPdf = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -730,101 +742,10 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   // ── Bottom Info Panels Content Renderer ──
   const renderBottomInfoPanels = () => {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* 1. 레이아웃 모드 카드 */}
-        <div className="bg-white/85 backdrop-blur-md p-4 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col gap-2.5">
-          <span className="text-xs font-black text-slate-800 flex items-center gap-2">
-            <Zap size={14} className="text-[var(--color-primary)]" />
-            레이아웃 모드
-          </span>
-          <div className="grid grid-cols-3 gap-1.5">
-            {[
-              { id: 'mindmap', label: '트리 뷰' },
-              { id: 'orbit', label: '궤도 뷰' },
-              { id: 'cluster', label: '포도송이' }
-            ].map((mode) => {
-              const isActive = layoutModeRef.current === mode.id;
-              return (
-                <button
-                  key={mode.id}
-                  onClick={() => {
-                    layoutModeRef.current = mode.id as any;
-                    if (engineRef.current) {
-                      engineRef.current.layoutMode = mode.id as any;
-                      engineRef.current.layoutWorldGeometryDirty = true;
-                      if (mode.id === 'cluster') {
-                        engineRef.current.physicsAlpha = 1.0;
-                      }
-                      engineRef.current.needsRedraw = true;
-                    }
-                    setStats(prev => ({ ...prev }));
-                  }}
-                  className={`px-1 py-2 rounded-xl text-[10px] font-bold border text-center transition-all cursor-pointer select-none ${
-                    isActive 
-                      ? 'border-[var(--color-primary-light)] bg-[var(--color-primary-light)]/10 text-[var(--color-primary)] font-black' 
-                      : 'border-slate-200 bg-slate-50/50 text-slate-500 hover:bg-slate-100'
-                  }`}
-                >
-                  {mode.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* 2. 수직 레이어 필터 카드 */}
-        <div className="bg-white/85 backdrop-blur-md p-4 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col gap-2.5">
-          <span className="text-xs font-black text-slate-800 flex items-center gap-2">
-            <Waypoints size={14} className="text-[var(--color-primary)]" />
-            수직 레이어 필터
-          </span>
-          <div className="grid grid-cols-2 gap-1.5">
-            {[0, 1, 2, 3].map((layerId) => {
-              const layerLabels: Record<number, string> = {
-                0: '인물 (Agent)',
-                1: '예산/비품 (Resource)',
-                2: '업무/회의 (Execution)',
-                3: '위키/문서 (Knowledge)'
-              };
-              const layerColors: Record<number, string> = {
-                0: 'border-blue-200 bg-blue-50/50 text-blue-700',
-                1: 'border-emerald-200 bg-emerald-50/50 text-emerald-700',
-                2: 'border-violet-200 bg-violet-50/50 text-violet-700',
-                3: 'border-amber-200 bg-amber-50/50 text-amber-700'
-              };
-              const isChecked = activeLayers.has(layerId);
-              return (
-                <button
-                  key={layerId}
-                  onClick={() => {
-                    const next = new Set(activeLayers);
-                    if (next.has(layerId)) {
-                      if (next.size > 1) next.delete(layerId);
-                    } else {
-                      next.add(layerId);
-                    }
-                    setActiveLayers(next);
-                  }}
-                  className={`flex items-center gap-1.5 px-2 py-1.5 rounded-xl text-[10px] font-bold border transition-all cursor-pointer select-none text-left truncate ${
-                    isChecked 
-                      ? layerColors[layerId] 
-                      : 'border-slate-200 bg-slate-50/50 text-slate-400 hover:bg-slate-100'
-                  }`}
-                >
-                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                    isChecked 
-                      ? (layerId === 0 ? 'bg-blue-500' : layerId === 1 ? 'bg-emerald-500' : layerId === 2 ? 'bg-violet-500' : 'bg-amber-500') 
-                      : 'bg-slate-300'
-                  }`} />
-                  <span className="truncate">{layerLabels[layerId].split(' ')[0]}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+      <div className="flex flex-col gap-4">
 
         {/* 3. 성능 프로파일러 카드 */}
-        <div className="bg-white/85 backdrop-blur-md p-4 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col gap-1.5 font-mono text-[9px] text-slate-600 min-w-[130px]">
+        <div className="bg-white/85 backdrop-blur-md p-4 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col gap-1.5 font-mono text-[9px] text-slate-600 min-w-[200px] flex-1">
           <div className="flex items-center justify-between gap-3 mb-0.5">
             <span className="font-sans font-bold text-xs text-slate-800 flex items-center gap-1.5">
               <Radio size={12} className="text-slate-500" />
@@ -862,7 +783,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   // ── Loading / Error States ──
   if (loading || !isCloudLoaded) {
     return (
-      <div className="flex flex-col items-center justify-center h-[600px] gap-4">
+      <div className="flex flex-col items-center justify-center h-[660px] gap-4">
         <Loader2 size={32} className="animate-spin text-[var(--color-primary)]" />
         <p className="text-sm text-[var(--color-text-secondary)]">데이터 동기화 및 로딩 중...</p>
       </div>
@@ -871,7 +792,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
 
   if (error && !engineRef.current) {
     return (
-      <div className="flex flex-col items-center justify-center h-[600px] gap-4">
+      <div className="flex flex-col items-center justify-center h-[660px] gap-4">
         <AlertTriangle size={32} className="text-[var(--color-danger)]" />
         <p className="text-sm text-[var(--color-danger)]">{error}</p>
         <button
@@ -903,7 +824,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
           className={
             isFullscreen 
               ? "hidden md:flex flex-col fixed top-4 right-auto bottom-4 left-4 z-[110] w-[280px] lg:w-[320px] shadow-2xl rounded-xl custom-scrollbar pointer-events-auto bg-[#f8f9fc]" 
-              : "order-2 lg:order-none w-full pointer-events-auto flex flex-col gap-3 lg:h-[min(600px,70vh)]"
+              : "order-2 lg:order-none w-full pointer-events-auto flex flex-col gap-3 lg:h-[min(660px,70vh)]"
           } 
           style={isFullscreen ? { height: "calc(100vh - 32px)" } : {}}
         >
@@ -1003,7 +924,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
             className={
               isFullscreen 
                 ? 'fixed inset-0 z-[100] flex flex-col' 
-                : 'relative rounded-xl overflow-hidden border border-[var(--color-border-light)] w-full h-[550px] md:h-[600px] flex-1'
+                : 'relative rounded-xl overflow-hidden border border-[var(--color-border-light)] w-full h-[605px] md:h-[660px] flex-1 flex flex-col'
             }
             style={{
               background: 'radial-gradient(circle at center, rgba(255, 255, 255, 0.9) 0%, #f8fafc 100%)',
@@ -1151,16 +1072,9 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                 isFullscreen={isFullscreen}
                 onToggleFullscreen={() => setIsFullscreen(!isFullscreen)}
                 onPrintPdf={handlePrintPdf}
-                onCollapseAll={() => {
-                  if (engineRef.current) {
-                    engineRef.current.collapseAll();
-                  }
-                }}
-                onExpandAll={() => {
-                  if (engineRef.current) {
-                    engineRef.current.expandAll();
-                  }
-                }}
+                zoomSliderRef={zoomSliderRef}
+                zoomLabelRef={zoomLabelRef}
+                onZoomChange={handleZoomSliderChange}
                 onAddNodeClick={() => { setIsAddingNode(true); setNewNodeName(""); }}
               />
 

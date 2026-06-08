@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Printer, Maximize2, Minimize2, Network, Waypoints, PlusSquare } from 'lucide-react';
+import { Printer, Maximize2, Minimize2, PlusSquare } from 'lucide-react';
 import { OrbitalNode, GROUP_COLORS, OntologyGroup } from '@/lib/ontology.types';
 
 interface MindMapHUDProps {
@@ -11,9 +11,10 @@ interface MindMapHUDProps {
   isFullscreen: boolean;
   onToggleFullscreen: () => void;
   onPrintPdf: () => void;
-  onCollapseAll?: () => void;
-  onExpandAll?: () => void;
   onAddNodeClick?: () => void;
+  zoomSliderRef: React.RefObject<HTMLInputElement | null>;
+  zoomLabelRef: React.RefObject<HTMLSpanElement | null>;
+  onZoomChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
 export function MindMapHUD({
@@ -23,9 +24,10 @@ export function MindMapHUD({
   isFullscreen,
   onToggleFullscreen,
   onPrintPdf,
-  onCollapseAll,
-  onExpandAll,
-  onAddNodeClick
+  onAddNodeClick,
+  zoomSliderRef,
+  zoomLabelRef,
+  onZoomChange
 }: MindMapHUDProps) {
   return (
     <>
@@ -64,25 +66,20 @@ export function MindMapHUD({
 
         <div className="w-px h-6 bg-gray-300 mx-1"></div>
 
-        {onExpandAll && (
-          <button
-            onClick={onExpandAll}
-            className="bg-white rounded-lg p-2.5 shadow-sm border border-[var(--color-border-light)] hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 cursor-pointer text-gray-500 transition-colors"
-            title="노드 모두 펼치기 (Expand All)"
-          >
-            <Network size={18} />
-          </button>
-        )}
-        
-        {onCollapseAll && (
-          <button
-            onClick={onCollapseAll}
-            className="bg-white rounded-lg p-2.5 shadow-sm border border-[var(--color-border-light)] hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 cursor-pointer text-gray-500 transition-colors"
-            title="노드 모두 접기 (Collapse All)"
-          >
-            <Waypoints size={18} />
-          </button>
-        )}
+        {/* Zoom Ratio Slider */}
+        <div className="bg-white/90 backdrop-blur-md border border-slate-200/60 rounded-lg px-3 py-1.5 shadow-sm flex items-center gap-2 select-none h-[38px]">
+          <span ref={zoomLabelRef} className="text-[11px] font-bold text-slate-500 min-w-[36px] text-right">100%</span>
+          <input
+            ref={zoomSliderRef}
+            type="range"
+            min={0.3}
+            max={3.0}
+            step={0.01}
+            onChange={onZoomChange}
+            className="w-20 md:w-24 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[var(--color-primary)] focus:outline-none"
+            style={{ WebkitAppearance: 'none' }}
+          />
+        </div>
 
         <div className="w-px h-6 bg-gray-300 mx-1"></div>
 
