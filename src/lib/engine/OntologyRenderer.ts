@@ -272,7 +272,6 @@ export class OntologyRenderer {
 
     // 노트북LM 스타일은 직선이나 꺾은선 대신 부드러운 베지어 곡선을 사용합니다.
     for (const edge of edges) {
-      if (edge.source === 'root-HCHPS' || edge.target === 'root-HCHPS') continue;
       const src = nodeMap.get(edge.source);
       const tgt = nodeMap.get(edge.target);
       if (!src || !tgt) continue;
@@ -552,13 +551,111 @@ export class OntologyRenderer {
   private static renderNodes(rc: RenderContext): void {
     const { ctx, sortedNodesBuffer, nodes, activeNodeId, hoveredNodeId, activeTreeSet, canvasW, canvasH, zoom, layoutMode = 'mindmap' } = rc;
 
+    // 1. 전역 텍스트 겹침 방지(Text Overlap Prevention) 사전 계산
+    const drawnTextBoxes: Array<{x1: number, y1: number, x2: number, y2: number}> = [];
+    const textAllowedSet = new Set<string>();
+
+    // 중요도(renderSize) 내림차순으로 정렬된 노드 리스트 복사본 생성
+    const centralitySorted = [...sortedNodesBuffer].sort((a, b) => {
+      const sizeA = a.renderSize ?? 0.5;
+      const sizeB = b.renderSize ?? 0.5;
+      return sizeB - sizeA;
+    });
+
+    for (const node of centralitySorted) {
+      if (node.layoutHidden) continue;
+      
+      const isActive = node.id === activeNodeId;
+      const isHovered = node.id === hoveredNodeId;
+      const isTreeActive = activeNodeId && activeTreeSet.has(node.id);
+      
+      // 최상위 루트 노드, 활성 노드, 호버 노드는 겹침과 무관하게 무조건 텍스트 표시 허용
+      if (node.orbitIndex === 0 || isActive || isHovered) {
+        textAllowedSet.add(node.id);
+        
+        // 예상 바운딩 박스 계산 및 등록
+        const nodeScale = (node as any).perspectiveScale ?? 1.0;
+        const sizeFactor = 0.8 + 0.5 * (node.renderSize ?? 0.5);
+        const localZoom = zoom * nodeScale * sizeFactor;
+        const dotRadius = Math.max(0.1, (4 + 6 * sizeFactor) * localZoom * (isActive || isHovered ? 1.15 : 1.0));
+        const textOffsetX = dotRadius + 6 * localZoom;
+        const fontSize = Math.round(12 * localZoom);
+        
+        let textWidth = (node.label || '').length * 7.5;
+        if ((node as any)._cachedTextWidth) {
+          const cache = (node as any)._cachedTextWidth;
+          textWidth = cache['600'] || cache['500'] || textWidth;
+        }
+        
+        const textH = fontSize + 4 * localZoom;
+        const textW = textWidth + 8 * localZoom;
+        const x1 = node.renderX + textOffsetX - 4 * localZoom - 6;
+        const y1 = node.renderY - textH / 2 - 3;
+        const x2 = x1 + textW + 12;
+        const y2 = y1 + textH + 6;
+        
+        drawnTextBoxes.push({ x1, y1, x2, y2 });
+        continue;
+      }
+
+      // 화면 Frustum 영역 바깥 노드는 계산 생략
+      if (node.renderX < -CULL_MARGIN || node.renderX > canvasW + CULL_MARGIN ||
+          node.renderY < -CULL_MARGIN || node.renderY > canvasH + CULL_MARGIN) {
+        continue;
+      }
+
+      // 활성 포커스 집중 모드일 때 관계망 바깥의 비활성 노드는 텍스트 허용 차단
+      const isInactiveOutsideFocus = activeNodeId && !isActive && !isTreeActive;
+      if (isInactiveOutsideFocus) {
+        continue;
+      }
+
+      // 텍스트 바운딩 박스 계산
+      const nodeScale = (node as any).perspectiveScale ?? 1.0;
+      const sizeFactor = 0.8 + 0.5 * (node.renderSize ?? 0.5);
+      const localZoom = zoom * nodeScale * sizeFactor;
+      const dotRadius = Math.max(0.1, (4 + 6 * sizeFactor) * localZoom);
+      const textOffsetX = dotRadius + 6 * localZoom;
+      const fontSize = Math.round(12 * localZoom);
+      
+      let textWidth = (node.label || '').length * 7.5;
+      if ((node as any)._cachedTextWidth) {
+        const cache = (node as any)._cachedTextWidth;
+        textWidth = cache['600'] || cache['500'] || textWidth;
+      }
+      
+      const textH = fontSize + 4 * localZoom;
+      const textW = textWidth + 8 * localZoom;
+      
+      // 여유 마진 버퍼를 포함하여 겹침 검사
+      const x1 = node.renderX + textOffsetX - 4 * localZoom - 8;
+      const y1 = node.renderY - textH / 2 - 4;
+      const x2 = x1 + textW + 16;
+      const y2 = y1 + textH + 8;
+
+      const rect = { x1, y1, x2, y2 };
+      
+      // 이미 그려진 텍스트 박스들과의 겹침 검사
+      let hasOverlap = false;
+      for (const box of drawnTextBoxes) {
+        if (!(rect.x2 < box.x1 || rect.x1 > box.x2 || rect.y2 < box.y1 || rect.y1 > box.y2)) {
+          hasOverlap = true;
+          break;
+        }
+      }
+
+      if (!hasOverlap) {
+        textAllowedSet.add(node.id);
+        drawnTextBoxes.push(rect);
+      }
+    }
+
     // No-op sorting: sortedNodesBuffer is pre-sorted by the layout engine.
 
     let shadowEnabled = false;
 
     for (const node of sortedNodesBuffer) {
       if (node.layoutHidden) continue;
-      if (node.id === 'root-HCHPS') continue;
       if (node.renderX < -CULL_MARGIN || node.renderX > canvasW + CULL_MARGIN) continue;
       if (node.renderY < -CULL_MARGIN || node.renderY > canvasH + CULL_MARGIN) continue;
 
@@ -566,6 +663,7 @@ export class OntologyRenderer {
       const isTreeActive = activeNodeId && activeTreeSet.has(node.id);
       const isHovered = node.id === hoveredNodeId;
       const opacity = (!activeNodeId || isTreeActive || isActive) ? 1 : 0.3;
+      const isInactiveOutsideFocus = !!(activeNodeId && !isActive && !isTreeActive);
 
       const nodeScale = (node as any).perspectiveScale ?? 1.0;
       const weight = node.renderSize ?? 0.5;
@@ -574,20 +672,22 @@ export class OntologyRenderer {
 
       ctx.globalAlpha = opacity;
 
-      // ─── Semantic Zooming (LOD) 최적화 ───
-      // 줌 레벨이 0.48 미만이고 선택되거나 호버되지 않은 일반 노드들은
-      // 텍스트, 그림자, 테두리, 카드 상자를 전부 생략하고 단순한 색상 도트(점)로만 그려 드로우 콜을 90% 이상 절감합니다.
-      const isLODDot = zoom < 0.48 && !isActive && !isHovered;
+      // ─── Semantic Zooming (LOD 2.0) 최적화 및 텍스트 겹침 방지 ───
+      // 전역 겹침 사전 계산 결과에 의해 라벨이 허용되지 않은 노드는 100% 도트(Dot)로 렌더링
+      const isLODDot = !textAllowedSet.has(node.id);
+
       if (isLODDot) {
         const themeColor = node.isCompleted ? '#CBD5E1' : (node.themeColor || '#94A3B8');
         ctx.beginPath();
-        ctx.arc(node.renderX, node.renderY, Math.max(0.1, 5.5 * localZoom), 0, Math.PI * 2);
+        // 비활성 노드는 도트 크기도 작고 투명하게 처리하여 가시성 격차(Focus-Context Blending) 고도화
+        const dotR = isInactiveOutsideFocus ? Math.max(0.1, 3.5 * localZoom) : Math.max(0.1, 5.5 * localZoom);
+        ctx.arc(node.renderX, node.renderY, dotR, 0, Math.PI * 2);
         ctx.fillStyle = themeColor;
         ctx.fill();
-        ctx.strokeStyle = '#FFFFFF';
+        ctx.strokeStyle = isInactiveOutsideFocus ? 'rgba(255, 255, 255, 0.4)' : '#FFFFFF';
         ctx.lineWidth = 1 * localZoom;
         ctx.stroke();
-        node.nodeRadius = (5.5 * localZoom) / zoom;
+        node.nodeRadius = dotR / zoom;
         continue;
       }
 
@@ -716,7 +816,8 @@ export class OntologyRenderer {
         const textH = fontSize + 4 * localZoom;
         const textW = textWidth + 8 * localZoom;
         
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.72)';
+        // 가독성 극대화를 위해 백박스 불투명도를 0.88로 상향
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.88)';
         ctx.beginPath();
         if (ctx.roundRect) {
           ctx.roundRect(node.renderX + textOffsetX - 4 * localZoom, textY - textH / 2, textW, textH, Math.max(0.1, 4 * localZoom));
@@ -724,6 +825,11 @@ export class OntologyRenderer {
           ctx.rect(node.renderX + textOffsetX - 4 * localZoom, textY - textH / 2, textW, textH);
         }
         ctx.fill();
+        
+        // 겹침 발생 시 경계 구분을 위한 미세한 테두리 드로잉
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.22)';
+        ctx.lineWidth = 0.8 * localZoom;
+        ctx.stroke();
 
         // Actual label text
         if (node.isCompleted) {

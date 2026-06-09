@@ -494,6 +494,21 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
     }
   }, [getCanvasPos, parentModeSource, addCustomEdge, deleteCustomEdge, initEngine, setNodeOverride, removeCustomTombstone]);
 
+  const handleDoubleClick = useCallback((e: React.MouseEvent) => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    const { x, y } = getCanvasPos(e.nativeEvent);
+    engine.handleDoubleClick(x, y);
+    
+    // Sync React state
+    setActiveNode(engine.activeNode);
+    if (engine.activeNode) {
+      setConnectedEdges(engine.getConnectedEdges(engine.activeNode.id));
+    } else {
+      setConnectedEdges([]);
+    }
+  }, [getCanvasPos]);
+
   // ── Touch Events for Mobile ──
   const touchStartRef = useRef<{ x: number; y: number; time: number; pinchDist?: number }>({ x: 0, y: 0, time: 0 });
   const isTouchDragging = useRef(false);
@@ -938,6 +953,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                 className="absolute inset-0 w-full h-full"
                 style={{ cursor: hoveredNode ? 'pointer' : 'grab', touchAction: 'none' }}
                 onClick={handleClick}
+                onDoubleClick={handleDoubleClick}
                 onMouseMove={handleMouseMove}
                 onMouseDown={handleMouseDown}
                 onMouseUp={handleMouseUp}

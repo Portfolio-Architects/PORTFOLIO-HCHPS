@@ -55,7 +55,7 @@ export function buildSignalGraph(
   // 1. Root Node (HCHPS) - Center of the tree
   nodes.push({
     id: 'root-HCHPS',
-    label: 'HCHPS',
+    label: 'Tasks',
     group: 'CORE_PROJECT', // Vivid Blue
     baseValue: 100,
     centralityScore: 10000,

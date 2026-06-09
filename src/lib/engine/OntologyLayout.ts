@@ -319,8 +319,17 @@ export class OntologyLayout {
         node.orbitIndex = depth;
         node.orbitAngle = assignedAngle;
 
-        // 지그재그 반경 오프셋 속성 유지 및 초기화
-        (node as any).radialOffset = (node as any).radialOffset ?? 0;
+        // 💡 런타임 충돌 피직스를 완전히 꺼두는 대신, 정적 지그재그 반경 오프셋(Static Radial Offset)을 
+        // 형제 노드들의 인덱스에 따라 안팎으로 +-40px씩 엇갈리게 교차 배치하여 겹침을 정적으로 해결합니다.
+        let staticOffset = 0;
+        if (depth > 0 && parentNode) {
+          const siblings = treeChildrenMap.get(parentNode.id) || [];
+          const sibIdx = siblings.indexOf(nodeId);
+          if (sibIdx !== -1) {
+            staticOffset = sibIdx % 2 === 0 ? -40 : 40;
+          }
+        }
+        (node as any).radialOffset = staticOffset;
 
         // 허용 각도 쐐기 범위 계산 및 부여 (경계 간 겹침 방지 버퍼 0.02 적용)
         const buffer = 0.02;
@@ -537,8 +546,8 @@ export class OntologyLayout {
       layerGroups.get(d.layer)!.push(d);
     }
 
-    // 💡 줌 배율 조작 시 화면 공간 충돌 방지 반발력에 의해 노드가 요동치는 현상을 영구 박멸하고 CPU 병목을 소거하기 위해
-    // 궤도 공전 레이아웃에서는 충돌 방지 2D 물리 연산을 생략(maxIterations = 0)합니다.
+    // 💡 노드들이 튕기고 흔들리는 물리적 요동(Jittering)을 박멸하고 CPU 병목을 근본적으로 차단하기 위해
+    // 런타임 2D 화면 공간 충돌 물리 연산은 완전히 꺼둡니다(maxIterations = 0). 대신 정적 분산 배치가 이를 해결합니다.
     const maxIterations = 0;
     
     layerGroups.forEach((group) => {

@@ -709,9 +709,9 @@ export class OntologyCanvasEngine {
         const tiltAngle = 42 * Math.PI / 180;
         const cameraDist = 1000;
 
-        // 궤도 및 포도송이 모드일 때 Z축 높이 Gap을 0으로 맞췄던 계산 법칙과 정확히 대응시킵니다
-        const h = 0;
-        const depthH = 0;
+        // 💡 3D Perspective 수직 적층 레이어 높이(LAYER_GAP)를 정확히 반영하여 원근 투영 스냅 Y축 오차를 제거합니다.
+        const h = effectiveLayer * LAYER_GAP;
+        const depthH = effectiveLayer * LAYER_GAP;
 
         const rotatedY = target.worldY * Math.cos(tiltAngle) - h * Math.sin(tiltAngle);
         const depth = -target.worldY * Math.sin(tiltAngle) + depthH * Math.cos(tiltAngle);
@@ -773,9 +773,9 @@ export class OntologyCanvasEngine {
     this.canvasH = height;
     this.computePositions(width, height, activeLayers);
 
-    const isCameraMoving = Math.abs(this.targetOffsetX - this.cameraOffsetX) > 0.8 || 
-                           Math.abs(this.targetOffsetY - this.cameraOffsetY) > 0.8 ||
-                           Math.abs(this.targetZoom - this.zoom) > 0.008;
+    const isCameraMoving = Math.abs(this.targetOffsetX - this.cameraOffsetX) > 0.5 || 
+                           Math.abs(this.targetOffsetY - this.cameraOffsetY) > 0.5 ||
+                           Math.abs(this.targetZoom - this.zoom) > 0.005;
     const isInteractive = this.isDragging || isCameraMoving;
 
     OntologyRenderer.render({
@@ -861,6 +861,9 @@ export class OntologyCanvasEngine {
          this.activeNode = hit;
          this.previousActiveNodeId = hit.id;
          
+         // 💡 노드 클릭 시 뷰포트를 해당 노드로 부드럽게 패닝 스냅
+         this.pendingCameraTargetId = hit.id;
+         
          const getDescendants = (nodeId: string): string[] => {
             const desc: string[] = [];
             const q = [nodeId];
@@ -928,6 +931,21 @@ export class OntologyCanvasEngine {
     }
     this.layoutWorldGeometryDirty = true;
     this.needsRedraw = true;
+  }
+
+  handleDoubleClick(mx: number, my: number): void {
+    const hit = this.hitTest(mx, my);
+    if (!hit) {
+      // 💡 빈 바탕 더블클릭 시 줌 1.0배율 및 Tasks 노드(중앙) 위치로 카메라 뷰포트를 부드럽게 홈 리셋시킵니다.
+      this.targetZoom = 1.0;
+      if (this.centerNode) {
+        this.pendingCameraTargetId = this.centerNode.id;
+      } else {
+        this.targetOffsetX = 0;
+        this.targetOffsetY = 0;
+      }
+      this.needsRedraw = true;
+    }
   }
 
   handleHover(mx: number, my: number): void {
