@@ -97,9 +97,9 @@ export async function POST(req: Request) {
 
     const lastMessage = messages[messages.length - 1];
 
-    // Build context string from contextData (최신 30개로 캡핑하여 토큰 소모량 및 API 응답 시간 획기적 단축)
+    // Build context string from contextData (최대 300개로 캡핑 범위를 확장하여 보다 상세하고 풍부한 컨텍스트 전달)
     const rawSignals = contextData?.signals || [];
-    const signalsText = rawSignals.slice(0, 30).map((s: any) => `- [${s.type || s.category || '알림'}] ${s.text || s.content || s.title}`).join('\n') || '없음';
+    const signalsText = rawSignals.slice(0, 300).map((s: any) => `- [${s.type || s.category || '알림'}] ${s.text || s.content || s.title}`).join('\n') || '없음';
     
     // Wiki context
     const matchedWikiText = contextData?.matchedWiki || '';
@@ -111,10 +111,10 @@ export async function POST(req: Request) {
     const cats = contextData?.budgetCategories || [];
     const rawEntries = contextData?.budgetEntries || contextData?.budgets || [];
     
-    // 응답속도 향상을 위해 개별 지출 내역은 최신 30개로 캡핑하여 컨텍스트 토큰 크기 축소
+    // 의사결정 신뢰성 향상을 위해 개별 지출 내역은 최대 300개로 캡핑 범위를 대폭 확장
     const entries = [...rawEntries]
       .sort((a: any, b: any) => (b.date || '').localeCompare(a.date || ''))
-      .slice(0, 30);
+      .slice(0, 300);
     
     const catMap = new Map(cats.map((c: any) => [c.id, c.name]));
     
@@ -152,7 +152,7 @@ export async function POST(req: Request) {
       model: 'gemini-3.5-flash',
       systemInstruction: systemPrompt,
       generationConfig: {
-        maxOutputTokens: 4096,
+        maxOutputTokens: 8192,
         temperature: 0.2
       }
     });

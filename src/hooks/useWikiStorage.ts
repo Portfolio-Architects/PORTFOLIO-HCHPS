@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import type { PartialBlock } from '@blocknote/core';
 import type { NodeOverride } from './useGraphCustomization';
 import { readSheet, replaceAll } from '@/lib/sheets-api';
+import { extractRawTextFromBlocks, parseContacts } from '@/lib/contacts-parser';
 
 /**
  * 특정 노드(nodeId)에 해당하는 위키(에디터 블록 구조)를
@@ -245,11 +246,27 @@ export function useWikiStorage(
       try {
         await replaceAll(`WIKI_DOC_${canonicalId}`, [{ id: 'singleton', blocks: newBlocks }]);
         console.log(`[Auto-Save] Wiki ${canonicalId} uploaded to cloud.`);
+
+        // Auto-sync contacts to local_contacts.txt when successfully saved
+        const rawText = extractRawTextFromBlocks(newBlocks);
+        const { phones, emails } = parseContacts(rawText);
+        if (phones.length > 0 || emails.length > 0) {
+          await fetch('/api/local-contacts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              nodeId: nodeIdToSave,
+              nodeLabel: nodeLabel || nodeIdToSave,
+              phones,
+              emails
+            })
+          });
+        }
       } catch (error) {
-        console.error(`[Auto-Save] Wiki ${canonicalId} upload failed.`, error);
+        console.error(`[Auto-Save] Wiki ${canonicalId} upload failed or contacts auto-sync failed.`, error);
       }
     }, 2000);
-  }, []);
+  }, [nodeLabel]);
 
   const safeBlocks = loadedNodeId === nodeId ? blocks : undefined;
   const safeIsLoaded = loadedNodeId === nodeId ? isLoaded : false;

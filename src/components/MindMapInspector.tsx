@@ -1,7 +1,10 @@
 import React from 'react';
 import { OrbitalNode, OntologyEdge, GROUP_COLORS, GROUP_LABELS, OntologyGroup } from '@/lib/ontology.types';
 import { NodeOverride } from '@/hooks/useGraphCustomization';
-import { Edit2, Waypoints, CheckCircle, Trash2, Link2, Radio, X, Crosshair, Activity, Bot, Unlink } from 'lucide-react';
+import { Edit2, Waypoints, CheckCircle, Trash2, Link2, Radio, X, Crosshair, Activity, Bot, Unlink, Phone, Mail, MessageSquare } from 'lucide-react';
+import { getCanonicalWikiId } from '@/hooks/useWikiStorage';
+import { readSheet } from '@/lib/sheets-api';
+import { extractRawTextFromBlocks, parseContacts } from '@/lib/contacts-parser';
 
 interface ForceGraphEngine {
   nodes: OrbitalNode[];
@@ -31,6 +34,7 @@ interface MindMapInspectorProps {
   handleSwapNodeOrder: (dir: -1 | 1) => void;
   clearNodeOverride: (id: string) => void;
   isOverlay: boolean;
+  wikiBlocks?: any[];
 }
 
 export function MindMapInspector(props: MindMapInspectorProps) {
@@ -39,12 +43,126 @@ export function MindMapInspector(props: MindMapInspectorProps) {
     onRenameCategory, onDeleteCategory, updateCustomNodeText, removeCustomTombstone, renameNodeId,
     deleteCustomNode, addCustomEdge, deleteCustomEdge,
     parentModeSource, setParentModeSource,
-    initEngine, handleSwapNodeOrder, clearNodeOverride, isOverlay
+    initEngine, handleSwapNodeOrder, clearNodeOverride, isOverlay,
+    wikiBlocks
   } = props;
 
   const [connectedEdges, setConnectedEdges] = React.useState<Array<{ edge: OntologyEdge; otherNode: OrbitalNode }>>([]);
   const [parentLabel, setParentLabel] = React.useState<string | null>(null);
   const [engineNodes, setEngineNodes] = React.useState<OrbitalNode[]>([]);
+  const [isRecording, setIsRecording] = React.useState(false);
+  const [recordSuccess, setRecordSuccess] = React.useState(false);
+
+  // Clear success feedback when activeNode changes
+  React.useEffect(() => {
+    setRecordSuccess(false);
+    setIsRecording(false);
+  }, [activeNode]);
+
+  const handleRecordToNotebookLM = async (phones: string[], emails: string[]) => {
+    if (!activeNode || isRecording) return;
+    setIsRecording(true);
+    setRecordSuccess(false);
+
+    try {
+      const response = await fetch('/api/local-contacts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          nodeId: activeNode.id,
+          nodeLabel: activeNode.label,
+          phones,
+          emails,
+        }),
+      });
+
+      const resData = await response.json();
+      if (resData.success) {
+        setRecordSuccess(true);
+        setTimeout(() => {
+          setRecordSuccess(false);
+        }, 3000);
+      } else {
+        alert(`기록 실패: ${resData.error || '알 수 없는 오류'}`);
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(`기록 중 에러 발생: ${err.message || err}`);
+    } finally {
+      setIsRecording(false);
+    }
+  };
+
+  const [isBatchExtracting, setIsBatchExtracting] = React.useState(false);
+  const [batchProgress, setBatchProgress] = React.useState<{ current: number; total: number } | null>(null);
+  const [batchSuccessCount, setBatchSuccessCount] = React.useState<number | null>(null);
+
+  const handleBatchExtractToNotebookLM = async () => {
+    if (isBatchExtracting || engineNodes.length === 0) return;
+    setIsBatchExtracting(true);
+    setBatchSuccessCount(null);
+    setBatchProgress({ current: 0, total: engineNodes.length });
+
+    const extractedContacts: Array<{ nodeId: string; nodeLabel: string; phones: string[]; emails: string[] }> = [];
+
+    try {
+      for (let i = 0; i < engineNodes.length; i++) {
+        const node = engineNodes[i];
+        setBatchProgress({ current: i + 1, total: engineNodes.length });
+
+        const canonicalWikiId = getCanonicalWikiId(node.id);
+        const rows = await readSheet<any>(`WIKI_DOC_${canonicalWikiId}`);
+        if (rows && rows.length > 0 && rows[0].blocks) {
+          const rawText = extractRawTextFromBlocks(rows[0].blocks);
+          const { phones, emails } = parseContacts(rawText);
+          if (phones.length > 0 || emails.length > 0) {
+            extractedContacts.push({
+              nodeId: node.id,
+              nodeLabel: node.label,
+              phones,
+              emails,
+            });
+          }
+        }
+      }
+
+      if (extractedContacts.length === 0) {
+        alert('추출 완료: 연락처가 작성된 위키 문서가 없습니다.');
+        setIsBatchExtracting(false);
+        setBatchProgress(null);
+        return;
+      }
+
+      // Send all extracted contacts to the backend route
+      const response = await fetch('/api/local-contacts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contacts: extractedContacts,
+        }),
+      });
+
+      const resData = await response.json();
+      if (resData.success) {
+        setBatchSuccessCount(extractedContacts.length);
+        setTimeout(() => {
+          setBatchSuccessCount(null);
+        }, 4000);
+      } else {
+        alert(`기록 실패: ${resData.error || '알 수 없는 오류'}`);
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(`기록 중 에러 발생: ${err.message || err}`);
+    } finally {
+      setIsBatchExtracting(false);
+      setBatchProgress(null);
+    }
+  };
 
   React.useEffect(() => {
     if (engineRef.current) {
@@ -310,6 +428,68 @@ export function MindMapInspector(props: MindMapInspectorProps) {
                         <span className="text-[8.5px] text-amber-600/80 leading-tight">글로우 효과 지속</span>
                       </div>
                     </div>
+
+                    {/* 모바일 다이렉트 연락처 카드 (Wiki 문서에 연락처 포맷 존재 시 노출) */}
+                    {(() => {
+                      const rawText = extractRawTextFromBlocks(wikiBlocks || []);
+                      const { phones, emails } = parseContacts(rawText);
+                      
+                      if (phones.length === 0 && emails.length === 0) return null;
+                      
+                      return (
+                        <div className="mb-4 p-3 bg-gradient-to-br from-indigo-50/70 to-blue-50/70 border border-indigo-100/80 rounded-xl shadow-sm">
+                          <div className="text-[10px] font-bold text-indigo-700 mb-2 flex items-center gap-1.5 uppercase tracking-wider">
+                            <Phone size={11} className="animate-pulse text-indigo-500" />
+                            📞 로컬 연락처 및 노트북 LM 기록
+                          </div>
+                          <div className="flex flex-col gap-1.5">
+                            {phones.map((phone) => (
+                              <div key={phone} className="flex items-center justify-between bg-white/90 p-2 rounded-lg border border-slate-200/50 text-[11px] shadow-2xs">
+                                <span className="font-semibold text-slate-700">{phone}</span>
+                                <div className="flex gap-1.5">
+                                  <a
+                                    href={`tel:${phone}`}
+                                    className="px-2.5 py-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded-md font-bold shadow-2xs hover:shadow-xs transition-all duration-150 flex items-center gap-1"
+                                  >
+                                    전화
+                                  </a>
+                                  <a
+                                    href={`sms:${phone}`}
+                                    className="px-2.5 py-1 bg-sky-500 hover:bg-sky-600 text-white rounded-md font-bold shadow-2xs hover:shadow-xs transition-all duration-150 flex items-center gap-1"
+                                  >
+                                    문자
+                                  </a>
+                                </div>
+                              </div>
+                            ))}
+                            {emails.map((email) => (
+                              <div key={email} className="flex items-center justify-between bg-white/90 p-2 rounded-lg border border-slate-200/50 text-[11px] shadow-2xs min-w-0">
+                                <span className="font-medium text-slate-600 truncate mr-2" title={email}>{email}</span>
+                                <a
+                                  href={`mailto:${email}`}
+                                  className="px-2.5 py-1 bg-indigo-500 hover:bg-indigo-600 text-white rounded-md font-bold shadow-2xs hover:shadow-xs transition-all duration-150 flex items-center gap-1 shrink-0"
+                                >
+                                  메일
+                                </a>
+                              </div>
+                            ))}
+
+                            <button
+                              onClick={() => handleRecordToNotebookLM(phones, emails)}
+                              disabled={isRecording}
+                              className={`mt-2 w-full py-2 px-3 rounded-lg text-xs font-bold shadow-sm flex items-center justify-center gap-1.5 transition-all duration-200 cursor-pointer ${
+                                recordSuccess
+                                  ? 'bg-emerald-500 text-white hover:bg-emerald-600'
+                                  : 'bg-indigo-600 hover:bg-indigo-700 text-white disabled:bg-indigo-400'
+                              }`}
+                            >
+                              <Bot size={13} className={isRecording ? "animate-spin" : ""} />
+                              {isRecording ? '기록 중...' : recordSuccess ? '✓ 노트북 LM 기록 완료!' : '💾 노트북 LM에 기록'}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {activeNode.id !== 'root-HCHPS' && (
                       <div className="mb-5">
@@ -606,6 +786,39 @@ export function MindMapInspector(props: MindMapInspectorProps) {
                           <p className="text-[11px] text-slate-600 leading-normal">
                             전체 {engineNodes.length}개 노드 중 위상 중요도, 마감 기한, 리스크 영향도를 실시간 종합 분석하여 지금 가장 집중해야 할 노드를 추천합니다.
                           </p>
+                        </div>
+
+                        {/* 노트북 LM 전역 연락처 추출 및 기록 카드 */}
+                        <div className="mb-4 p-3 bg-slate-50 border border-slate-200/80 rounded-xl shadow-xs">
+                          <div className="text-[10px] font-bold text-slate-600 mb-1.5 flex items-center gap-1.5 uppercase tracking-wider">
+                            <Link2 size={11} className="text-indigo-500" />
+                            📂 노트북 LM 전역 연락처 추출
+                          </div>
+                          <p className="text-[10.5px] text-slate-500 leading-relaxed mb-2.5">
+                            캔버스의 전체 {engineNodes.length}개 노드 위키 문서를 스캔하여 감지된 모든 연락처 정보를 `data/local_contacts.txt` 파일에 한 번에 추출·기록합니다.
+                          </p>
+                          <button
+                            onClick={handleBatchExtractToNotebookLM}
+                            disabled={isBatchExtracting}
+                            className={`w-full py-2 px-3 rounded-lg text-xs font-bold shadow-xs flex items-center justify-center gap-1.5 transition-all duration-200 cursor-pointer ${
+                              batchSuccessCount !== null
+                                ? 'bg-emerald-500 text-white hover:bg-emerald-600'
+                                : 'bg-indigo-600 hover:bg-indigo-700 text-white disabled:bg-indigo-400'
+                            }`}
+                          >
+                            {isBatchExtracting ? (
+                              <>
+                                <Bot size={13} className="animate-spin" />
+                                <span>스캔 중... ({batchProgress?.current}/{batchProgress?.total})</span>
+                              </>
+                            ) : batchSuccessCount !== null ? (
+                              <span>✓ {batchSuccessCount}개 노드 추출 완료! (txt 파일 저장됨)</span>
+                            ) : (
+                              <>
+                                <span>💾 전체 노드 연락처 일괄 추출</span>
+                              </>
+                            )}
+                          </button>
                         </div>
 
                         <div className="text-[11px] font-bold text-slate-400 mb-2 px-1 flex items-center gap-1.5">

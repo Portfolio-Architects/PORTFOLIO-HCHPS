@@ -162,6 +162,11 @@ export class OntologyLayout {
   ): void {
     if (nodes.length === 0) return;
 
+    // Silence unused parameter warnings when maxIterations === 0
+    if (isInteractive || layoutMode) {
+      // noop
+    }
+
     if (recomputeWorldPositions) {
       // 1. 방향성이 있는 인접 리스트 (Directed Adjacency List) 생성 및 무방향(Fallback) 준비
       // - 크로스 엣지(횡적 연결)로 인해 하위 노드가 잘못된 부모 밑으로(Spanning Tree 구조 붕괴) 종속되는 것을 방지하기 위함
@@ -292,8 +297,14 @@ export class OntologyLayout {
       // Concentric Orbit Layout: 모든 노드를 중앙(0,0) 중심의 동심 궤도에 배치
       const getNodeDepth = (nodeId: string): number => {
         let depth = 0;
+        const visited = new Set<string>();
         let curr = nodeMap.get(nodeId);
         while (curr && curr.parentId) {
+          if (visited.has(curr.id)) {
+            console.error(`[OntologyLayout] Circular parentId reference detected at node: ${curr.id}. Breaking loop to prevent infinite loop hang.`);
+            break;
+          }
+          visited.add(curr.id);
           depth++;
           curr = nodeMap.get(curr.parentId);
         }
@@ -452,6 +463,8 @@ export class OntologyLayout {
     const cy = canvasH / 2 + cameraOffsetY;
 
     const tiltAngle = 42 * Math.PI / 180; // 42도 경사각
+    const cosTilt = Math.cos(tiltAngle);
+    const sinTilt = Math.sin(tiltAngle);
     const cameraDist = 1000;              // 카메라 거리
     const LAYER_GAP = 190;                // 레이어 간 수직 적층 격차 (가독성 최적값)
 
@@ -487,8 +500,8 @@ export class OntologyLayout {
       const depthH = effectiveLayer * LAYER_GAP;
 
       // 3D X축 회전 변환 공식 적용 (depthH를 활용해 원근 배율 조정)
-      const rotatedY = worldY * Math.cos(tiltAngle) - h * Math.sin(tiltAngle);
-      const depth = -worldY * Math.sin(tiltAngle) + depthH * Math.cos(tiltAngle);
+      const rotatedY = worldY * cosTilt - h * sinTilt;
+      const depth = -worldY * sinTilt + depthH * cosTilt;
       
       const perspectiveScale = Math.max(0.05, cameraDist / (cameraDist + depth));
 
@@ -501,189 +514,192 @@ export class OntologyLayout {
     }
 
     // 7. Screen-Space Collision Resolution (2D 화면 공간 충돌 방지 루프)
-    // 화면 영역(Frustum) 바깥의 노드는 충돌 물리 계산에서 제외하여 O(N^2) 루프의 연산 대상을 격감시킴
-    const activeNodes = nodes.filter(n => 
-      !n.layoutHidden && 
-      n.renderX !== -999999 &&
-      n.renderX >= -CULL_MARGIN &&
-      n.renderX <= canvasW + CULL_MARGIN &&
-      n.renderY >= -CULL_MARGIN &&
-      n.renderY <= canvasH + CULL_MARGIN
-    );
-    
-    // O(N)으로 사전 계산
-    const nodeData = activeNodes.map(node => {
-      const weight = node.renderSize ?? 0.5;
-      const sizeFactor = 0.8 + 0.5 * weight;
-      const scale = ((node as any).perspectiveScale ?? 1.0) * sizeFactor;
-      
-      let textW = (node.label || '').length * 7.5;
-      if ((node as any)._cachedTextWidth) {
-        const cache = (node as any)._cachedTextWidth;
-        textW = cache['600'] || cache['500'] || textW;
-      }
-      
-      const w = Math.max(60 * scale, textW * scale + 28 * scale) + 16 * scale; // 가로 마진 포함
-      const h = Math.max(28 * scale, 12 * scale + 20 * scale) + 12 * scale;  // 세로 마진 포함
-      const isFixed = (!isOrbiting && (node as any).fixedX !== undefined && (node as any).fixedY !== undefined) || node.orbitIndex === 0;
-      const layer = node.effectiveLayer ?? 3;
-      
-      return {
-        node,
-        w,
-        h,
-        isFixed,
-        layer
-      };
-    });
-
-    // Group nodeData by layer for much faster collision checking (O(N^2 / L) vs O(N^2))
-    const layerGroups = new Map<number, typeof nodeData>();
-    for (const d of nodeData) {
-      if (!layerGroups.has(d.layer)) {
-        layerGroups.set(d.layer, []);
-      }
-      layerGroups.get(d.layer)!.push(d);
-    }
-
     // 💡 노드들이 튕기고 흔들리는 물리적 요동(Jittering)을 박멸하고 CPU 병목을 근본적으로 차단하기 위해
-    // 런타임 2D 화면 공간 충돌 물리 연산은 완전히 꺼둡니다(maxIterations = 0). 대신 정적 분산 배치가 이를 해결합니다.
+    // 런타임 2D 화면 공간 충돌 물리 연산은 완전히 꺼둡니다(maxIterations = 0).
     const maxIterations = 0;
     
-    layerGroups.forEach((group) => {
-      // 💡 공전 중인 환경에서 노드들이 튕기거나 요동치는 떨림(Jittering)을 박멸하기 위해,
-      // 충돌 반발력 감쇠(damping)를 극도로 낮추어 부드럽게 미끄러지며 분산되도록 튜닝합니다.
-      const damping = 0.015;
-      for (let iter = 0; iter < maxIterations; iter++) {
-        let hasOverlap = false;
-        for (let i = 0; i < group.length; i++) {
-          const dataA = group[i];
-          const nodeA = dataA.node;
-          const wA = dataA.w;
-          const hA = dataA.h;
-          const isFixedA = dataA.isFixed;
-          for (let j = i + 1; j < group.length; j++) {
-            const dataB = group[j];
-            const nodeB = dataB.node;
-            const wB = dataB.w;
-            const hB = dataB.h;
-            const isFixedB = dataB.isFixed;
+    if (maxIterations > 0) {
+      // 화면 영역(Frustum) 바깥의 노드는 충돌 물리 계산에서 제외하여 O(N^2) 루프의 연산 대상을 격감시킴
+      const activeNodes = nodes.filter(n => 
+        !n.layoutHidden && 
+        n.renderX !== -999999 &&
+        n.renderX >= -CULL_MARGIN &&
+        n.renderX <= canvasW + CULL_MARGIN &&
+        n.renderY >= -CULL_MARGIN &&
+        n.renderY <= canvasH + CULL_MARGIN
+      );
+      
+      // O(N)으로 사전 계산
+      const nodeData = activeNodes.map(node => {
+        const weight = node.renderSize ?? 0.5;
+        const sizeFactor = 0.8 + 0.5 * weight;
+        const scale = ((node as any).perspectiveScale ?? 1.0) * sizeFactor;
+        
+        let textW = (node.label || '').length * 7.5;
+        if ((node as any)._cachedTextWidth) {
+          const cache = (node as any)._cachedTextWidth;
+          textW = cache['600'] || cache['500'] || textW;
+        }
+        
+        const w = Math.max(60 * scale, textW * scale + 28 * scale) + 16 * scale; // 가로 마진 포함
+        const h = Math.max(28 * scale, 12 * scale + 20 * scale) + 12 * scale;  // 세로 마진 포함
+        const isFixed = (!isOrbiting && (node as any).fixedX !== undefined && (node as any).fixedY !== undefined) || node.orbitIndex === 0;
+        const layer = node.effectiveLayer ?? 3;
+        
+        return {
+          node,
+          w,
+          h,
+          isFixed,
+          layer
+        };
+      });
 
-            // 두 노드 겹침 확인
-            const dx = nodeB.renderX - nodeA.renderX;
-            const dy = nodeB.renderY - nodeA.renderY;
-            
-            const minDistX = (wA + wB) / 2;
-            const minDistY = (hA + hB) / 2;
-            
-            const absDx = Math.abs(dx);
-            const absDy = Math.abs(dy);
+      // Group nodeData by layer for much faster collision checking (O(N^2 / L) vs O(N^2))
+      const layerGroups = new Map<number, typeof nodeData>();
+      for (const d of nodeData) {
+        if (!layerGroups.has(d.layer)) {
+          layerGroups.set(d.layer, []);
+        }
+        layerGroups.get(d.layer)!.push(d);
+      }
+      
+      layerGroups.forEach((group) => {
+        // 💡 공전 중인 환경에서 노드들이 튕기거나 요동치는 떨림(Jittering)을 박멸하기 위해,
+        // 충돌 반발력 감쇠(damping)를 극도로 낮추어 부드럽게 미끄러지며 분산되도록 튜닝합니다.
+        const damping = 0.015;
+        for (let iter = 0; iter < maxIterations; iter++) {
+          let hasOverlap = false;
+          for (let i = 0; i < group.length; i++) {
+            const dataA = group[i];
+            const nodeA = dataA.node;
+            const wA = dataA.w;
+            const hA = dataA.h;
+            const isFixedA = dataA.isFixed;
+            for (let j = i + 1; j < group.length; j++) {
+              const dataB = group[j];
+              const nodeB = dataB.node;
+              const wB = dataB.w;
+              const hB = dataB.h;
+              const isFixedB = dataB.isFixed;
 
-            const overlapX = minDistX - absDx;
-            const overlapY = minDistY - absDy;
-            
-            if (overlapX <= 0 || overlapY <= 0) {
-              continue;
-            }
+              // 두 노드 겹침 확인
+              const dx = nodeB.renderX - nodeA.renderX;
+              const dy = nodeB.renderY - nodeA.renderY;
+              
+              const minDistX = (wA + wB) / 2;
+              const minDistY = (hA + hB) / 2;
+              
+              const absDx = Math.abs(dx);
+              const absDy = Math.abs(dy);
 
-            hasOverlap = true;
-            const overlap = Math.min(overlapX, overlapY);
+              const overlapX = minDistX - absDx;
+              const overlapY = minDistY - absDy;
+              
+              if (overlapX <= 0 || overlapY <= 0) {
+                continue;
+              }
 
-            let angleDiff = (nodeB.orbitAngle || 0) - (nodeA.orbitAngle || 0);
-            while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-            while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+              hasOverlap = true;
+              const overlap = Math.min(overlapX, overlapY);
 
-            const radiusA = (nodeA.orbitIndex || 1) * 240;
-            // 1회 충돌 반발 당 최대 밀기 회전각을 0.04라디안으로 제한하여 과도한 진동/발산 운동을 차단합니다.
-            const rawPushAngle = (overlap / Math.max(50, radiusA)) * damping;
-            // 💡 1회 프레임당 가해지는 최대 밀기각 한도를 0.04 -> 0.005로 크게 줄여 급격한 각도 흔들림을 억제합니다.
-            const pushAngle = Math.min(0.005, rawPushAngle);
-            const direction = angleDiff >= 0 ? 1 : -1;
+              let angleDiff = (nodeB.orbitAngle || 0) - (nodeA.orbitAngle || 0);
+              while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+              while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
 
-            if (!isFixedA && !isFixedB) {
-              nodeA.orbitAngle = (nodeA.orbitAngle || 0) - pushAngle * 0.5 * direction;
-              nodeB.orbitAngle = (nodeB.orbitAngle || 0) + pushAngle * 0.5 * direction;
-            } else if (isFixedA && !isFixedB) {
-              nodeB.orbitAngle = (nodeB.orbitAngle || 0) + pushAngle * direction;
-            } else if (!isFixedA && isFixedB) {
-              nodeA.orbitAngle = (nodeA.orbitAngle || 0) - pushAngle * direction;
-            }
+              const radiusA = (nodeA.orbitIndex || 1) * 240;
+              // 1회 충돌 반발 당 최대 밀기 회전각을 0.04라디안으로 제한하여 과도한 진동/발산 운동을 차단합니다.
+              const rawPushAngle = (overlap / Math.max(50, radiusA)) * damping;
+              // 💡 1회 프레임당 가해지는 최대 밀기각 한도를 0.04 -> 0.005로 크게 줄여 급격한 각도 흔들림을 억제합니다.
+              const pushAngle = Math.min(0.005, rawPushAngle);
+              const direction = angleDiff >= 0 ? 1 : -1;
 
-            // 부모의 각도 쐐기 바운더리를 벗어나지 않도록 강제 제한 (Clamping)
-            if (!isFixedA && (nodeA as any).minAngle !== undefined) {
-              nodeA.orbitAngle = Math.max((nodeA as any).minAngle, Math.min((nodeA as any).maxAngle, nodeA.orbitAngle || 0));
-            }
-            if (!isFixedB && (nodeB as any).minAngle !== undefined) {
-              nodeB.orbitAngle = Math.max((nodeB as any).minAngle, Math.min((nodeB as any).maxAngle, nodeB.orbitAngle || 0));
-            }
+              if (!isFixedA && !isFixedB) {
+                nodeA.orbitAngle = (nodeA.orbitAngle || 0) - pushAngle * 0.5 * direction;
+                nodeB.orbitAngle = (nodeB.orbitAngle || 0) + pushAngle * 0.5 * direction;
+              } else if (isFixedA && !isFixedB) {
+                nodeB.orbitAngle = (nodeB.orbitAngle || 0) + pushAngle * direction;
+              } else if (!isFixedA && isFixedB) {
+                nodeA.orbitAngle = (nodeA.orbitAngle || 0) - pushAngle * direction;
+              }
 
-            // 동일 궤도상 노드들 간 겹침 시 지그재그 반경 오프셋 적용
-            if (nodeA.orbitIndex === nodeB.orbitIndex && nodeA.orbitIndex > 0) {
-              const rawOverlap = overlap;
-              if (rawOverlap > 0) {
-                const maxOffset = 45;
-                // 💡 반경 방향 밀림 계수를 0.45에서 0.05로 크게 낮추어 궤도 반경 방향 튕김 현상을 억제합니다.
-                if (!isFixedA) {
-                  (nodeA as any).radialOffset = ((nodeA as any).radialOffset ?? 0) - rawOverlap * 0.05;
-                  (nodeA as any).radialOffset = Math.max(-maxOffset, Math.min(maxOffset, (nodeA as any).radialOffset));
-                }
-                if (!isFixedB) {
-                  (nodeB as any).radialOffset = ((nodeB as any).radialOffset ?? 0) + rawOverlap * 0.05;
-                  (nodeB as any).radialOffset = Math.max(-maxOffset, Math.min(maxOffset, (nodeB as any).radialOffset));
+              // 부모의 각도 쐐기 바운더리를 벗어나지 않도록 강제 제한 (Clamping)
+              if (!isFixedA && (nodeA as any).minAngle !== undefined) {
+                nodeA.orbitAngle = Math.max((nodeA as any).minAngle, Math.min((nodeA as any).maxAngle, nodeA.orbitAngle || 0));
+              }
+              if (!isFixedB && (nodeB as any).minAngle !== undefined) {
+                nodeB.orbitAngle = Math.max((nodeB as any).minAngle, Math.min((nodeB as any).maxAngle, nodeB.orbitAngle || 0));
+              }
+
+              // 동일 궤도상 노드들 간 겹침 시 지그재그 반경 오프셋 적용
+              if (nodeA.orbitIndex === nodeB.orbitIndex && nodeA.orbitIndex > 0) {
+                const rawOverlap = overlap;
+                if (rawOverlap > 0) {
+                  const maxOffset = 45;
+                  // 💡 반경 방향 밀림 계수를 0.45에서 0.05로 크게 낮추어 궤도 반경 방향 튕김 현상을 억제합니다.
+                  if (!isFixedA) {
+                    (nodeA as any).radialOffset = ((nodeA as any).radialOffset ?? 0) - rawOverlap * 0.05;
+                    (nodeA as any).radialOffset = Math.max(-maxOffset, Math.min(maxOffset, (nodeA as any).radialOffset));
+                  }
+                  if (!isFixedB) {
+                    (nodeB as any).radialOffset = ((nodeB as any).radialOffset ?? 0) + rawOverlap * 0.05;
+                    (nodeB as any).radialOffset = Math.max(-maxOffset, Math.min(maxOffset, (nodeB as any).radialOffset));
+                  }
                 }
               }
+
+              // worldX, worldY 즉시 싱크 (LERP 지연에 의해 이전 renderX/Y가 계속해서 반발되는 교착 떨림 현상을 해소합니다)
+              if (nodeA.orbitIndex !== 0) {
+                const radiusA = (nodeA.orbitIndex || 1) * 240;
+                const rOffsetA = (nodeA as any).radialOffset ?? 0;
+                nodeA.targetWorldX = (radiusA + rOffsetA) * Math.cos(nodeA.orbitAngle) * ELLIPSE_RATIO;
+                nodeA.targetWorldY = (radiusA + rOffsetA) * Math.sin(nodeA.orbitAngle);
+                nodeA.worldX = nodeA.targetWorldX;
+                nodeA.worldY = nodeA.targetWorldY;
+              } else {
+                nodeA.targetWorldX = 0;
+                nodeA.targetWorldY = 0;
+                nodeA.worldX = 0;
+                nodeA.worldY = 0;
+              }
+
+              if (nodeB.orbitIndex !== 0) {
+                const radiusB = (nodeB.orbitIndex || 1) * 240;
+                const rOffsetB = (nodeB as any).radialOffset ?? 0;
+                nodeB.targetWorldX = (radiusB + rOffsetB) * Math.cos(nodeB.orbitAngle) * ELLIPSE_RATIO;
+                nodeB.targetWorldY = (radiusB + rOffsetB) * Math.sin(nodeB.orbitAngle);
+                nodeB.worldX = nodeB.targetWorldX;
+                nodeB.worldY = nodeB.targetWorldY;
+              } else {
+                nodeB.targetWorldX = 0;
+                nodeB.targetWorldY = 0;
+                nodeB.worldX = 0;
+                nodeB.worldY = 0;
+              }
+
+              // 2D 스크린 투영 좌표 즉시 갱신 (이중 루프 내 후속 노드들의 겹침 계산에 즉각 반영하여 진동을 종식시킵니다)
+              const cosT = Math.cos(tiltAngle);
+              const sinT = Math.sin(tiltAngle);
+
+              const rotYA = nodeA.worldY * cosT;
+              const depthA = -nodeA.worldY * sinT;
+              const scaleA = cameraDist / (cameraDist + depthA);
+              nodeA.renderX = cx + nodeA.worldX * zoom * scaleA;
+              nodeA.renderY = cy + rotYA * zoom * scaleA;
+              (nodeA as any).perspectiveScale = scaleA;
+
+              const rotYB = nodeB.worldY * cosT;
+              const depthB = -nodeB.worldY * sinT;
+              const scaleB = cameraDist / (cameraDist + depthB);
+              nodeB.renderX = cx + nodeB.worldX * zoom * scaleB;
+              nodeB.renderY = cy + rotYB * zoom * scaleB;
+              (nodeB as any).perspectiveScale = scaleB;
             }
-
-            // worldX, worldY 즉시 싱크 (LERP 지연에 의해 이전 renderX/Y가 계속해서 반발되는 교착 떨림 현상을 해소합니다)
-            if (nodeA.orbitIndex !== 0) {
-              const rOffsetA = (nodeA as any).radialOffset ?? 0;
-              nodeA.targetWorldX = (radiusA + rOffsetA) * Math.cos(nodeA.orbitAngle) * ELLIPSE_RATIO;
-              nodeA.targetWorldY = (radiusA + rOffsetA) * Math.sin(nodeA.orbitAngle);
-              nodeA.worldX = nodeA.targetWorldX;
-              nodeA.worldY = nodeA.targetWorldY;
-            } else {
-              nodeA.targetWorldX = 0;
-              nodeA.targetWorldY = 0;
-              nodeA.worldX = 0;
-              nodeA.worldY = 0;
-            }
-
-            if (nodeB.orbitIndex !== 0) {
-              const radiusB = (nodeB.orbitIndex || 1) * 240;
-              const rOffsetB = (nodeB as any).radialOffset ?? 0;
-              nodeB.targetWorldX = (radiusB + rOffsetB) * Math.cos(nodeB.orbitAngle) * ELLIPSE_RATIO;
-              nodeB.targetWorldY = (radiusB + rOffsetB) * Math.sin(nodeB.orbitAngle);
-              nodeB.worldX = nodeB.targetWorldX;
-              nodeB.worldY = nodeB.targetWorldY;
-            } else {
-              nodeB.targetWorldX = 0;
-              nodeB.targetWorldY = 0;
-              nodeB.worldX = 0;
-              nodeB.worldY = 0;
-            }
-
-            // 2D 스크린 투영 좌표 즉시 갱신 (이중 루프 내 후속 노드들의 겹침 계산에 즉각 반영하여 진동을 종식시킵니다)
-            const cosT = Math.cos(tiltAngle);
-            const sinT = Math.sin(tiltAngle);
-
-            const rotYA = nodeA.worldY * cosT;
-            const depthA = -nodeA.worldY * sinT;
-            const scaleA = cameraDist / (cameraDist + depthA);
-            nodeA.renderX = cx + nodeA.worldX * zoom * scaleA;
-            nodeA.renderY = cy + rotYA * zoom * scaleA;
-            (nodeA as any).perspectiveScale = scaleA;
-
-            const rotYB = nodeB.worldY * cosT;
-            const depthB = -nodeB.worldY * sinT;
-            const scaleB = cameraDist / (cameraDist + depthB);
-            nodeB.renderX = cx + nodeB.worldX * zoom * scaleB;
-            nodeB.renderY = cy + rotYB * zoom * scaleB;
-            (nodeB as any).perspectiveScale = scaleB;
           }
+          if (!hasOverlap) break;
         }
-        if (!hasOverlap) break;
-      }
-    });
+      });
+    }
   }
 
   // 더 이상 사용하지 않음

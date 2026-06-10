@@ -554,8 +554,8 @@ function processFile(filePath: string): Promise<void> {
           if (parsed.success && parsed.content) {
             console.info(`[Watcher Daemon] 파일 파싱 성공 (크기: ${parsed.content.length}자).`);
             console.info(`[Watcher Daemon] [Self-Learning Pipeline] AI 자동 키워드 학습 루프 가동 중...`);
-            // 3500자 잘라서 AI 추출 및 분류 학습 병합 호출
-            await processAISemanticExtraction(parsed.content.substring(0, 3500));
+            // 최대 30000자까지 확장하여 대규모 텍스트 파일에서도 누락 없이 풍부한 온톨로지 지식 추출 및 분류 자가 학습 수행
+            await processAISemanticExtraction(parsed.content.substring(0, 30000));
           } else {
             console.error(`[Watcher Daemon] 파서 실패 응답: ${parsed.error}`);
           }

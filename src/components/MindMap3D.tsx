@@ -78,6 +78,33 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   const { overrides = {}, customNodes = [], customEdges = [], deletedEdges = [], undo, redo, setNodeOverride, batchSetNodeOverrides, clearNodeOverride, addCustomNode, deleteCustomNode, updateCustomNodeText, addCustomEdge, deleteCustomEdge, removeCustomTombstone, renameNodeId, clearOverrides, resetLayoutOverrides, clearAll, syncToCloud, fetchFromCloud, isCloudLoaded } = useGraphCustomization();
   const { ydoc } = useYjsStore();
 
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+
+  const handleExecuteDelete = useCallback(() => {
+    if (!activeNode) return;
+
+    const isDeepDelete = activeNode.id.startsWith('custom-') || activeNode.orbitIndex === 1;
+    
+    if (isDeepDelete) {
+      if ((activeNode.orbitIndex === 1 || activeNode.group === 'MACRO_RESEARCH') && onDeleteCategory) {
+        onDeleteCategory(activeNode.label);
+      }
+      if (activeNode.id.startsWith('custom-')) {
+        deleteCustomNode(activeNode.id);
+      }
+    }
+    
+    setNodeOverride(activeNode.id, { hidden: true });
+    
+    if (engineRef.current) {
+      engineRef.current.nodes = engineRef.current.nodes.filter((n: OrbitalNode) => n.id !== activeNode.id);
+      engineRef.current.edges = engineRef.current.edges.filter((e: OntologyEdge) => e.source !== activeNode.id && e.target !== activeNode.id);
+      engineRef.current.needsRedraw = true;
+    }
+    
+    setActiveNode(null);
+    setIsDeleteModalOpen(false);
+  }, [activeNode, onDeleteCategory, deleteCustomNode, setNodeOverride]);
 
   useEffect(() => {
     const handleOpenWiki = (e: CustomEvent<{ id: string; label: string }>) => {
@@ -154,14 +181,24 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
     };
   }, []);
 
-  // ── Keyboard Shortcuts (Undo/Redo) ──
+  // ── Keyboard Shortcuts (Undo/Redo/Delete) ──
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Prevent running if user is typing in an input or textarea
       const target = e.target as HTMLElement;
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable ||
+        target.closest('[contenteditable="true"]')
+      ) return;
 
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+      if (e.key === 'Delete') {
+        if (activeNode && !isDeleteModalOpen) {
+          if (e.cancelable) e.preventDefault();
+          setIsDeleteModalOpen(true);
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         if (e.shiftKey) {
           if (e.cancelable) e.preventDefault();
           redo();
@@ -177,7 +214,44 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undo, redo]);
+  }, [undo, redo, activeNode, isDeleteModalOpen]);
+
+  // Delete modal keyboard handling (Enter to confirm, Escape to cancel)
+  useEffect(() => {
+    if (!isDeleteModalOpen) return;
+
+    const handleModalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        if (e.cancelable) e.preventDefault();
+        e.stopPropagation();
+        handleExecuteDelete();
+      } else if (e.key === 'Escape') {
+        if (e.cancelable) e.preventDefault();
+        e.stopPropagation();
+        setIsDeleteModalOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleModalKeyDown, true);
+    return () => window.removeEventListener('keydown', handleModalKeyDown, true);
+  }, [isDeleteModalOpen, handleExecuteDelete]);
+
+  // Add node modal keyboard handling (Escape to cancel)
+  useEffect(() => {
+    if (!isAddingNode) return;
+
+    const handleModalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (e.cancelable) e.preventDefault();
+        e.stopPropagation();
+        setIsAddingNode(false);
+        setNewNodeName("");
+      }
+    };
+
+    window.addEventListener('keydown', handleModalKeyDown, true);
+    return () => window.removeEventListener('keydown', handleModalKeyDown, true);
+  }, [isAddingNode]);
   
   const overridesRef = useRef(overrides);
   const customNodesRef = useRef(customNodes);
@@ -307,6 +381,29 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
       setLoading(false);
     }
   }, []);
+
+  const handleExecuteAddNode = useCallback(() => {
+    if (!newNodeName.trim()) return;
+
+    const x = (Math.random() - 0.5) * 50;
+    const y = (Math.random() - 0.5) * 50;
+    const newNode = addCustomNode(newNodeName.trim(), x, y);
+
+    if (activeNode) {
+      setNodeOverride(newNode.id, { 
+        customParent: activeNode.id, 
+        customOrbitIndex: activeNode.orbitIndex + 1, 
+        fixedX: undefined, 
+        fixedY: undefined 
+      });
+    } else {
+      setNodeOverride(newNode.id, { fixedX: undefined, fixedY: undefined });
+    }
+
+    setTimeout(() => initEngine(), 10);
+    setIsAddingNode(false);
+    setNewNodeName("");
+  }, [newNodeName, activeNode, addCustomNode, setNodeOverride, initEngine]);
 
   // ── Animation Loop ──
   useEffect(() => {
@@ -843,81 +940,6 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
           } 
           style={isFullscreen ? { height: "calc(100vh - 32px)" } : {}}
         >
-          {isAddingNode ? (
-            <div className="w-full shrink-0 flex flex-col gap-2 p-3 rounded-xl bg-white shadow-sm border border-[var(--color-primary)]">
-              <input
-                autoFocus
-                type="text"
-                value={newNodeName}
-                onChange={e => setNewNodeName(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Escape') setIsAddingNode(false);
-                  if (e.key === 'Enter') {
-                    if (newNodeName.trim()) {
-                      const engine = engineRef.current;
-                      const categories = engine ? engine.nodes.filter(n => n.orbitIndex === 1) : [];
-                      const x = (Math.random() - 0.5) * 50;
-                      const y = (Math.random() - 0.5) * 50;
-                      const newNode = addCustomNode(newNodeName.trim(), x, y);
-
-                      if (activeNode) {
-                        setNodeOverride(newNode.id, { 
-                          customParent: activeNode.id, customOrbitIndex: activeNode.orbitIndex + 1, fixedX: undefined, fixedY: undefined 
-                        });
-                      } else if (categories.length > 0) {
-                        const randomCat = categories[Math.floor(Math.random() * categories.length)];
-                        setNodeOverride(newNode.id, { customParent: randomCat.id, fixedX: undefined, fixedY: undefined });
-                      } else {
-                        setNodeOverride(newNode.id, { customGroup: 'MACRO_RESEARCH' });
-                      }
-                      
-                      setIsAddingNode(false);
-                      setNewNodeName("");
-                    }
-                  }
-                }}
-                placeholder="노드 이름 (Enter로 생성)"
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)]"
-              />
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setIsAddingNode(false)}
-                  className="flex-1 py-1.5 px-2 bg-gray-100 text-gray-600 rounded-lg text-xs font-semibold hover:bg-gray-200 transition-colors"
-                >
-                  취소
-                </button>
-                <button
-                  onClick={() => {
-                    if (newNodeName.trim()) {
-                      const engine = engineRef.current;
-                      const categories = engine ? engine.nodes.filter(n => n.orbitIndex === 1) : [];
-                      const x = (Math.random() - 0.5) * 50;
-                      const y = (Math.random() - 0.5) * 50;
-                      const newNode = addCustomNode(newNodeName.trim(), x, y);
-
-                      if (activeNode) {
-                        setNodeOverride(newNode.id, { 
-                          customParent: activeNode.id, customOrbitIndex: activeNode.orbitIndex + 1, fixedX: undefined, fixedY: undefined 
-                        });
-                      } else if (categories.length > 0) {
-                        const randomCat = categories[Math.floor(Math.random() * categories.length)];
-                        setNodeOverride(newNode.id, { customParent: randomCat.id, fixedX: undefined, fixedY: undefined });
-                      } else {
-                        setNodeOverride(newNode.id, { customGroup: 'MACRO_RESEARCH' });
-                      }
-                      setTimeout(() => initEngine(), 10);
-                      setIsAddingNode(false);
-                      setNewNodeName("");
-                    }
-                  }}
-                  className="flex-1 py-1.5 px-2 bg-[var(--color-primary)] text-white rounded-lg text-xs font-semibold hover:opacity-90 transition-colors"
-                >
-                  생성
-                </button>
-              </div>
-            </div>
-          ) : null}
-          
           <div className="flex-1 min-h-0 relative">
             <MindMapInspector
               activeNode={activeNode} engineRef={engineRef} overrides={overrides} setNodeOverride={setNodeOverride}
@@ -927,6 +949,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
               parentModeSource={parentModeSource} setParentModeSource={setParentModeSource}
               initEngine={initEngine} handleSwapNodeOrder={handleSwapNodeOrder} clearNodeOverride={clearNodeOverride}
               isOverlay={false}
+              wikiBlocks={wikiBlocks ?? undefined}
             />
           </div>
         </div>
@@ -1127,6 +1150,142 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
         {/* Right Column 닫기 */}
         </div>
       </div>
+
+      {/* ── Delete Confirmation Modal ── */}
+      {isDeleteModalOpen && activeNode && (
+        <div 
+          className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setIsDeleteModalOpen(false)}
+        >
+          <div 
+            className="w-full max-w-md bg-white/95 backdrop-blur-md border border-slate-200/50 rounded-2xl shadow-2xl p-6 flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3.5 border-b border-slate-100 pb-3">
+              <div className="p-2 rounded-xl bg-rose-50 text-rose-500 border border-rose-100 shadow-sm shadow-rose-500/5">
+                <Trash2 size={20} className="animate-pulse" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-800">노드 삭제 확인</h3>
+                <p className="text-xs text-slate-400 mt-0.5">선택한 노드를 맵에서 제거합니다</p>
+              </div>
+            </div>
+            
+            <div className="py-2">
+              <p className="text-sm text-slate-700 leading-relaxed">
+                정말 노드 <strong className="text-slate-900 bg-slate-100 px-1.5 py-0.5 rounded font-semibold">'{activeNode.label}'</strong>을(를) 삭제하시겠습니까?
+              </p>
+              
+              <div className="mt-3.5 p-3 rounded-xl bg-slate-50 border border-slate-100/80 text-xs text-slate-500 leading-normal flex flex-col gap-1.5">
+                <span className="font-semibold text-slate-600 flex items-center gap-1.5">
+                  <AlertTriangle size={12} className="text-amber-500" />
+                  {activeNode.id.startsWith('custom-') || activeNode.orbitIndex === 1 
+                    ? '완전 삭제 노드' 
+                    : '화면 숨김 처리 노드'}
+                </span>
+                <span>
+                  {activeNode.id.startsWith('custom-') || activeNode.orbitIndex === 1
+                    ? '이 카테고리(또는 노드)는 완전히 삭제되며, 연관된 태그나 데이터 연동이 해제될 수 있습니다.'
+                    : '이 노드를 맵에서 삭제합니다. 원본 데이터(업무/지식 등)는 보존되며 맵 화면에서만 숨겨집니다.'}
+                </span>
+              </div>
+            </div>
+            
+            <div className="flex gap-2.5 mt-2 justify-end">
+              <button
+                onClick={() => setIsDeleteModalOpen(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer flex items-center gap-1"
+              >
+                취소 <span className="text-[10px] text-slate-400 font-medium px-1 bg-white rounded border border-slate-200">Esc</span>
+              </button>
+              <button
+                onClick={handleExecuteDelete}
+                className="px-5 py-2.5 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white rounded-xl text-xs font-bold shadow-lg shadow-rose-500/10 hover:shadow-rose-500/25 transition-all duration-200 cursor-pointer flex items-center gap-1.5"
+              >
+                삭제하기 <span className="text-[10px] text-rose-200 font-medium px-1 bg-black/10 rounded">Enter</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Add Node Modal ── */}
+      {isAddingNode && (
+        <div 
+          className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => {
+            setIsAddingNode(false);
+            setNewNodeName("");
+          }}
+        >
+          <div 
+            className="w-full max-w-md bg-white/95 backdrop-blur-md border border-slate-200/50 rounded-2xl shadow-2xl p-6 flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3.5 border-b border-slate-100 pb-3">
+              <div className="p-2 rounded-xl bg-indigo-50 text-[var(--color-primary)] border border-indigo-100 shadow-sm shadow-indigo-500/5">
+                <PlusSquare size={20} className="animate-pulse" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-800">새 노드 추가</h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {activeNode 
+                    ? `'${activeNode.label}' 아래에 새 하위 노드를 생성합니다`
+                    : '새로운 독립 노드를 생성합니다'}
+                </p>
+              </div>
+            </div>
+
+            <div className="py-2 flex flex-col gap-3">
+              <label htmlFor="modalNewNodeName" className="text-xs font-semibold text-slate-500">노드 이름</label>
+              <input
+                id="modalNewNodeName"
+                autoFocus
+                type="text"
+                placeholder="노드 이름을 입력하세요..."
+                value={newNodeName}
+                onChange={(e) => setNewNodeName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    if (e.cancelable) e.preventDefault();
+                    e.stopPropagation();
+                    handleExecuteAddNode();
+                  } else if (e.key === 'Escape') {
+                    if (e.cancelable) e.preventDefault();
+                    e.stopPropagation();
+                    setIsAddingNode(false);
+                    setNewNodeName("");
+                  }
+                }}
+                className="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/10 text-slate-800 placeholder-slate-400 font-medium transition-all"
+              />
+            </div>
+
+            <div className="flex gap-2.5 mt-2 justify-end">
+              <button
+                onClick={() => {
+                  setIsAddingNode(false);
+                  setNewNodeName("");
+                }}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer flex items-center gap-1"
+              >
+                취소 <span className="text-[10px] text-slate-400 font-medium px-1 bg-white rounded border border-slate-200">Esc</span>
+              </button>
+              <button
+                onClick={handleExecuteAddNode}
+                disabled={!newNodeName.trim()}
+                className={`px-5 py-2.5 rounded-xl text-xs font-bold text-white shadow-lg transition-all duration-200 cursor-pointer flex items-center gap-1.5 ${
+                  newNodeName.trim()
+                    ? 'bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 shadow-indigo-500/10 hover:shadow-indigo-500/25'
+                    : 'bg-slate-300 shadow-none cursor-not-allowed opacity-50'
+                }`}
+              >
+                생성하기 <span className="text-[10px] text-indigo-200 font-medium px-1 bg-black/10 rounded">Enter</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

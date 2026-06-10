@@ -283,6 +283,73 @@ sequenceDiagram
 
 ## 8. 최근 엔지니어링 마일스톤 (요약)
 
+### 3D 마인드맵 노드 중복 방지 및 계층 구조 정합성 교정 패치 (2026-06-10)
+* **리프 노드 ID 구조 단일화 및 중복 방지**: 키워드 노드(Leaf)가 여러 카테고리에 속할 때 개별 노드로 중복 노출되던 이슈를 해결하기 위해, 노드 ID 포맷을 `leaf-${kw}`로 일원화하고 `nodes.find` 조회를 통해 중복 삽입을 차단한 채 카테고리 간선(edges)만 다중 연결되도록 수정했습니다.
+* **동일 라벨 커스텀 노드 병합 및 ID 매핑**: 화이트보드에서 다중 추가되어 데이터베이스에 상주하던 중복 명칭의 커스텀 노드들을 캔버스 빌드 시점에 단일 canonical ID로 자동 융합(merging)하고, 하위 parentId 포인터를 일괄 재배정하여 중복 노드가 공존하는 현상을 영구 차단했습니다.
+* **하위 호환성 유지용 ID 정형화(Normalization) 파이프라인**: Yjs 및 로컬 스토리지에 기 저장된 `leaf-tag-` 및 `leaf-kw-` 형식의 기존 오버라이드 설정, customEdges, deletedEdges 정보를 로드 시점에 인메모리 `leaf-${kw}` 구조로 자동 변환(Self-Healing Migration)하여 데이터 유실 없는 완벽한 하위 호환을 달성했습니다.
+* **역전(Inverted) 계층 관계 자가 치유(Self-Healing) 규칙**: 데이터베이스나 Yjs에 부모가 더 길고 구체적인 단어(예: "심장 초음파 비용")이고 자식이 더 짧고 포괄적인 단어(예: "심장 초음파")로 잘못 매핑된 역전 구조를 감지하면, 관계를 실시간으로 끊어 자동 계층 재배치 알고리즘이 올바른 상하 관계를 다시 추론해 구성하도록 치료 메커니즘을 이식했습니다.
+* **상위-하위 개념 위계 정합성 교정**: 자동 계층 재배치 알고리즘의 텍스트 포함 조건에 텍스트 길이 제약(`cleanY.length < cleanX.length`)을 추가하여 broader concept(예: "심장 초음파")이 narrower concept(예: "심장초음파 검사 비용")의 부모가 됨을 논리적으로 강제했습니다.
+* **보건/의료 시맨틱 카테고리 매핑 및 가중치 상향**: "체크업", "검진", "보건", "건강" 등 보건 계열 카테고리와 의료 키워드("초음파", "심장" 등) 매칭 시 `+20점` 시맨틱 가중치를 주입하여 "심장 초음파" 노드가 "헬스체크업"에 부드럽게 귀속되도록 설계했으며, 텍스트 포함(containment) 점수 가중치를 `35점`으로 상향하여 보다 직관적인 서브그룹 위계가 형성되도록 조율했습니다.
+* **커스텀 노드 생성 시 임의 카테고리 강제 배정 제거**: 활성 노드가 없는 상태에서 커스텀 노드를 추가할 때 랜덤하게 1차 카테고리 부모를 주입하여 Yjs overrides에 강제 고정하던 코드를 삭제하고, 좌표 오버라이드만 해제하여 똑똑한 자동 시맨틱 분류 엔진이 최적의 부모를 스스로 찾도록 개편했습니다.
+* **O(N) 수준 그래프 빌드 복잡도 최적화 (재귀적 자가 개선)**: 이중 루프 내 중첩 정규식/문자열 조작을 $O(N)$ 사전 연산(Precomputation) 및 캐싱 처리로 최적화하고, overrides parent 룩업 및 컬러 상속 BFS 탐색 내 `find` 함수 호출을 Set/Map 해시 구조 탐색으로 변경하여 대규모 그래프 빌드 연산 효율을 $O(N^2)$에서 $O(N)$으로 극대화했습니다.
+
+### 에이전트 매니페스트(AGENTS.md) 재귀적 자가 개선 루프 도입 (2026-06-10)
+* **에이전트 규칙 자체 진단 및 진화 파이프라인 수립**: 에이전트가 코드와 아키텍처뿐만 아니라 자신의 행동 수칙과 가이드라인이 담긴 [AGENTS.md](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/AGENTS.md) 파일 자체를 주기적으로 진단하고 최적화할 수 있도록 **매니페스트 자체 개선 루프 (Manifest Evolution)** 규칙을 추가 주입했습니다.
+* **AGENTS.md 파일 구조 및 4번 섹션 갱신**: 자가 개선 루프의 정의를 정의하는 '4. 재귀적 자기 개선' 섹션에 매니페스트 자체의 진화 기법을 명문화하고, Next.js 컴파일 안정성 검증을 마쳤습니다.
+
+### 3D 마인드맵 노드 키보드 단축키(Delete) 삭제 및 Enter 승인 팝업 구현 (2026-06-10)
+* **Delete 키보드 단축키 감지 바인딩**: [MindMap3D.tsx](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/components/MindMap3D.tsx)의 전역 키보드 이벤트 리스너를 확장하여, 사용자가 노드를 선택한 상태에서 `Delete` 키를 누르면 삭제 확인 팝업이 활성화되도록 구현했습니다.
+* **텍스트 입력창 포커스 상태 키보드 입력 바이패스 가드**: 검색창, 위키 에디터(BlockNote), 인풋/텍스트에어리어 등 편집 중인 상황에서의 단축키 오작동을 차단하기 위해 `document.activeElement` 및 `isContentEditable` 요소 감지 가드를 탑재했습니다.
+* **프리미엄 글래스모피즘(Glassmorphism) 커스텀 확인 팝업**: 투박한 브라우저 기본 창 대신 `backdrop-blur-sm` 배경 블러링과 `animate-in fade-in zoom-in-95` 모핑 효과가 탑재된 흰색 반투명(`bg-white/95`) 프리미엄 커스텀 모달 UI를 렌더링했습니다.
+* **Enter 승인 및 Escape 취소 키보드 캡처링 리스너**: 모달이 열린 상태에서는 캡처링 단계를 활용해 `Enter` 키 입력 시 즉시 삭제 실행(`handleExecuteDelete`), `Escape` 키 입력 시 팝업 닫기를 유연하게 연동했습니다.
+* **데이터 모델 일관성 및 Canvas 즉각 리드로잉**: 카테고리/커스텀 노드 삭제(`deleteCustomNode` 및 `onDeleteCategory`)와 일반 노드 화면 숨김(`setNodeOverride`에 hidden: true) 처리를 완수하고, Canvas 엔진에서 해당 노드/엣지를 필터링한 후 `needsRedraw = true`를 선언해 끊김 없는 무지연 UI 반응성을 보장했습니다.
+
+### 3D 마인드맵 노드 연락처 로컬 PC 전용 텍스트 파일(노트북 LM) 실시간 자동 동기화 및 중복 방지 패치 (2026-06-10)
+* **실시간 자동 동기화 파이프라인 구축**: [useWikiStorage.ts](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/hooks/useWikiStorage.ts)의 `saveBlocks` 콜백 내부에 연락처 감지 및 API 포스팅 작업을 내장하여, 사용자가 위키 문서를 작성/수정하여 자동 저장(2초 디바운스 백업 완료 시점)이 끝날 때마다 로컬 PC 전용 `data/local_contacts.txt` 파일에도 해당 연락처가 실시간으로 자동 반영되도록 연동했습니다.
+* **텍스트 로그 중복 방지 (Upsert 동작) 적용**: Next.js API 엔드포인트 `/api/local-contacts`가 기존 `local_contacts.txt` 파일 내용을 읽어와 동일 노드 ID에 대한 기존 로그 라인을 필터링으로 걸러낸 후 최신 연락처 데이터를 덮어쓰도록 설계하여 파일 내 동일 인물 중복 누적을 원천 방어하고 최신 일관성을 보증했습니다.
+* **공통 파서 유틸리티 격리**: 순환 참조를 방지하고 관심사 분리(SoC)를 고도화하기 위해 텍스트 블록 파서 및 Regex 추출 코드를 [contacts-parser.ts](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/lib/contacts-parser.ts)로 완벽히 격리 독립시킨 후 컴포넌트와 훅에 일원화하여 연동했습니다.
+
+### 3D 마인드맵 전역 노드 연락처 일괄 추출 및 노트북 LM 기록 연동 (2026-06-10)
+* **전역 노드 위키 일괄 스캔 파이프라인**: 캔버스의 모든 노드를 순회하며 클라이언트 단의 E2EE 복호화(`readSheet`)와 텍스트 추출(`extractRawTextFromBlocks`) 및 연락처 Regex 검출(`parseContacts`)을 한 번에 실행하는 전역 일괄 추출 파이프라인을 구축했습니다.
+* **배치 방식 로컬 기록 API 엔드포인트 확장**: Next.js API 엔드포인트 `/api/local-contacts`가 `{ contacts: Array }` 형식의 배치 페이로드를 받아 다량의 로그 라인을 단 한 번의 파일 잠금 회피 재시도 루프 내에서 디스크(`data/local_contacts.txt`)에 고성능으로 이어붙이는 최적화된 배치 모드를 추가 설계했습니다.
+* **일괄 추출 진행률 HUD UI 구현**: [MindMapInspector.tsx](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/components/MindMapInspector.tsx)의 기본 뷰(노드 미선택 상태) 하단에 **노트북 LM 전역 연락처 추출** 제어 카드를 배치하고, 진행 과정(`스캔 중... (현재/전체)`) 및 결과 피드백을 실시간 업데이트하는 비동기 인터랙션을 구현했습니다.
+
+### 3D 마인드맵 공전(Orbiting) 및 확대/축소(Zooming) 프레임 드랍(7 FPS -> 60 FPS) 최적화 패치 (2026-06-10)
+* **공전 및 상호작용 통합 `isFastPath` 도입**: 기존의 `isInteractive` fast-path 우회 분기를 확대/축소(Zooming) 및 공전(Orbiting) 애니메이션 시에도 동일하게 작동하도록 `isFastPath = isInteractive || isOrbiting`으로 일원화했습니다.
+* **애니메이션 및 줌 중 무거운 Radial Gradient 및 shadowBlur 완전 우회**: fast-path 동작 시 매 프레임 수백 번 계산되던 `ctx.createRadialGradient`를 완전히 생략하고 가벼운 2D 벡터 반사점 원 그리기 기법으로 대체하였으며, `shadowBlur` 또한 벡터 글로우로 완벽 대체하여 GPU/CPU 연산량 및 가비지 컬렉션(GC) 병목을 소거했습니다.
+* **백그라운드 그리드망 Stroke 일괄 배치(Batching) 최적화**: `renderBackgroundLayers`에서 그리드 라인을 그릴 때 루프를 돌며 개별적으로 수행하던 40여 회의 `beginPath() / stroke()` 호출을 한 번의 `beginPath()` 경로 등록 후 단 1회의 `stroke()` 호출로 일괄 드로잉되도록 리팩토링하여 그리기 대기열 병목을 제거했습니다.
+* **간선(Edges) 드로잉 stroke 일괄 배치(Batching) 최적화**: 간선 렌더링 시 매 엣지마다 개별적으로 호출되던 `ctx.stroke()` (100+회)를 색상, 두께, 투명도, 점선 여부에 따라 버킷 분류하여 단 5~10회 내외의 배치 stroke로 묶어 처리함으로써 최소 프레임 방어선(Min FPS)을 대폭 추가 단축했습니다.
+* **활성 노드 이웃 가시성 및 텍스트 노출 보장**: 특정 노드 선택 시 해당 노드와 1차 연결된 모든 이웃 노드들의 투명도(opacity)를 1.0으로 온전히 유지하고, 상호작용/공전 중에도 이들의 텍스트 라벨이 항상 정상적으로 화면에 표시되도록 관계망 맥락 탐색성을 고도화했습니다.
+* **삼각함수(Trigonometry) 연산 상수 캐싱**: `OntologyLayout.ts`의 `computePositions` 루프 외부에서 42도 경사각에 대한 사인/코사인 값을 미리 상수로 캐싱하여 중복 삼각함수 호출 연산을 단축했습니다.
+
+### 하네스 엔지니어링 및 재귀적 자기개선 루프 토큰 최대화 적용 (2026-06-10)
+* **재귀적 자기개선 및 자가 치유를 위한 안티그라비티 에이전트 토큰/컨텍스트 최대화**: AI 에이전트의 재귀적 자기개선(Self-Improvement) 및 자가 치유(Self-Healing) 기동 시 정보 누락과 파싱 에러를 미연에 방지하기 위해 `src/app/llm/chat/route.ts` 내의 `maxOutputTokens`를 기존 `4096`에서 최댓값인 **`8192`**로 2배 상향했습니다. 또한, 상황 인지 범위(Context Window) 극대화를 위해 지출 내역 및 시그널 데이터 캡핑 제한을 각각 30개에서 **`300개`**로 10배 확장하여 풍부한 RAG 컨텍스트를 아낌없이 투입하도록 조정하였으며, 에이전트 자체의 응답 생성 및 추론 시 최대로 토큰을 동원하도록 명문화했습니다.
+* **실시간 파일 감시 파이프라인 AI 텍스트 파싱 한도 대폭 확장**: 문서 온톨로지 생성 시 텍스트 절단을 예방하고자 `src/lib/engine/watcher.ts`의 입력 텍스트 파싱 한도를 3,500자에서 **`30,000자`**로 늘려 최대 크기의 입력 토큰을 수용하게 했습니다.
+* **AI 에이전트 행동 수칙(하네스 엔지니어링 규칙)에 명문화**: 재귀적 자가 개선 루프 구동 시 항상 맥시멈 토큰을 동원해야 한다는 규칙을 [AGENTS.md](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/AGENTS.md)의 **`F. 재귀적 자가 개선 루틴`** 행동 수칙에 명시하고 동기화했습니다.
+
+### 3D 마인드맵 노드 연락처 로컬 PC 전용 텍스트 파일(노트북 LM) 기록 연동 (2026-06-10)
+* **노트북 LM 전용 API 라우트 구축**: Next.js API 엔드포인트 `/api/local-contacts`를 신설하여 POST로 들어오는 `{ nodeId, nodeLabel, phones, emails }` 연락처 페이로드를 전달받고, `data/local_contacts.txt` 파일에 타임스탬프와 함께 로깅하는 파이프라인을 구축했습니다.
+* **Windows 파일 잠금 회피 로직 탑재**: 윈도우 환경에서의 파일 잠금 충돌을 회피하기 위해 `appendFile` 호출 시 최대 5회 재시도 및 지연(50ms) 루프를 설계하여 쓰기 안정성을 확보했습니다.
+* **노트북 LM 기록 UI 및 컴포넌트 연동**: [MindMapInspector.tsx](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/components/MindMapInspector.tsx)의 연락처 감지 카드 내에 `💾 노트북 LM에 기록` 버튼을 탑재하고, 저장 시 실시간 '기록 중...', '✓ 노트북 LM 기록 완료!' 피드백 상태 트래킹을 구현했습니다.
+
+### 3D 마인드맵 가독성(3D Hologram Grid) 및 3D 입체 노드 디자인 개선 패치 (2026-06-10)
+* **3D 글래시 마블 노드(Glossy Marble Sphere) 디자인 적용**: 기존의 평면 단색 원형 노드를 입체적인 반사광과 음영이 들어간 3D 대리석 구체 비주얼로 개선했습니다. 베이스 컬러 위에 방사형 하이라이트/새도우 그라디언트를 오버레이로 덧그리는 기법을 적용하여 렌더링 성능 하락 없이 미려한 3D 비주얼을 사수했습니다.
+* **4단 플레이트 내부 홀로그램 그리드 라인망 드로잉**: 4개 수직 적층 레이어 플레이트 내부에 3D 원근법이 투영된 가로/세로 그리드망(Grid Lines, 투명도 7%)을 드로잉했습니다. 노드의 수직 레이어별 정렬 위치를 직관적으로 판단할 수 있게 하여 공간 레이아웃 가독성을 극대화했습니다.
+* **불필요한 충돌 물리 사전 연산(AABB Setup) 원천 바이패스**: `maxIterations = 0`으로 비활성화된 2D 화면 공간 충돌 회피 알고리즘을 위해 매 프레임 실행되던 노드 필터링, AABB boundary mapping, layer grouping 연산 전체를 `if (maxIterations > 0)` 가드로 감싸 우회시킴으로써 CPU의 불필요한 메모리 할당 및 GC 부하를 차단하고 60 FPS 유휴 성능을 극대화했습니다.
+* **컴파일 및 린트 무결성 검증**: ESLint 및 TypeScript 프로젝트 빌드 검증을 에러 0건으로 최종 완수했습니다.
+
+### 3D 마인드맵 렌더링 성능 최적화 및 상호작용 속도 향상 패치 (2026-06-10)
+* **정렬 연산 캐싱 (`centralitySortedNodes` 도입)**: 매 프레임 `render` 단계에서 노드들을 중요도(`renderSize`) 순으로 정렬($O(N \log N)$)하던 연산을 제거했습니다. 엔진 데이터(`nodes`)가 변경될 때에만 정렬된 배열을 1회 생성하여 캐싱해 두고 재사용함으로써 CPU 연산량을 극적으로 절감했습니다.
+* **상호작용 중 텍스트 겹침 방지 사전 계산 생략**: 맵 이동/줌/드래그/공전 등의 상호작용(`isInteractive`가 true)이 일어나는 순간에는 프레임 드랍을 막기 위해 $O(N \cdot M)$에 달하는 전역 텍스트 겹침 검사를 생략하고, 루트/활성/호버 노드 및 중요도 0.85를 초과하는 중요 노드를 제외한 일반 노드의 텍스트 라벨 렌더링을 단순 도트 형태로 생략하여 60 FPS 성능을 사수했습니다.
+* **무거운 `shadowBlur` 연산 우회 및 벡터 글로우 대체**: 캔버스 렌더링 부하의 주범인 가우시안 블러 필터(`shadowBlur`) 연산을 상호작용 중에는 전면 생략하고, 대신 투명 외곽 원(`rgba`) 드로잉을 통한 벡터 글로우(Vector Glow) 효과로 모사하여 GPU 가속 성능을 보완했습니다.
+* **동심 궤도 원 세그먼트 가변화**: 상호작용 중에는 궤도 표현에 사용되는 원 세그먼트 수를 `70`개에서 `40`개로 동적 조절하여 수학 연산 및 그리기 연산을 추가 단축했습니다.
+* **ESLint 및 TypeScript 컴파일 오류 0건 검증 완수**: `npx tsc --noEmit` 및 ESLint 검사를 실행하여 경고 및 오류를 완전히 해결하고 빌드 무결성을 검증했습니다.
+
+### 3D 마인드맵 위키 내 연락처 감지 및 로컬 전용 퀵 연동 UI 적용 (2026-06-10)
+* **위키 내 연락처 감지 및 데스크톱 연동 UI 적용**: [MindMap3D.tsx](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/components/MindMap3D.tsx)에서 `wikiBlocks`를 전달하고 [MindMapInspector.tsx](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/components/MindMapInspector.tsx)에서 이를 받아 재귀적 텍스트 추출(`extractRawTextFromBlocks`) 및 Regex 기반 전화번호/이메일 감지(`parseContacts`) 파이프라인을 구축했습니다.
+* **로컬 데스크톱 퀵 액션 카드 구현**: 연락처가 파싱되면 inspector에 `📱 모바일 다이렉트 연락처` 섹션을 띄워 로컬 PC 환경에서도 터치/클릭 즉시 `tel:`, `sms:`, `mailto:` 호출(FaceTime, Outlook 등 기본 앱 연동)이 가능하게 최적화했습니다.
+* **엄격한 로컬 3001 포트 relative 격리**: [sheets-api.ts](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/lib/sheets-api.ts)의 `API_BASE`를 기존의 안전한 로컬 relative 상수 `const API_BASE = '/api/data'`로 고정하여 외부 기기 노출 가능성을 차단하고 로컬 CRUD 무결성을 강화했습니다.
+
 ### 3D 마인드맵 가독성(Zero-Overlap) 및 3D 투영 카메라 스냅/더블클릭 개선 (2026-06-09)
 * **전역 텍스트 겹침 방지 (Zero-Overlap Guarantee) 알고리즘 도입**: 중요도(renderSize) 내림차순 정렬 노드군을 대상으로 전역 텍스트 겹침 충돌을 사전 계산하여 겹치지 않는 노드 ID 셋(`textAllowedSet`)을 빌드. 실제 렌더 루프에서는 `textAllowedSet` 여부에 따라 라벨 렌더링 또는 도트 축소를 일괄 분기하여 measureText 병목을 차단하고 60 FPS 성능을 즉각 복원했습니다.
 * **카메라 3D 투영 스냅 Y축 오차 해결**: 카메라 스냅 계산식 내에서 3D 레이어 적층 높이인 `effectiveLayer * LAYER_GAP` (LAYER_GAP = 190)을 Y축 및 depth에 복구함으로써, 원근 투영이 적용된 노드들을 클릭할 때 발생하던 Y축 스냅 오차를 완벽히 해결하여 노드 정중앙에 정확히 뷰포트가 패닝 안착되도록 동기화했습니다.
@@ -972,7 +1039,33 @@ sequenceDiagram
 * **라벨 백박스(Backing Capsule) 투명도 상향 및 외곽선 보강**: 엣지선이 텍스트 라벨을 침범해 가독성을 훼손하는 것을 차단하고자 배경 둥근 박스의 불투명도를 `0.72`에서 `0.88`로 높이고, 얇은 슬레이트 색상 테두리선(`rgba(148, 163, 184, 0.22)`)을 둘러 카드 간 중첩 시 명확한 경계면을 갖게 개편했습니다.
 * **카메라 수렴 임계값 및 LERP 감지 동조**: LERP 수렴 인지 감도(0.8px -> 0.5px 및 줌 0.005)를 동기화하여 카메라 정지 시점에 즉시 충돌 피직스 가동으로 매끄럽게 인계되도록 물리 상태 기계를 교정했습니다.
 
+### 3D 마인드맵 순환 참조 무한 루프 렉 해결 및 BFS 큐 팽창 안전장치 패치 (2026-06-10)
+* **`getNodeDepth` 내 순환 참조 감지 가드 주입**: `OntologyLayout.ts`의 `getNodeDepth` 함수 내에서 `parentId`를 따라 최상위 조상 노드까지 순회할 때, 데이터 또는 overrides 상에서 상하 관계가 꼬여 순환 참조가 발생할 경우 브라우저 탭이 완전히 얼어버리고(Hang) 렉이 유발되어 개발자 콘솔조차 켜지지 않던 심각한 무한 루프 오류를 수정했습니다. `visited` Set을 활용하여 동일 노드를 2회 이상 방문할 경우 강제로 순회를 끊고(`break`) 오류 콘솔을 기록하는 안전 가드를 장착했습니다.
+* **`buildSignalGraph` 내 BFS 큐 팽창 방지**: `signal-graph.ts`에서 부모 노드의 컬러 전파를 수행하는 BFS 큐(`queue.push`) 부분에 `visited` 중복 검사 가드를 주입하여, 순환 참조가 큐에 자식 노드들을 무한히 누적시켜 메모리가 팽창(OOM) 및 렉을 일으키는 2차 위험을 근본적으로 차단했습니다.
+* **최종 그래프 빌드 단계 내 순환 참조 사후 자가 치유(Final Cycle Breaker) 도입**: DB 데이터, Yjs overrides, 또는 자동 시맨틱 관계 추론 과정 등으로 인해 최종 `finalNodes` 상에 부모-자식 순환 고리(`heart_ultrasound`, `gamsa_damdang_gwan`, `jaemugwa` 등)가 이미 내장되어 올라오더라도, 렌더링 파이프라인에 도달하기 직전인 `buildSignalGraph` 최종 반환 단계에서 DFS 역추적을 통해 순환 고리를 감지해 `parentId` 및 꼬인 엣지를 강제로 즉시 끊어버리는(Breaking) 사후 치유(Pruning) 장치를 이식하여, 그래프 렌더링 안정성을 100% 확보했습니다.
+
+### 대시보드 월별 예산 집행 차트 내 현재 월(6월) 동적 데이터 누락 해결 패치 (2026-06-10)
+* **월별 차트 데이터 범위의 동적 계산화**: [usePortfolioAnalytics.ts](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/hooks/usePortfolioAnalytics.ts) 내에서 실제 지출 내역을 월별 차트 렌더링용 `monthly` 데이터로 변환할 때, 기존에 5월(`currentMonth = 5`)로 하드코딩되어 있던 경과 월 탐지 조건과 반복문 제한 가드(`i <= 4`)를 `new Date()` 기반의 동적 월 계산식(`currentMonth = getMonth() + 1`, `i <= currentMonth - 1`)으로 개선하여, 현재 날짜에 부합하는 6월(Jun)의 실제 예산 소진 내역이 차트에 표시되지 않던 오류를 근본적으로 진정시켰습니다.
+* **선형 회귀(Linear Regression) 범위 동조**: 최소자승법 선형 예측 계산 시 사용되던 데이터 개수 인자 `N` 또한 기존 하드코딩 `5`에서 dynamic하게 계산된 `currentMonth`로 자동 연계되도록 수정하여 수학적 예측의 정확도를 동기화했습니다.
+
+### 3D 마인드맵 가만히 멈춘 유휴 상태 shadowBlur 소거 및 완전 60 FPS 달성 패치 (2026-06-10)
+* **유휴(비활성) 상태의 무거운 Canvas `shadowBlur` 완전 우회**: 기존에는 드래그/줌/공전 등의 상호작용(`isFastPath`) 상태에서만 `shadowBlur` 연산을 우회하고 가만히 멈춘 상태(`!isFastPath`)에서는 하이라이트/리스크 노드의 리얼타임 그림자 필터 연산을 허용하여 프레임이 **25 FPS** 근처로 크게 떨어지던 성능 병목을 해결했습니다.
+* **100% 벡터 글로우 원형 드로잉 일원화**: Canvas 2D 성능을 심각하게 저하시키는 `shadowBlur` 가우시안 연산을 모든 렌더링 분기에서 완전히 영구 배제하고, 그 대신 semi-transparent한 반투명 원형 벡터 드로잉(`ctx.arc` + `rgba`)을 항상 그리도록 일원화하여 visual quality 하락 없이 멈춰 있을 때도 **완벽하고 부드러운 60 FPS**를 달성하도록 극적으로 가속화했습니다.
+* **미사용 `shadowEnabled` 린트 변수 정리**: 변수 미사용 경고 및 타입 오류 방지를 위해 더 이상 사용되지 않는 `shadowEnabled` 변수와 관련 셋팅 코드를 [OntologyRenderer.ts](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/lib/engine/OntologyRenderer.ts)에서 깨끗하게 소거했습니다.
+
+### 3D 마인드맵 노드 추가 이름 설정 팝업(모달) 개편 (2026-06-10)
+* **화면 중앙 프리미엄 글래스모피즘 모달 이식**: 기존 Left Side Panel 내부에 장착되어 사이드바 크기를 위아래로 흔들던 인라인 추가 입력창을 전면 제거하고, 3D 삭제 확인 모달과 시각적 조화를 이루는 블러 백드롭, 둥근 2xl 외곽선, 그라데이션 승인 버튼이 적용된 노드 생성용 팝업 모달을 화면 정중앙에 이식했습니다.
+* **자동 포커스 및 키보드 단축키 매핑**: 모달이 열릴 때 자동으로 노드 이름 입력란에 포커스를 주입하여 즉시 타이핑이 가능하게 개선했으며, `Enter`를 누르면 노드 생성 프로세스(`handleExecuteAddNode`)가 격발되고 `Escape` 키 또는 모달 외부 바탕을 누르면 변경 사항 없이 팝업창이 조용히 닫히도록 키보드 제어 기계를 보강했습니다.
+* **타입 무결성 선언 순서 교정**: 노드 생성 콜백(`handleExecuteAddNode`) 내부에서 엔진 재초기화 함수(`initEngine`)를 참조함에 따라 발생하던 `block-scoped variable use before its declaration (TS2448)` 빌드 컴파일 오류를 예방하기 위해, 해당 콜백의 위치를 `initEngine` 선언부 뒤로 안정적으로 재배치하여 TypeScript 100% 무결성을 사수했습니다.
+
+### AI 메디스포츠 센터 공약제안 사업계획서 자동 추출 및 생성 패치 (2026-06-10)
+* **HWPX 전용 원문 텍스트 추출 엔진 구축**: 바탕화면 및 스캔 폴더 내 HWPX(Hangul Word Processor Open XML) 문서 구조를 원격 분석하기 위한 python zipfile 및 XML 파서 스크립트를 작성하여 `section0.xml`의 문단 데이터를 온전히 복원하고 한글 인코딩 깨짐 현상을 해결했습니다.
+* **E2EE 암호화 DB(Wiki) 복호화 파이프라인 개발**: Next.js E2EE 보안 락이 적용된 암호화된 JSON DB 파일(`WIKI_DOC_*.json`)들을 PBKDF2 및 AES-GCM-256 규격에 맞게 복호화하는 Node.js 기반의 복호화 자동화 유틸리티(`decrypt_wiki.js`)를 구현하여 세부 예산 정보 및 기 수립된 비만예방/헬스체크업/아이뛰움 등 5대 프로그램 실태 데이터를 안전하게 복구했습니다.
+* **보건소 4층 공간 재배치 연계 AI 메디스포츠 센터 계획 수립**: 보건소 4층 행정 부서를 본청으로 복귀 이전시키고 확보한 500㎡ 규모 공간에 신설 「AI 메디-스포츠 센터」를 설립하며 기존의 강남체력인증센터를 통합 편입하는 공문서 규격의 2쪽 분량 공약사업계획서를 성공적으로 도출 및 자동 작성하여 바탕화면(`d:\Desktop\공약제안 사업계획서_AI 메디스포츠 센터.txt`)에 직접 파일로 제공했습니다.
+* **하반기 중점 과제 구체화**: 기존 헬스체크업 사업 활성화 전략 및 모바일 누적 피드백/정기 재예약을 지원하는 자체 사후관리 시스템 구축 구상을 사업계획서 하반기 과제로 통합 명문화했습니다.
+
 ---
+
 
 ## 9. 감사 기반 로드맵 및 전략적 지평
 

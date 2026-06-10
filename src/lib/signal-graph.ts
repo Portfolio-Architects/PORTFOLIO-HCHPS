@@ -33,6 +33,79 @@ export function buildSignalGraph(
   }
 ): OntologyGraph {
   console.log('[DEBUG] buildSignalGraph START. entries.length=', entries.length, 'customNodes.length=', customData?.customNodes.length);
+  
+  const normalizeNodeId = (id: string): string => {
+    if (id) {
+      if (id.startsWith('leaf-tag-')) {
+        const parts = id.split('-');
+        if (parts.length >= 4) {
+          return `leaf-${parts.slice(3).join('-')}`;
+        }
+      } else if (id.startsWith('leaf-kw-')) {
+        const parts = id.split('-');
+        if (parts.length >= 3) {
+          return `leaf-${parts.slice(2).join('-')}`;
+        }
+      }
+    }
+    return id;
+  };
+
+  const customParentSet = new Set<string>();
+
+  if (customData) {
+    const dataRef = customData;
+    const normalizedCustomData = {
+      overrides: {} as Record<string, NodeOverride>,
+      customNodes: [...dataRef.customNodes],
+      customEdges: dataRef.customEdges ? [...dataRef.customEdges] : [],
+      deletedEdges: dataRef.deletedEdges ? [...dataRef.deletedEdges] : [],
+    };
+    
+    if (dataRef.overrides) {
+      Object.keys(dataRef.overrides).forEach(key => {
+        const val = dataRef.overrides[key];
+        const newKey = normalizeNodeId(key);
+        const newVal = { ...val };
+        if (newVal.customParent) {
+          newVal.customParent = normalizeNodeId(newVal.customParent);
+          customParentSet.add(newVal.customParent);
+        }
+        normalizedCustomData.overrides[newKey] = {
+          ...(normalizedCustomData.overrides[newKey] || {}),
+          ...newVal
+        };
+      });
+    }
+    
+    normalizedCustomData.customEdges = normalizedCustomData.customEdges.map(ce => ({
+      ...ce,
+      source: normalizeNodeId(ce.source),
+      target: normalizeNodeId(ce.target)
+    }));
+    
+    if (normalizedCustomData.deletedEdges) {
+      normalizedCustomData.deletedEdges = normalizedCustomData.deletedEdges.map(edgeStr => {
+        const parts = edgeStr.split('|||');
+        if (parts.length === 2) {
+          return `${normalizeNodeId(parts[0])}|||${normalizeNodeId(parts[1])}`;
+        }
+        return edgeStr;
+      });
+    }
+    
+    normalizedCustomData.customNodes = normalizedCustomData.customNodes.map(cn => {
+      const ncn = { ...cn };
+      if (ncn.parentId) {
+        ncn.parentId = normalizeNodeId(ncn.parentId);
+        customParentSet.add(ncn.parentId);
+      }
+      return ncn;
+    });
+
+    customData = normalizedCustomData;
+  }
+
   const nodes: OntologyNode[] = [];
   const edges: OntologyEdge[] = [];
   let forcedCenterNode: OntologyNode | undefined = undefined;
@@ -88,12 +161,7 @@ export function buildSignalGraph(
   allSortedTags.forEach(([tag, count], i) => {
     const id = `tag-${tag}`;
     const hasOverride = overrideKeys.has(id);
-    let isParentOfAny = false;
-    if (customData) {
-      isParentOfAny = Object.values(customData.overrides).some(
-        ov => ov && ov.customParent === id
-      );
-    }
+    const isParentOfAny = customParentSet.has(id);
 
     if (i < 15 || hasOverride || isParentOfAny) {
       sortedTags.push([tag, count]);
@@ -188,15 +256,9 @@ export function buildSignalGraph(
     const overrideKeys = customData ? new Set(Object.keys(customData.overrides)) : new Set<string>();
 
     allSortedKw.forEach(([kw, freq], i) => {
-      const leafId = `leaf-${tagNodeId}-${kw}`;
+      const leafId = `leaf-${kw}`;
       const hasOverride = overrideKeys.has(leafId);
-      
-      let isParentOfAny = false;
-      if (customData) {
-        isParentOfAny = Object.values(customData.overrides).some(
-          ov => ov && ov.customParent === leafId
-        );
-      }
+      const isParentOfAny = customParentSet.has(leafId);
 
       if (i < 8 || hasOverride || isParentOfAny) {
         sortedKw.push([kw, freq]);
@@ -204,15 +266,23 @@ export function buildSignalGraph(
     });
 
     sortedKw.forEach(([kw, freq], i) => {
-      const leafId = `leaf-${tagNodeId}-${kw}`;
-      nodes.push({
-        id: leafId,
-        label: kw,
-        group: branchGroup, // Inherit category's color
-        baseValue: Math.min(60, 30 + freq * 10),
-        centralityScore: 100 + freq, // Orbit 2+
-        parentId: tagNodeId,
-      });
+      const leafId = `leaf-${kw}`;
+      
+      let existingNode = nodes.find(n => n.id === leafId);
+      if (!existingNode) {
+        nodes.push({
+          id: leafId,
+          label: kw,
+          group: branchGroup, // Inherit category's color
+          baseValue: Math.min(60, 30 + freq * 10),
+          centralityScore: 100 + freq, // Orbit 2+
+          parentId: tagNodeId,
+        });
+      } else {
+        existingNode.baseValue = Math.max(existingNode.baseValue || 0, Math.min(60, 30 + freq * 10));
+        existingNode.centralityScore = Math.max(existingNode.centralityScore || 0, 100 + freq);
+      }
+      
       // Branch off the Orbit 1 node
       edges.push({
         source: tagNodeId,
@@ -275,12 +345,13 @@ export function buildSignalGraph(
       const actualLabel = override?.customLabel || cn.label;
 
       if (dataLabels.has(actualLabel)) {
-        // A data node with this label exists. Transfer overrides and skip rendering the duplicate.
-        const dataNodeId = dataLabels.get(actualLabel)!;
-        mergedIdMap.set(cn.id, dataNodeId);
+        // A node with this label already exists (either data node or custom node).
+        // Transfer overrides and skip rendering the duplicate.
+        const targetNodeId = dataLabels.get(actualLabel)!;
+        mergedIdMap.set(cn.id, targetNodeId);
         
         if (override) {
-          const targetOverride = customData.overrides[dataNodeId] || {};
+          const targetOverride = customData.overrides[targetNodeId] || {};
           
           const resolveProp = <K extends keyof NodeOverride>(key: K) => {
             if (targetOverride[key] !== undefined) {
@@ -289,7 +360,7 @@ export function buildSignalGraph(
             return override[key] === null ? undefined : override[key];
           };
 
-          customData.overrides[dataNodeId] = {
+          customData.overrides[targetNodeId] = {
             ...targetOverride,
             fixedX: resolveProp('fixedX'),
             fixedY: resolveProp('fixedY'),
@@ -307,7 +378,42 @@ export function buildSignalGraph(
         }
         return; // Skip adding `cn`
       }
+      dataLabels.set(actualLabel, cn.id);
       nodes.push(cn);
+    });
+
+    // Remap parentId of all nodes to their merged canonical IDs
+    nodes.forEach(n => {
+      if (n.parentId && mergedIdMap.has(n.parentId)) {
+        n.parentId = mergedIdMap.get(n.parentId)!;
+      }
+    });
+
+    // 4.8. Self-heal inverted parent-child relationships (e.g. parent is longer and contains child label)
+    nodes.forEach(node => {
+      if (node.parentId) {
+        const parentNode = nodes.find(n => n.id === node.parentId);
+        if (parentNode) {
+          const labelX = node.label || '';
+          const labelY = parentNode.label || '';
+          const cleanX = labelX.replace(/\s+/g, '').replace(/비$/, '비용').replace(/료$/, '비용').replace(/금$/, '비용');
+          const cleanY = labelY.replace(/\s+/g, '').replace(/비$/, '비용').replace(/료$/, '비용').replace(/금$/, '비용');
+          
+          // If the parent (Y) contains the child (X) and Y is longer than X, it's inverted!
+          if (cleanY.length > cleanX.length && (labelY.includes(labelX) || cleanY.includes(cleanX))) {
+            console.log(`[Self-Healing] Detected inverted parent-child relationship: child="${labelX}", parent="${labelY}". Breaking connection to let reparenting algorithm fix it.`);
+            node.parentId = undefined;
+            
+            // Remove the corresponding structural edge
+            for (let i = edges.length - 1; i >= 0; i--) {
+              const e = edges[i];
+              if (e.target === node.id && e.source === parentNode.id && !(e as PartialOntologyEdge).isCustom) {
+                edges.splice(i, 1);
+              }
+            }
+          }
+        }
+      }
     });
 
     // Remap any ghost customParent references to their merged ALIVE IDs or self-heal dynamically generated data node IDs
@@ -327,8 +433,12 @@ export function buildSignalGraph(
               originalLabel = override.customParent.slice(4);
             } else if (override.customParent.startsWith('leaf-')) {
               const parts = override.customParent.split('-');
-              if (parts.length >= 4) {
+              if (parts[1] === 'tag' && parts.length >= 4) {
                 originalLabel = parts.slice(3).join('-');
+              } else if (parts[1] === 'kw' && parts.length >= 3) {
+                originalLabel = parts.slice(2).join('-');
+              } else {
+                originalLabel = parts.slice(1).join('-');
               }
             }
             
@@ -416,11 +526,36 @@ export function buildSignalGraph(
       return false;
     };
 
+    // Precompute semantic properties for all nodes in O(N) to optimize inner loop comparisons
+    const nodeSemanticsMap = new Map<string, {
+      label: string;
+      clean: string;
+      isCheckupCategory: boolean;
+      isMedicalTerm: boolean;
+    }>();
+
+    nodes.forEach(n => {
+      const label = n.label || '';
+      const clean = label.replace(/\s+/g, '').replace(/비$/, '비용').replace(/료$/, '비용').replace(/금$/, '비용');
+      const isCheckupCategory = label.includes('체크업') || label.includes('검진') || label.includes('보건') || label.includes('건강');
+      const isMedicalTerm = /초음파|심장|혈압|당뇨|내시경|엑스레이|검사|의료|접종|백신|병원|진료|보건소|치매/.test(label);
+      
+      nodeSemanticsMap.set(n.id, {
+        label,
+        clean,
+        isCheckupCategory,
+        isMedicalTerm
+      });
+    });
+
     // 계층 재배치 수행
     leafNodesForReparent.forEach(nodeX => {
       // 이미 customData.overrides에서 customParent를 수동 정의하고 있다면 스킵
       const hasUserOverride = customData?.overrides[nodeX.id]?.customParent !== undefined;
       if (hasUserOverride) return;
+
+      const semX = nodeSemanticsMap.get(nodeX.id);
+      if (!semX) return;
 
       // nodeX를 가리키는 횡적 DEPENDENCY 등의 엣지를 보낸 source 노드(Y)들을 찾음
       const parentCandidates: Array<{ nodeY: OntologyNode; score: number }> = [];
@@ -428,6 +563,9 @@ export function buildSignalGraph(
       nodes.forEach(nodeY => {
         if (nodeY.id === nodeX.id) return;
         if (nodeY.id === 'root-HCHPS' || nodeY.id.startsWith('root-')) return;
+
+        const semY = nodeSemanticsMap.get(nodeY.id);
+        if (!semY) return;
 
         let score = 0;
 
@@ -438,24 +576,22 @@ export function buildSignalGraph(
         }
 
         // 2. 텍스트 포함 시맨틱 점수 (Y의 레이블이 X의 레이블에 부분 포함되는가?)
-        const labelX = nodeX.label || '';
-        const labelY = nodeY.label || '';
-
-        // Normalize Korean suffixes and space variations to match words like "검진비" & "검진 비용"
-        const cleanX = labelX.replace(/\s+/g, '').replace(/비$/, '비용').replace(/료$/, '비용').replace(/금$/, '비용');
-        const cleanY = labelY.replace(/\s+/g, '').replace(/비$/, '비용').replace(/료$/, '비용').replace(/금$/, '비용');
-
-        if (labelY.length > 1 && (labelX.includes(labelY) || cleanX.includes(cleanY) || cleanY.includes(cleanX))) {
-          score += 15;
+        if (semY.label.length > 1 && semY.clean.length < semX.clean.length && (semX.label.includes(semY.label) || semX.clean.includes(semY.clean))) {
+          score += 35; // direct containment is much more specific, give it 35 points
         }
         
         // 특수한 시맨틱 텍스트 결합 문맥 가중치 추가
         if (hasEdge && (
-          (labelX.includes('검진') && labelY.includes('체크업')) ||
-          (labelX.includes('비용') && labelY.includes('구매')) ||
-          (labelX.includes('회의록') && labelY.includes('회의'))
+          (semX.label.includes('검진') && semY.label.includes('체크업')) ||
+          (semX.label.includes('비용') && semY.label.includes('구매')) ||
+          (semX.label.includes('회의록') && semY.label.includes('회의'))
         )) {
           score += 5;
+        }
+
+        // 보건/의료 시맨틱 가중치 추가
+        if (semY.isCheckupCategory && semX.isMedicalTerm) {
+          score += 20; // 2차 카테고리 매핑용 최우선 점수 부여
         }
 
         if (score > 0) {
@@ -646,17 +782,24 @@ export function buildSignalGraph(
   const queue = childMap.get(rootId) ? [...childMap.get(rootId)!] : []; 
   const visited = new Set<string>([rootId]);
   
+  // Create O(1) maps for nodes and parent edges to eliminate nested find() calls inside queue
+  const nodeMap = new Map<string, OntologyNode>(finalNodes.map(n => [n.id, n]));
+  const parentIdMap = new Map<string, string>();
+  finalEdges.forEach(e => {
+    parentIdMap.set(e.target, e.source);
+  });
+
   while (queue.length > 0) {
     const currentId = queue.shift()!;
     if (visited.has(currentId)) continue;
     visited.add(currentId);
     
-    const currentNode = finalNodes.find(n => n.id === currentId);
+    const currentNode = nodeMap.get(currentId);
     if (!currentNode) continue;
 
-    const parentEdge = finalEdges.find(e => e.target === currentId);
-    if (parentEdge) {
-      const parentNode = finalNodes.find(n => n.id === parentEdge.source);
+    const parentSourceId = parentIdMap.get(currentId);
+    if (parentSourceId) {
+      const parentNode = nodeMap.get(parentSourceId);
       // 부모 노드가 시각적 색상을 갖고 있고, 중앙 노드(rootId)가 아니라면 색상을 다단계로 전파
       if (parentNode && parentNode.customColor && parentNode.id !== rootId) {
         // 단, 사용자가 명시적으로 색상을 지정한 노드는 덮어쓰지 않음
@@ -668,16 +811,26 @@ export function buildSignalGraph(
     }
 
     const children = childMap.get(currentId) || [];
-    queue.push(...children);
+    children.forEach(child => {
+      if (!visited.has(child)) {
+        queue.push(child);
+      }
+    });
+  }
+
+  // Pre-create custom edges set for fast membership test
+  const customEdgesSet = new Set<string>();
+  if (customData && customData.customEdges) {
+    customData.customEdges.forEach(ce => {
+      customEdgesSet.add(`${ce.source}|||${ce.target}`);
+      customEdgesSet.add(`${ce.target}|||${ce.source}`);
+    });
   }
 
   // 7. Cleanup invalid topology: Nodes with a specific parent should not connect directly to the center
   finalEdges = finalEdges.filter(e => {
     // 사용자가 수동으로 연결한 선분(Custom Edge)은 허용
-    const isCustomEdge = customData?.customEdges.some(ce => 
-      (ce.source === e.source && ce.target === e.target) || 
-      (ce.source === e.target && ce.target === e.source)
-    );
+    const isCustomEdge = customEdgesSet.has(`${e.source}|||${e.target}`) || customEdgesSet.has(`${e.target}|||${e.source}`);
     if (isCustomEdge) return true;
 
     const centerId = forcedCenterNode ? forcedCenterNode.id : 'root-HCHPS';
@@ -758,6 +911,25 @@ export function buildSignalGraph(
           }
         }
       }
+    }
+  });
+
+  // ── 최종 빌드 결과물에 대한 순환 참조 사후 자가 치유 (Self-Healing Final Cycle Breaker) ──
+  // finalNodes 내의 parentId 상속 고리가 순환을 이루지 않도록 DFS 탐색을 통해 순환 고리를 즉시 제거합니다.
+  finalNodes.forEach(node => {
+    const visited = new Set<string>();
+    let curr: OntologyNode | undefined = node;
+    while (curr && curr.parentId) {
+      if (visited.has(curr.id)) {
+        console.warn(`[Self-Healing] Breaking circular parentId reference for node: ${curr.id} (parent: ${curr.parentId})`);
+        const targetParentId = curr.parentId;
+        curr.parentId = undefined;
+        // 관련 간선도 finalEdges에서 제거합니다.
+        finalEdges = finalEdges.filter(e => !(e.target === curr?.id && e.source === targetParentId));
+        break;
+      }
+      visited.add(curr.id);
+      curr = finalNodes.find(n => n.id === curr?.parentId);
     }
   });
 

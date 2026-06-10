@@ -35,6 +35,7 @@ export interface EngineCallbacks {
 export class OntologyCanvasEngine {
   nodes: OrbitalNode[] = [];
   edges: OntologyEdge[] = [];
+  centralitySortedNodes: OrbitalNode[] = [];
   centerNode: OrbitalNode | null = null;
   activeNode: OrbitalNode | null = null;
   hoveredNode: OrbitalNode | null = null;
@@ -54,7 +55,7 @@ export class OntologyCanvasEngine {
   public collapsedNodeIds: Set<string> = new Set();
   public hasInitializedCollapse: boolean = false;
   public isInitialCameraSnap: boolean = true;
-  public layoutMode: 'orbit' = 'orbit';
+  public layoutMode = 'orbit' as const;
   public physicsAlpha = 1.0;
 
   // Physics / Interaction
@@ -314,6 +315,13 @@ export class OntologyCanvasEngine {
       // 디폴트 상태에서 전체 맵이 모두 활짝 펼쳐진 형태로 시작되도록 합니다.
       this.collapsedNodeIds.clear(); 
     }
+
+    // 중요도(renderSize) 내림차순으로 정렬된 노드 리스트 캐싱
+    this.centralitySortedNodes = [...this.nodes].sort((a, b) => {
+      const sizeA = a.renderSize ?? 0.5;
+      const sizeB = b.renderSize ?? 0.5;
+      return sizeB - sizeA;
+    });
   }
 
   private makeOrbitalNode(
@@ -798,7 +806,8 @@ export class OntologyCanvasEngine {
       activeLayers: activeLayers,
       layoutMode: this.layoutMode,
       isInteractive: isInteractive,
-      isOrbiting: this.isOrbiting
+      isOrbiting: this.isOrbiting,
+      centralitySortedNodes: this.centralitySortedNodes
     });
   }
 
@@ -993,6 +1002,9 @@ export class OntologyCanvasEngine {
   // ── Interaction ──
 
   handleDragStart(nx: number, ny: number, _isShiftKey: boolean = false): void {
+    if (_isShiftKey) {
+      // reserved for sub-graph moving
+    }
     this.isDragging = true;
     this.hasDragged = false;
     this.dragStartX = nx;
@@ -1022,7 +1034,7 @@ export class OntologyCanvasEngine {
     }
   }
 
-  handleDragMove(nx: number, ny: number, w: number, h: number): void {
+  handleDragMove(nx: number, ny: number, _w: number, _h: number): void {
     if (!this.isDragging) return;
 
     if (Math.abs(nx - this.dragStartX) > 5 || Math.abs(ny - this.dragStartY) > 5) {

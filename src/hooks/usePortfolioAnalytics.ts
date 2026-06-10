@@ -171,7 +171,7 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
     unplannedRemainingAmount,
     totalVirtualAdjustment
   } = useMemo(() => {
-    const currentMonth = 5; // 2026년 5월 기준 (1~5월까지 5개월 경과)
+    const currentMonth = new Date().getMonth() + 1; // 동적으로 현재 월 반영 (예: 6월이면 6)
     const elapsedRatio = currentMonth / 12;
     const validCategoryIds = new Set(filteredCategories.map(c => c.id));
     
@@ -196,8 +196,8 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
     const monthlyTargetUnit = totalBudget / 11;
 
     // --- 1. Linear Regression (최소자승법 선형 회귀) ---
-    // N = 5 (Jan to May)
-    const N = 5;
+    // N = currentMonth ( Jan to currentMonth )
+    const N = currentMonth;
     let sumX = 0;
     let sumY = 0;
     let sumXY = 0;
@@ -216,8 +216,8 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
     const intercept = (sumY - slope * sumX) / N;
 
     // --- 2. Target Burn-down Plan by Nov 30 ---
-    const actualCumulativeMay = tempCumulative; // Jan to May actual total
-    const remainTargetAmt = Math.max(0, totalBudget - actualCumulativeMay);
+    const actualCumulative = tempCumulative; // Jan to currentMonth actual total
+    const remainTargetAmt = Math.max(0, totalBudget - actualCumulative);
     
     // 가계획 (isPlanned: true) 항목들의 월별 집계
     const plannedMonthlyAmounts = Array(12).fill(0);
@@ -286,8 +286,8 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
       const regVal = Math.round(slope * (i + 1) + intercept);
       const plannedMonthSpend = Math.round(plannedMonthlyAmounts[i]);
       
-      if (i <= 4) {
-        // 1월~5월 (실제 데이터 반영)
+      if (i <= currentMonth - 1) {
+        // 1월~현재 월 (실제 데이터 반영)
         // 가계획 입력값이 있다면 계획값을 사용하고, 없으면 실제 누적 실적값을 계획선 베이스로 적용
         const effectivePlanSpend = plannedMonthSpend > 0 ? plannedMonthSpend : actualMonthAmount;
         planCumulativeVal += effectivePlanSpend;
