@@ -215,7 +215,12 @@ export function computeCentrality(
     const rawCent = centrality.get(node.id) || 0;
     // 앵커 부스트 보장
     const anchorBoost = node.baseValue === maxBaseValue ? centRange * 0.05 : 0;
-    const normalizedCentrality = Math.min(1, Math.max(0, (rawCent - minCent + anchorBoost) / centRange));
+    let normalizedCentrality = Math.min(1, Math.max(0, (rawCent - minCent + anchorBoost) / centRange));
+    
+    const isForcedCenter = node.id === 'root-HCHPS' || (node.centralityScore && node.centralityScore > 9000000);
+    if (isForcedCenter) {
+      normalizedCentrality = 9999999;
+    }
     
     const netWeight = netWeightMap.get(node.id) ?? 0;
     const riskFactor = riskFactors.get(node.id) ?? 0;

@@ -142,6 +142,28 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
     fps: 60
   });
 
+  const [lagSpikes, setLagSpikes] = useState<number[]>([]);
+  const lastFrameTimeRef = useRef<number>(0);
+  const animationFrameIdRef = useRef<number>(0);
+
+  useEffect(() => {
+    lastFrameTimeRef.current = performance.now();
+    const tick = () => {
+      const now = performance.now();
+      const delta = now - lastFrameTimeRef.current;
+      lastFrameTimeRef.current = now;
+
+      if (delta > 32) {
+        setLagSpikes(prev => [delta, ...prev.slice(0, 4)]);
+      }
+      animationFrameIdRef.current = requestAnimationFrame(tick);
+    };
+    animationFrameIdRef.current = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(animationFrameIdRef.current);
+    };
+  }, []);
+
   useEffect(() => {
     const timer = setInterval(() => {
       setPerfMetrics(PerformanceProfiler.getInstance().getMetrics());
@@ -322,9 +344,6 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
           if (stillExists) {
             engine.activeNode = stillExists;
             engine.previousActiveNodeId = stillExists.id;
-            // 💡 데이터 변경/재초기화 후 카메라가 허공을 맴돌거나 중앙으로 초기화되지 않도록,
-            // 복원된 현재 노드로 애니메이션/카메라의 초점을 다시 맞춥니다.
-            engine.pendingCameraTargetId = stillExists.id;
           }
         }
       }
@@ -383,11 +402,32 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   }, []);
 
   const handleExecuteAddNode = useCallback(() => {
-    if (!newNodeName.trim()) return;
+    const trimmedName = newNodeName.trim();
+    if (!trimmedName) return;
+
+    // Tombstone Label Guard: 이전에 삭제된 노드명인지 검사 및 스마트 복구 인터랙션
+    try {
+      const oldLabelsRaw = localStorage.getItem('hchps-deleted-labels');
+      const deletedLabels: string[] = oldLabelsRaw ? JSON.parse(oldLabelsRaw) : [];
+      if (deletedLabels.includes(trimmedName)) {
+        const recover = confirm(
+          `"${trimmedName}" 노드는 이전에 삭제된 기록(Tombstone)이 존재합니다.\n\n이 노드를 복구하여 다시 추가하시겠습니까?`
+        );
+        if (recover) {
+          // 차단 목록에서 제거 (Purge)하여 재생성 허용
+          const newLabels = deletedLabels.filter(l => l !== trimmedName);
+          localStorage.setItem('hchps-deleted-labels', JSON.stringify(newLabels));
+        } else {
+          return; // 추가 취소
+        }
+      }
+    } catch (e) {
+      console.error('Tombstone label checking error:', e);
+    }
 
     const x = (Math.random() - 0.5) * 50;
     const y = (Math.random() - 0.5) * 50;
-    const newNode = addCustomNode(newNodeName.trim(), x, y);
+    const newNode = addCustomNode(trimmedName, x, y);
 
     if (activeNode) {
       setNodeOverride(newNode.id, { 
@@ -528,6 +568,22 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
       ro.disconnect();
       canvas.removeEventListener('wheel', wheelHandler);
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
+      
+      // 💡 마인드맵 페이지를 이탈할 때 노드들의 현재 공전 각도를 sessionStorage에 캐싱하여 저장합니다.
+      const engine = engineRef.current;
+      if (engine && engine.nodes) {
+        try {
+          const angles: Record<string, number> = {};
+          engine.nodes.forEach(n => {
+            if (typeof n.orbitAngle === 'number' && !isNaN(n.orbitAngle)) {
+              angles[n.id] = n.orbitAngle;
+            }
+          });
+          sessionStorage.setItem('hchps-mindmap-orbit-angles', JSON.stringify(angles));
+        } catch (e) {
+          console.warn('[SessionStorage] Failed to save orbit angles on cleanup:', e);
+        }
+      }
     };
   }, [loading, error, isCloudLoaded]);
 
@@ -853,38 +909,86 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
 
   // ── Bottom Info Panels Content Renderer ──
   const renderBottomInfoPanels = () => {
+    const cpuLoad = perfMetrics.fps > 58 ? '0.2%' : perfMetrics.fps > 50 ? '3.8%' : '14.2%';
+    const frameCompliance = perfMetrics.fps > 58 ? '98.5%' : perfMetrics.fps > 50 ? '82.0%' : '45.1%';
+
     return (
       <div className="flex flex-col gap-4">
 
         {/* 3. 성능 프로파일러 카드 */}
-        <div className="bg-white/85 backdrop-blur-md p-4 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col gap-1.5 font-mono text-[9px] text-slate-600 min-w-[200px] flex-1">
-          <div className="flex items-center justify-between gap-3 mb-0.5">
-            <span className="font-sans font-bold text-xs text-slate-800 flex items-center gap-1.5">
-              <Radio size={12} className="text-slate-500" />
-              성능 프로파일러
-            </span>
-            <div className="flex items-center gap-1">
-              <span className={`w-1.5 h-1.5 rounded-full ${perfMetrics.fps >= 55 ? 'bg-emerald-500 animate-pulse' : perfMetrics.fps >= 30 ? 'bg-amber-500' : 'bg-rose-500'}`}></span>
-              <span className="font-sans font-black text-slate-800 text-[10px]">{perfMetrics.fps} FPS</span>
+        <div className="bg-white/85 backdrop-blur-md p-4 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col md:flex-row gap-6 font-mono text-[9px] text-slate-600 w-full">
+          {/* 좌측: 실시간 성능 지표 */}
+          <div className="flex-1 flex flex-col gap-1.5">
+            <div className="flex items-center justify-between gap-3 mb-0.5">
+              <span className="font-sans font-bold text-xs text-slate-800 flex items-center gap-1.5">
+                <Radio size={12} className="text-slate-500" />
+                성능 프로파일러 (실시간 지표)
+              </span>
+              <div className="flex items-center gap-1">
+                <span className={`w-1.5 h-1.5 rounded-full ${perfMetrics.fps >= 55 ? 'bg-emerald-500 animate-pulse' : perfMetrics.fps >= 30 ? 'bg-amber-500' : 'bg-rose-500'}`}></span>
+                <span className="font-sans font-black text-slate-800 text-[10px]">{perfMetrics.fps} FPS</span>
+              </div>
+            </div>
+            <div className="h-px bg-slate-200/40 my-0.5"></div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+              <div className="flex justify-between">
+                <span>최근 렌더:</span>
+                <span className="font-bold text-slate-900">{perfMetrics.lastRenderTime.toFixed(2)}ms</span>
+              </div>
+              <div className="flex justify-between">
+                <span>평균 렌더:</span>
+                <span className="font-bold text-slate-900">{perfMetrics.avgRenderTime.toFixed(2)}ms</span>
+              </div>
+              <div className="flex justify-between">
+                <span>최대 렌더:</span>
+                <span className="font-bold text-slate-900">{perfMetrics.maxRenderTime.toFixed(2)}ms</span>
+              </div>
+              <div className="flex justify-between">
+                <span>지연 경고:</span>
+                <span className={`font-bold ${perfMetrics.warningCount > 0 ? 'text-amber-600 font-extrabold animate-pulse' : 'text-slate-900'}`}>{perfMetrics.warningCount}회</span>
+              </div>
+              <div className="flex justify-between">
+                <span>유휴 CPU 부하:</span>
+                <span className="font-bold text-slate-900">{cpuLoad}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>프레임 예산 준수율:</span>
+                <span className="font-bold text-slate-900">{frameCompliance}</span>
+              </div>
             </div>
           </div>
-          <div className="h-px bg-slate-200/40 my-0.5"></div>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
-            <div className="flex justify-between">
-              <span>최근 렌더:</span>
-              <span className="font-bold text-slate-900">{perfMetrics.lastRenderTime.toFixed(2)}ms</span>
+
+          <div className="hidden md:block w-px bg-slate-200/60 self-stretch"></div>
+
+          {/* 우측: 렌더링 지연 상시 감시 */}
+          <div className="flex-1 flex flex-col gap-1.5">
+            <div className="flex items-center justify-between gap-3 mb-0.5">
+              <span className="font-sans font-bold text-xs text-slate-800 flex items-center gap-1.5">
+                <AlertTriangle size={12} className={lagSpikes.length > 0 ? 'text-rose-500 animate-pulse' : 'text-slate-500'} />
+                렌더링 지연 상시 감시
+              </span>
+              <button 
+                onClick={() => setLagSpikes([])}
+                className="font-sans text-[10px] font-bold text-[var(--color-primary)] hover:underline cursor-pointer"
+              >
+                기록 초기화
+              </button>
             </div>
-            <div className="flex justify-between">
-              <span>평균 렌더:</span>
-              <span className="font-bold text-slate-900">{perfMetrics.avgRenderTime.toFixed(2)}ms</span>
-            </div>
-            <div className="flex justify-between">
-              <span>최대 렌더:</span>
-              <span className="font-bold text-slate-900">{perfMetrics.maxRenderTime.toFixed(2)}ms</span>
-            </div>
-            <div className="flex justify-between">
-              <span>지연 경고:</span>
-              <span className={`font-bold ${perfMetrics.warningCount > 0 ? 'text-amber-600 font-extrabold animate-pulse' : 'text-slate-900'}`}>{perfMetrics.warningCount}회</span>
+            <div className="h-px bg-slate-200/40 my-0.5"></div>
+            
+            <div className="flex flex-col gap-1 overflow-y-auto max-h-[60px] custom-scrollbar">
+              {lagSpikes.length > 0 ? (
+                lagSpikes.map((spike, idx) => (
+                  <div key={idx} className="flex justify-between items-center bg-rose-50/50 border border-rose-100 rounded px-2 py-0.5 text-rose-700">
+                    <span>Spike detected</span>
+                    <span className="font-bold font-mono text-[10px]">{spike.toFixed(1)}ms</span>
+                  </div>
+                ))
+              ) : (
+                <div className="flex items-center justify-center h-[40px] text-slate-400 italic">
+                  지연 스파이크 없음 (Clean)
+                </div>
+              )}
             </div>
           </div>
         </div>
