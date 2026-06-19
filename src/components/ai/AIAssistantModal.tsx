@@ -43,7 +43,7 @@ function extractTextFromBlocks(blocks: any[]): string {
 }
 
 export function AIAssistantModal({ isOpen, onClose, contextData, appMode = 'VITAL' }: AIAssistantModalProps) {
-  const { messages, addMessage, clearMessages: baseClearMessages, isTyping, setIsTyping } = useAIChat();
+  const { messages, addMessage, clearMessages: baseClearMessages, isTyping, chatMutation } = useAIChat();
   const [input, setInput] = useState('');
   const [wikiContextMap, setWikiContextMap] = useState<Record<string, string>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -248,34 +248,15 @@ export function AIAssistantModal({ isOpen, onClose, contextData, appMode = 'VITA
       console.warn('Failed to build knowledge graph:', err);
     }
 
-    try {
-      const res = await fetch('/llm/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [...messages, { role: 'user', content: userQuery }],
-          contextData: {
-            ...contextData,
-            matchedWiki: matchedWikiText || undefined,
-            knowledgeGraph: knowledgeGraphText || undefined
-          },
-          appMode
-        })
-      });
-
-      if (!res.ok) throw new Error('API request failed');
-      
-      const data = await res.json();
-      addMessage({ role: 'assistant', content: data.content });
-    } catch (err) {
-      console.error('Chat error:', err);
-      addMessage({ 
-        role: 'system', 
-        content: '오류가 발생했습니다. 잠시 후 다시 시도해주세요. (서버 연결을 확인하거나 GEMINI_API_KEY 설정을 확인하세요)' 
-      });
-    } finally {
-      setIsTyping(false);
-    }
+    chatMutation.mutate({
+      messages: [...messages, { role: 'user', content: userQuery }],
+      contextData: {
+        ...contextData,
+        matchedWiki: matchedWikiText || undefined,
+        knowledgeGraph: knowledgeGraphText || undefined
+      },
+      appMode
+    });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

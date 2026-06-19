@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { useWikiSync } from '@/hooks/useWikiSync';
 import { PartialBlock } from '@blocknote/core';
 import { useCreateBlockNote, SuggestionMenuController, getDefaultReactSlashMenuItems, DefaultReactSuggestionItem } from '@blocknote/react';
 import { BlockNoteView } from '@blocknote/mantine';
@@ -58,6 +59,8 @@ const getCustomSlashMenuItems = (editor: any): DefaultReactSuggestionItem[] => [
 export function WikiEditor(props: WikiEditorProps) {
   const { nodeId, nodeTitle, initialBlocks, onChange, onClose } = props;
 
+  const wikiSyncMutation = useWikiSync();
+
   // 에디터 인스턴스 생성 (협업 대신 단일 유저 로컬/클라우드 저장소 사용)
   const editor = useCreateBlockNote({
     initialContent: initialBlocks && initialBlocks.length > 0 ? initialBlocks : undefined
@@ -104,30 +107,12 @@ export function WikiEditor(props: WikiEditorProps) {
                   setLastSavedMsg('저장 성공!');
                 }
                 
-                // Vectorize DB 비동기 동기화 (Background)
                 try {
                   const docText = await editor.blocksToMarkdownLossy(editor.document);
-                  const isLocal = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'));
-                  
-                  if (!isLocal) {
-                    const apiBase = 'https://portfolio-hchps.pages.dev';
-                    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-                    try {
-                      const { getAuthToken } = await import('@/lib/crypto');
-                      headers['Authorization'] = `Bearer ${getAuthToken()}`;
-                    } catch {
-                       // ignore
-                    }
-
-                    fetch(`${apiBase}/api/embeddings`, {
-                      method: 'POST',
-                      headers,
-                      body: JSON.stringify({
-                        id: `HCHPS-Wiki-${nodeId}`,
-                        text: `${nodeTitle}\n\n${docText}`
-                      })
-                    }).catch(e => console.error(e));
-                  }
+                  wikiSyncMutation.mutate({
+                    id: `HCHPS-Wiki-${nodeId}`,
+                    text: `${nodeTitle}\n\n${docText}`
+                  });
                 } catch (e) {
                   console.error('Failed to sync to Vectorize:', e);
                 }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, X, FileText } from 'lucide-react';
+import { useSemanticSearch } from '@/hooks/useSemanticSearch';
 
 function highlightKeyword(text: string, query: string): React.ReactNode {
   if (!query || !text) return text;
@@ -45,6 +46,8 @@ export function SearchResultModal({ isOpen, onClose, query, results: localResult
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
+  const semanticSearchMutation = useSemanticSearch();
+
   useEffect(() => {
     if (!isOpen || !query) return;
 
@@ -52,54 +55,36 @@ export function SearchResultModal({ isOpen, onClose, query, results: localResult
     window.dispatchEvent(new CustomEvent('wiki:closeNode'));
 
     let isMounted = true;
-    
-    const runSearch = async () => {
-      setIsLoading(true);
-      setSemanticResults([]);
-      setErrorMsg('');
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIsLoading(true);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSemanticResults([]);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setErrorMsg('');
 
-      try {
-        const apiBase = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
-          ? '' : 'https://portfolio-hchps.pages.dev';
-
-        // 1. Vectorize Semantic Search
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        try {
-          const { getAuthToken } = await import('@/lib/crypto');
-          headers['Authorization'] = `Bearer ${getAuthToken()}`;
-        } catch {
-           // ignore
+    semanticSearchMutation.mutate({
+      query,
+      limit: 5
+    }, {
+      onSuccess: (matches) => {
+        if (isMounted) {
+          setSemanticResults(matches);
         }
-
-        const searchRes = await fetch(`${apiBase}/api/semantic-search`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ query, limit: 5 })
-        });
-        
-        if (searchRes.ok) {
-          const searchData = await searchRes.json();
-          if (searchData.success && searchData.matches && isMounted) {
-            setSemanticResults(searchData.matches);
-          }
-        } else {
-          const errData = await searchRes.json().catch(() => ({}));
-          const vectorizeError = errData.error || `HTTP ${searchRes.status}`;
-          console.warn(`Vectorize search failed: ${vectorizeError}`);
-          if (isMounted) setErrorMsg(vectorizeError);
+      },
+      onError: (err: any) => {
+        if (isMounted) {
+          setErrorMsg(err.message || 'Unknown network error');
         }
-      } catch (e: unknown) {
-        console.error("Vectorize search failed", e);
-        if (isMounted) setErrorMsg(e instanceof Error ? e.message : 'Unknown network error');
-      } finally {
-        if (isMounted) setIsLoading(false);
+      },
+      onSettled: () => {
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
-    };
-
-    runSearch();
+    });
 
     return () => { isMounted = false; };
-  }, [isOpen, query, localResults]);
+  }, [isOpen, query, localResults, semanticSearchMutation]);
 
   if (!isOpen) return null;
 

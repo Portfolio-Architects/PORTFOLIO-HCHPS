@@ -2,6 +2,7 @@ import React from 'react';
 import { OrbitalNode, OntologyEdge, GROUP_COLORS, OntologyGroup } from '@/lib/ontology.types';
 import { NodeOverride } from '@/hooks/useGraphCustomization';
 import { Edit2, Waypoints, Trash2, Link2, Radio, X, Crosshair, Activity, Bot, Unlink, Phone } from 'lucide-react';
+import { useLocalContacts } from '@/hooks/useLocalContacts';
 import { getCanonicalWikiId } from '@/hooks/useWikiStorage';
 import { readSheet } from '@/lib/sheets-api';
 import { extractRawTextFromBlocks, parseContacts } from '@/lib/contacts-parser';
@@ -47,6 +48,8 @@ export function MindMapInspector(props: MindMapInspectorProps) {
     wikiBlocks
   } = props;
 
+  const { recordContactMutation, batchRecordContactsMutation } = useLocalContacts();
+
   const [connectedEdges, setConnectedEdges] = React.useState<Array<{ edge: OntologyEdge; otherNode: OrbitalNode }>>([]);
   const [parentLabel, setParentLabel] = React.useState<string | null>(null);
   const [engineNodes, setEngineNodes] = React.useState<OrbitalNode[]>([]);
@@ -64,35 +67,25 @@ export function MindMapInspector(props: MindMapInspectorProps) {
     setIsRecording(true);
     setRecordSuccess(false);
 
-    try {
-      const response = await fetch('/api/local-contacts', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          nodeId: activeNode.id,
-          nodeLabel: activeNode.label,
-          phones,
-          emails,
-        }),
-      });
-
-      const resData = await response.json();
-      if (resData.success) {
+    recordContactMutation.mutate({
+      nodeId: activeNode.id,
+      nodeLabel: activeNode.label || activeNode.id,
+      phones,
+      emails
+    }, {
+      onSuccess: () => {
         setRecordSuccess(true);
         setTimeout(() => {
           setRecordSuccess(false);
         }, 3000);
-      } else {
-        alert(`기록 실패: ${resData.error || '알 수 없는 오류'}`);
+      },
+      onError: (err: any) => {
+        alert(`기록 실패: ${err.message || '알 수 없는 오류'}`);
+      },
+      onSettled: () => {
+        setIsRecording(false);
       }
-    } catch (err: any) {
-      console.error(err);
-      alert(`기록 중 에러 발생: ${err.message || err}`);
-    } finally {
-      setIsRecording(false);
-    }
+    });
   };
 
   const [isBatchExtracting, setIsBatchExtracting] = React.useState(false);
@@ -136,29 +129,26 @@ export function MindMapInspector(props: MindMapInspectorProps) {
       }
 
       // Send all extracted contacts to the backend route
-      const response = await fetch('/api/local-contacts', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      batchRecordContactsMutation.mutate({
+        contacts: extractedContacts
+      }, {
+        onSuccess: () => {
+          setBatchSuccessCount(extractedContacts.length);
+          setTimeout(() => {
+            setBatchSuccessCount(null);
+          }, 4000);
         },
-        body: JSON.stringify({
-          contacts: extractedContacts,
-        }),
+        onError: (err: any) => {
+          alert(`기록 실패: ${err.message || '알 수 없는 오류'}`);
+        },
+        onSettled: () => {
+          setIsBatchExtracting(false);
+          setBatchProgress(null);
+        }
       });
-
-      const resData = await response.json();
-      if (resData.success) {
-        setBatchSuccessCount(extractedContacts.length);
-        setTimeout(() => {
-          setBatchSuccessCount(null);
-        }, 4000);
-      } else {
-        alert(`기록 실패: ${resData.error || '알 수 없는 오류'}`);
-      }
     } catch (err: any) {
       console.error(err);
       alert(`기록 중 에러 발생: ${err.message || err}`);
-    } finally {
       setIsBatchExtracting(false);
       setBatchProgress(null);
     }

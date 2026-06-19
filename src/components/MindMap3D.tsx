@@ -16,8 +16,8 @@ import { MindMapInspector } from './MindMapInspector';
 import { MindMapHeader } from './mindmap/ui/MindMapHeader';
 import { MindMapHUD } from './mindmap/ui/MindMapHUD';
 import { useWikiStorage } from '@/hooks/useWikiStorage';
+import { useClassificationWords } from '@/hooks/useClassificationWords';
 
-import { decryptPayload, isCryptoReady } from '@/lib/crypto';
 import {
   Loader2, AlertTriangle, X, Trash2, PlusSquare, Search, Radio
 } from 'lucide-react';
@@ -170,37 +170,17 @@ export function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onD
     return () => clearInterval(timer);
   }, [isActive]);
 
+  const { data: classificationWords } = useClassificationWords(isActive);
+
   useEffect(() => {
-    const fetchClassificationWords = async () => {
-      try {
-        const res = await fetch('/api/data?sheet=CLASSIFICATION_WORDS');
-        const json = await res.json();
-        if (json.success && json.data && json.data[0]) {
-          const entry = json.data[0];
-          if (entry._enc) {
-            const decrypted = await decryptPayload<{ agents: string[], resources: string[], executions: string[] }>(entry._enc);
-            OntologyLayout.dynamicRules = decrypted;
-            if (engineRef.current) {
-              engineRef.current.layoutWorldGeometryDirty = true;
-              engineRef.current.needsRedraw = true;
-            }
-          }
-        }
-      } catch (err) {
-        console.error('[MindMap3D] CLASSIFICATION_WORDS 로드 실패:', err);
+    if (classificationWords) {
+      OntologyLayout.dynamicRules = classificationWords;
+      if (engineRef.current) {
+        engineRef.current.layoutWorldGeometryDirty = true;
+        engineRef.current.needsRedraw = true;
       }
-    };
-
-    window.addEventListener('crypto-ready', fetchClassificationWords);
-
-    if (isCryptoReady()) {
-      fetchClassificationWords();
     }
-
-    return () => {
-      window.removeEventListener('crypto-ready', fetchClassificationWords);
-    };
-  }, []);
+  }, [classificationWords]);
 
   // ── Keyboard Shortcuts (Undo/Redo/Delete) ──
   useEffect(() => {

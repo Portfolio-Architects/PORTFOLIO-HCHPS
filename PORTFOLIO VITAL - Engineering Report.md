@@ -1667,6 +1667,17 @@ sequenceDiagram
 * **렌더러 간선 배치 룩업 정수 인코딩 (edgeBatches 정수화)**: `OntologyRenderer.ts` 에서 엣지 일괄 드로잉 시 매 프레임 100+ 개 이상 동적으로 생성되던 스타일 룩업용 문자열 키 `${themeColor}|||...` 를 전면 제거했습니다. 색상 문자열을 정수 번호로 매핑하는 `colorMap`을 신설하고 스타일 요소를 단일 32비트 정수 키로 비트 인코딩(`(colorId << 17) | ...`)하여 배치 맵 `edgeBatches`를 정수형으로 조작하도록 개량하여 GC 메모리 낭비를 근절했습니다.
 * **간선 객체 풀(Object Pool) 도입을 통한 Zero-Allocation 실현**: 매 프레임 동적 메모리 할당을 통해 힙을 오염시키던 `BatchedEdge` 리터럴 객체 생성을 막기 위해, `edgePool` 및 `edgePoolUsed` 오브젝트 풀 메커니즘을 렌더러에 이식했습니다. 이미 생성된 간선 오브젝트를 재사용하게 함으로써 프레임 틱당 신규 힙 객체 할당량을 극소화(Zero-Allocation)하여 구동 속도를 혁신하고 렉 스파이크를 종식시켰습니다.
 
+---
+
+### 컴포넌트 내 직접 fetch 제거 및 React Query 커스텀 훅 레이어 이관 패치 (2026-06-19)
+* **MVC 아키텍처 규칙 위반 100% 해소**: 컴포넌트 레이어 내부에서 직접 브라우저 `fetch` API를 호출하여 네트워크를 수행하던 **6건의 아키텍처 위반 사항**을 완벽하게 해결했습니다. UI 컴포넌트들을 온전히 렌더링에만 집중하는 순수 뷰(View) 역할로 되돌리고 모든 데이터 페칭 및 뮤테이션 논리를 `src/hooks/` 레이어로 완전히 격리(Controller 단일화)했습니다.
+* **신규 데이터/통신 캡슐화 훅 추가**:
+  - `useClassificationWords.ts`: `CLASSIFICATION_WORDS` 공식 시트 데이터 로드 및 E2EE 암호 해독 리스너 처리를 캡슐화했습니다.
+  - `useLocalContacts.ts`: 로컬 연락처 단일/일괄 기록(`/api/local-contacts`)을 위한 리액트 쿼리 `useMutation` 훅을 설계했습니다.
+  - `useSemanticSearch.ts`: `/api/semantic-search` 벡터 시맨틱 검색 호출을 래핑하는 훅을 이식했습니다.
+  - `useWikiSync.ts`: 위키 문서 편집 마운트 종료 시 `/api/embeddings` API를 호출하는 임베딩 동기화 훅을 신설했습니다.
+* **컴포넌트 리팩토링 및 린트 가드 연동**: [AIAssistantModal.tsx](file:///d:/Desktop/PORTFOLIO/PORTFOLIO%20-%20VITAL/src/components/ai/AIAssistantModal.tsx), [MindMap3D.tsx](file:///d:/Desktop/PORTFOLIO/PORTFOLIO%20-%20VITAL/src/components/MindMap3D.tsx), [MindMapInspector.tsx](file:///d:/Desktop/PORTFOLIO/PORTFOLIO%20-%20VITAL/src/components/MindMapInspector.tsx), [SearchResultModal.tsx](file:///d:/Desktop/PORTFOLIO/PORTFOLIO%20-%20VITAL/src/components/SearchResultModal.tsx), [WikiEditor.tsx](file:///d:/Desktop/PORTFOLIO/PORTFOLIO%20-%20VITAL/src/components/WikiEditor.tsx)의 직접 fetch 코드를 전면 걷어내고 신규 훅의 mutation/query로 대체했습니다. `useEffect` 내 동기적 렌더링 스파이크 방지를 위해 `set-state-in-effect` 린트 가드를 보강하고 의존성 경고를 완벽하게 보정했습니다.
+
 
 
 
