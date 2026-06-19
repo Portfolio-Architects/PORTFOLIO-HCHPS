@@ -40,6 +40,7 @@ export function ExpenseEntryModal({
   const [actionType, setActionType] = useState<BudgetActionType>('general');
   const [entryLinkedSubItemId, setEntryLinkedSubItemId] = useState('');
   const [fundingSource, setFundingSource] = useState<string>('');
+  const [transferDirection, setTransferDirection] = useState<'in' | 'out'>('in');
   const [entryError, setEntryError] = useState<string | null>(null);
 
   const isEdit = initialData && 'id' in initialData && !!initialData.id;
@@ -60,6 +61,7 @@ export function ExpenseEntryModal({
       setEntryLinkedSubItemId(initialData.linkedSubItemId || '');
       setActionType(initialData.actionType || 'general');
       setFundingSource(initialData.fundingSource || '');
+      setTransferDirection(initialData.transferDirection || 'in');
       if (initialData.date) setEntryDate(initialData.date);
     } else {
       setSelectedCatId(preselectedCategoryId || '');
@@ -70,6 +72,7 @@ export function ExpenseEntryModal({
       setEntryLinkedSubItemId('');
       setActionType('general');
       setFundingSource('');
+      setTransferDirection('in');
       setEntryDate(new Date().toISOString().split('T')[0]);
     }
   }, [isOpen, initialData, preselectedCategoryId]);
@@ -110,6 +113,10 @@ export function ExpenseEntryModal({
       setEntryError('올바른 금액 형식이 아닙니다.');
       return;
     }
+    if (amt <= 0) {
+      setEntryError('[입력 금액 오류] 지출 금액은 0원보다 커야 합니다.');
+      return;
+    }
 
     // -- VALIDATION START --
     if (entryLinkedSubItemId && actionType !== 'settle') {
@@ -123,11 +130,16 @@ export function ExpenseEntryModal({
         
         const currentUsage = linkedEntries.reduce((sum, en) => {
           if (en.actionType === 'correction') return sum + en.amount;
-          if (en.actionType === 'transfer') return sum - en.amount;
+          if (en.actionType === 'transfer') {
+            if (en.transferDirection === 'out') return sum + en.amount;
+            return sum - en.amount;
+          }
           return sum + en.amount;
         }, 0);
 
-        const newUsage = actionType === 'transfer' ? currentUsage - amt : currentUsage + amt;
+        const isTransferOut = actionType === 'transfer' && transferDirection === 'out';
+        const isTransferIn = actionType === 'transfer' && transferDirection === 'in';
+        const newUsage = isTransferIn ? currentUsage - amt : currentUsage + amt;
         const subLimit = targetSubItem.amount;
 
         if (subLimit > 0 && newUsage > subLimit) {
@@ -166,20 +178,23 @@ export function ExpenseEntryModal({
     if (actionType !== 'settle' && actionType !== 'daily_expense') {
       const stats = getCategoryStats(selectedCatId);
       const spent = stats ? stats.spent : 0;
+      
       let adjustment = amt;
+      if (actionType === 'transfer' && transferDirection === 'in') {
+        adjustment = -amt;
+      }
+      
       if (editEntryId) {
         const oldEntry = entries.find(e => e.id === editEntryId);
         if (oldEntry) {
-          const oldWasInSpent = oldEntry.actionType === 'issuance' || oldEntry.actionType === 'general' || oldEntry.actionType === 'correction' || oldEntry.actionType === 'transfer' || !oldEntry.actionType;
-          if (oldWasInSpent) {
-            const oldSign = oldEntry.actionType === 'transfer' ? -1 : 1;
-            adjustment = amt - (oldEntry.amount * oldSign);
+          let oldAmountEffect = oldEntry.amount;
+          if (oldEntry.actionType === 'transfer' && oldEntry.transferDirection !== 'out') {
+            oldAmountEffect = -oldEntry.amount;
+          } else if (oldEntry.actionType === 'settle' || oldEntry.actionType === 'daily_expense') {
+            oldAmountEffect = 0;
           }
+          adjustment = adjustment - oldAmountEffect;
         }
-      }
-      
-      if (actionType === 'transfer') {
-        adjustment = -adjustment;
       }
       
       const newTotalSpent = spent + adjustment;
@@ -200,7 +215,8 @@ export function ExpenseEntryModal({
       docRegNum: entryDocNum,
       linkedSubItemId: entryLinkedSubItemId || undefined,
       actionType,
-      fundingSource: fundingSource || undefined
+      fundingSource: fundingSource || undefined,
+      transferDirection: actionType === 'transfer' ? transferDirection : undefined
     });
     onClose();
   };
@@ -234,6 +250,22 @@ export function ExpenseEntryModal({
             ))}
           </div>
         </div>
+
+        {actionType === 'transfer' && (
+          <div className="bg-purple-50/50 p-4 rounded-xl border border-purple-100 mb-4 animate-in fade-in duration-200">
+            <label className="block text-xs font-bold text-purple-700 mb-2.5 uppercase tracking-wider">이용/전용 방향 (선택)</label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer">
+                <input type="radio" name="transferDirection" value="in" checked={transferDirection === 'in'} onChange={() => setTransferDirection('in')} className="text-purple-600 focus:ring-purple-500" />
+                <span>전입 (예산 증액)</span>
+              </label>
+              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer">
+                <input type="radio" name="transferDirection" value="out" checked={transferDirection === 'out'} onChange={() => setTransferDirection('out')} className="text-purple-600 focus:ring-purple-500" />
+                <span>전출 (예산 감액)</span>
+              </label>
+            </div>
+          </div>
+        )}
 
         <div>
           <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">대상 예산 과목</label>

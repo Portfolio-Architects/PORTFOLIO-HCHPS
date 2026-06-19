@@ -95,6 +95,7 @@ export interface BudgetEntry {
   linkedSubItemId?: string; // 세부 산출내역(통제 항목) 연결 ID
   checked?: boolean;
   fundingSource?: string;
+  transferDirection?: 'in' | 'out';
 }
 
 // ============ Inventory Module ============

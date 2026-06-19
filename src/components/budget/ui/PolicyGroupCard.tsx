@@ -358,12 +358,23 @@ export const PolicyGroupCard = React.memo(({
                                              <span className="text-[18px] text-gray-800 font-semibold tracking-tight">{sub.name}</span>
                                           </div>
                                           <div className="flex flex-col items-end gap-0.5 shrink-0 ml-3">
-                                            {sub.amount > 0 && <span className="font-semibold text-blue-700 tracking-tight text-[17px] font-mono tabular-nums">{formatN(sub.amount)}원</span>}
+                                            {sub.amount > 0 && <span className="font-semibold text-slate-800 tracking-tight text-[17px] font-mono tabular-nums">{formatN(sub.amount)}원</span>}
                                             {sub.amount > 0 && subSpent > 0 && (
-                                              <div className="flex gap-1.5 text-[14px] tabular-nums tracking-tight">
-                                                 <span className="text-teal-600 font-bold font-mono">지출: {formatN(subSpent)}</span>
-                                                 <span className="text-gray-300">|</span>
-                                                 {subRemaining < 0 ? <span className="font-bold text-rose-500 font-mono">초과지출: {formatN(Math.abs(subRemaining))}</span> : <span className="font-bold text-blue-600 font-mono">잔액: {formatN(subRemaining)}</span>}
+                                              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                                 <span className="text-[11.5px] font-semibold text-slate-500 bg-slate-100 border border-slate-200/50 px-2 py-0.5 rounded-md font-mono">지출: {formatN(subSpent)}원</span>
+                                                 {subRemaining < 0 ? (
+                                                   <span className="text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200/60 px-2 py-0.5 rounded-full shadow-3xs flex items-center gap-1 animate-pulse">
+                                                     ⚠️ 초과 {formatN(Math.abs(subRemaining))}원
+                                                   </span>
+                                                 ) : subRemaining === 0 ? (
+                                                   <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-2 py-0.5 rounded-full shadow-3xs flex items-center gap-1">
+                                                     ✅ 집행 완료
+                                                   </span>
+                                                 ) : (
+                                                   <span className="text-[11px] font-bold text-blue-700 bg-blue-50 border border-blue-200/60 px-2 py-0.5 rounded-full shadow-3xs flex items-center gap-1">
+                                                     잔액 {formatN(subRemaining)}원
+                                                   </span>
+                                                 )}
                                               </div>
                                             )}
                                           </div>
@@ -392,10 +403,21 @@ export const PolicyGroupCard = React.memo(({
                                                   <div className="flex flex-col items-end shrink-0 ml-3">
                                                     <span className="text-[15px] font-semibold text-slate-900 font-mono tabular-nums tracking-tight">{formatN(calc.amount)}원</span>
                                                     {calc.amount > 0 && calcSpent > 0 && (
-                                                       <div className="flex gap-1.5 text-[12px] font-semibold font-mono tabular-nums tracking-tight mt-0.5">
-                                                          <span className="text-teal-600">지출: {formatN(calcSpent)}</span>
-                                                          <span className="text-gray-300">|</span>
-                                                          {calcRemaining < 0 ? <span className="text-rose-500">초과: {formatN(Math.abs(calcRemaining))}</span> : <span className="text-blue-600">잔액: {formatN(calcRemaining)}</span>}
+                                                       <div className="flex items-center gap-1.5 mt-1 justify-end flex-wrap">
+                                                          <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 border border-slate-200/50 px-1.5 py-0.5 rounded-md font-mono">지출: {formatN(calcSpent)}원</span>
+                                                          {calcRemaining < 0 ? (
+                                                            <span className="text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200/60 px-2 py-0.5 rounded-full shadow-3xs flex items-center gap-1 animate-pulse">
+                                                              ⚠️ 초과 {formatN(Math.abs(calcRemaining))}원
+                                                            </span>
+                                                          ) : calcRemaining === 0 ? (
+                                                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-2 py-0.5 rounded-full shadow-3xs flex items-center gap-1">
+                                                              ✅ 집행 완료
+                                                            </span>
+                                                          ) : (
+                                                            <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200/60 px-2 py-0.5 rounded-full shadow-3xs flex items-center gap-1">
+                                                              잔액 {formatN(calcRemaining)}원
+                                                            </span>
+                                                          )}
                                                        </div>
                                                     )}
                                                   </div>

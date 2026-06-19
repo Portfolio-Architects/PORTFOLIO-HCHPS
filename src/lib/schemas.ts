@@ -98,6 +98,7 @@ export const BudgetEntrySchema = z.object({
   docRegNum: z.string().optional().catch(''),
   checked: z.boolean().optional().catch(false),
   fundingSource: z.string().optional().catch(undefined),
+  transferDirection: z.enum(['in', 'out']).optional().catch(undefined),
 });
 
 export type BudgetEntryDto = z.infer<typeof BudgetEntrySchema>;

@@ -202,7 +202,10 @@ export function useBudget() {
     const filteredCatEntries = excludePlanned ? catEntries.filter(e => !e.isPlanned) : catEntries;
 
     const generalSpent = filteredCatEntries.filter(e => !e.isPlanned && (!e.actionType || e.actionType === 'general' || e.actionType === 'correction' || e.actionType === 'transfer')).reduce((sum, e) => {
-      if (e.actionType === 'transfer') return sum - e.amount;
+      if (e.actionType === 'transfer') {
+        if (e.transferDirection === 'out') return sum + e.amount;
+        return sum - e.amount;
+      }
       return sum + e.amount;
     }, 0);
     const dailyExpenseIssued = filteredCatEntries.filter(e => !e.isPlanned && e.actionType === 'issuance').reduce((sum, e) => sum + e.amount, 0);
@@ -246,8 +249,9 @@ export function useBudget() {
     };
   }, [uniqueCategories, entries]);
 
-  const checkLimit = useCallback((categoryId: string, amount: number, actionType?: string, entryId?: string) => {
-    if (actionType === 'transfer' || actionType === 'correction') return true;
+  const checkLimit = useCallback((categoryId: string, amount: number, actionType?: string, entryId?: string, transferDirection?: string) => {
+    if (actionType === 'correction') return true;
+    if (actionType === 'transfer' && transferDirection !== 'out') return true;
     
     const stats = getCategoryStats(categoryId);
     if (!stats) return true;
@@ -277,7 +281,7 @@ export function useBudget() {
   }, [entries, getCategoryStats]);
 
   const addEntry = useCallback((entry: Omit<BudgetEntry, 'id'>) => {
-    if (!checkLimit(entry.categoryId, entry.amount, entry.actionType)) {
+    if (!checkLimit(entry.categoryId, entry.amount, entry.actionType, undefined, entry.transferDirection)) {
       return null;
     }
     const newEntry: BudgetEntry = { ...entry, id: generateId() };
@@ -291,8 +295,9 @@ export function useBudget() {
       const targetCatId = updates.categoryId || existing.categoryId;
       const targetAmount = updates.amount !== undefined ? updates.amount : existing.amount;
       const targetActionType = updates.actionType || existing.actionType;
+      const targetTransferDir = updates.transferDirection !== undefined ? updates.transferDirection : existing.transferDirection;
       
-      if (!checkLimit(targetCatId, targetAmount, targetActionType, id)) {
+      if (!checkLimit(targetCatId, targetAmount, targetActionType, id, targetTransferDir)) {
         return;
       }
     }
