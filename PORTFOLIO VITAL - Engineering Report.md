@@ -1628,3 +1628,9 @@ sequenceDiagram
 * **품목 필터링 및 검색 로직 내 null/undefined 방어벽 구축**: `InventoryList.tsx`의 `filteredItems` 및 `uniqueCategories` 컴포넌트 `useMemo` 훅에서 일부 품목 데이터의 필드(`name`, `category`)가 누락되어 복호화 혹은 데이터 로딩 중 빈 값이나 `undefined`로 전달될 때 브라우저가 `Cannot read properties of undefined (reading 'toLowerCase')`와 함께 런타임 크래시를 일으키는 현상을 해결했습니다. `item` 및 하위 속성에 대한 존재 여부 사전 체크 및 빈 문자열 폴백(`(item.name || '').toLowerCase()`) 처리를 적용하여 완전한 무장애 렌더링을 보장하도록 튜닝했습니다.
 * **컴포넌트 렌더링 및 모달 상태 바인딩 방어 가드 강화**: 품목 카드 렌더링 내에서 `item.currentStock` 및 `item.unit` 등에 `|| 0`, `|| '개'` 디폴트 폴백을 바인딩하고, 모달 열기 핸들러(`openEdit`)에서도 Optional Chaining 및 빈 값 방어벽을 통하여 데이터 구조가 비정형적인 상태로 캐시되거나 복호화 실패 시에도 UI 크래시를 원천 차단했습니다.
 
+---
+
+### 로컬 개발 서버 자동 구동 뱃치 및 무인 백그라운드 기동 VBS 스크립트 구축 패치 (2026-06-19)
+* **백그라운드 무인 기동 VBS 스크립트(start-vital-silent.vbs) 신설**: 윈도우 환경에서 로컬 PC 부팅 시 또는 사용자가 서버를 기동할 때 터미널 검은색 콘솔 창(cmd)을 띄우지 않고 완전히 백그라운드 뒤에서 개발 서버가 가동되도록 조용히 호출해주는 VBS 스크립트를 새로 추가했습니다.
+* **사용자 승인 대기 없는 무인 자동 시작 가이드 수립**: `shell:startup`을 통해 윈도우 시작프로그램 폴더에 바로가기를 등록하여 사용자의 수동 명령어 입력이나 승인 행위 없이 로컬 개발 서버(`http://localhost:3001`)가 PC 가동 시 즉시 백그라운드에서 오토 스타트되도록 최적화했습니다.
+
