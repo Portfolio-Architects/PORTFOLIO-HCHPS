@@ -48,13 +48,23 @@
 - `src/lib/agents/evaluator.ts`: Zod 스키마 및 TypeScript 검증 피드백 루프.
 
 ## 4. 재귀적 자기 개선 (Recursive Self-Improvement) - 오토 & 진화형(Auto & Evolving)
+6. **무인 자율 배포 및 자동 승인(Non-Interactive Auto-Deployment)**: 백그라운드 크론/스케줄러(`task-442` 등)에 의해 자율 개선 틱이 수행될 때는, 사용자의 수동 개입(Proceed 대기)을 유발하는 `RequestFeedback: true` 설정을 **철저히 배제(false로 고정)**합니다. 리팩토링된 코드가 `run-harness.js` (eslint, zod, tsc) 검증을 통과하면, 어떠한 수동 승인 절차 없이 즉시 배포(Auto-Merge) 처리하여 무중단 무인 자율 구동을 실현합니다.
+
+
+## 3. 다중 에이전트 파이프라인 맵
+- `src/lib/agents/planner.ts`: 작업 분해 및 컨텍스트 검색.
+- `src/lib/agents/generator.ts`: 실행 및 코드 합성.
+- `src/lib/agents/evaluator.ts`: Zod 스키마 및 TypeScript 검증 피드백 루프.
+
+## 4. 재귀적 자기 개선 (Recursive Self-Improvement) - 오토 & 진화형(Auto & Evolving)
 시스템과 AI 에이전트는 지속적인 자기 진단, 자동 스케줄러(Auto-Loop), 그리고 패치 분석 기반 자율 학습(Self-Evolution)을 결합하여 영속적으로 성능을 향상시킵니다:
 - **자가 치유 (Self-Healing - Auto)**: 평가자(Evaluator)가 Zod 스키마 또는 TypeScript 검증 오류(`[HARNESS ZOD ERROR]`)를 검출하면 사람의 개입 없이 에러 스택을 역추적해 데이터 로직을 자율 수정하며, 3회 이상 치유 실패 시 동적으로 대체 코드 경로(Fallback path) 및 `.catch()` 기본값을 생성하여 다운타임을 0으로 유지합니다.
 - **코드 및 아키텍처 자동 리팩토링 (Auto-Refactoring)**: 런타임 지연 프로파일러 데이터와 에러 로그를 분석해 프레임 드랍(60 FPS 미만)이 빈발하거나, 번들 크기가 비대해진 모듈을 탐지하는 즉시 쉘 리팩토링 및 중복 렌더링 최적화 코드를 자동으로 작성·반영합니다.
 - **무인 자율 승인 (Auto-Approval)**: 자율 개선에 의해 변형된 코드는 harness 테스트 통과 시 사용자의 승인 대기 없이 즉시 프로덕션 코드로 병합되며, 기안 승인 단계를 완전 우회하여 0-Interactive 무인 자동화 배포 파이프라인으로 작동합니다.
 - **프롬프트 진화 루프 (Prompt Evolution - Evolving)**: 매 패치 및 트랜잭션 성공/실패 사례의 전후 맥락을 분석하고, RAG 지식베이스에 축적된 Reranking 및 Context Retrieval 성공률 데이터를 기반으로 프롬프트 구문을 동적으로 보강하고 최적의 지시 템플릿을 스스로 진화시킵니다.
 - **에이전트 매니페스트 (AGENTS.md) 자체 개선 루프 (Manifest Evolution)**: 프로젝트의 발전 단계, 새로운 기술 부채 해결 결과 및 사용자 피드백을 정량 수치로 분석하여, `AGENTS.md`에 명시된 시스템 규칙과 행동 지침을 스스로 검토하고 더 효율적인 규칙 구조로 자율 갱신 및 컴팩션(Compaction)합니다.
-- **자가 진단 및 개선 오토 루프 (Auto-Loop Self-Improvement)**: 대화 기록 비대화로 인한 컨텍스트 오염 및 토큰 폭주를 막기 위해, 백그라운드 타이머(10분/600초 주기) 및 `schedule` 크론 작업을 연동하여 백그라운드에서 자가 진단 루틴을 수행하며, 완료 후 메타 컨텍스트와 대화 세션을 압축하여 무한 루프 형태의 안정적인 자가 개선을 영속합니다.
+- **자가 진단 및 개선 오토 루프 (Auto-Loop Self-Improvement)**: 백그라운드 타이머 및 `schedule` 크론 작업(`task-122` 등)을 통해 3분마다 `run-harness.js`가 구동되어 `data/diagnose_report.json`이 자동 최신화됩니다. 에이전트는 틱 메시지를 수신하는 즉시 최신 진단 보고서를 로드하여 아키텍처 규칙 위반(UI 컴포넌트 내 직접 API 호출 등) 및 성능 병목(dynamic import 누락, 불필요한 useEffect 등) 요소를 자동으로 파악합니다. 파악된 핵심 결함에 대해 즉시 자율적으로 코드 최적화 패치를 실행하며, 하네스 검증 통과 후 사용자의 승인 개입을 완전히 생략하고 `[auto] self-improvement: optimize ...` 메시지와 함께 Git에 무인 배포(Auto-Commit & Auto-Merge)합니다.
+
 
 ## 5. 최신 동기화된 마일스톤 (Synced Milestones Log)
 - **최신 동기화 일자:** 2026-06-19

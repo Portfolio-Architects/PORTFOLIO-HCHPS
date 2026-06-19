@@ -137,7 +137,6 @@ export function ExpenseEntryModal({
           return sum + en.amount;
         }, 0);
 
-        const isTransferOut = actionType === 'transfer' && transferDirection === 'out';
         const isTransferIn = actionType === 'transfer' && transferDirection === 'in';
         const newUsage = isTransferIn ? currentUsage - amt : currentUsage + amt;
         const subLimit = targetSubItem.amount;
