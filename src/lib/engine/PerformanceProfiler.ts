@@ -10,6 +10,7 @@ export class PerformanceProfiler {
   private maxDuration = 0;
   private warningCount = 0;
   private totalRenders = 0;
+  private lagSpikes: string[] = [];
   
   // FPS tracking
   private frameCount = 0;
@@ -95,5 +96,54 @@ export class PerformanceProfiler {
   public resetStats(): void {
     this.maxDuration = 0;
     this.warningCount = 0;
+  }
+
+  // Detailed breakdown of the last frame (in ms)
+  private lastPhysics = 0;
+  private lastLayout = 0;
+  private lastBackground = 0;
+  private lastEdges = 0;
+  private lastNodes = 0;
+
+  public recordPhysics(ms: number) { this.lastPhysics = ms; }
+  public recordLayout(ms: number) { this.lastLayout = ms; }
+  public recordBackground(ms: number) { this.lastBackground = ms; }
+  public recordEdges(ms: number) { this.lastEdges = ms; }
+  public recordNodes(ms: number) { this.lastNodes = ms; }
+
+  public getSpikeDiagnostic(totalDelta: number): string {
+    const physics = this.lastPhysics;
+    const layout = this.lastLayout;
+    const bg = this.lastBackground;
+    const edges = this.lastEdges;
+    const nodes = this.lastNodes;
+    
+    const measuredScript = physics + layout + bg + edges + nodes;
+    const browserGc = Math.max(0, totalDelta - measuredScript);
+
+    // Identify dominant factor
+    const factors = [
+      { name: '물리 연산 (Physics)', val: physics },
+      { name: '좌표 투영 (Layout)', val: layout },
+      { name: '배경 렌더 (Background)', val: bg },
+      { name: '관계선 렌더 (Edges)', val: edges },
+      { name: '노드/텍스트 렌더 (Nodes)', val: nodes },
+      { name: '브라우저/GC 지연 (Browser/GC)', val: browserGc }
+    ];
+    factors.sort((a, b) => b.val - a.val);
+    const primaryFactor = factors[0];
+
+    return `${totalDelta.toFixed(1)}ms [${primaryFactor.name} 주원인: ${primaryFactor.val.toFixed(1)}ms]`;
+  }
+
+  public recordLagSpike(spike: string): void {
+    this.lagSpikes.unshift(spike);
+    if (this.lagSpikes.length > 5) {
+      this.lagSpikes.pop();
+    }
+  }
+
+  public getLagSpikes(): string[] {
+    return this.lagSpikes;
   }
 }

@@ -68,7 +68,7 @@ export function useGoogleSheet<T extends { id: string }>(
             } catch { /* ignore parse errors */ }
           }
         }
-      } catch (err) {
+      } catch {
         // Silently fall back to localStorage data
       } finally {
         setLoading(false);

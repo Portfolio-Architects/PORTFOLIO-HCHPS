@@ -8,6 +8,7 @@ import {
 } from './ontology.types';
 import { OntologyNetwork } from './engine/OntologyNetwork';
 import { OntologyRenderer } from './engine/OntologyRenderer';
+import { PerformanceProfiler } from './engine/PerformanceProfiler';
 
 import {
   OntologyLayout,
@@ -48,6 +49,7 @@ export class OntologyCanvasEngine {
   public cameraOffsetX = 0;
   private activeTreeSetCache: Set<string> = new Set();
   private lastActiveNodeIdForTree: string | null = null;
+  public topologyDirty = true;
   cameraOffsetY = 0;
   targetOffsetX = 0;
   targetOffsetY = 0;
@@ -61,6 +63,7 @@ export class OntologyCanvasEngine {
   // Physics / Interaction
   isOrbiting = false;
   private isFirstFrame = true;
+  private frameCount = 0;
   private isDragging = false;
   private hasDragged = false;
   private dragStartX = 0;
@@ -83,6 +86,11 @@ export class OntologyCanvasEngine {
   private orbitRadii: number[] = [];
   private nodeMap = new Map<string, OrbitalNode>();
   private connectionSet = new Set<string>();  // 'id1|||id2' for O(1) lookup
+  private spatialGrid = new Map<number, OrbitalNode[]>();
+  private visitedPairs = new Set<string>();
+  private cellArrayPool: OrbitalNode[][] = [];
+  private cellArrayPoolUsed = 0;
+  private physicsEdges: { sourceNode: OrbitalNode; targetNode: OrbitalNode; weight: number }[] = [];
 
   // Reusable sort buffers (avoid per-frame allocation)
   private sortedNodes: OrbitalNode[] = [];
@@ -116,6 +124,7 @@ export class OntologyCanvasEngine {
       this.nodeCount = graph.nodes.length;
       this.edgeCount = graph.edges.length;
       this.layoutWorldGeometryDirty = true;
+      this.topologyDirty = true;
   
       // 메모리에 잔존하는 NaN 카메라 좌표를 초기화하여 복구 (Hot Reload 시 캔버스 백화현상 방지)
       if (isNaN(this.cameraOffsetX) || isNaN(this.cameraOffsetY) || 
@@ -354,6 +363,21 @@ export class OntologyCanvasEngine {
       return sizeB - sizeA;
     });
 
+    // 18차 최적화: 매 프레임 Map 해시 룩업을 생략하기 위해 물리 연산용 노드 포인터 미리 바인딩
+    this.physicsEdges.length = 0;
+    for (const edge of this.edges) {
+      if (edge.source === 'root-HCHPS' || edge.target === 'root-HCHPS') continue;
+      const nodeA = this.nodeMap.get(edge.source);
+      const nodeB = this.nodeMap.get(edge.target);
+      if (nodeA && nodeB) {
+        this.physicsEdges.push({
+          sourceNode: nodeA,
+          targetNode: nodeB,
+          weight: Math.abs(edge.weight)
+        });
+      }
+    }
+
     // 4차 최적화: 엔진 재초기화 시 물리 시뮬레이션을 다시 깨움 (Sleep -> Wake Up)
     this.physicsAlpha = 1.0;
   }
@@ -434,8 +458,6 @@ export class OntologyCanvasEngine {
     }
 
     const nodes = this.nodes;
-    const nodeMap = this.nodeMap;
-    const edges = this.edges;
     
     // 1. Initialize velocities & Lock centers to (0,0)
     for (const node of nodes) {
@@ -455,7 +477,10 @@ export class OntologyCanvasEngine {
     // 2. Spatial Hash Grid Repulsion & Overlap Prevention (O(N) 공간 분할 척력 연산)
     const chargeStrength = 15000;
     const cellSize = 160;
-    const grid = new Map<string, OrbitalNode[]>();
+    
+    this.spatialGrid.clear();
+    this.visitedPairs.clear();
+    this.cellArrayPoolUsed = 0;
     
     // 그리드에 노드 파티셔닝
     for (const node of nodes) {
@@ -463,18 +488,23 @@ export class OntologyCanvasEngine {
       if (node.worldX === undefined || node.worldY === undefined || isNaN(node.worldX) || isNaN(node.worldY)) continue;
       const gx = Math.floor(node.worldX / cellSize);
       const gy = Math.floor(node.worldY / cellSize);
-      const cellKey = `${gx},${gy}`;
+      const cellKey = ((gx + 32768) << 16) | (gy + 32768);
       
-      let cell = grid.get(cellKey);
+      let cell = this.spatialGrid.get(cellKey);
       if (!cell) {
-        cell = [];
-        grid.set(cellKey, cell);
+        if (this.cellArrayPoolUsed < this.cellArrayPool.length) {
+          cell = this.cellArrayPool[this.cellArrayPoolUsed++];
+          cell.length = 0;
+        } else {
+          cell = [];
+          this.cellArrayPool.push(cell);
+          this.cellArrayPoolUsed++;
+        }
+        this.spatialGrid.set(cellKey, cell);
       }
       cell.push(node);
     }
     
-    const visitedPairs = new Set<string>();
-
     for (const nodeA of nodes) {
       if (nodeA.layoutHidden || nodeA.id === this.centerNode?.id || nodeA.id === 'root-HCHPS') continue;
       if (nodeA.worldX === undefined || nodeA.worldY === undefined || isNaN(nodeA.worldX) || isNaN(nodeA.worldY)) continue;
@@ -489,8 +519,8 @@ export class OntologyCanvasEngine {
       
       for (let odx = -1; odx <= 1; odx++) {
         for (let ody = -1; ody <= 1; ody++) {
-          const neighborKey = `${gx + odx},${gy + ody}`;
-          const neighborNodes = grid.get(neighborKey);
+          const neighborKey = (((gx + odx) + 32768) << 16) | ((gy + ody) + 32768);
+          const neighborNodes = this.spatialGrid.get(neighborKey);
           if (!neighborNodes) continue;
           
           for (const nodeB of neighborNodes) {
@@ -500,8 +530,8 @@ export class OntologyCanvasEngine {
             const pairKey = nodeA.id < nodeB.id 
               ? `${nodeA.id}-${nodeB.id}` 
               : `${nodeB.id}-${nodeA.id}`;
-            if (visitedPairs.has(pairKey)) continue;
-            visitedPairs.add(pairKey);
+            if (this.visitedPairs.has(pairKey)) continue;
+            this.visitedPairs.add(pairKey);
             
             const bx = nodeB.worldX ?? 0;
             const by = nodeB.worldY ?? 0;
@@ -538,12 +568,11 @@ export class OntologyCanvasEngine {
 
     // 3. Spring Attraction (용수철 인력)
     const springStrength = 0.055;
-    for (const edge of edges) {
-      if (edge.source === 'root-HCHPS' || edge.target === 'root-HCHPS') continue;
-      const nodeA = nodeMap.get(edge.source);
-      const nodeB = nodeMap.get(edge.target);
+    for (const pEdge of this.physicsEdges) {
+      const nodeA = pEdge.sourceNode;
+      const nodeB = pEdge.targetNode;
       
-      if (!nodeA || !nodeB || nodeA.layoutHidden || nodeB.layoutHidden) {
+      if (nodeA.layoutHidden || nodeB.layoutHidden) {
         continue;
       }
 
@@ -556,7 +585,7 @@ export class OntologyCanvasEngine {
       const dy = by - ay;
       const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
 
-      const weight = Math.abs(edge.weight);
+      const weight = pEdge.weight;
       // 용수철 평형 거리 대폭 완화 (가중치가 높아도 최소 약 140px, 일반 200px 이상 유지되도록 설계)
       const targetDist = 220 / (weight * 0.4 + 0.6); 
       
@@ -685,7 +714,12 @@ export class OntologyCanvasEngine {
     let isDirty = false;
 
     // 4차 최적화: 물리 시뮬레이션 프레임 연동 및 더티 마킹 (Spatial Hash Grid 기반)
-    if (this.runPhysicsTick()) {
+    const t0 = performance.now();
+    const ranPhysics = this.runPhysicsTick();
+    const t1 = performance.now();
+    PerformanceProfiler.getInstance().recordPhysics(ranPhysics ? (t1 - t0) : 0);
+
+    if (ranPhysics) {
       isDirty = true;
     }
 
@@ -715,7 +749,7 @@ export class OntologyCanvasEngine {
         const dx = node.targetWorldX - currentX;
         const dy = node.targetWorldY - currentY;
         
-        if (this.isFirstFrame) {
+        if (this.isFirstFrame || this.frameCount < 30) {
           node.worldX = node.targetWorldX;
           node.worldY = node.targetWorldY;
         } else if (Math.abs(dx) > 0.1 || Math.abs(dy) > 0.1) {
@@ -731,6 +765,7 @@ export class OntologyCanvasEngine {
     if (this.isFirstFrame) {
       this.isFirstFrame = false;
     }
+    this.frameCount++;
     this.hasNodeMoved = nodesMoving;
     if (nodesMoving) {
       isDirty = true;
@@ -787,12 +822,14 @@ export class OntologyCanvasEngine {
     if (canSkip) {
       // Viewport is stationary, world geometry is clean, and the last run was already non-interactive.
       // We can skip the entire coordinate projection and collision check loop safely.
+      PerformanceProfiler.getInstance().recordLayout(0);
       return;
     }
 
     const forceRecompute = this.layoutWorldGeometryDirty || 
                            (!this.lastLayoutInputs || this.lastLayoutInputs.layoutMode !== this.layoutMode);
 
+    const tL0 = performance.now();
     OntologyLayout.computePositions(
       this.nodes,
       this.nodeMap,
@@ -809,6 +846,8 @@ export class OntologyCanvasEngine {
       this.layoutMode,
       this.isOrbiting
     );
+    const tL1 = performance.now();
+    PerformanceProfiler.getInstance().recordLayout(tL1 - tL0);
     this.layoutWorldGeometryDirty = false;
 
     // Cache layout inputs
@@ -965,10 +1004,11 @@ export class OntologyCanvasEngine {
       return this.activeTreeSetCache;
     }
     
-    // activeNodeId가 변경되었거나, 레이아웃/더티 상태일 때만 트리 탐색 재연산
-    if (this.lastActiveNodeIdForTree !== rootId || this.layoutWorldGeometryDirty) {
-      this.activeTreeSetCache = OntologyNetwork.getActiveTreeSet(rootId, this.nodeMap, this.edges);
+    // activeNodeId가 변경되었거나, 위상(Topology)이 변경되었을 때만 트리 탐색 재연산
+    if (this.lastActiveNodeIdForTree !== rootId || this.topologyDirty) {
+      this.activeTreeSetCache = OntologyNetwork.getActiveTreeSet(rootId, this.nodeMap);
       this.lastActiveNodeIdForTree = rootId;
+      this.topologyDirty = false;
     }
     
     return this.activeTreeSetCache;
@@ -977,15 +1017,25 @@ export class OntologyCanvasEngine {
 
   hitTest(mx: number, my: number): OrbitalNode | null {
     let closest: OrbitalNode | null = null;
-    let minDist = Infinity;
+    let minDistSq = Infinity;
 
     for (const node of this.nodes) {
-      const dx = mx - node.renderX;
-      const dy = my - node.renderY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (node.layoutHidden) continue;
+
+      const rx = node.renderX;
+      const ry = node.renderY;
+      // 화면 밖 노드는 마우스 충돌 연산에서 완전 배제 (Frustum Culling)
+      if (rx < -15 || rx > this.canvasW + 15 || ry < -15 || ry > this.canvasH + 15) {
+        continue;
+      }
+
+      const dx = mx - rx;
+      const dy = my - ry;
+      const distSq = dx * dx + dy * dy;
       const hitRadius = node.nodeRadius * this.zoom * 0.6 + 12;
-      if (dist < hitRadius && dist < minDist) {
-        minDist = dist;
+      const hitRadiusSq = hitRadius * hitRadius;
+      if (distSq < hitRadiusSq && distSq < minDistSq) {
+        minDistSq = distSq;
         closest = node;
       }
     }
@@ -1037,6 +1087,7 @@ export class OntologyCanvasEngine {
          this.collapsedNodeIds.delete(hit.id);
          const descendants = getDescendants(hit.id);
          descendants.forEach(d => this.collapsedNodeIds.delete(d));
+         this.topologyDirty = true;
       } else {
          // 2. 이미 활성화(선택)된 노드를 "다시 한 번" 클릭했을 때 동작
          // 수동 접기/펼치기 기능은 전면 삭제되었습니다.
@@ -1044,6 +1095,7 @@ export class OntologyCanvasEngine {
             // 자식이 없는 리프 노드를 재클릭하면 포커스 해제 (최상위 루트 노드로 돌아감)
             this.activeNode = this.centerNode;
             this.previousActiveNodeId = this.centerNode?.id || null;
+            this.topologyDirty = true;
          }
       }
       
@@ -1052,6 +1104,7 @@ export class OntologyCanvasEngine {
       // 💡 바탕 배경(빈 곳) 클릭 시 활성 노드 선택을 해제하여 모든 노드를 100% 활성화(선명하게) 상태로 복원합니다.
       this.activeNode = null;
       this.previousActiveNodeId = null;
+      this.topologyDirty = true;
     }
     this.needsRedraw = true;
     this.callbacks.onActiveNodeChange?.(this.activeNode);
@@ -1060,6 +1113,7 @@ export class OntologyCanvasEngine {
   expandAll(): void {
     this.collapsedNodeIds.clear();
     this.layoutWorldGeometryDirty = true;
+    this.topologyDirty = true;
     this.needsRedraw = true;
   }
 
@@ -1085,6 +1139,7 @@ export class OntologyCanvasEngine {
        }
     }
     this.layoutWorldGeometryDirty = true;
+    this.topologyDirty = true;
     this.needsRedraw = true;
   }
 
@@ -1180,7 +1235,7 @@ export class OntologyCanvasEngine {
     }
   }
 
-  handleDragMove(nx: number, ny: number, _w: number, _h: number): void {
+  handleDragMove(nx: number, ny: number): void {
     if (!this.isDragging) return;
 
     if (Math.abs(nx - this.dragStartX) > 5 || Math.abs(ny - this.dragStartY) > 5) {

@@ -36,10 +36,10 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
   const executionRate = totalBudget > 0 ? (executedBudget / totalBudget) * 100 : 0;
 
   // Asset Allocation
-  const pieData = [
+  const pieData = useMemo(() => [
     { name: '집행 완료', value: executedBudget, color: '#3B82F6' },
     { name: '잔여 예산', value: Math.max(0, remainingBudget), color: '#E2E8F0' }
-  ];
+  ], [executedBudget, remainingBudget]);
 
   const breakdownData = useMemo<{ name: string; total: number; executed: number; rate: number; formationItem?: string }[]>(() => {
     if (selectedProject === 'ALL') {
@@ -172,7 +172,6 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
     totalVirtualAdjustment
   } = useMemo(() => {
     const currentMonth = new Date().getMonth() + 1; // 동적으로 현재 월 반영 (예: 6월이면 6)
-    const elapsedRatio = currentMonth / 12;
     const validCategoryIds = new Set(filteredCategories.map(c => c.id));
     
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

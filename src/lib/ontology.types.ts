@@ -121,6 +121,8 @@ export interface OrbitalNode extends OntologyNode {
   targetWorldY?: number;       // Optional: Target Y coordinate for LERP morphing animation
   vx?: number;                 // Optional: Physics velocity X for force-directed solver
   vy?: number;                 // Optional: Physics velocity Y for force-directed solver
+  cosSpeed?: number;           // Optional: Cached cos of orbit speed for Zero-Call physics
+  sinSpeed?: number;           // Optional: Cached sin of orbit speed for Zero-Call physics
   renderX: number;             // canvas X
   renderY: number;             // canvas Y
   renderZ: number;             // depth (-1 to 1)
@@ -128,6 +130,7 @@ export interface OrbitalNode extends OntologyNode {
   nodeRadius: number;          // pixel radius
   layoutHidden?: boolean;      // true if hidden by parent collapse or layer filter
   topoHidden?: boolean;        // true if hidden topologically by parent collapse
+  degree?: number;             // 💡 연결된 엣지의 총 개수 (센트럴리티 비례 동적 중력 제어용)
 }
 
 // ============ Edge ============

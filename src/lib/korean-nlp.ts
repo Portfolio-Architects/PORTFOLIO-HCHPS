@@ -561,7 +561,6 @@ export function classifyAndParse(text: string): ParsedResult {
 
   // Extract all fields
   const allDates = extractAllDates(rawText);
-  const dateResult = allDates.length > 0 ? allDates[0] : null;
   // For due date, pick the EARLIEST future date (that's when the task should be done)
   const bestDueDate = allDates.length > 0
     ? allDates.reduce((earliest, d) => d.date < earliest.date ? d : earliest).date

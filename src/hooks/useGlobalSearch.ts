@@ -47,7 +47,7 @@ export function useGlobalSearch() {
     let mapData: MapCustomizationData | null = null;
     try {
       mapData = JSON.parse(localStorage.getItem('hchps-map-customization') || '{}') as MapCustomizationData;
-    } catch(e) {}
+    } catch {}
 
     // 1. Search Wiki Storage
     for (let i = 0; i < localStorage.length; i++) {

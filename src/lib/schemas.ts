@@ -97,6 +97,7 @@ export const BudgetEntrySchema = z.object({
   inventoryItemId: z.string().optional().catch(undefined),
   docRegNum: z.string().optional().catch(''),
   checked: z.boolean().optional().catch(false),
+  fundingSource: z.string().optional().catch(undefined),
 });
 
 export type BudgetEntryDto = z.infer<typeof BudgetEntrySchema>;
@@ -140,6 +141,38 @@ export const ClassificationWordsSchema = z.object({
 
 export type ClassificationWordsDto = z.infer<typeof ClassificationWordsSchema>;
 
+// ============ Weekly Scheduler Module ============
+export const ScheduleTypeSchema = z.enum(['security', 'meeting', 'education', 'other']);
+
+export const ScheduleSchema = z.object({
+  id: z.string().catch(() => Math.random().toString(36).substring(2, 9)),
+  date: z.string().catch(new Date().toISOString().split('T')[0]),
+  endDate: z.string().optional().catch(undefined),
+  startTime: z.string().catch('09:00'),
+  endTime: z.string().catch('18:00'),
+  title: z.string().catch('새로운 일정'),
+  type: ScheduleTypeSchema.catch('other'),
+  person: z.string().catch(''),
+  notes: z.string().optional().catch(''),
+  createdAt: z.string().catch(new Date().toISOString()),
+  updatedAt: z.string().catch(new Date().toISOString()),
+});
+
+export type ScheduleDto = z.infer<typeof ScheduleSchema>;
+
+// ============ Contacts Module ============
+export const ContactSchema = z.object({
+  id: z.string().catch(() => Math.random().toString(36).substring(2, 9)),
+  name: z.string().catch('이름 없음'),
+  phone: z.string().catch(''),
+  email: z.string().optional().catch(''),
+  notes: z.string().optional().catch(''),
+  createdAt: z.string().catch(new Date().toISOString()),
+  updatedAt: z.string().catch(new Date().toISOString()),
+});
+
+export type ContactDto = z.infer<typeof ContactSchema>;
+
 export const getDomainSchema = (sheetName: string) => {
   switch (sheetName.toUpperCase()) {
     case 'TASKS': return TaskSchema;
@@ -148,6 +181,8 @@ export const getDomainSchema = (sheetName: string) => {
     case 'PROJECTS': return ProjectSchema;
     case 'EXTERNAL_DOCS': return ExternalDocSchema;
     case 'CLASSIFICATION_WORDS': return ClassificationWordsSchema;
+    case 'SCHEDULES': return ScheduleSchema;
+    case 'CONTACTS': return ContactSchema;
     default: return z.any(); // Fallback for unstructured arrays
   }
 };

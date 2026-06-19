@@ -3,6 +3,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { getDomainSchema } from '@/lib/schemas';
 import { startWatcherDaemon } from '@/lib/engine/watcher';
+import { RAGEngine } from '@/lib/rag/rag-engine';
 
 // 백엔드 데몬 가동
 if (typeof window === 'undefined') {
@@ -21,7 +22,9 @@ const ALLOWED_SHEETS = new Set([
   'PLANNING_MAP_CUSTOMIZATION',
   'DELETED_SIGNALS', 'GLOBAL_TOMBSTONES',
   'EXTERNAL_DOCS',
-  'CLASSIFICATION_WORDS'
+  'CLASSIFICATION_WORDS',
+  'SCHEDULES',
+  'CONTACTS'
 ]);
 
 function validateSheet(sheet: string): boolean {
@@ -37,7 +40,7 @@ async function safeWriteFile(filePath: string, dataStr: string, retries = 5, del
   const dirPath = path.dirname(filePath);
   try {
     await fs.mkdir(dirPath, { recursive: true });
-  } catch (e) {}
+  } catch {}
 
   // 1. Windows file-lock collisions isolated using unique temp files per write request
   const tempFilePath = `${filePath}.${Date.now()}.${Math.random().toString(36).substring(2, 7)}.tmp`;
@@ -275,6 +278,117 @@ export async function POST(request: Request) {
       rows = await readData(sheet);
     }
 
+    if (sheet === 'BUDGET_ENTRIES' && (action === 'add' || action === 'update')) {
+      const categories = await readData('BUDGET_CATEGORIES');
+      
+      let tempRows = [...rows];
+      if (action === 'add') {
+        tempRows.push(data);
+      } else if (action === 'update') {
+        const idx = tempRows.findIndex((r: any) => r.id === id);
+        if (idx !== -1) {
+          tempRows[idx] = { ...tempRows[idx], ...data };
+        }
+      }
+
+      const targetEntry = action === 'add' ? data : tempRows.find((r: any) => r.id === id);
+      if (targetEntry) {
+        const categoryId = targetEntry.categoryId;
+        const cat = categories.find((c: any) => c.id === categoryId);
+        
+        if (!cat) {
+          return NextResponse.json({ success: false, error: 'Invalid category ID' }, { status: 400 });
+        }
+
+        const actionType = targetEntry.actionType || 'general';
+
+        if (actionType !== 'transfer' && actionType !== 'correction') {
+          const catEntries = tempRows.filter((e: any) => e.categoryId === categoryId);
+          
+          let lockedAmount = 0;
+          if (cat.subItems) {
+            cat.subItems.forEach((sub: any) => {
+              if (sub.isLocked) {
+                lockedAmount += sub.amount;
+              } else if (sub.calculations) {
+                sub.calculations.forEach((calc: any) => {
+                  if (calc.isLocked) lockedAmount += calc.amount;
+                });
+              }
+            });
+          }
+
+          const linkedSubItemId = targetEntry.linkedSubItemId;
+          if (linkedSubItemId && actionType !== 'settle') {
+            let targetSubItem: any = cat.subItems?.find((s: any) => s.id === linkedSubItemId);
+            if (!targetSubItem) {
+              targetSubItem = cat.subItems?.flatMap((s: any) => s.calculations || []).find((c: any) => c.id === linkedSubItemId);
+            }
+
+            if (targetSubItem) {
+              const isSelfLocked = targetSubItem.isLocked;
+              let isParentLocked = false;
+              const parentSub = cat.subItems?.find((s: any) => s.calculations?.some((c: any) => c.id === linkedSubItemId));
+              if (parentSub && parentSub.isLocked) isParentLocked = true;
+
+              if (isSelfLocked || isParentLocked) {
+                return NextResponse.json({
+                  success: false,
+                  error: `[잠금 상태] 선택한 산출내역은 예산 지출이 방지(잠금)되어 있습니다.`
+                }, { status: 409 });
+              }
+
+              const subLimit = targetSubItem.amount;
+              if (subLimit > 0) {
+                const linkedEntries = catEntries.filter((en: any) => en.linkedSubItemId === linkedSubItemId && en.actionType !== 'settle');
+                const newUsage = linkedEntries.reduce((sum: number, en: any) => {
+                  if (en.actionType === 'correction') return sum + en.amount;
+                  if (en.actionType === 'transfer') return sum - en.amount;
+                  return sum + en.amount;
+                }, 0);
+
+                if (newUsage > subLimit) {
+                  return NextResponse.json({
+                    success: false,
+                    error: `[산출내역 한도 초과] 선택한 산출내역의 한도(${subLimit.toLocaleString()}원)를 초과하여 등록을 차단합니다. (누적 계산액: ${newUsage.toLocaleString()}원)`
+                  }, { status: 409 });
+                }
+              }
+            }
+          }
+
+          const dailyExpenseIssued = catEntries.filter((e: any) => !e.isPlanned && e.actionType === 'issuance').reduce((sum: number, e: any) => sum + e.amount, 0);
+          const dailyExpenseSpent = catEntries.filter((e: any) => !e.isPlanned && e.actionType === 'daily_expense').reduce((sum: number, e: any) => sum + e.amount, 0);
+          
+          if (actionType === 'daily_expense') {
+            if (dailyExpenseSpent > dailyExpenseIssued) {
+              return NextResponse.json({
+                success: false,
+                error: `[일상경비 한도 초과] 일상경비 교부 잔액을 초과하여 등록을 차단합니다.`
+              }, { status: 409 });
+            }
+          }
+
+          if (actionType !== 'settle' && actionType !== 'daily_expense') {
+            const generalSpent = catEntries.filter((e: any) => !e.isPlanned && (!e.actionType || e.actionType === 'general' || e.actionType === 'correction' || e.actionType === 'transfer')).reduce((sum: number, e: any) => {
+              if (e.actionType === 'transfer') return sum - e.amount;
+              return sum + e.amount;
+            }, 0);
+            const spent = generalSpent + dailyExpenseIssued;
+            const planned = catEntries.filter((e: any) => e.isPlanned && !e.isSettled).reduce((sum: number, e: any) => sum + e.amount, 0);
+
+            const totalUsage = spent + planned + lockedAmount;
+            if (cat.totalBudget > 0 && totalUsage > cat.totalBudget) {
+              return NextResponse.json({
+                success: false,
+                error: `[예산 한도 초과] 등록하려는 금액이 해당 예산 과목의 잔액을 초과하여 등록을 차단합니다. (누적 예정액: ${totalUsage.toLocaleString()}원 / 총예산: ${cat.totalBudget.toLocaleString()}원)`
+              }, { status: 409 });
+            }
+          }
+        }
+      }
+    }
+
     switch (action) {
       case 'add': {
         if (!data || Array.isArray(data)) {
@@ -314,6 +428,39 @@ export async function POST(request: Request) {
     }
 
     await writeDataToFile(sheet, rows);
+
+    // RAG 임베딩 자동 색인 트리거 (sheet가 WIKI_DOC_로 시작하는 경우)
+    if (sheet.startsWith('WIKI_DOC_')) {
+      const nodeId = sheet.replace('WIKI_DOC_', '');
+      let nodeLabel = nodeId;
+      try {
+        const mapCustomFilePath = path.join(process.cwd(), 'data', 'MAP_CUSTOMIZATION.json');
+        const mapCustomContent = await fs.readFile(mapCustomFilePath, 'utf-8');
+        const mapCustomData = JSON.parse(mapCustomContent);
+        
+        // customNodes 및 overrides에서 라벨 탐색
+        const customNodes = mapCustomData?.customNodes || mapCustomData?.[0]?.customNodes || [];
+        const overrides = mapCustomData?.overrides || mapCustomData?.[0]?.overrides || {};
+        
+        const node = customNodes.find((n: any) => n.id === nodeId);
+        if (node) {
+          const override = overrides[nodeId];
+          nodeLabel = override?.customLabel || node.label || nodeId;
+        } else if (nodeId.startsWith('leaf-kw-')) {
+          nodeLabel = nodeId.replace('leaf-kw-', '');
+        }
+      } catch (err) {
+        console.warn('[API Data POST] Failed to resolve node label for RAG index, fallback to ID:', err);
+      }
+
+      // 비동기로 RAG 임베딩 갱신
+      if (rows.length > 0 && rows[0].blocks) {
+        RAGEngine.updateNodeEmbedding(nodeId, nodeLabel, rows[0].blocks).catch((err) => {
+          console.error('[API Data POST] Failed to update RAG embedding:', err);
+        });
+      }
+    }
+
     return NextResponse.json({ success: true });
 
   } catch (e) {

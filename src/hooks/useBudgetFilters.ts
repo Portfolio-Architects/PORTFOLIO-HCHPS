@@ -25,7 +25,7 @@ export function useBudgetFilters(
         if (Array.isArray(parsed.detail)) setFilterDetail(parsed.detail);
         if (Array.isArray(parsed.stat)) setFilterStat(parsed.stat);
       }
-    } catch (e) {}
+    } catch {}
     setIsLoaded(true);
   }, []);
 

@@ -20,6 +20,27 @@ export class OntologyLayout {
   public static lastTreeChildrenMap = new Map<string, string[]>();
   public static lastSpanningTreeEdgeSet = new Set<string>();
   public static dynamicRules: { agents: string[], resources: string[], executions: string[] } | null = null;
+  public static totalNodesCount = 0;
+
+  /**
+   * 궤도 인덱스에 따른 비선형 반경을 반환하는 지능형 헬퍼
+   * 1차 궤도(카테고리)는 145px로 좁게, 그 외 2/3차는 여유있는 190px 간격 유지
+   * 대규모 맵(노드 수에 비례)일 때는 자동으로 궤도 간격을 확장하여 겹침을 방지함
+   */
+  public static getOrbitRadius(orbitIndex: number): number {
+    if (orbitIndex === 0) return 0;
+    
+    const totalCount = OntologyLayout.totalNodesCount;
+    const expansionFactor = totalCount > 100
+      ? Math.min(1.5, 1.0 + (totalCount - 100) * 0.001)
+      : 1.0;
+
+    const baseRadius1 = 145 * expansionFactor;
+    const baseGap = 190 * expansionFactor;
+
+    if (orbitIndex === 1) return baseRadius1;
+    return baseRadius1 + (orbitIndex - 1) * baseGap;
+  }
 
   /**
    * 노드의 효과적인 레이어 ID를 반환하는 지능형 헬퍼
@@ -161,6 +182,7 @@ export class OntologyLayout {
     isOrbiting: boolean = false
   ): void {
     if (nodes.length === 0) return;
+    OntologyLayout.totalNodesCount = nodes.length;
 
     // Silence unused parameter warnings when maxIterations === 0
     if (isInteractive || layoutMode) {
@@ -206,7 +228,7 @@ export class OntologyLayout {
       nodes.forEach(n => treeChildrenMap.set(n.id, []));
       
       const roots: OrbitalNode[] = [];
-      const mainRoot = nodes.find(n => n.id === 'root-HCHPS') || nodes.find(n => n.orbitIndex === 0) || nodes[0];
+      const mainRoot = nodes.find(n => n.centralityScore === 9999999) || nodes.find(n => n.id === 'root-HCHPS') || nodes[0];
       roots.push(mainRoot);
 
       const visitedBfs = new Set<string>();
@@ -265,30 +287,41 @@ export class OntologyLayout {
       }
 
       // Phase C: 영원히 고립된 완전히 끊어진 노드/서브그래프 렌더링을 위한 독립 루트 선언
-      for (const n of nodes) {
-         if (!visitedBfs.has(n.id)) {
-             roots.push(n);
-             visitedBfs.add(n.id);
-             queue.push(n.id);
-             while (queue.length > 0) {
-                const curr = queue.shift()!;
-                const neighbors = undirectedDir.get(curr) || [];
-                neighbors.sort((a, b) => {
-                   const orderA = nodeMap.get(a)?.customSortOrder ?? 0;
-                   const orderB = nodeMap.get(b)?.customSortOrder ?? 0;
-                   if (orderA !== orderB) return orderA - orderB;
-                   return a.localeCompare(b);
-                });
-                
-                for (const nxt of neighbors) {
-                    if (!visitedBfs.has(nxt)) {
-                        visitedBfs.add(nxt);
-                        treeChildrenMap.get(curr)!.push(nxt);
-                        queue.push(nxt);
-                    }
-                }
-             }
-         }
+      // 💡 토폴로지 위계가 꼬이지 않도록, parentId가 없거나 부모가 이미 방문된 노드부터 우선적으로 루트로 선언하여 BFS를 구동합니다.
+      while (true) {
+        const sortedUnvisited = nodes
+          .filter(n => !visitedBfs.has(n.id))
+          .sort((a, b) => {
+            const hasParentA = a.parentId && !visitedBfs.has(a.parentId) ? 1 : 0;
+            const hasParentB = b.parentId && !visitedBfs.has(b.parentId) ? 1 : 0;
+            return hasParentA - hasParentB;
+          });
+        
+        if (sortedUnvisited.length === 0) break;
+        
+        const n = sortedUnvisited[0];
+        roots.push(n);
+        visitedBfs.add(n.id);
+        queue.push(n.id);
+        
+        while (queue.length > 0) {
+           const curr = queue.shift()!;
+           const neighbors = undirectedDir.get(curr) || [];
+           neighbors.sort((a, b) => {
+              const orderA = nodeMap.get(a)?.customSortOrder ?? 0;
+              const orderB = nodeMap.get(b)?.customSortOrder ?? 0;
+              if (orderA !== orderB) return orderA - orderB;
+              return a.localeCompare(b);
+           });
+           
+           for (const nxt of neighbors) {
+               if (!visitedBfs.has(nxt)) {
+                   visitedBfs.add(nxt);
+                   treeChildrenMap.get(curr)!.push(nxt);
+                   queue.push(nxt);
+               }
+           }
+        }
       }
 
       // 3. Bidirectional Depth-Based Contour Layout (양방향 마인드맵 전개) 또는 Concentric Orbit Layout (우주 궤도 배치)
@@ -327,7 +360,18 @@ export class OntologyLayout {
         if (depth === 0 && nodeId !== mainRoot.id) {
           depth = 1;
         }
-        node.orbitIndex = depth;
+
+        let defaultOrbit: number;
+        if (parentNode) {
+          if (parentNode.orbitIndex === 0) {
+            defaultOrbit = 2; // 부모가 중앙 루트인 경우 수동 지정이 없으면 2차 궤도 이상으로 밀어냄
+          } else {
+            defaultOrbit = parentNode.orbitIndex + 1;
+          }
+        } else {
+          defaultOrbit = Math.max(2, depth); // 고아 노드 또한 수동 지정이 없으면 2차 궤도 이상으로 제한
+        }
+        node.orbitIndex = node.customOrbitIndex ?? defaultOrbit;
         node.orbitAngle = assignedAngle;
 
         // 💡 런타임 충돌 피직스를 완전히 꺼두는 대신, 정적 지그재그 반경 오프셋(Static Radial Offset)을 
@@ -354,15 +398,15 @@ export class OntologyLayout {
           (node as any).minAngle = -Infinity;
           (node as any).maxAngle = Infinity;
         } else {
-          if (!isOrbiting && node.fixedX !== undefined && node.fixedY !== undefined) {
+          if (!isOrbiting && node.fixedX !== undefined && node.fixedX !== null && node.fixedY !== undefined && node.fixedY !== null) {
             node.targetWorldX = node.fixedX;
             node.targetWorldY = node.fixedY;
             node.worldX = node.fixedX;
             node.worldY = node.fixedY;
           } else {
-            // R 간격을 조금 더 넓혀(240px) 공간감 확보하고, radialOffset(지그재그)을 합산합니다.
+            // 비선형 궤도 반경과 radialOffset(지그재그)을 합산합니다.
             const rOffset = (node as any).radialOffset ?? 0;
-            const R = depth * 240 + rOffset;
+            const R = OntologyLayout.getOrbitRadius(node.orbitIndex) + rOffset;
             node.targetWorldX = R * Math.cos(assignedAngle) * ELLIPSE_RATIO;
             node.targetWorldY = R * Math.sin(assignedAngle);
           }
@@ -444,16 +488,32 @@ export class OntologyLayout {
         if (node.orbitIndex === 0) {
           node.targetWorldX = 0;
           node.targetWorldY = 0;
-        } else if (!isOrbiting && node.fixedX !== undefined && node.fixedY !== undefined) {
+        } else if (!isOrbiting && node.fixedX !== undefined && node.fixedX !== null && node.fixedY !== undefined && node.fixedY !== null) {
           node.targetWorldX = node.fixedX;
           node.targetWorldY = node.fixedY;
           node.worldX = node.fixedX;
           node.worldY = node.fixedY;
         } else if (node.orbitIndex !== undefined && node.orbitAngle !== undefined) {
-          const R = node.orbitIndex * 240;
-          const rOffset = (node as any).radialOffset ?? 0;
-          node.targetWorldX = (R + rOffset) * Math.cos(node.orbitAngle) * ELLIPSE_RATIO;
-          node.targetWorldY = (R + rOffset) * Math.sin(node.orbitAngle);
+          const cosS = (node as any).cosSpeed ?? Math.cos(node.orbitSpeed ?? 0);
+          const sinS = (node as any).sinSpeed ?? Math.sin(node.orbitSpeed ?? 0);
+          
+          if (isOrbiting && typeof node.targetWorldX === 'number' && typeof node.targetWorldY === 'number' && !isNaN(node.targetWorldX) && !isNaN(node.targetWorldY) && (node.targetWorldX !== 0 || node.targetWorldY !== 0)) {
+            // 타원 보정 해제 후 회전 행렬 적용 (삼각함수 Zero-Call 최적화)
+            const rawX = node.targetWorldX / ELLIPSE_RATIO;
+            const rawY = node.targetWorldY;
+            
+            const nextRawX = rawX * cosS - rawY * sinS;
+            const nextY = rawX * sinS + rawY * cosS;
+            
+            node.targetWorldX = nextRawX * ELLIPSE_RATIO;
+            node.targetWorldY = nextY;
+          } else {
+            // 비공전 중이거나 초기화 상태일 때는 삼각함수로 위치 확정
+            const rOffset = (node as any).radialOffset ?? 0;
+            const R = OntologyLayout.getOrbitRadius(node.orbitIndex) + rOffset;
+            node.targetWorldX = R * Math.cos(node.orbitAngle) * ELLIPSE_RATIO;
+            node.targetWorldY = R * Math.sin(node.orbitAngle);
+          }
         }
       }
     }
@@ -482,7 +542,7 @@ export class OntologyLayout {
         continue;
       }
       
-      if (!isOrbiting && node.fixedX !== undefined && node.fixedY !== undefined) {
+      if (!isOrbiting && node.fixedX !== undefined && node.fixedX !== null && node.fixedY !== undefined && node.fixedY !== null) {
         node.worldX = node.fixedX;
         node.worldY = node.fixedY;
       }
@@ -503,7 +563,7 @@ export class OntologyLayout {
       const rotatedY = worldY * cosTilt - h * sinTilt;
       const depth = -worldY * sinTilt + depthH * cosTilt;
       
-      const perspectiveScale = Math.max(0.05, cameraDist / (cameraDist + depth));
+      const perspectiveScale = Math.max(0.05, cameraDist / Math.max(120, cameraDist + depth));
 
       node.renderX = cx + worldX * zoom * perspectiveScale;
       node.renderY = cy + rotatedY * zoom * perspectiveScale;
@@ -543,7 +603,7 @@ export class OntologyLayout {
         
         const w = Math.max(60 * scale, textW * scale + 28 * scale) + 16 * scale; // 가로 마진 포함
         const h = Math.max(28 * scale, 12 * scale + 20 * scale) + 12 * scale;  // 세로 마진 포함
-        const isFixed = (!isOrbiting && (node as any).fixedX !== undefined && (node as any).fixedY !== undefined) || node.orbitIndex === 0;
+        const isFixed = (!isOrbiting && (node as any).fixedX !== undefined && (node as any).fixedX !== null && (node as any).fixedY !== undefined && (node as any).fixedY !== null) || node.orbitIndex === 0;
         const layer = node.effectiveLayer ?? 3;
         
         return {
@@ -607,7 +667,7 @@ export class OntologyLayout {
               while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
               while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
 
-              const radiusA = (nodeA.orbitIndex || 1) * 240;
+              const radiusA = OntologyLayout.getOrbitRadius(nodeA.orbitIndex || 1);
               // 1회 충돌 반발 당 최대 밀기 회전각을 0.04라디안으로 제한하여 과도한 진동/발산 운동을 차단합니다.
               const rawPushAngle = (overlap / Math.max(50, radiusA)) * damping;
               // 💡 1회 프레임당 가해지는 최대 밀기각 한도를 0.04 -> 0.005로 크게 줄여 급격한 각도 흔들림을 억제합니다.
@@ -650,7 +710,7 @@ export class OntologyLayout {
 
               // worldX, worldY 즉시 싱크 (LERP 지연에 의해 이전 renderX/Y가 계속해서 반발되는 교착 떨림 현상을 해소합니다)
               if (nodeA.orbitIndex !== 0) {
-                const radiusA = (nodeA.orbitIndex || 1) * 240;
+                const radiusA = OntologyLayout.getOrbitRadius(nodeA.orbitIndex || 1);
                 const rOffsetA = (nodeA as any).radialOffset ?? 0;
                 nodeA.targetWorldX = (radiusA + rOffsetA) * Math.cos(nodeA.orbitAngle) * ELLIPSE_RATIO;
                 nodeA.targetWorldY = (radiusA + rOffsetA) * Math.sin(nodeA.orbitAngle);
@@ -664,7 +724,7 @@ export class OntologyLayout {
               }
 
               if (nodeB.orbitIndex !== 0) {
-                const radiusB = (nodeB.orbitIndex || 1) * 240;
+                const radiusB = OntologyLayout.getOrbitRadius(nodeB.orbitIndex || 1);
                 const rOffsetB = (nodeB as any).radialOffset ?? 0;
                 nodeB.targetWorldX = (radiusB + rOffsetB) * Math.cos(nodeB.orbitAngle) * ELLIPSE_RATIO;
                 nodeB.targetWorldY = (radiusB + rOffsetB) * Math.sin(nodeB.orbitAngle);
@@ -702,8 +762,5 @@ export class OntologyLayout {
     }
   }
 
-  // 더 이상 사용하지 않음
-  public static computeOrbitRadii(_canvasW: number, _canvasH: number): number[] {
-    return [];
-  }
+
 }

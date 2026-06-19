@@ -110,14 +110,14 @@ export const PolicyGroupCard = React.memo(({
     return (
       <div className="mt-1.5 pt-1.5 border-t border-slate-100 flex flex-col gap-1 w-full bg-slate-50/50 rounded lg:p-1.5 p-1 mb-1">
         {matchedEntries.map(e => (
-           <div key={e.id} className="flex justify-between items-center text-[13px] hover:bg-slate-100 px-1.5 py-1 rounded transition-colors group/entry cursor-pointer" onClick={(evt) => { evt.stopPropagation(); openEditEntry(e); }}>
+           <div key={e.id} className="flex justify-between items-center text-[15px] hover:bg-slate-100 px-1.5 py-1 rounded transition-colors group/entry cursor-pointer" onClick={(evt) => { evt.stopPropagation(); openEditEntry(e); }}>
               <div className="flex gap-2 items-center truncate">
                  <span className="text-slate-400 font-medium tracking-tight shrink-0 bg-white border border-slate-200 px-1 rounded-sm">{e.date.replace(/-/g, '.')}</span>
-                 {e.actionType === 'daily_expense' && <span className="text-[10px] bg-teal-50 text-teal-700 border border-teal-200 px-1 py-0.5 rounded font-extrabold shrink-0">일상경비</span>}
-                 {e.actionType === 'issuance' && <span className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 px-1 py-0.5 rounded font-extrabold shrink-0">교부액</span>}
+                 {e.actionType === 'daily_expense' && <span className="text-[12px] bg-teal-50 text-teal-700 border border-teal-200 px-1 py-0.5 rounded font-semibold shrink-0">일상경비</span>}
+                 {e.actionType === 'issuance' && <span className="text-[12px] bg-amber-50 text-amber-700 border border-amber-200 px-1 py-0.5 rounded font-semibold shrink-0">교부액</span>}
                  <span className="text-slate-600 truncate font-semibold">{e.purpose}</span>
               </div>
-              <span className="font-bold text-teal-700 tabular-nums shrink-0">{formatN(e.amount)}원</span>
+              <span className="font-bold text-teal-700 font-mono tabular-nums shrink-0">{formatN(e.amount)}원</span>
            </div>
         ))}
       </div>
@@ -125,7 +125,7 @@ export const PolicyGroupCard = React.memo(({
   }, [openEditEntry]);
 
   return (
-    <div className={`bg-white rounded-xl mb-4 last:mb-0 transition-colors ${hidePolicyHeader ? '' : 'border border-slate-200 hover:border-slate-300'}`}>
+    <div className={`glass-panel rounded-[2rem] mb-5 last:mb-0 transition-all duration-300 shadow-2xs ${hidePolicyHeader ? '' : 'border border-slate-200/60 hover:border-indigo-400/50 hover:shadow-md hover:shadow-indigo-500/5'}`}>
       {!hidePolicyHeader && (
       <div 
         className="px-5 py-4 flex flex-col gap-3 cursor-pointer group"
@@ -133,50 +133,66 @@ export const PolicyGroupCard = React.memo(({
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg flex items-center justify-center border border-slate-100" style={{ backgroundColor: cats[0]?.color ? `${cats[0].color}15` : '#f8fafc' }}>
-              <div className="w-3.5 h-3.5 rounded-full" style={{ backgroundColor: cats[0]?.color || 'var(--color-primary)' }} />
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center border border-slate-100 shadow-3xs" style={{ backgroundColor: cats[0]?.color ? `${cats[0].color}15` : '#f8fafc' }}>
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cats[0]?.color || 'var(--color-primary)' }} />
             </div>
             <div>
-               <h3 className="font-extrabold text-[17px] text-gray-800 tracking-tight group-hover:text-[var(--color-primary)] transition-colors flex items-center gap-1.5 flex-wrap">
+               <h3 className="font-bold text-[18px] text-gray-800 tracking-tight group-hover:text-[var(--color-primary)] transition-colors flex items-center gap-1.5 flex-wrap">
                  {policyName}
                  {groupTypes.map(t => (
-                   <span key={t} className={`text-[11px] font-bold px-1.5 py-0.5 rounded border ${t === '간주예산' ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>{t}</span>
+                   <span key={t} className={`text-[11px] font-semibold px-2 py-0.5 rounded-lg border ${t === '간주예산' ? 'bg-purple-50/80 text-purple-700 border-purple-200/60 shadow-3xs' : 'bg-rose-50/80 text-rose-700 border-rose-200/60 shadow-3xs'}`}>{t}</span>
                  ))}
                  {groupFunding.map(f => (
-                   <span key={f} className="text-[11px] font-bold px-1.5 py-0.5 rounded border bg-teal-50 text-teal-700 border-teal-200">{f}</span>
+                   <span key={f} className="text-[11px] font-semibold px-2 py-0.5 rounded-lg border bg-teal-50/80 text-teal-700 border-teal-200/60 shadow-3xs">{f}</span>
                  ))}
                </h3>
-               <div className="text-[12px] text-gray-500 font-medium mt-0.5 tracking-tight">단위사업 {cats.length}개 그룹</div>
+               <div className="text-[12px] text-gray-500 font-semibold mt-0.5 tracking-tight">단위사업 {cats.length}개 그룹</div>
             </div>
           </div>
           <div className="flex items-center gap-3">
-             <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${isOpen ? 'bg-blue-50 text-blue-500' : 'bg-gray-50 text-gray-400 group-hover:bg-gray-100'}`}>
-               {isOpen ? <ChevronUp size={18}/> : <ChevronDown size={18}/>}
+             <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${isOpen ? 'bg-indigo-50 text-indigo-500' : 'bg-gray-50 text-gray-400 group-hover:bg-gray-100'}`}>
+               {isOpen ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
              </div>
           </div>
         </div>
         
-        <div className="bg-slate-50 rounded-lg p-3 flex flex-col gap-2.5">
-          <div className="flex justify-between text-[13px] items-end">
+        <div className="bg-slate-50/60 rounded-2xl p-4 flex flex-col gap-3 border border-slate-200/20">
+          <div className="flex justify-between text-xs items-end">
             <div className="flex flex-col">
-               <span className="text-gray-500 font-semibold mb-0.5 text-[11px]">총 예산 대비 사용액</span>
-               <span className="font-bold text-gray-800">{formatN(spent + planned)} / {formatN(totalBudget)}</span>
+               <span className="text-slate-500 font-semibold mb-0.5">총 예산 대비 사용액</span>
+               <span className="font-bold text-slate-800 font-mono tracking-tight">{formatN(spent + planned)} / {formatN(totalBudget)}</span>
             </div>
             <div className="flex flex-col items-end">
-               <span className="text-gray-500 font-semibold mb-0.5 text-[11px]">총 잔여액</span>
-               <span className="font-black text-[var(--color-primary)] text-[15px]">{formatN(remaining)}원</span>
+               <span className="text-slate-500 font-semibold mb-0.5">총 잔여액</span>
+               <span className="font-bold text-[var(--color-primary)] text-sm font-mono tracking-tight">{formatN(remaining)}원</span>
             </div>
           </div>
-          <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
-             <div className="h-full w-full bg-blue-500 rounded-full transition-transform duration-300" style={{ transform: `translateX(-${100 - Math.min(100, usageRate)}%)` }} />
+          <div className="h-2 w-full bg-slate-200/40 rounded-full overflow-hidden border border-slate-100 relative">
+             <div 
+               className={`h-full rounded-full transition-all duration-500 ease-out relative overflow-hidden ${
+                 usageRate >= 95 
+                   ? 'bg-gradient-to-r from-red-500 to-rose-600' 
+                   : usageRate >= 80 
+                     ? 'bg-gradient-to-r from-amber-400 to-amber-600' 
+                     : 'bg-gradient-to-r from-blue-500 to-indigo-600'
+               }`} 
+               style={{ width: `${Math.min(100, usageRate)}%` }}
+             >
+               <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" style={{ backgroundSize: '200% 100%' }} />
+             </div>
           </div>
-          {planned > 0 && <div className="text-[11px] text-amber-700 font-bold bg-amber-50 px-2 py-1 rounded inline-block self-start border border-amber-200">📋 품의 진행/예정: {formatN(planned)}원</div>}
+          {planned > 0 && <div className="text-[11px] text-amber-700 font-bold bg-amber-50/80 px-2 py-1 rounded-lg inline-block self-start border border-amber-200/60 shadow-3xs">📋 품의 진행/예정: {formatN(planned)}원</div>}
         </div>
       </div>
       )}
       
-      {(isOpen || hidePolicyHeader) && (
-        <div className={`px-5 py-3 divide-y divide-gray-100 ${hidePolicyHeader ? 'px-1 pt-1 border border-slate-200 rounded-xl bg-white shadow-sm' : ''}`}>
+        <div 
+          className={`px-5 transition-all duration-500 ease-in-out overflow-hidden divide-y divide-gray-100 ${
+            hidePolicyHeader 
+              ? 'px-1 pt-1 border border-slate-200 rounded-xl bg-white shadow-sm py-3' 
+              : (isOpen ? 'max-h-[25000px] opacity-100 py-3' : 'max-h-0 opacity-0 py-0 pointer-events-none')
+          }`}
+        >
           {groupedByDetail.map(detailGroup => {
             const detailTotalBudget = detailGroup.cats.reduce((sum, c) => sum + c.totalBudget, 0);
             const detailFundingSet = new Set<string>();
@@ -197,15 +213,15 @@ export const PolicyGroupCard = React.memo(({
                 <div className={`${hidePolicyHeader ? 'w-8 h-8' : 'w-5 h-5'} rounded bg-[var(--color-primary)]/10 flex items-center justify-center`}>
                   <div className={`${hidePolicyHeader ? 'w-3.5 h-3.5' : 'w-2 h-2'} rounded-full bg-[var(--color-primary)]`} />
                 </div>
-                <div className={`flex items-center gap-2 font-extrabold text-gray-800 flex-wrap ${hidePolicyHeader ? 'text-xl tracking-tight' : 'text-[15px]'}`}>
+                <div className={`flex items-center gap-2 font-semibold text-gray-800 flex-wrap ${hidePolicyHeader ? 'text-xl tracking-tight' : 'text-[17px]'}`}>
                   {detailGroup.detailName}
                   {detailTypes.map(t => (
-                    <span key={t} className={`font-bold rounded border ${hidePolicyHeader ? 'text-xs px-2 py-1' : 'text-[10px] px-1.5 py-0.5'} ${t === '간주예산' ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>{t}</span>
+                    <span key={t} className={`font-semibold rounded-lg border shadow-3xs ${hidePolicyHeader ? 'text-xs px-2 py-0.5' : 'text-[11px] px-1.5 py-0.5'} ${t === '간주예산' ? 'bg-purple-50/80 text-purple-700 border-purple-200/60' : 'bg-rose-50/80 text-rose-700 border-rose-200/60'}`}>{t}</span>
                   ))}
                   {detailFunding.map(f => (
-                    <span key={f} className={`font-bold rounded border bg-teal-50 text-teal-700 border-teal-200 ${hidePolicyHeader ? 'text-xs px-2 py-1' : 'text-[10px] px-1.5 py-0.5'}`}>{f}</span>
+                    <span key={f} className={`font-semibold rounded-lg border bg-teal-50/80 text-teal-700 border-teal-200/60 shadow-3xs ${hidePolicyHeader ? 'text-xs px-2 py-0.5' : 'text-[11px] px-1.5 py-0.5'}`}>{f}</span>
                   ))}
-                  <span className={`font-bold text-blue-700 bg-blue-50 rounded border border-blue-100 mr-2 ${hidePolicyHeader ? 'text-sm px-3 py-1' : 'text-[12px] px-2 py-0.5'}`}>{formatN(detailTotalBudget)}원</span>
+                  <span className={`font-bold text-blue-700 bg-blue-50/80 rounded-lg border border-blue-100/60 mr-2 font-mono tabular-nums shadow-3xs ${hidePolicyHeader ? 'text-sm px-2.5 py-0.5' : 'text-[13px] px-2 py-0.5'}`}>{formatN(detailTotalBudget)}원</span>
                   {openAddCat && (
                     <button 
                       onClick={(e) => { 
@@ -230,7 +246,7 @@ export const PolicyGroupCard = React.memo(({
                         e.stopPropagation(); 
                         openBatchEdit(detailGroup.detailName, detailGroup.cats);
                       }} 
-                      className="ml-1 text-[11px] font-extrabold px-2 py-0.5 rounded border bg-indigo-50 text-indigo-700 border-indigo-200 cursor-pointer hover:bg-indigo-100 transition-colors flex items-center gap-1 shadow-sm"
+                      className="ml-1 text-[11px] font-semibold px-2 py-0.5 rounded border bg-indigo-50 text-indigo-700 border-indigo-200 cursor-pointer hover:bg-indigo-100 transition-colors flex items-center gap-1 shadow-sm"
                       title="이 세부사업 내 모든 통계목에 동일한 재원비율 일괄 할당"
                     >
                       <Pencil size={11} /> 비율 모괄 설정
@@ -255,7 +271,6 @@ export const PolicyGroupCard = React.memo(({
                       if (c.name) linkedSubItemIds.add(c.name);
                     });
                   });
-                  const unlinkedGeneralEntries = catEntries.filter(e => (!e.linkedSubItemId || !linkedSubItemIds.has(e.linkedSubItemId)) && e.actionType !== 'issuance' && e.actionType !== 'daily_expense');
                   const generalEntries = catEntries.filter(e => e.actionType !== 'issuance' && e.actionType !== 'daily_expense');
                   const issuanceEntries = catEntries.filter(e => e.actionType === 'issuance');
                   const dailyExpenseEntries = catEntries.filter(e => e.actionType === 'daily_expense');
@@ -263,10 +278,10 @@ export const PolicyGroupCard = React.memo(({
                   const totalDailyExpense = dailyExpenseEntries.reduce((acc, e) => acc + e.amount, 0);
                   const dailyRemaining = totalIssuance - totalDailyExpense;
                   return (
-                    <div key={cat.id} className="group/item relative bg-white border border-slate-200 rounded-lg p-3 hover:bg-slate-50 transition-colors duration-150">
+                    <div key={cat.id} className="group/item relative bg-white border border-slate-200/80 rounded-2xl p-4 hover:bg-slate-50 hover:border-indigo-300/60 hover:shadow-3xs transition-all duration-200">
                       <div className="flex items-center justify-between mb-3">
-                        <div className="text-[14px] font-bold flex items-center gap-2.5 text-gray-800 cursor-pointer hover:text-[var(--color-primary)] transition-colors select-none" onClick={() => { setExpandedCats(prev => ({ ...prev, [cat.id]: !prev[cat.id] })) }}>
-                          <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color || '#4A6CF7' }}/>
+                        <div className="text-[15px] font-bold flex items-center gap-2.5 text-gray-800 cursor-pointer hover:text-[var(--color-primary)] transition-colors select-none" onClick={() => { setExpandedCats(prev => ({ ...prev, [cat.id]: !prev[cat.id] })) }}>
+                          <div className="w-2.5 h-2.5 rounded-full flex-shrink-0 animate-pulse" style={{ backgroundColor: cat.color || '#4A6CF7' }}/>
                           <div className="line-clamp-1 flex items-center gap-1.5">
                             {cat.formationItem && <span className="text-gray-500 font-medium opacity-90">[{cat.formationItem}]</span>}
                             <span>{cat.statItem || cat.name}</span>
@@ -276,17 +291,17 @@ export const PolicyGroupCard = React.memo(({
                             </div>
                           </div>
                           {cat.budgetType && cat.budgetType !== '본예산' && (
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ml-1 flex-shrink-0 border ${cat.budgetType === '간주예산' ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
+                            <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-lg ml-1 flex-shrink-0 border shadow-3xs ${cat.budgetType === '간주예산' ? 'bg-purple-50/80 text-purple-700 border-purple-200/60' : 'bg-rose-50/80 text-rose-700 border-rose-200/60'}`}>
                               {cat.budgetType}
                             </span>
                           )}
                           {cat.fundingSource && cat.fundingSource.replace(/구비\(자체\)/g, '구비') !== '구비' && (
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded ml-0.5 flex-shrink-0 border bg-teal-50 text-teal-700 border-teal-200">
+                            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-lg ml-0.5 flex-shrink-0 border bg-teal-50/80 text-teal-700 border-teal-200/60 shadow-3xs">
                               {cat.fundingSource.replace(/구비\(자체\)/g, '구비')}
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover/item:opacity-100 transition-opacity flex-shrink-0 absolute right-2 top-2 bg-white rounded-md p-1 border border-slate-200 z-10">
+                        <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover/item:opacity-100 transition-opacity flex-shrink-0 absolute right-2 top-2 bg-white rounded-lg p-1 border border-slate-200 z-10 shadow-sm">
                           {updateCategory && !isFirst && (
                             <button onClick={(e) => { e.stopPropagation(); handleSwapCat(detailGroup.cats, catIdx, -1); }} className="p-1 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-600" title="위로 이동"><ArrowUp size={13} /></button>
                           )}
@@ -297,49 +312,58 @@ export const PolicyGroupCard = React.memo(({
                           <button onClick={() => deleteCategory(cat.id)} className="p-1 rounded hover:bg-red-50 text-gray-500 hover:text-red-500"><Trash2 size={13} /></button>
                         </div>
                       </div>
-                      <div className="flex items-center justify-between bg-gray-50 rounded-lg p-3 mb-3">
+                      <div className="flex items-center justify-between bg-slate-50/70 rounded-xl p-3 mb-3 border border-slate-100">
                         <div className="flex flex-col">
-                           <span className="text-gray-500 font-bold mb-1 text-[12px]">사용 (집행+품의)</span>
-                           <span className="text-gray-800 font-extrabold tracking-tight text-[15px]">{formatN(stats.spent + stats.planned)} <span className="text-gray-400 font-medium mx-0.5">/</span> {formatN(stats.totalBudget)}</span>
+                           <span className="text-gray-500 font-bold mb-1 text-[13px]">사용 (집행+품의)</span>
+                           <span className="text-gray-800 font-semibold tracking-tight text-base font-mono tabular-nums">{formatN(stats.spent + stats.planned)} <span className="text-gray-400 font-medium mx-0.5">/</span> {formatN(stats.totalBudget)}</span>
                         </div>
                         <div className="flex flex-col items-end">
-                           <span className="text-gray-500 font-bold mb-1 text-[12px]">잔여금액</span>
-                           <span className="text-blue-600 font-black tracking-tight text-[16px]">{formatN(stats.remaining)}</span>
+                           <span className="text-gray-500 font-bold mb-1 text-[13px]">잔여금액</span>
+                           <span className="text-blue-600 font-bold tracking-tight text-[17px] font-mono tabular-nums">{formatN(stats.remaining)}원</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-3 px-1 mb-1">
-                         <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden flex shadow-inner">
-                            <div className="h-full w-full rounded-full transition-transform duration-300" style={{ transform: `translateX(-${100 - Math.min(100, stats.usageRate || 0)}%)`, backgroundColor: cat.color || '#4A6CF7' }} />
+                         <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden flex shadow-inner border border-slate-200/30 relative">
+                            <div 
+                              className={`h-full rounded-full transition-all duration-500 ease-out relative overflow-hidden ${(stats.usageRate || 0) >= 95 ? 'bg-gradient-to-r from-red-500 to-rose-500' : (stats.usageRate || 0) >= 80 ? 'bg-gradient-to-r from-amber-400 to-amber-500' : 'bg-gradient-to-r from-blue-500 to-indigo-500'}`} 
+                              style={{ width: `${Math.min(100, stats.usageRate || 0)}%` }} 
+                            >
+                              <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" style={{ backgroundSize: '200% 100%' }} />
+                            </div>
                          </div>
-                         <span className="text-[13px] font-extrabold text-gray-600 w-12 text-right tracking-tight">{(stats.usageRate || 0).toFixed(2)}%</span>
+                         <span className="text-[12.5px] font-semibold text-slate-600 w-12 text-right tracking-tight font-mono tabular-nums">{(stats.usageRate || 0).toFixed(1)}%</span>
                       </div>
 
-                      {expandedCats[cat.id] && (
-                        <div className="mt-3 space-y-2">
+                      <div 
+                        className={`transition-all duration-500 ease-in-out overflow-hidden ${
+                          expandedCats[cat.id]
+                            ? 'max-h-[8000px] opacity-100 mt-3 space-y-2'
+                            : 'max-h-0 opacity-0 mt-0 pointer-events-none'
+                        }`}
+                      >
                            {cat.subItems && cat.subItems.length > 0 && (
-                             <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm">
-                               <div className="text-[14px] font-bold text-gray-800 mb-2.5 flex items-center gap-1.5"><div className="w-1.5 h-1.5 bg-gray-400 rounded-full"/> 산출 기초 (세부 항목)</div>
+                             <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-3xs">
+                               <div className="text-[15px] font-bold text-slate-800 mb-2.5 flex items-center gap-1.5"><div className="w-1.5 h-1.5 bg-slate-400 rounded-full"/> 산출 기초 (세부 항목)</div>
                                <div className="space-y-2 pl-2">
                                  {cat.subItems.map((sub, subIdx) => {
                                     const subEntries = catEntries.filter(e => e.linkedSubItemId && (e.linkedSubItemId === sub.id || e.linkedSubItemId === sub.name || (sub.calculations && sub.calculations.some(c => e.linkedSubItemId === c.id || e.linkedSubItemId === c.name))));
                                     const subSpent = subEntries.filter(e => e.actionType !== 'issuance').reduce((acc, e) => acc + e.amount, 0);
                                     const subRemaining = sub.amount - subSpent;
-                                    const subOverbudget = subRemaining < 0;
                                     return (
                                     <div key={subIdx} className="flex flex-col gap-1.5 border-b border-gray-100 border-dashed pb-3 last:border-0 last:pb-0 transition-all">
                                       <div className="flex flex-col">
                                         <div className="flex justify-between items-start">
                                           <div className="flex items-center gap-1.5">
-                                             {sub.prefix && <span className="text-[13px] bg-gray-100 border border-gray-200 text-gray-500 font-bold px-1.5 rounded">{sub.prefix}</span>}
-                                             <span className="text-[16px] text-gray-800 font-extrabold tracking-tight">{sub.name}</span>
+                                             {sub.prefix && <span className="text-[15px] bg-gray-100 border border-gray-200 text-gray-500 font-bold px-1.5 rounded">{sub.prefix}</span>}
+                                             <span className="text-[18px] text-gray-800 font-semibold tracking-tight">{sub.name}</span>
                                           </div>
                                           <div className="flex flex-col items-end gap-0.5 shrink-0 ml-3">
-                                            {sub.amount > 0 && <span className="font-extrabold text-blue-700 tracking-tight text-[15px]">{formatN(sub.amount)}원</span>}
+                                            {sub.amount > 0 && <span className="font-semibold text-blue-700 tracking-tight text-[17px] font-mono tabular-nums">{formatN(sub.amount)}원</span>}
                                             {sub.amount > 0 && subSpent > 0 && (
-                                              <div className="flex gap-1.5 text-[12px] tabular-nums tracking-tight">
-                                                 <span className="text-teal-600 font-bold">지출: {formatN(subSpent)}</span>
+                                              <div className="flex gap-1.5 text-[14px] tabular-nums tracking-tight">
+                                                 <span className="text-teal-600 font-bold font-mono">지출: {formatN(subSpent)}</span>
                                                  <span className="text-gray-300">|</span>
-                                                 {subRemaining < 0 ? <span className="font-bold text-rose-500">초과지출: {formatN(Math.abs(subRemaining))}</span> : <span className="font-bold text-blue-600">잔액: {formatN(subRemaining)}</span>}
+                                                 {subRemaining < 0 ? <span className="font-bold text-rose-500 font-mono">초과지출: {formatN(Math.abs(subRemaining))}</span> : <span className="font-bold text-blue-600 font-mono">잔액: {formatN(subRemaining)}</span>}
                                               </div>
                                             )}
                                           </div>
@@ -351,40 +375,39 @@ export const PolicyGroupCard = React.memo(({
                                             {renderMatchedEntries(subEntries)}
                                           </>
                                         ) : (
-                                          <div className="mt-1.5 mb-0.5 bg-slate-50 border-l-[2px] border-slate-200 py-1 flex flex-col gap-1 ml-[5px]">
+                                          <div className="mt-2 mb-1 bg-slate-50/50 border-l-[3px] border-indigo-400 rounded-r-xl py-2 flex flex-col gap-1 ml-[5px] shadow-3xs">
                                             {sub.calculations.map((calc, cIdx) => {
                                               const calcEntries = catEntries.filter(e => e.linkedSubItemId && (e.linkedSubItemId === calc.id || e.linkedSubItemId === calc.name || e.linkedSubItemId === sub.name));
                                               const calcSpent = calcEntries.filter(e => e.actionType !== 'issuance').reduce((acc, e) => acc + e.amount, 0);
                                               const calcRemaining = calc.amount - calcSpent;
-                                              const cOverbudget = calcRemaining < 0;
                                               return (
-                                                <div key={cIdx} className="flex flex-col pl-2 pr-1 pb-1 border-b border-slate-100 border-dashed last:border-0 last:pb-0">
+                                                <div key={cIdx} className="flex flex-col pl-3 pr-2 pb-1.5 border-b border-slate-200/40 last:border-0 last:pb-0">
                                                 <div className="flex justify-between items-center pt-0.5">
                                                   <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                                                    <div className="flex gap-1.5 items-center flex-1 min-w-0">
-                                                      {calc.name && <span className="text-[14px] text-slate-700 font-bold shrink-0">{calc.name}</span>}
-                                                      {calc.calculation && <span className="text-[13px] text-slate-500 font-mono truncate">{calc.calculation}</span>}
+                                                    <div className="flex gap-2 items-center flex-1 min-w-0">
+                                                      {calc.name && <span className="text-[14px] text-slate-800 font-semibold shrink-0">{calc.name}</span>}
+                                                      {calc.calculation && <span className="text-[12px] text-slate-500 font-mono truncate bg-slate-100/80 px-1.5 py-0.5 rounded border border-slate-200/40">{calc.calculation}</span>}
                                                     </div>
                                                   </div>
                                                   <div className="flex flex-col items-end shrink-0 ml-3">
-                                                    <span className="text-[14.5px] font-bold text-slate-700 tracking-tight">{formatN(calc.amount)}원</span>
+                                                    <span className="text-[15px] font-semibold text-slate-900 font-mono tabular-nums tracking-tight">{formatN(calc.amount)}원</span>
                                                     {calc.amount > 0 && calcSpent > 0 && (
-                                                       <div className="flex gap-1 text-[11.5px] tabular-nums tracking-tight mt-0.5">
-                                                          <span className="text-teal-600 font-bold">지출: {formatN(calcSpent)}</span>
+                                                       <div className="flex gap-1.5 text-[12px] font-semibold font-mono tabular-nums tracking-tight mt-0.5">
+                                                          <span className="text-teal-600">지출: {formatN(calcSpent)}</span>
                                                           <span className="text-gray-300">|</span>
-                                                          {calcRemaining < 0 ? <span className="font-bold text-rose-500">초과지출: {formatN(Math.abs(calcRemaining))}</span> : <span className="font-bold text-blue-600">잔액: {formatN(calcRemaining)}</span>}
+                                                          {calcRemaining < 0 ? <span className="text-rose-500">초과: {formatN(Math.abs(calcRemaining))}</span> : <span className="text-blue-600">잔액: {formatN(calcRemaining)}</span>}
                                                        </div>
                                                     )}
                                                   </div>
                                                 </div>
                                                 {renderMatchedEntries(calcEntries)}
                                                 {calc.isCustomFunding && calc.fundingSplits && calc.fundingSplits.length > 0 && (
-                                                  <div className="inline-flex w-fit items-center gap-1 mt-1 bg-teal-50/50 p-1 rounded-sm border border-teal-100/50 mr-1 whitespace-nowrap">
-                                                    <span className="text-[11px] text-teal-600 font-extrabold bg-white px-1.5 py-0.5 rounded shadow-sm mr-0.5 border border-teal-100">개별재원</span>
+                                                  <div className="inline-flex w-fit items-center gap-1 mt-1 bg-teal-50/75 backdrop-blur-sm p-1 rounded-md border border-teal-100/50 mr-1 whitespace-nowrap shadow-sm">
+                                                    <span className="text-[10.5px] text-teal-600 font-bold bg-white px-1.5 py-0.5 rounded border border-teal-100 shadow-sm">개별재원</span>
                                                     {calc.fundingSplits.map((fs, fsIdx) => (
-                                                      <span key={fsIdx} className="text-[12px] text-teal-700 flex items-center gap-1 border-r border-teal-200/60 last:border-0 pr-1.5 last:pr-0">
-                                                        <span className="opacity-80 font-medium">{fs.source.replace('구비(자체)', '구비')}</span>
-                                                        <span className="font-extrabold">{formatN(fs.amount)}</span>
+                                                      <span key={fsIdx} className="text-[11.5px] text-teal-800 font-bold flex items-center gap-1 border-r border-teal-200/40 last:border-0 pr-1.5 last:pr-0">
+                                                        <span className="opacity-70 font-semibold">{fs.source.replace('구비(자체)', '구비')}</span>
+                                                        <span className="font-semibold font-mono">{formatN(fs.amount)}</span>
                                                       </span>
                                                     ))}
                                                   </div>
@@ -397,12 +420,12 @@ export const PolicyGroupCard = React.memo(({
                                       </div>
 
                                       {sub.isCustomFunding && sub.fundingSplits && sub.fundingSplits.length > 0 && (
-                                        <div className="inline-flex w-fit items-center gap-1 mt-0.5 bg-teal-50/50 p-1.5 rounded-sm border border-teal-100/50 whitespace-nowrap">
-                                          <span className="text-[11.5px] text-teal-600 font-extrabold bg-white px-1.5 py-0.5 rounded shadow-sm mr-1 border border-teal-100">개별재원</span>
+                                        <div className="inline-flex w-fit items-center gap-1 mt-1.5 bg-teal-50/75 backdrop-blur-sm p-1.5 rounded-md border border-teal-100/50 whitespace-nowrap shadow-sm">
+                                          <span className="text-[11px] text-teal-600 font-bold bg-white px-2 py-0.5 rounded border border-teal-100 shadow-sm">개별재원</span>
                                           {sub.fundingSplits.map((fs, fsIdx) => (
-                                            <span key={fsIdx} className="text-[12.5px] text-teal-700 flex items-center gap-1 border-r border-teal-200/60 last:border-0 pr-1.5 last:pr-0">
-                                              <span className="opacity-80 font-medium">{fs.source.replace('구비(자체)', '구비')}</span>
-                                              <span className="font-extrabold">{formatN(fs.amount)}</span>
+                                            <span key={fsIdx} className="text-[12px] text-teal-800 font-bold flex items-center gap-1 border-r border-teal-200/40 last:border-0 pr-2 last:pr-0">
+                                              <span className="opacity-70 font-semibold">{fs.source.replace('구비(자체)', '구비')}</span>
+                                              <span className="font-semibold font-mono">{formatN(fs.amount)}</span>
                                             </span>
                                           ))}
                                         </div>
@@ -416,17 +439,17 @@ export const PolicyGroupCard = React.memo(({
 
                            
                             {generalEntries.length > 0 && (
-                              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 shadow-sm mb-3">
+                              <div className="bg-blue-50/40 border border-blue-200/80 rounded-2xl p-4 shadow-3xs mb-3">
                                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-2.5">
-                                   <div className="text-[13px] font-bold text-blue-800 flex items-center gap-1.5">
+                                   <div className="text-[14px] font-bold text-blue-800 flex items-center gap-1.5">
                                       <div className="w-2 h-2 bg-blue-500 rounded-full"/> 일반 지출 (품의 및 집행) 현황
                                    </div>
-                                   <div className="flex bg-white px-2.5 py-1 rounded-md border border-blue-100 shadow-sm text-[11px] gap-2 items-center flex-wrap">
+                                   <div className="flex bg-white px-2.5 py-1 rounded-md border border-blue-100 shadow-sm text-[13px] gap-2 items-center flex-wrap font-mono">
                                       <span className="text-blue-700 font-bold">진행중 품의: {formatN(stats.planned)}</span>
                                       <span className="text-gray-300">|</span>
                                       <span className="text-indigo-600 font-bold">완료된 지출: {formatN(stats.generalSpent)}</span>
                                       <span className="text-gray-300">|</span>
-                                      <span className="text-blue-900 font-extrabold text-[12px]">일반 잔액: {formatN(stats.remaining)}</span>
+                                      <span className="text-blue-900 font-semibold text-[14px]">일반 잔액: {formatN(stats.remaining)}</span>
                                    </div>
                                  </div>
                                  
@@ -434,18 +457,18 @@ export const PolicyGroupCard = React.memo(({
                                     {generalEntries
                                       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
                                       .map(e => (
-                                       <div key={e.id} className="flex justify-between items-center text-[13.5px] hover:bg-white/60 p-1.5 rounded transition-colors cursor-pointer border border-transparent hover:border-blue-200" onClick={(evt) => { evt.stopPropagation(); openEditEntry(e); }}>
+                                       <div key={e.id} className="flex justify-between items-center text-[15.5px] hover:bg-white/60 p-1.5 rounded transition-colors cursor-pointer border border-transparent hover:border-blue-200" onClick={(evt) => { evt.stopPropagation(); openEditEntry(e); }}>
                                           <div className="flex gap-2 items-center truncate">
-                                             <span className={`font-bold px-1.5 py-0.5 rounded text-[10px] ${e.isPlanned && !e.isSettled ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-blue-100 text-blue-800 border border-blue-200'}`}>
+                                             <span className={`font-bold px-1.5 py-0.5 rounded text-[12px] ${e.isPlanned && !e.isSettled ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-blue-100 text-blue-800 border border-blue-200'}`}>
                                                 {e.isPlanned && !e.isSettled ? '품의(원인행위)' : '실지출'}
                                              </span>
                                              {(!e.linkedSubItemId || !linkedSubItemIds.has(e.linkedSubItemId)) && (
-                                                <span className="bg-gray-100 text-gray-500 border border-gray-200 px-1 py-0.5 rounded text-[9px] font-extrabold shrink-0 mr-0.5">미지정</span>
+                                                <span className="bg-gray-100 text-gray-500 border border-gray-200 px-1 py-0.5 rounded text-[11px] font-semibold shrink-0 mr-0.5">미지정</span>
                                              )}
                                              <span className="text-blue-700/70 font-medium tracking-tight shrink-0 bg-white border border-blue-100 px-1 rounded-sm">{e.date.replace(/-/g, '.')}</span>
                                              <span className="text-blue-900 font-semibold truncate">{e.purpose}</span>
                                           </div>
-                                          <span className="font-bold text-blue-900 tabular-nums shrink-0">{formatN(e.amount)}원</span>
+                                          <span className="font-bold text-blue-900 tabular-nums shrink-0 font-mono">{formatN(e.amount)}원</span>
                                        </div>
                                     ))}
                                  </div>
@@ -455,15 +478,15 @@ export const PolicyGroupCard = React.memo(({
                             {(totalIssuance > 0 || totalDailyExpense > 0) && (
                               <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 shadow-sm mb-3">
                                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-2.5">
-                                   <div className="text-[13px] font-bold text-emerald-800 flex items-center gap-1.5">
+                                   <div className="text-[15px] font-bold text-emerald-800 flex items-center gap-1.5">
                                       <div className="w-2 h-2 bg-emerald-500 rounded-full"/> 일상경비 (교부액) 집행 현황
                                    </div>
-                                   <div className="flex bg-white px-2.5 py-1 rounded-md border border-emerald-100 shadow-sm text-[11px] gap-2 items-center flex-wrap">
+                                   <div className="flex bg-white px-2.5 py-1 rounded-md border border-emerald-100 shadow-sm text-[13px] gap-2 items-center flex-wrap font-mono">
                                       <span className="text-emerald-700 font-bold">총 교부액: {formatN(totalIssuance)}</span>
                                       <span className="text-gray-300">|</span>
                                       <span className="text-rose-600 font-bold">집행액: {formatN(totalDailyExpense)}</span>
                                       <span className="text-gray-300">|</span>
-                                      <span className="text-blue-700 font-extrabold text-[12px]">교부잔액: {formatN(dailyRemaining)}</span>
+                                      <span className="text-blue-700 font-semibold text-[14px]">교부잔액: {formatN(dailyRemaining)}</span>
                                    </div>
                                  </div>
                                  
@@ -471,15 +494,15 @@ export const PolicyGroupCard = React.memo(({
                                     {[...issuanceEntries, ...dailyExpenseEntries]
                                       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
                                       .map(e => (
-                                       <div key={e.id} className="flex justify-between items-center text-[13.5px] hover:bg-white/60 p-1.5 rounded transition-colors cursor-pointer border border-transparent hover:border-emerald-200" onClick={(evt) => { evt.stopPropagation(); openEditEntry(e); }}>
+                                       <div key={e.id} className="flex justify-between items-center text-[15.5px] hover:bg-white/60 p-1.5 rounded transition-colors cursor-pointer border border-transparent hover:border-emerald-200" onClick={(evt) => { evt.stopPropagation(); openEditEntry(e); }}>
                                           <div className="flex gap-2 items-center truncate">
-                                             <span className={`font-bold px-1.5 py-0.5 rounded text-[10px] ${e.actionType === 'issuance' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
+                                             <span className={`font-bold px-1.5 py-0.5 rounded text-[12px] ${e.actionType === 'issuance' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
                                                 {e.actionType === 'issuance' ? '교부' : '지출'}
                                              </span>
                                              <span className="text-emerald-700/70 font-medium tracking-tight shrink-0 bg-white border border-emerald-100 px-1 rounded-sm">{e.date.replace(/-/g, '.')}</span>
                                              <span className="text-emerald-900 font-semibold truncate">{e.purpose}</span>
                                           </div>
-                                          <span className="font-bold text-emerald-900 tabular-nums shrink-0">{formatN(e.amount)}원</span>
+                                          <span className="font-bold text-emerald-900 tabular-nums shrink-0 font-mono">{formatN(e.amount)}원</span>
                                        </div>
                                     ))}
                                  </div>
@@ -487,18 +510,18 @@ export const PolicyGroupCard = React.memo(({
                             )}
 {cat.fundingSplits && cat.fundingSplits.length > 0 && (
                              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 shadow-inner">
-                               <div className="text-[11px] font-bold text-slate-600 mb-2.5 flex items-center gap-1"><FileCheck size={12}/> 재원 분할 내역</div>
+                               <div className="text-[13px] font-bold text-slate-600 mb-2.5 flex items-center gap-1"><FileCheck size={12}/> 재원 분할 내역</div>
                                <div className="space-y-1.5 pl-1">
                                  {cat.fundingSplits.map((split, splitIdx) => {
                                     const splitRatio = cat.totalBudget > 0 ? (split.amount / cat.totalBudget) * 100 : 0;
                                     return (
-                                     <div key={splitIdx} className="flex justify-between items-center text-[12px] border-b border-slate-200 border-dashed pb-1.5 last:border-0 last:pb-0">
+                                     <div key={splitIdx} className="flex justify-between items-center text-[14px] border-b border-slate-200 border-dashed pb-1.5 last:border-0 last:pb-0">
                                        <div className="flex items-center gap-2">
                                           <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />
                                           <span className="font-bold text-gray-700">{split.source.replace('구비(자체)', '구비')}</span>
-                                          <span className="text-[10px] bg-white border border-slate-200 text-slate-500 px-1.5 py-0.5 rounded font-mono">{splitRatio.toFixed(1)}%</span>
+                                          <span className="text-[12px] bg-white border border-slate-200 text-slate-500 px-1.5 py-0.5 rounded font-mono">{splitRatio.toFixed(1)}%</span>
                                        </div>
-                                       <span className="font-extrabold text-gray-900 tracking-tight">{formatN(split.amount)}원</span>
+                                       <span className="font-semibold text-gray-900 tracking-tight font-mono">{formatN(split.amount)}원</span>
                                      </div>
                                     );
                                  })}
@@ -506,7 +529,6 @@ export const PolicyGroupCard = React.memo(({
                              </div>
                            )}
                         </div>
-                      )}
                     </div>
                   )
                 })}
@@ -517,13 +539,13 @@ export const PolicyGroupCard = React.memo(({
           {groupEntries.length > 0 && (
             <div className="pt-3 space-y-2 mt-2">
               <div className="flex items-center justify-between mb-2 ml-1">
-                <div className="text-[13px] font-bold text-gray-500 uppercase tracking-wider">
+                <div className="text-[15px] font-bold text-gray-500 uppercase tracking-wider">
                   지출 내역 {groupEntries.length > 6 ? `(총 ${groupEntries.length}건)` : ''}
                 </div>
                 {groupEntries.length > 6 && (
                   <button 
                     onClick={() => setShowAllEntries(prev => !prev)}
-                    className="text-[11px] bg-blue-50 text-blue-600 px-2.5 py-1 rounded cursor-pointer hover:bg-blue-100 hover:text-blue-800 font-bold transition-colors"
+                    className="text-[13px] bg-blue-50 text-blue-600 px-2.5 py-1 rounded cursor-pointer hover:bg-blue-100 hover:text-blue-800 font-bold transition-colors"
                   >
                     {showAllEntries ? '간략히 보기' : '모두 보기'}
                   </button>
@@ -535,32 +557,32 @@ export const PolicyGroupCard = React.memo(({
                   const cfg = ACTION_TYPE_CONFIG[entry.actionType || 'general'] || ACTION_TYPE_CONFIG['general'];
                   const parentCat = cats.find(c => c.id === entry.categoryId);
                   return (
-                    <div key={entry.id} className="flex items-center text-[13px] group bg-white py-2.5 px-3 rounded-lg border border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-colors relative">
+                    <div key={entry.id} className="flex items-center text-[15px] group bg-white py-2.5 px-3 rounded-lg border border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-colors relative">
                       <div className="w-[70px] flex-shrink-0">
-                        <span className={`px-2 py-1 rounded-md text-[11px] font-bold border whitespace-nowrap ${cfg.badge === '경비지출' ? 'bg-teal-50 text-teal-700 border-teal-200' : cfg.badge === '교부' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>{cfg.badge}</span>
+                        <span className={`px-2 py-1 rounded-md text-[13px] font-bold border whitespace-nowrap ${cfg.badge === '경비지출' ? 'bg-teal-50 text-teal-700 border-teal-200' : cfg.badge === '교부' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>{cfg.badge}</span>
                       </div>
                       <div className="w-[180px] hidden sm:flex items-center flex-shrink-0 pr-3">
-                        <span className="text-[11px] bg-gray-50 border border-gray-200 text-gray-600 px-2 py-0.5 rounded-md whitespace-nowrap overflow-visible">
+                        <span className="text-[13px] bg-gray-50 border border-gray-200 text-gray-600 px-2 py-0.5 rounded-md whitespace-nowrap overflow-visible">
                           {parentCat?.unitProject || '알수없음'}
                         </span>
                       </div>
                       <div className="w-[90px] flex items-center flex-shrink-0 pr-3">
-                        <span className="text-[11.5px] text-gray-500 font-medium tracking-tight whitespace-nowrap">
+                        <span className="text-[13.5px] text-gray-500 font-medium tracking-tight whitespace-nowrap">
                           {entry.date.replace(/-/g, '.')}
                         </span>
                       </div>
                       <div className="w-[140px] hidden lg:flex items-center flex-shrink-0 pr-3">
                         {entry.docRegNum && (
-                          <span className="text-[11px] bg-indigo-50 border border-indigo-100 text-indigo-700 px-2 py-0.5 rounded-md whitespace-nowrap">
+                          <span className="text-[13px] bg-indigo-50 border border-indigo-100 text-indigo-700 px-2 py-0.5 rounded-md whitespace-nowrap">
                             {entry.docRegNum}
                           </span>
                         )}
                       </div>
                       <div className="flex-1 min-w-[150px] pr-2">
-                        <span className="text-gray-800 font-bold tracking-tight line-clamp-1" title={entry.purpose}>{entry.purpose}</span>
+                        <span className="text-gray-800 font-semibold tracking-tight line-clamp-1 text-[15px]" title={entry.purpose}>{entry.purpose}</span>
                       </div>
                       <div className="w-[130px] sm:w-[160px] flex items-center justify-end gap-3 flex-shrink-0">
-                         <span className="font-bold text-gray-800 tracking-tight tabular-nums whitespace-nowrap">{formatN(entry.amount)}원</span>
+                         <span className="font-semibold text-gray-800 tracking-tight tabular-nums whitespace-nowrap text-[15px]">{formatN(entry.amount)}원</span>
                          <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 absolute right-2 top-2 sm:relative sm:top-0 sm:right-0 bg-white sm:bg-transparent rounded p-1 sm:p-0 border border-slate-200 sm:border-none z-10 w-auto sm:w-[56px] justify-end flex-shrink-0">
                            <button onClick={() => openEditEntry(entry)} className="p-1 rounded hover:bg-slate-100 text-gray-500"><Pencil size={13} /></button>
                            <button onClick={() => { if(window.confirm('이 지출 내역을 정말 삭제하시겠습니까? 삭제된 데이터는 복구할 수 없습니다.')) deleteEntry(entry.id) }} className="p-1 rounded hover:bg-red-50 text-gray-500 hover:text-red-500"><Trash2 size={13} /></button>
@@ -573,7 +595,6 @@ export const PolicyGroupCard = React.memo(({
             </div>
           )}
         </div>
-      )}
     </div>
   );
 });

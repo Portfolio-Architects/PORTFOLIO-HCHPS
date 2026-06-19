@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import React, { useState, useEffect } from 'react';
-import { BudgetCategory, BudgetFundingSplit, BudgetCalculation, BudgetSubItem } from '@/types';
+import { BudgetCategory, BudgetFundingSplit, BudgetCalculation } from '@/types';
 import { Modal } from '@/components/ui/modal';
 import { ShieldAlert, X, FileCheck } from 'lucide-react';
 

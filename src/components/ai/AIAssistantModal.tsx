@@ -5,6 +5,7 @@ import { BudgetCategory, BudgetEntry } from '@/types';
 import { SignalEntry } from '@/hooks/useSignal';
 import { buildSignalGraph } from '@/lib/signal-graph';
 import { OntologyNetwork } from '@/lib/engine/OntologyNetwork';
+import { AgentStatusBoard } from './AgentStatusBoard';
 
 interface AIAssistantModalProps {
   isOpen: boolean;
@@ -286,117 +287,131 @@ export function AIAssistantModal({ isOpen, onClose, contextData, appMode = 'VITA
 
   return (
     <div 
-      className="w-[calc(100vw-2rem)] flex flex-col bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden animate-in slide-in-from-bottom-5 duration-300"
-      style={{ maxWidth: '600px', height: '780px', maxHeight: '85vh' }}
+      className="flex gap-4 items-start w-[calc(100vw-2rem)] animate-in slide-in-from-bottom-5 duration-300"
+      style={{ maxWidth: '960px', height: '780px', maxHeight: '85vh' }}
     >
-      {/* Header */}
-      <div className="flex justify-between items-center px-4 py-3 border-b border-gray-100 bg-white">
-        <div className="flex items-center gap-2">
-          <Sparkles size={18} className="text-blue-500" />
-          <div className="flex flex-col">
-            <span className="text-xs font-bold text-gray-800 uppercase tracking-wide">Portfolio Assistant</span>
-            <span className="text-[10px] text-gray-400 font-medium">GEMMA 4 31B IT</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-1">
-          <button 
-            onClick={clearMessages}
-            className="text-gray-400 hover:text-red-500 rounded-full p-1.5 hover:bg-red-50 transition-colors"
-            title="대화 내역 지우기"
-          >
-            <Trash2 size={16} />
-          </button>
-          <button className="text-gray-400 hover:text-gray-600 rounded-full p-1.5 hover:bg-gray-100 transition-colors">
-            <Settings size={16} />
-          </button>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 rounded-full p-1.5 hover:bg-gray-100 transition-colors">
-            <X size={16} />
-          </button>
-        </div>
-      </div>
-      
-      {/* Body: Chat History */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50/50 flex flex-col gap-4">
-        {messages.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-center">
-            <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center mb-4 text-blue-500 shadow-inner">
-              <Sparkles size={24} />
-            </div>
-            <h3 className="text-base font-semibold text-gray-800 mb-2">
-              {appMode} AI Assistant.
-              <br />
-              Ask anything about your work!
-            </h3>
-            <div className="flex flex-col gap-1.5 text-xs text-gray-500">
-              <p>&quot;내일까지 예산 기획안 작성해줘&quot;</p>
-              <p>&quot;강남체육센터 예산 현황 보여줘&quot;</p>
+      {/* Chat Area */}
+      <div 
+        className="flex-1 flex flex-col glass-panel rounded-2xl shadow-2xl border border-white/30 overflow-hidden h-full"
+      >
+        {/* Header */}
+        <div className="flex justify-between items-center px-5 py-3.5 border-b border-slate-200/50 bg-white/30 backdrop-blur-xs">
+          <div className="flex items-center gap-2 group">
+            <Sparkles size={18} className="text-blue-500 group-hover:rotate-12 transition-transform duration-300" />
+            <div className="flex flex-col">
+              <span className="text-xs font-bold text-slate-800 uppercase tracking-wide font-sans">Portfolio Assistant</span>
+              <span className="text-[10px] text-slate-450 font-semibold">GEMMA 4 31B IT</span>
             </div>
           </div>
-        ) : (
-          messages.map((msg) => (
-            <div 
-              key={msg.id} 
-              className={`flex w-full ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+          <div className="flex items-center gap-1.5">
+            <button 
+              onClick={clearMessages}
+              className="text-slate-400 hover:text-red-500 rounded-full p-1.5 hover:bg-red-50 transition-colors"
+              title="대화 내역 지우기"
             >
-              <div className={`flex max-w-[85%] sm:max-w-[80%] gap-2 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-                {msg.role !== 'system' && (
-                  <div className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center shadow-sm ${msg.role === 'user' ? 'bg-gray-800 text-white' : 'bg-blue-500 text-white'}`}>
-                    {msg.role === 'user' ? <User size={14} /> : <Bot size={14} />}
+              <Trash2 size={16} />
+            </button>
+            <button className="text-slate-400 hover:text-slate-600 rounded-full p-1.5 hover:bg-slate-100 transition-colors">
+              <Settings size={16} />
+            </button>
+            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 rounded-full p-1.5 hover:bg-slate-100 transition-colors">
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+        
+        {/* Body: Chat History */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50/10 flex flex-col gap-4 custom-scrollbar">
+          {messages.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-center">
+              <div className="w-12 h-12 bg-blue-500/10 border border-blue-500/15 rounded-2xl flex items-center justify-center mb-4 text-blue-500 shadow-inner">
+                <Sparkles size={24} />
+              </div>
+              <h3 className="text-base font-bold text-slate-800 mb-2">
+                {appMode} AI Assistant
+                <br />
+                <span className="text-sm font-semibold text-slate-450">무엇이든 물어보세요!</span>
+              </h3>
+              <div className="flex flex-col gap-1.5 text-xs font-semibold text-slate-400">
+                <p>&quot;내일까지 예산 기획안 작성해줘&quot;</p>
+                <p>&quot;강남체육센터 예산 현황 보여줘&quot;</p>
+              </div>
+            </div>
+          ) : (
+            messages.map((msg) => (
+              <div 
+                key={msg.id} 
+                className={`flex w-full ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              >
+                <div className={`flex max-w-[85%] sm:max-w-[80%] gap-2.5 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                  {msg.role !== 'system' && (
+                    <div className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center shadow-xs border ${
+                      msg.role === 'user' 
+                        ? 'bg-slate-800 border-slate-700 text-white' 
+                        : 'bg-blue-500 border-blue-450 text-white'
+                    }`}>
+                      {msg.role === 'user' ? <User size={13} /> : <Bot size={13} />}
+                    </div>
+                  )}
+                  
+                  <div 
+                    className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
+                      msg.role === 'user' 
+                        ? 'glass-panel-dark text-white rounded-tr-none shadow-2xs' 
+                        : msg.role === 'assistant'
+                          ? 'glass-panel text-slate-700 rounded-tl-none shadow-3xs'
+                          : 'bg-red-500/10 text-red-600 border border-red-500/15 rounded-xl text-xs w-full text-center font-bold'
+                    }`}
+                  >
+                    {msg.content}
                   </div>
-                )}
-                
-                <div 
-                  className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
-                    msg.role === 'user' 
-                      ? 'bg-gray-800 text-white rounded-tr-sm' 
-                      : msg.role === 'assistant'
-                        ? 'bg-white border border-gray-200 text-gray-700 shadow-sm rounded-tl-sm'
-                        : 'bg-red-50 text-red-600 border border-red-100 rounded-xl text-xs w-full text-center'
-                  }`}
-                >
-                  {msg.content}
+                </div>
+              </div>
+            ))
+          )}
+          
+          {isTyping && (
+            <div className="flex w-full justify-start">
+              <div className="flex max-w-[80%] gap-2.5">
+                <div className="shrink-0 w-7 h-7 rounded-full bg-blue-500 border border-blue-450 text-white flex items-center justify-center shadow-xs">
+                  <Bot size={13} />
+                </div>
+                <div className="px-4 py-3 rounded-2xl rounded-tl-none glass-panel shadow-3xs flex items-center gap-1">
+                  <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                  <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                  <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" />
                 </div>
               </div>
             </div>
-          ))
-        )}
-        
-        {isTyping && (
-          <div className="flex w-full justify-start">
-            <div className="flex max-w-[80%] gap-2">
-              <div className="shrink-0 w-7 h-7 rounded-full bg-blue-500 text-white flex items-center justify-center shadow-sm">
-                <Bot size={14} />
-              </div>
-              <div className="px-4 py-3 rounded-2xl rounded-tl-sm bg-white border border-gray-200 shadow-sm flex items-center gap-1">
-                <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
-                <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
-                <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" />
-              </div>
-            </div>
-          </div>
-        )}
-        <div ref={messagesEndRef} />
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+  
+        {/* Bottom Input Area */}
+        <div className="p-3 bg-white/30 backdrop-blur-xs border-t border-slate-200/50">
+          <form onSubmit={handleSubmit} className="relative flex items-center bg-white/50 backdrop-blur-xs rounded-xl border border-slate-200 focus-within:border-blue-500/80 focus-within:ring-2 focus-within:ring-blue-500/15 focus-within:bg-white transition-all shadow-3xs">
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="무엇이든 물어보세요..."
+              className="flex-1 max-h-32 min-h-[44px] bg-transparent text-sm resize-none outline-none py-3 px-4 custom-scrollbar placeholder:text-slate-350 placeholder:font-semibold"
+              rows={1}
+            />
+            <button 
+              type="submit"
+              disabled={!input.trim() || isTyping}
+              className="absolute right-2.5 bottom-2 p-1.5 text-white bg-blue-500 rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:hover:bg-blue-500 transition-colors shadow-2xs hover:shadow-md cursor-pointer"
+            >
+              {isTyping ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} className="ml-0.5" />}
+            </button>
+          </form>
+        </div>
       </div>
 
-      {/* Bottom Input Area */}
-      <div className="p-3 bg-white border-t border-gray-100">
-        <form onSubmit={handleSubmit} className="relative flex items-center bg-gray-50 rounded-xl border border-gray-200 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition-all">
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Ask anything..."
-            className="flex-1 max-h-32 min-h-[44px] bg-transparent text-sm resize-none outline-none py-3 px-4 custom-scrollbar"
-            rows={1}
-          />
-          <button 
-            type="submit"
-            disabled={!input.trim() || isTyping}
-            className="absolute right-2 bottom-2 p-1.5 text-white bg-blue-500 rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:hover:bg-blue-500 transition-colors"
-          >
-            {isTyping ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} className="ml-0.5" />}
-          </button>
-        </form>
+      {/* Live Agent Monitoring Side Panel */}
+      <div className="hidden md:block shrink-0 h-full w-[320px]">
+        <AgentStatusBoard />
       </div>
     </div>
   );

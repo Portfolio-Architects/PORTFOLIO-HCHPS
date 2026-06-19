@@ -39,6 +39,7 @@ export function ExpenseEntryModal({
   const [entryDate, setEntryDate] = useState(new Date().toISOString().split('T')[0]);
   const [actionType, setActionType] = useState<BudgetActionType>('general');
   const [entryLinkedSubItemId, setEntryLinkedSubItemId] = useState('');
+  const [fundingSource, setFundingSource] = useState<string>('');
   const [entryError, setEntryError] = useState<string | null>(null);
 
   const isEdit = initialData && 'id' in initialData && !!initialData.id;
@@ -58,6 +59,7 @@ export function ExpenseEntryModal({
       setEntryDocNum(initialData.docRegNum || '');
       setEntryLinkedSubItemId(initialData.linkedSubItemId || '');
       setActionType(initialData.actionType || 'general');
+      setFundingSource(initialData.fundingSource || '');
       if (initialData.date) setEntryDate(initialData.date);
     } else {
       setSelectedCatId(preselectedCategoryId || '');
@@ -67,6 +69,7 @@ export function ExpenseEntryModal({
       setEntryDocNum('');
       setEntryLinkedSubItemId('');
       setActionType('general');
+      setFundingSource('');
       setEntryDate(new Date().toISOString().split('T')[0]);
     }
   }, [isOpen, initialData, preselectedCategoryId]);
@@ -128,8 +131,8 @@ export function ExpenseEntryModal({
         const subLimit = targetSubItem.amount;
 
         if (subLimit > 0 && newUsage > subLimit) {
-          const proceed = window.confirm(`[경고] 선택한 산출내역('${targetSubItem.name || targetSubItem.calculation}')의 한도(${subLimit.toLocaleString()}원)를 초과합니다. (현재 누적: ${currentUsage.toLocaleString()}원 + 신규: ${amt.toLocaleString()}원)\\n\\n전체 과목 예산 한도 내에서 초과 지출을 허용하시겠습니까? (확인 시 등록 진행)`);
-          if (!proceed) return;
+          setEntryError(`[산출내역 한도 초과] 선택한 산출내역('${targetSubItem.name || targetSubItem.calculation}')의 한도(${subLimit.toLocaleString()}원)를 초과하여 등록을 차단합니다. (현재 누적: ${currentUsage.toLocaleString()}원 / 신규: ${amt.toLocaleString()}원)`);
+          return;
         }
 
         const isSelfLocked = targetSubItem.isLocked;
@@ -155,8 +158,8 @@ export function ExpenseEntryModal({
         }
       }
       if (adjustment > dailyRemaining) {
-        const proceed = window.confirm(`[경고] 일상경비 교부 잔액(${dailyRemaining.toLocaleString()}원)을 초과합니다. (초과 금액: ${(adjustment - dailyRemaining).toLocaleString()}원)\n\n지출을 허용하시겠습니까? (확인 시 등록 진행)`);
-        if (!proceed) return;
+        setEntryError(`[일상경비 한도 초과] 일상경비 교부 잔액(${dailyRemaining.toLocaleString()}원)을 초과하여 등록을 차단합니다. (초과 금액: ${(adjustment - dailyRemaining).toLocaleString()}원)`);
+        return;
       }
     }
 
@@ -182,7 +185,8 @@ export function ExpenseEntryModal({
       const newTotalSpent = spent + adjustment;
       
       if (cat.totalBudget > 0 && newTotalSpent > cat.totalBudget) {
-        alert(`예산 초과 경고: 이 항목 등록 시 예산액(${cat.totalBudget.toLocaleString()}원)을 초과한 ${newTotalSpent.toLocaleString()}원이 누적됩니다.`);
+        setEntryError(`[예산 한도 초과] 등록하려는 금액이 해당 예산 과목의 잔액(가용 예산: ${(cat.totalBudget - spent).toLocaleString()}원)을 초과하여 등록을 차단합니다. (누적 예정액: ${newTotalSpent.toLocaleString()}원 / 총예산: ${cat.totalBudget.toLocaleString()}원)`);
+        return;
       }
     }
     // -- VALIDATION END --
@@ -195,7 +199,8 @@ export function ExpenseEntryModal({
       memo: entryMemo,
       docRegNum: entryDocNum,
       linkedSubItemId: entryLinkedSubItemId || undefined,
-      actionType
+      actionType,
+      fundingSource: fundingSource || undefined
     });
     onClose();
   };
@@ -248,6 +253,17 @@ export function ExpenseEntryModal({
               </button>
             )}
           </div>
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">재원 출처</label>
+          <select value={fundingSource} onChange={e => setFundingSource(e.target.value)} className={inputClass}>
+            <option value="">선택 안함</option>
+            <option value="국비">국비</option>
+            <option value="시비">시비</option>
+            <option value="구비">구비</option>
+            <option value="기타">기타</option>
+          </select>
         </div>
 
         {selectedCatId && categories.find(c => c.id === selectedCatId)?.subItems && categories.find(c => c.id === selectedCatId)!.subItems!.length > 0 && (

@@ -19,7 +19,9 @@ export const useSecurityLock = () => {
     isLocked,
     hasSetupPIN,
     failCount: 0,
-    verifyPIN: async (pin: string) => true,
-    setupPIN: async (pin: string) => {},
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    verifyPIN: async (_pin: string) => true,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    setupPIN: async (_pin: string) => {},
   };
 };

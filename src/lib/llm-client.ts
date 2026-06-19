@@ -6,7 +6,7 @@ export async function askLlama(messages: { role: string; content: string }[]): P
   try {
     const { getAuthToken } = await import('@/lib/crypto');
     headers['Authorization'] = `Bearer ${getAuthToken()}`;
-  } catch (e) {
+  } catch {
     // ignore
   }
 
@@ -36,7 +36,7 @@ export async function askLlamaStream(messages: { role: string; content: string }
   try {
     const { getAuthToken } = await import('@/lib/crypto');
     headers['Authorization'] = `Bearer ${getAuthToken()}`;
-  } catch (e) {
+  } catch {
     // ignore
   }
 
@@ -73,7 +73,7 @@ export async function askLlamaStream(messages: { role: string; content: string }
           if (data.response) {
             onChunk(data.response);
           }
-        } catch (e) {
+        } catch {
           // ignore incomplete json chunk parsing errors
         }
       }

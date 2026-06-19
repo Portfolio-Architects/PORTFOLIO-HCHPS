@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
 import { classifyAndParse, ParsedResult } from '@/lib/korean-nlp';
-import { Zap, Calendar, Clock, MapPin, Users, DollarSign, AlertTriangle, Send, Repeat } from 'lucide-react';
+import { Calendar, Clock, MapPin, Users, DollarSign, AlertTriangle, Send, Repeat } from 'lucide-react';
 
 interface QuickInputProps {
   onCreateTask: (data: { title: string; dueDate?: string; priority: 'low' | 'medium' | 'high'; tags: string[]; category: string; recurrence?: string; recurrenceEndDate?: string }) => void;
@@ -74,24 +74,24 @@ export function QuickInput({ onCreateTask, onAddSignal, onSearch, onNavigate }: 
   };
 
   return (
-    <div className="relative overflow-hidden">
-      <div className="flex items-center gap-2 bg-[var(--color-card)] rounded-2xl border border-[var(--color-border-light)] shadow-[var(--shadow-sm)] px-3 sm:px-4 py-2 transition-shadow focus-within:shadow-md focus-within:border-[var(--color-primary)] min-w-0">
+    <div className="relative overflow-visible">
+      <div className="flex items-center gap-2 glass-panel rounded-2xl shadow-sm px-3.5 sm:px-4 py-2.5 transition-all duration-200 focus-within:shadow-[0_0_18px_rgba(74,108,247,0.15)] focus-within:border-[var(--color-primary)]/80 min-w-0">
         <input
           type="text"
           value={text}
           onChange={e => setText(e.target.value)}
           onKeyDown={handleKeyDown}
-          className="flex-1 min-w-0 bg-transparent text-sm outline-none placeholder:text-[var(--color-text-tertiary)]"
+          className="flex-1 min-w-0 bg-transparent text-sm outline-none placeholder:text-[var(--color-text-tertiary)] font-medium text-[var(--color-text-primary)]"
           placeholder="Ask anything..."
         />
 
         {parsed && (
-          <span className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold ${
+          <span className={`flex items-center gap-1 px-3 py-1 rounded-full text-[10.5px] font-bold tracking-wide uppercase shadow-2xs border ${
             parsed.type === 'query'
-              ? 'bg-purple-50 text-purple-600'
+              ? 'bg-violet-500/10 text-violet-700 border-violet-500/20'
               : parsed.type === 'signal'
-                ? 'bg-emerald-50 text-emerald-600'
-                : 'bg-[rgba(74,108,247,0.08)] text-[var(--color-primary)]'
+                ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20'
+                : 'bg-indigo-500/10 text-indigo-700 border-indigo-500/20'
           }`}>
             {parsed.type === 'query' ? '🔍 정보 검색' : parsed.type === 'signal' ? '📡 시그널' : '📋 업무'}
           </span>
@@ -100,58 +100,59 @@ export function QuickInput({ onCreateTask, onAddSignal, onSearch, onNavigate }: 
         <button
           onClick={handleSubmit}
           disabled={!parsed}
-          className={`p-2 rounded-xl transition-all cursor-pointer ${parsed ? 'bg-[var(--color-primary)] text-white hover:opacity-90' : 'bg-gray-100 text-[var(--color-text-tertiary)]'}`}
+          className={`p-2 rounded-xl transition-all cursor-pointer ${parsed ? 'bg-[var(--color-primary)] text-white hover:opacity-90 shadow-sm' : 'bg-slate-100 text-[var(--color-text-tertiary)] opacity-60'}`}
         >
-          <Send size={14} />
+          <Send size={13} />
         </button>
       </div>
 
       {parsed && (
-        <div className="flex items-center gap-2 mt-2 flex-wrap px-1 overflow-x-auto no-scrollbar">
+        <div className="flex items-center gap-2 mt-2.5 flex-wrap px-1.5 overflow-x-auto no-scrollbar">
           {parsed.date && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] bg-blue-50 text-blue-600">
-              <Calendar size={10} /> {parsed.date}
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10.5px] font-semibold bg-indigo-500/10 text-indigo-700 border border-indigo-500/15 shadow-2xs">
+              <Calendar size={11} /> {parsed.date}
             </span>
           )}
           {parsed.time && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] bg-purple-50 text-purple-600">
-              <Clock size={10} /> {parsed.time}
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10.5px] font-semibold bg-violet-500/10 text-violet-700 border border-violet-500/15 shadow-2xs">
+              <Clock size={11} /> {parsed.time}
             </span>
           )}
           {parsed.people.map(p => (
-            <span key={p} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] bg-green-50 text-green-600">
-              <Users size={10} /> {p}
+            <span key={p} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10.5px] font-semibold bg-emerald-500/10 text-emerald-700 border border-emerald-500/15 shadow-2xs">
+              <Users size={11} /> {p}
             </span>
           ))}
           {parsed.location && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] bg-orange-50 text-orange-600">
-              <MapPin size={10} /> {parsed.location}
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10.5px] font-semibold bg-orange-500/10 text-orange-700 border border-orange-500/15 shadow-2xs">
+              <MapPin size={11} /> {parsed.location}
             </span>
           )}
           {parsed.amount && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] bg-yellow-50 text-yellow-600">
-              <DollarSign size={10} /> {formatAmount(parsed.amount)}
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10.5px] font-semibold bg-amber-500/10 text-amber-700 border border-amber-500/15 shadow-2xs font-mono">
+              <DollarSign size={11} /> {formatAmount(parsed.amount)}
             </span>
           )}
           {parsed.priority === 'high' && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] bg-red-50 text-red-600">
-              <AlertTriangle size={10} /> 긴급
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10.5px] font-semibold bg-rose-500/10 text-rose-700 border border-rose-500/15 shadow-2xs animate-pulse">
+              <AlertTriangle size={11} /> 긴급
             </span>
           )}
           {parsed.recurrence && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] bg-teal-50 text-teal-600">
-              <Repeat size={10} /> {parsed.recurrence}
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10.5px] font-semibold bg-teal-500/10 text-teal-700 border border-teal-500/15 shadow-2xs">
+              <Repeat size={11} /> {parsed.recurrence}
             </span>
           )}
-          <span className="text-[10px] text-[var(--color-text-tertiary)] ml-auto hidden sm:inline">
+          <span className="text-[10px] font-bold text-[var(--color-text-tertiary)] ml-auto hidden sm:inline truncate max-w-[150px]" title={parsed.title}>
             → &quot;{parsed.title}&quot;
           </span>
         </div>
       )}
 
       {justCreated && (
-        <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-xs font-medium text-[var(--color-success)] animate-pulse">
-          ✅ {createdLabel}
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] flex items-center gap-2 px-5 py-3 rounded-full bg-slate-900/95 backdrop-blur-md border border-slate-700/50 shadow-2xl text-[12px] font-semibold text-white animate-slide-up-fade">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10B981] animate-pulse" />
+          {createdLabel}
         </div>
       )}
     </div>

@@ -10,6 +10,7 @@ interface TopNavProps {
   taskStats: { total: number; done: number; overdue: number };
   appMode: 'HCHPS' | 'VITAL';
   onModeChange: (mode: 'HCHPS' | 'VITAL') => void;
+  onPreloadModule?: (module: ModuleType) => void;
 }
 
 const navItems: { id: ModuleType; label: string; icon: React.ElementType }[] = [
@@ -19,12 +20,12 @@ const navItems: { id: ModuleType; label: string; icon: React.ElementType }[] = [
   { id: 'inventory', label: '홍보물', icon: Package },
 ];
 
-export function Sidebar({ activeModule, onModuleChange, taskStats, appMode, onModeChange }: TopNavProps) {
+export function Sidebar({ activeModule, onModuleChange, appMode, onPreloadModule }: TopNavProps) {
   const activeLabel = navItems.find((i) => i.id === activeModule)?.label;
 
   return (
     <>
-      <header className="sticky top-0 left-0 right-0 z-40 bg-[var(--color-card)] border-b border-[var(--color-border-light)] shadow-sm">
+      <header className="sticky top-0 left-0 right-0 z-40 bg-[var(--color-card)]/70 backdrop-blur-md border-b border-white/20 shadow-xs transition-all duration-300">
         <div className="max-w-[1800px] mx-auto px-2 sm:px-3 lg:px-4">
           <div className="flex items-center justify-between h-14 gap-3">
             
@@ -32,29 +33,31 @@ export function Sidebar({ activeModule, onModuleChange, taskStats, appMode, onMo
             <div className="flex items-center gap-3">
               {/* Mobile Header Title */}
               <div className="flex sm:hidden items-center pt-1 px-1">
-                <h1 className="text-xl font-[800] tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-indigo-600">
+                <h1 className="text-xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">
                   {activeLabel}
                 </h1>
               </div>
 
               {/* Desktop Navigation Items */}
-              <nav className="hidden sm:flex items-center w-auto justify-start shrink-0 gap-1">
+              <nav className="hidden sm:flex items-center w-auto justify-start shrink-0 gap-1.5">
                 {navItems.map(item => {
                   const Icon = item.icon;
                   const isActive = activeModule === item.id;
-                  const activeBg = appMode === 'HCHPS' ? 'bg-emerald-600' : 'bg-blue-600';
+                  const activeBg = appMode === 'HCHPS' ? 'bg-emerald-600 shadow-emerald-500/10' : 'bg-blue-600 shadow-blue-500/10';
                   return (
                     <button
                       key={item.id}
                       onClick={() => onModuleChange(item.id)}
-                      className={`flex items-center justify-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-medium whitespace-nowrap cursor-pointer transition-all duration-200 relative ${
+                      onMouseEnter={() => onPreloadModule?.(item.id)}
+                      onFocus={() => onPreloadModule?.(item.id)}
+                      className={`flex items-center justify-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-semibold whitespace-nowrap cursor-pointer transition-all duration-150 relative hover:scale-[1.03] active:scale-95 ${
                         isActive
-                          ? `text-white ${activeBg} shadow-sm`
-                          : 'text-[var(--color-text-secondary)] hover:bg-gray-50 hover:text-[var(--color-text-primary)]'
+                          ? `text-white ${activeBg} shadow-md`
+                          : 'text-[var(--color-text-secondary)] hover:bg-slate-500/5 hover:text-[var(--color-text-primary)]'
                       }`}
                       title={item.label}
                     >
-                      <Icon className="w-4 h-4" strokeWidth={isActive ? 2.5 : 1.8} />
+                      <Icon className="w-4 h-4" strokeWidth={isActive ? 2.0 : 1.5} />
                       <span>{item.label}</span>
                     </button>
                   );
@@ -67,34 +70,35 @@ export function Sidebar({ activeModule, onModuleChange, taskStats, appMode, onMo
       </header>
 
       {/* Mobile Floating Dock */}
-      <div className="sm:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-[320px]">
-        <nav className="flex items-center justify-around p-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-lg rounded-[2rem]">
+      <div className="sm:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-[320px] transition-all duration-300 transform animate-slide-up-fade">
+        <nav className="flex items-center justify-around p-1.5 bg-white/75 dark:bg-slate-900/75 backdrop-blur-lg border border-white/20 shadow-2xl rounded-[2.5rem]">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeModule === item.id;
             const activeText = appMode === 'HCHPS' ? 'text-emerald-600' : 'text-blue-600';
-            const activeBg = appMode === 'HCHPS' ? 'bg-emerald-50/80 dark:bg-emerald-900/30' : 'bg-blue-50/80 dark:bg-blue-900/30';
+            const activeBg = appMode === 'HCHPS' ? 'bg-emerald-50/70 dark:bg-emerald-950/20' : 'bg-blue-50/70 dark:bg-blue-950/20';
             const dotBg = appMode === 'HCHPS' ? 'bg-emerald-600' : 'bg-blue-600';
             return (
               <button
                 key={item.id}
                 onClick={() => onModuleChange(item.id)}
-                className={`relative flex flex-col items-center justify-center w-14 h-14 rounded-full ${
+                onTouchStart={() => onPreloadModule?.(item.id)}
+                className={`relative flex flex-col items-center justify-center w-14 h-14 rounded-full transition-all duration-200 hover:scale-105 active:scale-90 ${
                   isActive
                     ? `${activeText} ${activeBg}`
-                    : 'text-slate-400'
+                    : 'text-slate-400 hover:text-slate-500'
                 }`}
                 aria-label={item.label}
               >
                 <Icon 
-                  className="w-6 h-6 scale-[0.8] transition-transform duration-200" 
-                  strokeWidth={isActive ? 2.5 : 2} 
+                  className={`w-6 h-6 scale-[0.8] transition-transform duration-200 ${isActive ? 'scale-90' : ''}`} 
+                  strokeWidth={isActive ? 2.0 : 1.5} 
                 />
                 
                 {/* Active Indicator Dot */}
                 <div 
-                  className={`absolute bottom-2.5 w-1.5 h-1.5 rounded-full ${dotBg} ${
-                    isActive ? 'opacity-100' : 'opacity-0'
+                  className={`absolute bottom-2 w-1.5 h-1.5 rounded-full ${dotBg} transition-all duration-300 ${
+                    isActive ? 'scale-100 opacity-100' : 'scale-0 opacity-0'
                   }`}
                 />
               </button>

@@ -101,11 +101,11 @@ export function drawNode(node: ForceGraphNode, ctx: CanvasRenderingContext2D, gl
     }
   } else if (isActive) {
       // Active Node
-      const glow = ctx.createRadialGradient(node.x, node.y, r * 0.5, node.x, node.y, r * 3);
-      glow.addColorStop(0, colorWithAlpha(baseColor, 0.25));
+      const glow = ctx.createRadialGradient(node.x, node.y, r * 0.5, node.x, node.y, r * 1.5);
+      glow.addColorStop(0, colorWithAlpha(baseColor, 0.12));
       glow.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = glow;
-      ctx.beginPath(); ctx.arc(node.x, node.y, r * 3, 0, 2 * Math.PI); ctx.fill();
+      ctx.beginPath(); ctx.arc(node.x, node.y, r * 1.5, 0, 2 * Math.PI); ctx.fill();
 
       for (let i = 0; i < nodeColors.length; i++) {
         ctx.fillStyle = nodeColors[i];
@@ -174,10 +174,10 @@ export function drawEdge(edge: ForceGraphLink, ctx: CanvasRenderingContext2D, gl
   const absWeight = Math.abs(edge.weight || 0.5);
 
   let lineWidth = (0.5 + absWeight * 1.5) / globalScale;
-  if (isNegative) lineWidth *= 1.3;
-  if (isConnected) lineWidth *= 1.5;
+  if (isNegative) lineWidth *= 1.1;
+  if (isConnected) lineWidth *= 1.05; // 빔 모양으로 확장되는 현상을 방지하기 위해 1.05배로 은은하게 제한
 
-  ctx.strokeStyle = isNegative ? 'rgba(229,56,59,0.5)' : (isConnected ? 'rgba(59,130,246,0.8)' : 'rgba(204,204,210,0.3)');
+  ctx.strokeStyle = isNegative ? 'rgba(229,56,59,0.25)' : (isConnected ? 'rgba(59,130,246,0.35)' : 'rgba(204,204,210,0.18)');
   ctx.lineWidth = lineWidth;
   ctx.setLineDash(isNegative ? [4/globalScale, 3/globalScale] : []);
   

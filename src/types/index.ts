@@ -94,6 +94,7 @@ export interface BudgetEntry {
   docRegNum?: string; // 시행 문서 번호 (보건행정과-00000)
   linkedSubItemId?: string; // 세부 산출내역(통제 항목) 연결 ID
   checked?: boolean;
+  fundingSource?: string;
 }
 
 // ============ Inventory Module ============
@@ -163,6 +164,34 @@ export interface DocumentEntry {
 }
 
 export type ModuleType = 'workspace' | 'mindmap' | 'dashboard' | 'inventory';
+
+// ============ Weekly Scheduler Module ============
+export type ScheduleType = 'security' | 'meeting' | 'education' | 'other';
+
+export interface Schedule {
+  id: string;
+  date: string;
+  endDate?: string;
+  startTime: string;
+  endTime: string;
+  title: string;
+  type: ScheduleType;
+  person: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ============ Contacts Module ============
+export interface Contact {
+  id: string;
+  name: string;
+  phone: string;
+  email?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 // ============ Utility ============
 export function generateId(): string {

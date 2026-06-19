@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { readSheet, addRow, updateRow, deleteRow } from '@/lib/sheets-api';
+import { readSheet, addRow, updateRow, deleteRow, replaceAll } from '@/lib/sheets-api';
 import { BudgetCategory, BudgetEntry, generateId } from '@/types';
 
 let kvWriteQueue = Promise.resolve<any>(null);
@@ -93,6 +93,20 @@ export function useBudget() {
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['BUDGET_CATEGORIES'] })
   });
 
+  const replaceCategoriesMut = useMutation({
+    mutationFn: (newCategories: BudgetCategory[]) => replaceAll('BUDGET_CATEGORIES', newCategories),
+    onMutate: async (newCategories) => {
+      await queryClient.cancelQueries({ queryKey: ['BUDGET_CATEGORIES'] });
+      const previous = queryClient.getQueryData<BudgetCategory[]>(['BUDGET_CATEGORIES']);
+      queryClient.setQueryData<BudgetCategory[]>(['BUDGET_CATEGORIES'], newCategories);
+      return { previous };
+    },
+    onError: (err, newCategories, context) => {
+      if (context?.previous) queryClient.setQueryData(['BUDGET_CATEGORIES'], context.previous);
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['BUDGET_CATEGORIES'] })
+  });
+
   // ================= Entry Mutations =================
   const addEntryMut = useMutation({
     mutationFn: (newEntry: BudgetEntry) => addRow('BUDGET_ENTRIES', newEntry),
@@ -142,6 +156,20 @@ export function useBudget() {
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['BUDGET_ENTRIES'] })
   });
 
+  const replaceEntriesMut = useMutation({
+    mutationFn: (newEntries: BudgetEntry[]) => replaceAll('BUDGET_ENTRIES', newEntries),
+    onMutate: async (newEntries) => {
+      await queryClient.cancelQueries({ queryKey: ['BUDGET_ENTRIES'] });
+      const previous = queryClient.getQueryData<BudgetEntry[]>(['BUDGET_ENTRIES']);
+      queryClient.setQueryData<BudgetEntry[]>(['BUDGET_ENTRIES'], newEntries);
+      return { previous };
+    },
+    onError: (err, newEntries, context) => {
+      if (context?.previous) queryClient.setQueryData(['BUDGET_ENTRIES'], context.previous);
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['BUDGET_ENTRIES'] })
+  });
+
   // Action Wrappers
   const addCategory = useCallback((cat: Omit<BudgetCategory, 'id'>) => {
     const newCat: BudgetCategory = { ...cat, id: generateId() };
@@ -155,32 +183,16 @@ export function useBudget() {
 
   const deleteCategory = useCallback((id: string) => {
     deleteCategoryMut.mutate(id);
-    // Also delete associated entries to match legacy behavior
-    const entriesToDelete = entries.filter(e => e.categoryId === id);
-    entriesToDelete.forEach(e => deleteEntryMut.mutate(e.id));
-  }, [entries, deleteCategoryMut, deleteEntryMut]);
+    // Filter out associated entries and update with a single replace call to prevent cascading mutations and file-lock race conditions
+    const remainingEntries = entries.filter(e => e.categoryId !== id);
+    replaceEntriesMut.mutate(remainingEntries);
+  }, [entries, deleteCategoryMut, replaceEntriesMut]);
 
-  const addEntry = useCallback((entry: Omit<BudgetEntry, 'id'>) => {
-    const newEntry: BudgetEntry = { ...entry, id: generateId() };
-    addEntryMut.mutate(newEntry);
-    return newEntry;
-  }, [addEntryMut]);
+  const replaceCategories = useCallback((newCategories: BudgetCategory[]) => {
+    replaceCategoriesMut.mutate(newCategories);
+  }, [replaceCategoriesMut]);
 
-  const updateEntry = useCallback((id: string, updates: Partial<BudgetEntry>) => {
-    updateEntryMut.mutate({ id, updates });
-  }, [updateEntryMut]);
-
-  const deleteEntry = useCallback((id: string) => {
-    const entryToDelete = entries.find(e => e.id === id);
-    if (entryToDelete && entryToDelete.isPlanned) {
-      const hasSettledChildren = entries.some(e => e.relatedPlanId === id);
-      if (hasSettledChildren) {
-        alert('이 품의서(원인행위)에 연결된 실제 지출 내역이 존재하여 삭제할 수 없습니다. 연결된 지출 내역을 먼저 삭제하거나 수정해주세요.');
-        return;
-      }
-    }
-    deleteEntryMut.mutate(id);
-  }, [deleteEntryMut, entries]);
+  // checkLimit and Entry mutations moved below getCategoryStats
 
   // Derived Stats
   const getCategoryStats = useCallback((categoryId: string, excludePlanned = false) => {
@@ -233,6 +245,71 @@ export function useBudget() {
       dailyExpenseRemaining
     };
   }, [uniqueCategories, entries]);
+
+  const checkLimit = useCallback((categoryId: string, amount: number, actionType?: string, entryId?: string) => {
+    if (actionType === 'transfer' || actionType === 'correction') return true;
+    
+    const stats = getCategoryStats(categoryId);
+    if (!stats) return true;
+    
+    let oldAmount = 0;
+    if (entryId) {
+      const oldEntry = entries.find(e => e.id === entryId);
+      if (oldEntry && oldEntry.categoryId === categoryId) {
+        oldAmount = oldEntry.amount;
+      }
+    }
+    const delta = amount - oldAmount;
+    if (delta <= 0) return true;
+
+    if (actionType === 'daily_expense') {
+      if (delta > stats.dailyExpenseRemaining) {
+        alert(`[일상경비 한도 초과] 등록하려는 금액이 일상경비 잔액(${stats.dailyExpenseRemaining.toLocaleString()}원)을 초과하여 등록을 차단합니다.`);
+        return false;
+      }
+    } else {
+      if (delta > stats.remaining) {
+        alert(`[예산 한도 초과] 등록하려는 금액이 가용 예산 잔액(${stats.remaining.toLocaleString()}원)을 초과하여 등록을 차단합니다.`);
+        return false;
+      }
+    }
+    return true;
+  }, [entries, getCategoryStats]);
+
+  const addEntry = useCallback((entry: Omit<BudgetEntry, 'id'>) => {
+    if (!checkLimit(entry.categoryId, entry.amount, entry.actionType)) {
+      return null;
+    }
+    const newEntry: BudgetEntry = { ...entry, id: generateId() };
+    addEntryMut.mutate(newEntry);
+    return newEntry;
+  }, [addEntryMut, checkLimit]);
+
+  const updateEntry = useCallback((id: string, updates: Partial<BudgetEntry>) => {
+    const existing = entries.find(e => e.id === id);
+    if (existing) {
+      const targetCatId = updates.categoryId || existing.categoryId;
+      const targetAmount = updates.amount !== undefined ? updates.amount : existing.amount;
+      const targetActionType = updates.actionType || existing.actionType;
+      
+      if (!checkLimit(targetCatId, targetAmount, targetActionType, id)) {
+        return;
+      }
+    }
+    updateEntryMut.mutate({ id, updates });
+  }, [updateEntryMut, entries, checkLimit]);
+
+  const deleteEntry = useCallback((id: string) => {
+    const entryToDelete = entries.find(e => e.id === id);
+    if (entryToDelete && entryToDelete.isPlanned) {
+      const hasSettledChildren = entries.some(e => e.relatedPlanId === id);
+      if (hasSettledChildren) {
+        alert('이 품의서(원인행위)에 연결된 실제 지출 내역이 존재하여 삭제할 수 없습니다. 연결된 지출 내역을 먼저 삭제하거나 수정해주세요.');
+        return;
+      }
+    }
+    deleteEntryMut.mutate(id);
+  }, [deleteEntryMut, entries]);
 
   const overallStats = useMemo(() => {
     const totalBudget = uniqueCategories.reduce((sum, c) => sum + c.totalBudget, 0);
@@ -320,10 +397,12 @@ export function useBudget() {
     addCategory, 
     updateCategory, 
     deleteCategory, 
+    replaceCategories,
     addEntry, 
     updateEntry, 
     deleteEntry, 
     getCategoryStats, 
+    checkLimit,
     overallStats,
     overallStatsActual
   };

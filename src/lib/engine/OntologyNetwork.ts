@@ -8,8 +8,7 @@ export class OntologyNetwork {
    */
   public static getActiveTreeSet(
     rootId: string, 
-    nodeMap: Map<string, OrbitalNode>, 
-    _edges: OntologyEdge[]
+    nodeMap: Map<string, OrbitalNode>
   ): Set<string> {
     const set = new Set<string>();
     if (!rootId) return set;

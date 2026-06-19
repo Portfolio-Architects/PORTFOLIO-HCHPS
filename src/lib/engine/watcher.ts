@@ -3,7 +3,7 @@ import fsNonPromise from 'fs';
 import path from 'path';
 import { execFile, execSync } from 'child_process';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import crypto, { webcrypto } from 'crypto';
+import { webcrypto } from 'crypto';
 import os from 'os';
 
 const PIN = '0509';
@@ -66,7 +66,7 @@ async function ensureClassificationWords() {
   const wordsFilePath = path.join(process.cwd(), 'data', 'CLASSIFICATION_WORDS.json');
   try {
     await fs.access(wordsFilePath);
-  } catch (err) {
+  } catch {
     // 파일이 없으면 초기화 생성
     const defaultData = {
       agents: [
@@ -138,10 +138,7 @@ if (!globalForWatcher.fileSizes) {
 const activeJobs = globalForWatcher.activeJobs;
 const fileSizes = globalForWatcher.fileSizes;
 
-// 파일 고유 ID 생성 (경로 기반 MD5 해시)
-function generateFileId(filePath: string): string {
-  return crypto.createHash('md5').update(filePath).digest('hex');
-}
+
 
 /**
  * 전용 폴더가 존재하지 않을 경우 자동 생성
@@ -499,7 +496,7 @@ ${text}
       if (result) {
         console.error('[Watcher Daemon] 실패한 원본 AI 응답:', result.response.text());
       }
-    } catch (e) {}
+    } catch {}
   }
 }
 
@@ -597,7 +594,7 @@ function queueFileEvent(filePath: string) {
         const timer = setTimeout(checkSize, 1000);
         activeJobs.set(filePath, timer);
       }
-    } catch (e) {
+    } catch {
       // 파일 삭제 등의 이벤트인 경우 정리
       activeJobs.delete(filePath);
       fileSizes.delete(filePath);
@@ -617,7 +614,7 @@ export async function startWatcherDaemon() {
     try {
       globalForWatcher.watcher.close();
       console.info('[Watcher Daemon] 기존 파일 감시자 인스턴스를 안전하게 종료하고 재기동합니다.');
-    } catch (e) {}
+    } catch {}
   }
 
   await ensureWatchDirectory();

@@ -12,15 +12,7 @@ import { computeCentrality } from './ontology.service';
 export type PartialOntologyEdge = OntologyEdge & { isCustom?: boolean };
 export type PartialOntologyNode = OntologyNode & { isExplicitColor?: boolean };
 
-// Assign color groups based on keyword frequency
-function assignGroup(frequency: number, maxFreq: number): OntologyGroup {
-  const ratio = frequency / Math.max(maxFreq, 1);
-  if (ratio >= 0.7) return 'CORE_PROJECT';        // 매우 자주 (파란색)
-  if (ratio >= 0.5) return 'MACRO_RESEARCH';       // 자주 (에메랄드)
-  if (ratio >= 0.3) return 'DCF_MODELING';          // 보통 (보라색)
-  if (ratio >= 0.15) return 'DATA_PIPELINE';        // 가끔 (앰버)
-  return 'INFRASTRUCTURE';                          // 드물게 (시안)
-}
+
 
 export function buildSignalGraph(
   keywordMap: Record<string, number>,
@@ -128,7 +120,7 @@ export function buildSignalGraph(
   // 1. Root Node (HCHPS) - Center of the tree
   nodes.push({
     id: 'root-HCHPS',
-    label: 'Tasks',
+    label: 'Vital Tasks',
     group: 'CORE_PROJECT', // Vivid Blue
     baseValue: 100,
     centralityScore: 10000,
@@ -180,7 +172,7 @@ export function buildSignalGraph(
   ];
 
   // Add Orbit 1 Nodes
-  sortedTags.forEach(([tag, count], i) => {
+  sortedTags.forEach(([tag], i) => {
     const id = `tag-${tag}`;
     const groupAssign = categoryGroups[i % categoryGroups.length];
     
@@ -265,7 +257,7 @@ export function buildSignalGraph(
       }
     });
 
-    sortedKw.forEach(([kw, freq], i) => {
+    sortedKw.forEach(([kw, freq]) => {
       const leafId = `leaf-${kw}`;
       
       let existingNode = nodes.find(n => n.id === leafId);
@@ -371,9 +363,7 @@ export function buildSignalGraph(
             customLabel: resolveProp('customLabel'),
             customSortOrder: resolveProp('customSortOrder'),
             hidden: resolveProp('hidden'),
-            dueDate: resolveProp('dueDate'),
             isHighlighted: resolveProp('isHighlighted'),
-            isCompleted: resolveProp('isCompleted'),
           };
         }
         return; // Skip adding `cn`
@@ -487,7 +477,14 @@ export function buildSignalGraph(
     // (DeletedEdges processing moved to the end of custom mapping to catch customParent generated edges)
 
     // 4.9. Topology-driven Hierarchical Reparenting (자동 계층형 부모 승격 알고리즘)
-    forcedCenterNode = customData ? nodes.find(n => customData.overrides[n.id]?.customOrbitIndex === 0) : undefined;
+    console.log('[DEBUG] Start forcedCenterNode check. customData overrides keys:', customData ? Object.keys(customData.overrides) : 'none');
+    forcedCenterNode = (customData ? nodes.find(n => {
+      const o = customData.overrides[n.id];
+      const match = o?.customOrbitIndex === 0;
+      if (match) console.log('[DEBUG] Found forcedCenterNode via customOrbitIndex===0:', n.id, n.label);
+      return match;
+    }) : undefined) || nodes.find(n => n.id === 'root-HCHPS');
+    console.log('[DEBUG] Resolved forcedCenterNode ID:', forcedCenterNode?.id, 'Label:', forcedCenterNode?.label);
 
     // 대상: parentId가 없거나 대분류 태그 ID('tag-')/중앙 노드인 모든 노드 (태그/루트 본인 제외)
     const leafNodesForReparent = nodes.filter(n => {
@@ -649,9 +646,7 @@ export function buildSignalGraph(
         if (override.customGroup !== undefined) n.group = override.customGroup === null ? n.group : (override.customGroup as OntologyGroup);
         if (override.customOrbitIndex !== undefined) n.customOrbitIndex = override.customOrbitIndex === null ? undefined : override.customOrbitIndex;
         if (override.customSortOrder !== undefined) n.customSortOrder = override.customSortOrder === null ? undefined : override.customSortOrder;
-        if (override.dueDate !== undefined) n.dueDate = override.dueDate === null ? undefined : override.dueDate;
         if (override.isHighlighted !== undefined) n.isHighlighted = override.isHighlighted === null ? undefined : override.isHighlighted;
-        if (override.isCompleted !== undefined) n.isCompleted = override.isCompleted === null ? undefined : override.isCompleted;
         
         const safeParent = override.customParent === null ? undefined : override.customParent;
         if (override.customParent !== undefined) {
@@ -932,6 +927,12 @@ export function buildSignalGraph(
       curr = finalNodes.find(n => n.id === curr?.parentId);
     }
   });
+
+  // ── 중앙 루트 노드 이름 강제 복원 ──
+  const rootNode = finalNodes.find(n => n.id === 'root-HCHPS');
+  if (rootNode) {
+    rootNode.label = 'Vital Tasks';
+  }
 
   console.log('[DEBUG] buildSignalGraph END. finalNodes.length=', finalNodes.length, 'finalEdges.length=', finalEdges.length);
   const scoredNodes = computeCentrality(finalNodes, finalEdges);

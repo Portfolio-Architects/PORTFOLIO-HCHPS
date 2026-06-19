@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, Unlock, AlertCircle } from 'lucide-react';
+import { Lock, Unlock } from 'lucide-react';
 
 interface Props {
   hasSetupPIN: boolean;
@@ -11,7 +11,7 @@ interface Props {
 
 const PIN_LENGTH = 4;
 
-export const SecurityLockScreen: React.FC<Props> = ({ hasSetupPIN, failCount, onVerify, onSetup, appMode = 'VITAL' }) => {
+export const SecurityLockScreen: React.FC<Props> = ({ hasSetupPIN, onVerify, onSetup, appMode = 'VITAL' }) => {
   const [pin, setPin] = useState<string>('');
   const [setupStep, setSetupStep] = useState<1 | 2>(1);
   const [firstPin, setFirstPin] = useState<string>('');
@@ -51,9 +51,9 @@ export const SecurityLockScreen: React.FC<Props> = ({ hasSetupPIN, failCount, on
 
   useEffect(() => {
     if (pin.length === PIN_LENGTH) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       handlePinComplete(pin);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pin]);
 
   // 물리적 키보드(키패드) 입력 지원

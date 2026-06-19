@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useEffect } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { readSheet, addRow, updateRow, deleteRow } from '@/lib/sheets-api';
 import { Task, TaskStatus, TaskPriority, generateId } from '@/types';
@@ -136,7 +136,7 @@ export function useTasks() {
     return newTask;
   }, [addTaskMut]);
 
-  const updateTask = useCallback((id: string, updates: Partial<Task>) => {
+  const updateTask = useCallback(async (id: string, updates: Partial<Task>) => {
     const task = tasks.find(t => t.id === id);
 
     if (task && updates.status === 'done' && task.status !== 'done' && task.recurrence) {
@@ -166,7 +166,13 @@ export function useTasks() {
         };
         const now = new Date().toISOString();
         const nextTask: Task = { ...nextTaskPayload, id: generateId(), createdAt: now, updatedAt: now };
-        addTaskMut.mutate(nextTask);
+        
+        try {
+          // Serialized mutation chain to prevent queryClient race conditions
+          await addTaskMut.mutateAsync(nextTask);
+        } catch (err) {
+          console.error('[Concurrency Error] Failed to auto-duplicate recurring task:', err);
+        }
       }
     }
 

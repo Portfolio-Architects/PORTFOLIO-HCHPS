@@ -1,15 +1,12 @@
 import React, { useState, useRef } from 'react';
 import { Card } from '@/components/ui/card';
-import { FileText, CalendarDays, UploadCloud, Zap } from 'lucide-react';
+import { FileText, CalendarDays, UploadCloud } from 'lucide-react';
 
 interface WeeklyReportViewProps {
   addSignal?: (text: string) => void;
 }
 
-interface WeeklyReportData {
-  completedTasks: string[];
-  upcomingTasks: string[];
-}
+
 
 export function WeeklyReportView({ addSignal }: WeeklyReportViewProps) {
   const [extractedRawText, setExtractedRawText] = useState<string>('');

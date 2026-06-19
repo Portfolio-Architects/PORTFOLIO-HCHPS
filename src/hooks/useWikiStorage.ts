@@ -63,7 +63,6 @@ export function useWikiStorage(
   // 로컬/클라우드 병합 로드
   useEffect(() => {
     if (!nodeId) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setBlocks(undefined);
       setIsLoaded(false);
       setLoadedNodeId(null);
@@ -149,7 +148,7 @@ export function useWikiStorage(
            }
         }
       }
-    } catch(e) {}
+    } catch {}
 
     // 2. 비동기 클라우드 동기화 (클라우드 데이터가 존재하면 로컬 덮어씌움)
     const fetchCloud = async () => {

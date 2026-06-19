@@ -9,7 +9,6 @@ import { SignalEntry } from '@/hooks/useSignal';
 import {
   OrbitalNode, OntologyEdge,
   GROUP_COLORS, GROUP_LABELS, OntologyGroup,
-  EDGE_TYPE_LABELS, EdgeType,
 } from '@/lib/ontology.types';
 import { useGraphCustomization } from '@/hooks/useGraphCustomization';
 import { WikiEditor } from './WikiEditor';
@@ -17,13 +16,10 @@ import { MindMapInspector } from './MindMapInspector';
 import { MindMapHeader } from './mindmap/ui/MindMapHeader';
 import { MindMapHUD } from './mindmap/ui/MindMapHUD';
 import { useWikiStorage } from '@/hooks/useWikiStorage';
-import { useYjsStore } from '@/hooks/useYjsStore';
+
 import { decryptPayload, isCryptoReady } from '@/lib/crypto';
 import {
-  Radio, Loader2, RefreshCw, AlertTriangle, BookOpen,
-  Circle, Link2, X, ChevronRight, ChevronUp, ChevronDown, Zap, Maximize2, Minimize2,
-  Trash2, FileText, Edit2, Plus, Palette, PinOff, PlusSquare, Waypoints, Eraser, Play, Pause,
-  CheckCircle, Unlink, Crosshair, CloudUpload, CloudDownload, Printer, Search, FolderOpen, Database
+  Loader2, AlertTriangle, X, Trash2, PlusSquare, Search, Radio
 } from 'lucide-react';
 
 
@@ -37,11 +33,12 @@ interface MindMap3DProps {
   onUpdateKeywords?: (id: string, keywords: string[]) => void;
   onRenameCategory?: (oldName: string, newName: string) => void;
   onDeleteCategory?: (name: string) => void;
+  isActive?: boolean;
 }
 
 // ============ Component ============
 
-export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDeleteSignal, onUpdateKeywords, onRenameCategory, onDeleteCategory }: MindMap3DProps) {
+export function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onDeleteCategory, isActive = true }: MindMap3DProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<OntologyCanvasEngine | null>(null);
@@ -61,7 +58,6 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   const [usingSample, setUsingSample] = useState(false);
   const [activeNode, setActiveNode] = useState<OrbitalNode | null>(null);
   const [hoveredNode, setHoveredNode] = useState<OrbitalNode | null>(null);
-  const [connectedEdges, setConnectedEdges] = useState<Array<{ edge: OntologyEdge; otherNode: OrbitalNode }>>([]);
   const [stats, setStats] = useState({ nodes: 0, edges: 0 });
   const [isAddingNode, setIsAddingNode] = useState(false);
   const [newNodeName, setNewNodeName] = useState("");
@@ -75,8 +71,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [selectedSearchIndex, setSelectedSearchIndex] = useState(-1);
-  const { overrides = {}, customNodes = [], customEdges = [], deletedEdges = [], undo, redo, setNodeOverride, batchSetNodeOverrides, clearNodeOverride, addCustomNode, deleteCustomNode, updateCustomNodeText, addCustomEdge, deleteCustomEdge, removeCustomTombstone, renameNodeId, clearOverrides, resetLayoutOverrides, clearAll, syncToCloud, fetchFromCloud, isCloudLoaded } = useGraphCustomization();
-  const { ydoc } = useYjsStore();
+  const { overrides = {}, customNodes = [], customEdges = [], deletedEdges = [], undo, redo, setNodeOverride, batchSetNodeOverrides, clearNodeOverride, addCustomNode, deleteCustomNode, updateCustomNodeText, addCustomEdge, deleteCustomEdge, removeCustomTombstone, renameNodeId, isCloudLoaded } = useGraphCustomization();
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
@@ -142,11 +137,12 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
     fps: 60
   });
 
-  const [lagSpikes, setLagSpikes] = useState<number[]>([]);
+  const [lagSpikes, setLagSpikes] = useState<string[]>([]);
   const lastFrameTimeRef = useRef<number>(0);
   const animationFrameIdRef = useRef<number>(0);
 
   useEffect(() => {
+    if (!isActive) return;
     lastFrameTimeRef.current = performance.now();
     const tick = () => {
       const now = performance.now();
@@ -154,7 +150,8 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
       lastFrameTimeRef.current = now;
 
       if (delta > 32) {
-        setLagSpikes(prev => [delta, ...prev.slice(0, 4)]);
+        const diagnostic = PerformanceProfiler.getInstance().getSpikeDiagnostic(delta);
+        PerformanceProfiler.getInstance().recordLagSpike(diagnostic);
       }
       animationFrameIdRef.current = requestAnimationFrame(tick);
     };
@@ -162,14 +159,16 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
     return () => {
       cancelAnimationFrame(animationFrameIdRef.current);
     };
-  }, []);
+  }, [isActive]);
 
   useEffect(() => {
+    if (!isActive) return;
     const timer = setInterval(() => {
       setPerfMetrics(PerformanceProfiler.getInstance().getMetrics());
+      setLagSpikes(PerformanceProfiler.getInstance().getLagSpikes());
     }, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [isActive]);
 
   useEffect(() => {
     const fetchClassificationWords = async () => {
@@ -275,6 +274,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
     return () => window.removeEventListener('keydown', handleModalKeyDown, true);
   }, [isAddingNode]);
   
+  const pendingCameraTargetIdRef = useRef<string | null>(null);
   const overridesRef = useRef(overrides);
   const customNodesRef = useRef(customNodes);
   const customEdgesRef = useRef(customEdges);
@@ -285,8 +285,6 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   deletedEdgesRef.current = deletedEdges;
 
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
-  const [newKeyword, setNewKeyword] = useState('');
   const [parentModeSource, setParentModeSource] = useState<string | null>(null);
 
   
@@ -297,12 +295,8 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
     setNodeOverride
   );
   
-  const tooltipRef = useRef<HTMLDivElement>(null);
   const parentModeSourceRef = useRef(parentModeSource);
   useEffect(() => { parentModeSourceRef.current = parentModeSource; }, [parentModeSource]);
-
-  // 직관적이고 구분이 또렷한 원색(Vivid/Primary) 컬러 팔레트 배정
-  const PRESET_COLORS = ['#FF2222', '#FF8800', '#FFDD00', '#00CC44', '#00BBDD', '#0055FF', '#8800FF', '#FF00AA', '#111111', '#FFFFFF'];
 
   // ── Init Engine (stable — deferred callbacks) ──
   const initEngine = useCallback(() => {
@@ -338,6 +332,12 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
         engine.targetOffsetY = engineRef.current.targetOffsetY;
         engine.zoom = engineRef.current.zoom;
         engine.isInitialCameraSnap = false;
+        if (pendingCameraTargetIdRef.current) {
+          engine.pendingCameraTargetId = pendingCameraTargetIdRef.current;
+          pendingCameraTargetIdRef.current = null;
+        } else if (engineRef.current.pendingCameraTargetId) {
+          engine.pendingCameraTargetId = engineRef.current.pendingCameraTargetId;
+        }
         
         if (engineRef.current.activeNode) {
           const stillExists = engine.nodes.find(n => n.id === engineRef.current!.activeNode!.id);
@@ -352,7 +352,6 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
 
       // Set state AFTER engine is fully initialized (no callbacks during init)
       const initialNode = engine.activeNode || engine.centerNode;
-      const initialEdges = initialNode ? engine.getConnectedEdges(initialNode.id) : [];
       const initialStats = { nodes: engine.nodeCount, edges: engine.edgeCount };
 
       // Attach callbacks AFTER init for user interaction
@@ -363,11 +362,6 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
           }
 
           setActiveNode(node ?? null);
-          if (node && engineRef.current) {
-            setConnectedEdges(engineRef.current.getConnectedEdges(node.id));
-          } else {
-            setConnectedEdges([]);
-          }
         },
         onHoveredNodeChange: (node) => setHoveredNode(node ?? null),
         onNodeReparent: (id, newParentId, newOrbit) => {
@@ -393,13 +387,12 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
       // Batch state updates
       setStats(initialStats);
       setActiveNode(initialNode);
-      setConnectedEdges(initialEdges);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : '초기화 실패');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [batchSetNodeOverrides, setNodeOverride]);
 
   const handleExecuteAddNode = useCallback(() => {
     const trimmedName = newNodeName.trim();
@@ -440,10 +433,19 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
       setNodeOverride(newNode.id, { fixedX: undefined, fixedY: undefined });
     }
 
-    setTimeout(() => initEngine(), 10);
+    pendingCameraTargetIdRef.current = newNode.id;
     setIsAddingNode(false);
     setNewNodeName("");
-  }, [newNodeName, activeNode, addCustomNode, setNodeOverride, initEngine]);
+  }, [newNodeName, activeNode, addCustomNode, setNodeOverride]);
+
+  const handleResetCamera = useCallback(() => {
+    if (engineRef.current) {
+      const centerNodeId = engineRef.current.centerNode?.id || 'root-HCHPS';
+      engineRef.current.pendingCameraTargetId = centerNodeId;
+      engineRef.current.zoom = 1.0;
+      engineRef.current.needsRedraw = true;
+    }
+  }, []);
 
   // ── Animation Loop ──
   useEffect(() => {
@@ -462,7 +464,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   
   // customParent, customOrbitIndex 등 토폴로지에 영향을 주는 속성 변경사항만 추적 (좌표이동 fixedX/Y 제외)
   const topologicOverridesHash = Object.entries(overrides)
-    .filter(([_, ov]) => ov.customParent !== undefined || ov.customOrbitIndex !== undefined)
+    .filter(([, ov]) => ov.customParent !== undefined || ov.customOrbitIndex !== undefined)
     .map(([id, ov]) => `${id}:${ov.customParent}:${ov.customOrbitIndex}`)
     .sort()
     .join('|');
@@ -486,7 +488,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
   }, [overrides, customNodes.length, customEdges.length, deletedEdges.length, topologicOverridesHash, initEngine]);
 
   useEffect(() => {
-    if (loading || error || !isCloudLoaded) return;
+    if (loading || error || !isCloudLoaded || !isActive) return;
 
     const canvas = canvasRef.current;
     const container = containerRef.current;
@@ -585,7 +587,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
         }
       }
     };
-  }, [loading, error, isCloudLoaded]);
+  }, [loading, error, isCloudLoaded, isActive]);
 
   // ── Mouse/Touch Events ──
   const getCanvasPos = useCallback((e: React.MouseEvent | MouseEvent | TouchEvent): { x: number; y: number } => {
@@ -606,8 +608,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
 
     // Drag
     if (e.buttons === 1) {
-      const dpr = dprRef.current;
-      engine.handleDragMove(x, y, canvas.width / dpr, canvas.height / dpr);
+      engine.handleDragMove(x, y);
     }
   }, [getCanvasPos]);
 
@@ -645,7 +646,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
       setTimeout(() => initEngine(), 50);
       return; 
     }
-  }, [getCanvasPos, parentModeSource, addCustomEdge, deleteCustomEdge, initEngine, setNodeOverride, removeCustomTombstone]);
+  }, [getCanvasPos, parentModeSource, initEngine, setNodeOverride, removeCustomTombstone]);
 
   const handleDoubleClick = useCallback((e: React.MouseEvent) => {
     const engine = engineRef.current;
@@ -655,11 +656,6 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
     
     // Sync React state
     setActiveNode(engine.activeNode);
-    if (engine.activeNode) {
-      setConnectedEdges(engine.getConnectedEdges(engine.activeNode.id));
-    } else {
-      setConnectedEdges([]);
-    }
   }, [getCanvasPos]);
 
   // ── Touch Events for Mobile ──
@@ -717,11 +713,10 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
     if (dx > 5 || dy > 5) isTouchDragging.current = true;
 
     engine.handleHover(x, y);
-    const dpr = dprRef.current;
-    engine.handleDragMove(x, y, canvas.width / dpr, canvas.height / dpr);
+    engine.handleDragMove(x, y);
   }, [getCanvasPos]);
 
-  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+  const handleTouchEnd = useCallback(() => {
     const engine = engineRef.current;
     if (!engine) return;
 
@@ -749,7 +744,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
         return;
       }
     }
-  }, [parentModeSource, addCustomEdge, initEngine, setNodeOverride]);
+  }, [parentModeSource, initEngine, setNodeOverride]);
 
   // handleWheel is now native (see useEffect above)
 
@@ -780,7 +775,6 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
 
       // 3. UI 리액트 상태 동기화
       setActiveNode(node);
-      setConnectedEdges(engine.getConnectedEdges(node.id));
       
       // 4. 콜백 호출
       engine.callbacks.onActiveNodeChange?.(node);
@@ -916,7 +910,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
       <div className="flex flex-col gap-4">
 
         {/* 3. 성능 프로파일러 카드 */}
-        <div className="bg-white/85 backdrop-blur-md p-4 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col md:flex-row gap-6 font-mono text-[9px] text-slate-600 w-full">
+        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col md:flex-row gap-6 font-mono text-[9px] text-slate-600 w-full">
           {/* 좌측: 실시간 성능 지표 */}
           <div className="flex-1 flex flex-col gap-1.5">
             <div className="flex items-center justify-between gap-3 mb-0.5">
@@ -978,10 +972,9 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
             
             <div className="flex flex-col gap-1 overflow-y-auto max-h-[60px] custom-scrollbar">
               {lagSpikes.length > 0 ? (
-                lagSpikes.map((spike, idx) => (
-                  <div key={idx} className="flex justify-between items-center bg-rose-50/50 border border-rose-100 rounded px-2 py-0.5 text-rose-700">
-                    <span>Spike detected</span>
-                    <span className="font-bold font-mono text-[10px]">{spike.toFixed(1)}ms</span>
+                lagSpikes.map((spikeMsg, idx) => (
+                  <div key={idx} className="flex items-center bg-rose-50/50 border border-rose-100 rounded px-2 py-0.5 text-rose-700 font-mono text-[8.5px] leading-tight">
+                    <span className="truncate">{spikeMsg}</span>
                   </div>
                 ))
               ) : (
@@ -1090,9 +1083,8 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                 onTouchEnd={handleTouchEnd}
               />
 
-              {/* Floating Search Bar (top-left) */}
               <div className="absolute top-4 left-4 z-20 flex flex-col w-72 pointer-events-auto">
-                <div className="relative flex items-center bg-white/80 backdrop-blur-md border border-slate-200/50 shadow-lg rounded-xl transition-all duration-200 focus-within:bg-white focus-within:ring-2 focus-within:ring-[var(--color-primary)]/20 focus-within:border-[var(--color-primary)]">
+                <div className="relative flex items-center bg-white border border-slate-200/80 shadow-lg rounded-xl transition-all duration-200 focus-within:ring-2 focus-within:ring-[var(--color-primary)]/20 focus-within:border-[var(--color-primary)]">
                   <Search className="absolute left-3.5 text-slate-400 w-4.5 h-4.5 pointer-events-none" />
                   <input
                     type="text"
@@ -1157,7 +1149,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
 
                 {/* Auto-complete Results Dropdown */}
                 {isSearchFocused && searchQuery.trim() && (
-                  <div className="absolute top-[48px] left-0 right-0 max-h-60 overflow-y-auto bg-white/95 backdrop-blur-md border border-slate-200/50 rounded-xl shadow-xl z-50 custom-scrollbar animate-in fade-in slide-in-from-top-1 duration-150">
+                  <div className="absolute top-[48px] left-0 right-0 max-h-60 overflow-y-auto bg-white border border-slate-200/80 rounded-xl shadow-xl z-50 custom-scrollbar animate-in fade-in slide-in-from-top-1 duration-150">
                     {(() => {
                       const filtered = engineRef.current
                         ? engineRef.current.nodes.filter(node => 
@@ -1219,6 +1211,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
                 zoomLabelRef={zoomLabelRef}
                 onZoomChange={handleZoomSliderChange}
                 onAddNodeClick={() => { setIsAddingNode(true); setNewNodeName(""); }}
+                onResetCamera={handleResetCamera}
               />
 
               {/* Sliding Wiki Panel Overlay */}
@@ -1239,7 +1232,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
 
             {/* 하단 정보 패널 (전체화면 모드일 때 Canvas Container 하단에 Flex로 렌더링되도록 함) */}
             {isFullscreen && (
-              <div className="w-full bg-white/95 backdrop-blur-md border-t border-slate-200/80 p-4 shrink-0 shadow-lg z-20 pointer-events-auto">
+              <div className="w-full bg-white border-t border-slate-200/80 p-4 shrink-0 shadow-lg z-20 pointer-events-auto">
                 {renderBottomInfoPanels()}
               </div>
             )}
@@ -1262,7 +1255,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
           onClick={() => setIsDeleteModalOpen(false)}
         >
           <div 
-            className="w-full max-w-md bg-white/95 backdrop-blur-md border border-slate-200/50 rounded-2xl shadow-2xl p-6 flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200"
+            className="w-full max-w-md bg-white border border-slate-200/60 rounded-2xl shadow-2xl p-6 flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3.5 border-b border-slate-100 pb-3">
@@ -1323,7 +1316,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onAddSignal, onDelete
           }}
         >
           <div 
-            className="w-full max-w-md bg-white/95 backdrop-blur-md border border-slate-200/50 rounded-2xl shadow-2xl p-6 flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200"
+            className="w-full max-w-md bg-white border border-slate-200/60 rounded-2xl shadow-2xl p-6 flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3.5 border-b border-slate-100 pb-3">

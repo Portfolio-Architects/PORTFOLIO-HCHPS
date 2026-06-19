@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
-import { BlockNoteEditor, PartialBlock } from '@blocknote/core';
+import React, { useEffect, useState } from 'react';
+import { PartialBlock } from '@blocknote/core';
 import { useCreateBlockNote, SuggestionMenuController, getDefaultReactSlashMenuItems, DefaultReactSuggestionItem } from '@blocknote/react';
 import { BlockNoteView } from '@blocknote/mantine';
 import { askLlamaStream } from '@/lib/llm-client';
@@ -56,7 +56,7 @@ const getCustomSlashMenuItems = (editor: any): DefaultReactSuggestionItem[] => [
 ];
 
 export function WikiEditor(props: WikiEditorProps) {
-  const { nodeId, nodeTitle, initialBlocks, onChange, onClose, addCustomEdge } = props;
+  const { nodeId, nodeTitle, initialBlocks, onChange, onClose } = props;
 
   // 에디터 인스턴스 생성 (협업 대신 단일 유저 로컬/클라우드 저장소 사용)
   const editor = useCreateBlockNote({

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Radio, BookOpen } from 'lucide-react';
+import { BookOpen } from 'lucide-react';
 import { OrbitalNode } from '@/lib/ontology.types';
 
 interface MindMapHeaderProps {

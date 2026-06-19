@@ -92,7 +92,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
           messages: body.messages,
           stream: body.stream === true
         });
-      } catch (fallbackError) {
+      } catch {
         throw new Error('클라우드 AI 서버가 현재 일시적으로 혼잡합니다 (과부하). 약 1~2분 뒤 다시 시도해주세요.');
       }
     }

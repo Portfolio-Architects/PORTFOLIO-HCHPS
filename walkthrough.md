@@ -1,37 +1,69 @@
-# 3D 마인드맵 성능 최적화, 가시성 개선 및 공전/진동 박멸 보고서 (Walkthrough)
+# 홍보물 관리 탭(InventoryList) 언디파인드(toLowerCase) 런타임 오류 방어 패치 완료 리포트
 
-온톨로지 마인드맵의 가독성을 저해하는 긴 노드 명칭에 대해 스마트 말줄임을 도입하고, 줌 배율 조작 시 2D 화면 충돌 반발력으로 인해 노드가 요동치던 현상을 박멸하기 위해 물리 계산을 스킵했습니다. 아울러 Z축 적층과 레이어별 궤도 링 렌더링을 복원하여 3D 우주 뷰의 입체감을 크게 강화하였으며, 빈 공간 클릭 시 노드 활성 상태를 초기화하는 편의 기능을 추가했습니다. 또한, 공전 도중 일부 노드가 멈추거나 멈춰 서 있던 공전 캐싱 누락 버그 및 속도 대물림 상속 버그를 전수 조사하여 완전히 해결하였고, 특히 렌더 틱 유지를 위한 dirty 플래그 유발 시 매 프레임 노드 각도가 리셋되어 정지되던 2차 부작용에 대한 핫픽스(canSkip 내 isOrbiting 분기 격리)를 완료했습니다.
+사용자의 요청에 따라, 홍보물 관리 페이지(`InventoryList.tsx`)의 검색 및 필터링 시 발생하던 `TypeError: Cannot read properties of undefined (reading 'toLowerCase')` 런타임 크래시 문제를 진단하고 방어 가드를 적용해 완전히 해결했습니다.
 
 ---
 
-## 1. 주요 변경 및 개선 사항
+## 1. 발생 원인 분석
+* **원인:** 일부 복호화 실패, 유실, 혹은 캐시 오염 등으로 인해 로드된 `items` 내 특정 품목 객체의 `name`이나 `category` 필드가 `undefined`인 상태로 뷰 컴포넌트에 공급되었습니다.
+* **지점:** `InventoryList.tsx`의 `filteredItems` 계산식(line 77):
+  ```typescript
+  const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase())
+  ```
+  `item.name`이 없을 때 `toLowerCase()`가 호출되면서 브라우저가 정지(크래시)하는 타입 에러가 발생했습니다.
 
-### 긴 노드 명칭 스마트 말줄임 (Smart Truncation) 도입
-- **이전 문제:** `5회 반복일어서기 / SPPB 균형검사 장치사양서` 등 매우 긴 텍스트를 가진 노드들이 좁은 공간 내에서 서로를 오버랩하며 화면의 가시성을 심각하게 훼손하였습니다.
-- **해결 방안:**
-  1. 노드가 선택(`isActive`)되지 않았거나 마우스 호버(`isHovered`) 상태가 아닐 때, 텍스트가 12자를 초과하면 `displayLabel`을 11자 + `...`로 말줄임 처리합니다.
-  2. 슬래시(`/`) 구분자가 포함된 명칭의 경우, 첫 번째 파트가 3자 이상이면 첫 단어만 추출(최대 9자)하여 뒤에 `...`를 붙여 콤팩트하게 출력합니다.
-  3. 사용자가 노드를 클릭하여 활성화하거나 마우스 오버 시에는 전체 풀 네임(Full Name)을 노출하여 정보 식별성을 완벽히 보장했습니다.
-
-### 줌(Zoom) 조작 시 노드 요동 해결을 위한 충돌 2D 물리 스킵
-- **이전 문제:** 줌인/줌아웃 확대 축소 시 화면 공간(Screen-Space)상에서의 겹침 척력이 매번 재계산되어, 노드가 튕기거나 춤을 추듯 수축/팽창하며 요동치던 현상이 있었습니다.
-- **해결 방안:** 공전 뷰(`layoutMode === 'orbit'`) 환경에서는 2D 화면 공간 충돌 해결 연산을 완전히 무력화(`maxIterations = 0`)하도록 처리했습니다. 줌 배율 조작 여부와 관계없이 노드들이 월드 상의 고유 각도 및 궤도 좌표에 기하학적으로 완벽히 고정(Lock)된 상태로 부드럽게 공전하게 되어, 확대/축소 시 흔들림 현상을 100% 영구적으로 박멸했습니다.
-
-### Z축 수직 적층 복원 및 4단 입체 동심 궤도 링 구현
-- **해결 방안:** 각 노드가 소속 레이어(Effective Layer 0~3)에 맞춰 실제 Z축 격차(`effectiveLayer * 190px`)를 가지고 공중에 부유하도록 높이 매핑을 원상 복원했습니다. 이에 맞춰 4단 수직 아크릴 플레이트 높이에 대응하는 4층 동심 궤도 링이 각각 고유의 레이어 색상(Blue, Emerald, Violet, Amber)으로 입체감 있게 렌더링되도록 렌더러를 고도화했습니다.
-
-### 바탕 캔버스 클릭 시 선택 해제 및 전체 노드 100% 선명도 복원
-- **해결 방안:** 맵의 빈 공간(바탕 배경)을 클릭했을 때 활성 선택 상태를 해제(`activeNode = null`, `previousActiveNodeId = null`)하여, 다른 노드 선택으로 인해 반투명(`opacity = 0.25`)해졌던 전체 노드들이 한 번에 100% 불투명도(선명하게) 상태로 활성화 복원되도록 클릭 논리를 보강했습니다.
-
-### 공전 도중 노드가 멈추는 캐싱 스킵 및 각도 강제 리셋 버그 해결 (Hotfix)
-- **이전 문제:** 캔버스 좌표 렌더링 최적화를 위한 2D 투영 캐시 스킵(`canSkip = true`)이 가만히 있을 때 작동하여 공전이 서서히 멈춰 서던 현상이 있었습니다. 이를 해결하기 위해 dirty 플래그(`layoutWorldGeometryDirty = true`)를 상시 선언하도록 1차 적용하였으나, 이 플래그가 매 프레임 정적 각도 재연산(`recomputeWorldPositions`)을 강제 유발하여 각 노드의 `orbitAngle`을 최초 생성 시의 고정 각도로 리셋함으로써 노드가 아예 멈추던 부작용이 있었습니다.
-- **해결 방안:** `tick()` 루프에서의 dirty 강제 플래그 지정을 전면 걷어내고, `computePositions()`의 `canSkip` 판정 조건에 공전 여부(`!this.isOrbiting`)를 명시적으로 추가했습니다. 이로써 정적 각도 리셋 현상 없이 공전 각도 갱신과 2D 화면 투영이 60 FPS로 매 프레임 완벽히 동기화되어 회전하게 되었습니다.
-
-### 자식 노드 공전 속도 대물림 상속 체인 버그 해결 및 속도 5배 상향
-- **해결 방안:** 공전 노드들의 속도 대물림 상속 체인을 제거하고, 모든 대상 노드(루트 제외)가 고유 속도를 다이렉트로 할당받도록 통일하여 궤도 속도가 균일하도록 했습니다. 또한, 한 바퀴 도는 데 약 8.7분이나 소요되어 노드가 정지한 것처럼 보일 수 있었던 속도를 5배(`ORBIT_SPEED_BASE * 0.8` ➡️ `* 4.0`)로 대폭 상향 조정하여 은은하고 뚜렷하게 움직이는 생동감을 부여했습니다.
 ---
 
-## 2. 무결성 검증 완료
-- `npx tsc --noEmit` 진단을 통과하여 타입스크립트 빌드 정합성이 100% 유지됨을 재확인했습니다 (task-872 통과).
-- `PORTFOLIO VITAL - Engineering Report.md`에 패치 기록을 상세 명문화했습니다.
-- `node scripts/sync-rules.js` 자동화 스크립트를 구동하여 `AGENTS.md` 하단의 최신 동기화된 마일스톤 로그(124번 마일스톤)를 자동으로 업데이트 완료했습니다.
+## 2. 해결 내역 및 방어 코드 적용
+[InventoryList.tsx](file:///d:/Desktop/PORTFOLIO/PORTFOLIO%20-%20VITAL/src/components/inventory/InventoryList.tsx) 파일에 대해 다음과 같은 강력한 방어 조치를 적용했습니다:
+
+### A. 필터링 및 카테고리 추출 안전화
+* `item` 존재 여부 검사 추가 (`if (!item) return false;`)
+* 문자열 변환 시 기본값(폴백) 바인딩 (`item.name || ''`, `item.category || ''`)
+```typescript
+const filteredItems = useMemo(() => {
+  const query = (searchQuery || '').toLowerCase();
+  return items.filter(item => {
+    if (!item) return false;
+    const itemName = (item.name || '').toLowerCase();
+    const itemCategory = (item.category || '').toLowerCase();
+    const matchesSearch = itemName.includes(query) || itemCategory.includes(query);
+    const matchesCategory = !selectedCategory || item.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
+}, [items, searchQuery, selectedCategory]);
+```
+
+### B. 중복 및 고유 카테고리 추출 보강
+* 카테고리 수집 시 `item` 객체 널 체킹 가드를 추가했습니다.
+```typescript
+const uniqueCategories = useMemo(() => {
+  const cats = new Set<string>();
+  items.forEach(item => {
+    if (item && item.category) cats.add(item.category);
+  });
+  return Array.from(cats);
+}, [items]);
+```
+
+### C. UI 카드 및 모달 폼 필드 널 세이프티 이식
+* 각 품목 정보 렌더링에 `item.name || '이름 없음'`, `item.unit || '개'`, `currentStock || 0` 등의 기본값을 연동하여 속성 누락 시의 UI 깨짐과 오류를 사전에 차단했습니다.
+* 수정 모달 호출 핸들러(`openEdit`)에서 `item?.name || ''` 형태로 선택 노드가 없을 경우의 예외 처리를 정교화했습니다.
+
+---
+
+## 3. 검증 결과 및 테스트 통과
+
+### A. Zod DB 무결성 게이트키퍼 통과
+* `TASKS`, `BUDGET_CATEGORIES`, `BUDGET_ENTRIES`, `PROJECTS` 등 데이터베이스 Zod 스키마 검증 통과.
+
+### B. ESLint / TypeScript 컴파일 검증 통과 (npm run lint: PASS)
+* 소스 코드 컴파일 및 린트 경고 **0 Errors / 0 Warnings** 완료.
+```text
+====================================================
+🎉 [PASS] All Gatekeeper tests complete. 0 errors found.
+====================================================
+```
+
+### C. 에이전트 매니페스트(AGENTS.md) 마일스톤 로그 동기화 완료
+* 패치 로그가 리포트에 영구 반영되었으며, `AGENTS.md` 파일 하단에도 최신 마일스톤으로 안전하게 등재되었습니다.

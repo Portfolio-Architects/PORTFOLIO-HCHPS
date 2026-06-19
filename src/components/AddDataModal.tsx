@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, ListTodo, Archive, CalendarDays, Zap, FileText } from 'lucide-react';
+import { X, Zap, FileText } from 'lucide-react';
 
 interface AddDataModalProps {
   isOpen: boolean;
@@ -12,7 +12,7 @@ interface AddDataModalProps {
 
 export function AddDataModal({ isOpen, initialMode = 'memo', onClose, onAddSignal, onAddTask, onAddMeeting }: AddDataModalProps) {
   const [mode, setMode] = useState<'memo' | 'pdf'>(initialMode);
-  const [type, setType] = useState<'signal' | 'task' | 'meeting'>('signal');
+  const [type] = useState<'signal' | 'task' | 'meeting'>('signal');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [isParsing, setIsParsing] = useState(false);

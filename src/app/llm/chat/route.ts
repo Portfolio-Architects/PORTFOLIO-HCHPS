@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { RAGEngine } from '@/lib/rag/rag-engine';
 
 // Initialize Gemini API
 const apiKey = process.env.GOOGLE_GEMINI_API_KEY || '';
@@ -101,11 +102,24 @@ export async function POST(req: Request) {
     const rawSignals = contextData?.signals || [];
     const signalsText = rawSignals.slice(0, 300).map((s: any) => `- [${s.type || s.category || '알림'}] ${s.text || s.content || s.title}`).join('\n') || '없음';
     
-    // Wiki context
-    const matchedWikiText = contextData?.matchedWiki || '';
-    const wikiContextSection = matchedWikiText 
-      ? `\n--- 마인드맵 위키 및 정보 (Wiki & Node Context) ---\n${matchedWikiText}\n`
-      : '';
+    // Hybrid RAG Search
+    let matchedWikiText = contextData?.matchedWiki || '';
+    try {
+      const ragResults = await RAGEngine.search(lastMessage.content, 4);
+      if (ragResults.length > 0) {
+        const ragText = ragResults.map(r => 
+          `[노드: ${r.nodeLabel}] RAG 매칭 내용 (유사도: ${r.score.toFixed(2)}):\n${r.chunk}`
+        ).join('\n\n');
+        
+        if (matchedWikiText) {
+          matchedWikiText = `--- [클라이언트 매칭 위키] ---\n${matchedWikiText}\n\n--- [하이브리드 RAG 검색 위키] ---\n${ragText}`;
+        } else {
+          matchedWikiText = ragText;
+        }
+      }
+    } catch (ragErr) {
+      console.error('[Chat API] Hybrid RAG Search failed:', ragErr);
+    }
     
     // Resolve category names
     const cats = contextData?.budgetCategories || [];
@@ -147,20 +161,6 @@ export async function POST(req: Request) {
         parts: [{ text: msg.content }],
       }));
 
-    // Use gemini-3.5-flash for stable and fast response
-    const model = genAI.getGenerativeModel({ 
-      model: 'gemini-3.5-flash',
-      systemInstruction: systemPrompt,
-      generationConfig: {
-        maxOutputTokens: 8192,
-        temperature: 0.2
-      }
-    });
-
-    const chat = model.startChat({
-      history: formattedHistory,
-    });
-
     const knowledgeGraphText = contextData?.knowledgeGraph || '';
 
     // XML Structured Database for Gemma Attention alignment
@@ -190,25 +190,128 @@ export async function POST(req: Request) {
     const promptSuffix = '\n(추론 과정이나 체크리스트는 절대 작성하지 말고, 즉시 질문에 대한 답변만 한국어로 최종 출력하세요.)';
     const optimizedContent = `${databaseContext}\n\n질문: ${lastMessage.content}${promptSuffix}`;
 
+    const modelsToTry = ['gemini-3.5-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
     let result: any = null;
-    let retries = 3;
-    while (retries > 0) {
+    let successfulModel = '';
+    let apiError: any = null;
+
+    for (const modelName of modelsToTry) {
       try {
-        result = await chat.sendMessage(optimizedContent);
-        break;
+        console.log(`[Chat API] Attempting chat with model: ${modelName}`);
+        const model = genAI.getGenerativeModel({ 
+          model: modelName,
+          systemInstruction: systemPrompt,
+          generationConfig: {
+            maxOutputTokens: 8192,
+            temperature: 0.2
+          }
+        });
+
+        const chat = model.startChat({
+          history: formattedHistory,
+        });
+
+        let retries = 2;
+        while (retries > 0) {
+          try {
+            result = await chat.sendMessage(optimizedContent);
+            break;
+          } catch (err: any) {
+            retries--;
+            if (retries === 0) throw err;
+            console.warn(`[Chat API] ${modelName} call failed, retrying...`, err.message);
+            await new Promise((resolve) => setTimeout(resolve, 500));
+          }
+        }
+
+        if (result && result.response) {
+          successfulModel = modelName;
+          break; // Exit loop on success
+        }
       } catch (err: any) {
-        retries--;
-        if (retries === 0) throw err;
-        console.warn(`Gemma API call failed, retrying... (${3 - retries} attempts failed):`, err.message);
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        console.error(`[Chat API] Model ${modelName} failed entirely:`, err.message || err);
+        apiError = err;
       }
     }
 
-    if (!result || !result.response) {
-      throw new Error('Generative AI returned an empty response.');
+    let responseText = '';
+    if (result && result.response) {
+      const rawResponseText = result.response.text();
+      responseText = cleanGemmaResponse(rawResponseText);
+      console.log(`[Chat API] Successfully responded using model ${successfulModel}`);
+    } else {
+      console.warn('[Chat API] All generative models exhausted or quota limit reached. Triggering Local RAG Database Fallback.', apiError);
+      
+      let localAnswer = `📢 [안내: Gemini API 일일 할당량 소진 또는 오프라인 상태로 인해 로컬 RAG 지식베이스 검색 결과로 대체합니다.]\n\n`;
+      const queryLower: string = lastMessage.content.toLowerCase();
+      let foundInfo = false;
+      
+      if (matchedWikiText && matchedWikiText !== '없음') {
+        localAnswer += `📁 **지식베이스(Wiki) 검색 결과:**\n`;
+        const wikiLines = matchedWikiText.split('\n');
+        const relevantWikiLines = wikiLines.filter((l: string) => {
+          const cleanLine = l.trim();
+          if (!cleanLine) return false;
+          return cleanLine.includes('담당') || cleanLine.includes('전화') || cleanLine.includes('이메일') || 
+                 /010-\d{4}-\d{4}/.test(cleanLine) || 
+                 queryLower.split(' ').some((word: string) => word.length > 1 && cleanLine.toLowerCase().includes(word));
+        });
+        
+        if (relevantWikiLines.length > 0) {
+          localAnswer += relevantWikiLines.slice(0, 10).map((l: string) => `  ${l.trim()}`).join('\n') + '\n\n';
+          foundInfo = true;
+        } else {
+          localAnswer += `  ${matchedWikiText.substring(0, 450)}...\n\n`;
+          foundInfo = true;
+        }
+      }
+      
+      const matchedCategories = cats.filter((c: any) => 
+        queryLower.includes(c.name.toLowerCase()) || 
+        c.name.toLowerCase().split(' ').some((word: string) => word.length > 1 && queryLower.includes(word))
+      );
+      
+      if (matchedCategories.length > 0) {
+        localAnswer += `💰 **관련 예산 항목 조회 결과:**\n`;
+        matchedCategories.forEach((c: any) => {
+          localAnswer += `  - ${c.name}: 총예산 ${Number(c.totalBudget).toLocaleString()}원\n`;
+          const categoryEntries = entries.filter((e: any) => e.categoryId === c.id);
+          if (categoryEntries.length > 0) {
+            localAnswer += `    * 최근 지출 내역:\n`;
+            categoryEntries.slice(0, 5).forEach((e: any) => {
+              localAnswer += `      - [${e.date}] ${e.purpose}: ${Number(e.amount).toLocaleString()}원\n`;
+            });
+          }
+        });
+        localAnswer += '\n';
+        foundInfo = true;
+      }
+      
+      if (signalsText && signalsText !== '없음') {
+        const relevantSignals = rawSignals.filter((s: any) => 
+          queryLower.split(' ').some((word: string) => word.length > 1 && (s.text || '').toLowerCase().includes(word))
+        );
+        if (relevantSignals.length > 0) {
+          localAnswer += `📡 **관련 알림/시그널:**\n`;
+          relevantSignals.slice(0, 5).forEach((s: any) => {
+            localAnswer += `  - [${s.type || s.category || '알림'}] ${s.text || s.content}\n`;
+          });
+          localAnswer += '\n';
+          foundInfo = true;
+        }
+      }
+      
+      if (!foundInfo) {
+        localAnswer += `질문하신 내용 "${lastMessage.content}"에 관한 구체적인 문서를 로컬 데이터베이스에서 찾지 못했습니다.\n`;
+        localAnswer += `현재 예산 카테고리는 다음과 같습니다:\n`;
+        localAnswer += cats.slice(0, 5).map((c: any) => `  - ${c.name}`).join('\n') + '\n\n';
+        localAnswer += `자세한 내용은 상단 메뉴의 '예산관리' 및 '3D 마인드맵' 탭에서 직접 확인하실 수 있습니다.`;
+      } else {
+        localAnswer += `※ 로컬 RAG 검색 결과이므로 답변의 맥락이 자연스럽지 않을 수 있습니다. API 할당량이 복구되면 더욱 정확한 답변이 가능합니다.`;
+      }
+      
+      responseText = localAnswer;
     }
-    const rawResponseText = result.response.text();
-    const responseText = cleanGemmaResponse(rawResponseText);
 
     return NextResponse.json({ content: responseText });
   } catch (error: any) {

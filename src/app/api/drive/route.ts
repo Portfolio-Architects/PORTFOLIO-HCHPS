@@ -55,13 +55,13 @@ async function scanDirectory(dirPath: string, currentDepth = 1, maxDepth = 2): P
               lastModified: fileStat.mtime.toISOString(),
               layerId: 3 // 3: 위키/문서 레이어
             });
-          } catch (e) {
+          } catch {
             // 개별 파일 읽기 오류는 무시 (파일 잠금 등)
           }
         }
       }
     }
-  } catch (err) {
+  } catch {
     // 디렉토리가 없거나(예: F 드라이브 미마운트) 권한이 없는 경우 조용히 무시
   }
   return results;

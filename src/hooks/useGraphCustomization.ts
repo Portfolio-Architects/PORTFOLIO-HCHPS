@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useCallback, useMemo, useSyncExternalStore, useRef, useState } from 'react';
-import { OntologyNode, OntologyEdge, OntologyGroup } from '@/lib/ontology.types';
+import { OntologyNode, OntologyEdge } from '@/lib/ontology.types';
 import { useYjsStore } from './useYjsStore';
 import * as Y from 'yjs';
+import { readSheet, replaceAll } from '@/lib/sheets-api';
 
 export interface NodeOverride {
   fixedX?: number | null;
@@ -217,20 +218,7 @@ export function useGraphCustomization() {
     return newNode;
   }, [ydoc]);
 
-  const submitCustomNode = useCallback((node: OntologyNode) => {
-    ydoc.transact(() => {
-      const map = ydoc.getMap('customNodesMap') as Y.Map<OntologyNode>;
-      map.set(node.id, node);
-    });
-  }, [ydoc]);
 
-  const submitCustomEdge = useCallback((edge: OntologyEdge) => {
-    ydoc.transact(() => {
-      const map = ydoc.getMap('customEdgesMap') as Y.Map<OntologyEdge>;
-      const edgeId = `${edge.source}|||${edge.target}`;
-      map.set(edgeId, edge);
-    });
-  }, [ydoc]);
 
   const deleteCustomNode = useCallback((id: string) => {
     ydoc.transact(() => {
@@ -412,7 +400,6 @@ export function useGraphCustomization() {
   const syncToCloud = useCallback(async (silent = false) => {
     if (!silent && !confirm('현재 화면의 모든 노드 구조를 클라우드에 저장하시겠습니까? (프로덕션 환경과 동기화)')) return;
     try {
-      const { replaceAll } = await import('@/lib/sheets-api');
       const latestData = store.getSnapshot();
       const res = await replaceAll('MAP_CUSTOMIZATION', [{ id: 'singleton', ...latestData }]);
       if (res && !silent) alert('☁️ 성공적으로 클라우드에 동기화되었습니다!');
@@ -426,7 +413,6 @@ export function useGraphCustomization() {
   const fetchFromCloud = useCallback(async (silent = false) => {
     if (!silent && !confirm('클라우드에서 최신 데이터를 불러오시겠습니까? (현재 로컬의 캔버스 내용은 모두 덮어씌워집니다)')) return;
     try {
-      const { readSheet } = await import('@/lib/sheets-api');
       const rows = await readSheet<MapCustomizationData & { id: string }>('MAP_CUSTOMIZATION');
       console.log('[DEBUG] fetchFromCloud rows:', rows);
       if (rows && rows.length > 0 && rows[0].id === 'singleton') {

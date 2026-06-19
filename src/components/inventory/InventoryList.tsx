@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { InventoryItem, StockChange } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Modal } from '@/components/ui/modal';
-import { Plus, Pencil, Trash2, ArrowUp, ArrowDown, Package } from 'lucide-react';
+import { Plus, Pencil, Trash2, ArrowUp, ArrowDown, Package, Search } from 'lucide-react';
 
 interface InventoryListProps {
   items: InventoryItem[];
@@ -26,7 +26,11 @@ export function InventoryList({ items, addItem, updateItem, deleteItem, adjustSt
   const [adjChange, setAdjChange] = useState('');
   const [adjReason, setAdjReason] = useState('');
 
-  const inputClass = "w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition-shadow";
+  // Search & Category Filters State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  const inputClass = "w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-500 transition-all font-medium";
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,60 +55,180 @@ export function InventoryList({ items, addItem, updateItem, deleteItem, adjustSt
   };
 
   const openEdit = (item: InventoryItem) => {
-    setSelectedItem(item); setName(item.name); setCategory(item.category); setUnit(item.unit); setShowAddModal(true);
+    setSelectedItem(item);
+    setName(item?.name || '');
+    setCategory(item?.category || '');
+    setUnit(item?.unit || '개');
+    setShowAddModal(true);
   };
 
   const openAdjust = (item: InventoryItem) => {
-    setSelectedItem(item); setShowAdjustModal(true);
+    setSelectedItem(item);
+    setShowAdjustModal(true);
   };
 
+  // Get unique categories for quick filter
+  const uniqueCategories = useMemo(() => {
+    const cats = new Set<string>();
+    items.forEach(item => {
+      if (item && item.category) cats.add(item.category);
+    });
+    return Array.from(cats);
+  }, [items]);
+
+  // Filtered items list
+  const filteredItems = useMemo(() => {
+    const query = (searchQuery || '').toLowerCase();
+    return items.filter(item => {
+      if (!item) return false;
+      const itemName = (item.name || '').toLowerCase();
+      const itemCategory = (item.category || '').toLowerCase();
+      const matchesSearch = itemName.includes(query) || itemCategory.includes(query);
+      const matchesCategory = !selectedCategory || item.category === selectedCategory;
+      return matchesSearch && matchesCategory;
+    });
+  }, [items, searchQuery, selectedCategory]);
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="space-y-5">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-xl font-bold">홍보물 관리</h2>
-        <button onClick={() => { setSelectedItem(null); resetForm(); setShowAddModal(true); }} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[var(--color-primary)] text-white text-sm font-medium hover:opacity-90 transition-opacity cursor-pointer">
+        <button 
+          onClick={() => { setSelectedItem(null); resetForm(); setShowAddModal(true); }} 
+          className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition-colors shadow-md shadow-indigo-500/10 cursor-pointer"
+        >
           <Plus size={16} /> 품목 추가
         </button>
       </div>
 
+      {/* Search & Category Filter Section */}
+      <div className="glass-panel rounded-[2rem] p-5 shadow-2xs border border-white/20 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="relative flex-1">
+          <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
+            <Search size={16} />
+          </span>
+          <input 
+            type="text" 
+            placeholder="품목명 또는 분류 검색..." 
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-500 transition-all font-medium"
+          />
+        </div>
+        {uniqueCategories.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 items-center">
+            <button 
+              onClick={() => setSelectedCategory(null)} 
+              className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition-all cursor-pointer shadow-3xs ${
+                !selectedCategory 
+                  ? 'bg-indigo-600 text-white border-indigo-600' 
+                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              전체
+            </button>
+            {uniqueCategories.map(cat => (
+              <button 
+                key={cat}
+                onClick={() => setSelectedCategory(cat)} 
+                className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition-all cursor-pointer shadow-3xs ${
+                  selectedCategory === cat 
+                    ? 'bg-indigo-600 text-white border-indigo-600' 
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
       {items.length === 0 ? (
-        <Card><div className="px-5 py-10 text-center text-sm text-[var(--color-text-tertiary)]"><Package size={32} className="mx-auto mb-2 opacity-30" />홍보물 품목을 추가해 보세요</div></Card>
+        <Card className="glass-panel rounded-[2rem] border border-white/25">
+          <CardContent className="px-5 py-16 text-center text-sm text-slate-400">
+            <Package size={40} className="mx-auto mb-3 text-indigo-500/40 animate-bounce" />
+            홍보물 품목을 추가해 보세요
+          </CardContent>
+        </Card>
+      ) : filteredItems.length === 0 ? (
+        <Card className="glass-panel rounded-[2rem] border border-white/25">
+          <CardContent className="px-5 py-12 text-center text-sm text-slate-400">
+            검색 결과에 부합하는 품목이 없습니다.
+          </CardContent>
+        </Card>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {items.map(item => {
-            const history = getItemHistory(item.id).slice(0, 3);
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredItems.map(item => {
+            const itemId = item.id || '';
+            const history = (getItemHistory(itemId) || []).slice(0, 3);
+            const currentStock = item.currentStock || 0;
+            const itemUnit = item.unit || '개';
+            const isOut = currentStock === 0;
+            const isLow = currentStock > 0 && currentStock < 10;
+            const stockColor = isOut ? 'text-rose-500' : isLow ? 'text-amber-500' : 'text-emerald-500';
+            const stockBg = isOut ? 'bg-rose-500/10' : isLow ? 'bg-amber-500/10' : 'bg-emerald-500/10';
+            const statusLabel = isOut ? '품절' : isLow ? '소진임박' : '충분';
+
             return (
-              <Card key={item.id}>
-                <CardContent>
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <div className="font-semibold text-sm">{item.name}</div>
-                      {item.category && <div className="text-xs text-[var(--color-text-tertiary)]">{item.category}</div>}
+              <Card key={itemId} className="glass-panel rounded-[2rem] border border-slate-200/60 shadow-2xs hover:shadow-lg hover:shadow-indigo-500/5 hover:-translate-y-1 transition-all duration-300 group">
+                <CardContent className="p-5 flex flex-col h-full justify-between">
+                  <div>
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <div className="font-bold text-base text-slate-800 line-clamp-1">{item.name || '이름 없음'}</div>
+                        {item.category && <span className="inline-block mt-1 text-[11px] font-semibold text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-lg">{item.category}</span>}
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        <button onClick={() => openEdit(item)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 cursor-pointer transition-colors"><Pencil size={12} /></button>
+                        <button onClick={() => deleteItem(itemId)} className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 cursor-pointer transition-colors"><Trash2 size={12} /></button>
+                      </div>
                     </div>
-                    <div className="flex gap-1">
-                      <button onClick={() => openEdit(item)} className="p-1 rounded hover:bg-gray-100 text-[var(--color-text-tertiary)] cursor-pointer"><Pencil size={13} /></button>
-                      <button onClick={() => deleteItem(item.id)} className="p-1 rounded hover:bg-gray-100 text-[var(--color-text-tertiary)] hover:text-[var(--color-danger)] cursor-pointer"><Trash2 size={13} /></button>
-                    </div>
-                  </div>
-                  <div className="text-2xl font-bold text-[var(--color-primary)]">{item.currentStock} <span className="text-sm font-normal text-[var(--color-text-tertiary)]">{item.unit}</span></div>
-                  <div className="flex gap-2 mt-3">
-                    <button onClick={() => { openAdjust(item); setAdjChange('1'); }} className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg bg-[rgba(16,185,129,0.08)] text-[var(--color-success)] text-xs font-medium hover:bg-[rgba(16,185,129,0.15)] transition-colors cursor-pointer">
-                      <ArrowUp size={12} /> 입고
-                    </button>
-                    <button onClick={() => { openAdjust(item); setAdjChange('-1'); }} className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg bg-[rgba(239,68,68,0.08)] text-[var(--color-danger)] text-xs font-medium hover:bg-[rgba(239,68,68,0.15)] transition-colors cursor-pointer">
-                      <ArrowDown size={12} /> 출고
-                    </button>
-                  </div>
-                  {history.length > 0 && (
-                    <div className="mt-3 pt-2 border-t border-[var(--color-border-light)] space-y-1">
-                      {history.map(h => (
-                        <div key={h.id} className="flex justify-between text-[10px] text-[var(--color-text-tertiary)]">
-                          <span>{h.reason}</span>
-                          <span className={h.change > 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-danger)]'}>{h.change > 0 ? '+' : ''}{h.change}</span>
+                    
+                    {/* Stock Display & Signal LED */}
+                    <div className="flex items-center justify-between bg-slate-50/50 rounded-2xl p-4 mb-4 border border-slate-100/50">
+                      <div className="flex flex-col">
+                        <span className="text-[12px] text-slate-500 font-semibold mb-0.5">현재 재고</span>
+                        <div className="text-2xl font-bold text-slate-800 font-mono">
+                          {currentStock} <span className="text-xs font-normal text-slate-400">{itemUnit}</span>
                         </div>
-                      ))}
+                      </div>
+                      <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl border ${stockColor} border-current/20 ${stockBg} text-[11px] font-bold shadow-3xs`}>
+                        <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse shadow-sm"></span>
+                        {statusLabel}
+                      </div>
                     </div>
-                  )}
+                  </div>
+
+                  <div>
+                    {/* Stock Adjust Buttons */}
+                    <div className="flex gap-2">
+                      <button onClick={() => { openAdjust(item); setAdjChange('1'); }} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold border border-emerald-100 transition-colors cursor-pointer shadow-3xs">
+                        <ArrowUp size={12} /> 입고
+                      </button>
+                      <button onClick={() => { openAdjust(item); setAdjChange('-1'); }} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold border border-rose-100 transition-colors cursor-pointer shadow-3xs">
+                        <ArrowDown size={12} /> 출고
+                      </button>
+                    </div>
+
+                    {/* Timeline History */}
+                    {history.length > 0 && (
+                      <div className="mt-4 pt-3 border-t border-slate-100 space-y-1.5">
+                        <div className="text-[10px] text-slate-400 font-semibold tracking-wider uppercase mb-1">최근 변동 이력</div>
+                        {history.map(h => (
+                          <div key={h.id} className="flex justify-between items-center text-[11px] text-slate-500 hover:bg-slate-50 px-1.5 py-0.5 rounded transition-colors font-medium">
+                            <span className="flex items-center gap-1 truncate">
+                              <span className="text-slate-300 font-mono text-[9px] shrink-0">•</span>
+                              <span className="truncate">{h.reason}</span>
+                            </span>
+                            <span className={`font-semibold font-mono shrink-0 ${h.change > 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                              {h.change > 0 ? '+' : ''}{h.change}{itemUnit}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             );
@@ -115,21 +239,45 @@ export function InventoryList({ items, addItem, updateItem, deleteItem, adjustSt
       {/* Add/Edit Modal */}
       <Modal isOpen={showAddModal} onClose={resetForm} title={selectedItem ? '품목 수정' : '새 품목'} size="sm">
         <form onSubmit={handleAdd} className="space-y-4">
-          <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">품명 *</label><input type="text" value={name} onChange={e => setName(e.target.value)} className={inputClass} required /></div>
-          <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">분류</label><input type="text" value={category} onChange={e => setCategory(e.target.value)} className={inputClass} placeholder="예: 사무용품" /></div>
-          {!selectedItem && <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">초기 수량</label><input type="number" value={stock} onChange={e => setStock(e.target.value)} className={inputClass} placeholder="0" /></div>}
-          <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">단위</label><input type="text" value={unit} onChange={e => setUnit(e.target.value)} className={inputClass} /></div>
-          <button type="submit" className="w-full px-4 py-2.5 rounded-lg bg-[var(--color-primary)] text-white text-sm font-medium hover:opacity-90 transition-opacity cursor-pointer">{selectedItem ? '수정' : '추가'}</button>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">품명 *</label>
+            <input type="text" value={name} onChange={e => setName(e.target.value)} className={inputClass} required />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">분류</label>
+            <input type="text" value={category} onChange={e => setCategory(e.target.value)} className={inputClass} placeholder="예: 홍보물" />
+          </div>
+          {!selectedItem && (
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">초기 수량</label>
+              <input type="number" value={stock} onChange={e => setStock(e.target.value)} className={inputClass} placeholder="0" />
+            </div>
+          )}
+          <div>
+            <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">단위</label>
+            <input type="text" value={unit} onChange={e => setUnit(e.target.value)} className={inputClass} />
+          </div>
+          <button type="submit" className="w-full px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-colors cursor-pointer shadow-md shadow-indigo-500/10">
+            {selectedItem ? '수정' : '추가'}
+          </button>
         </form>
       </Modal>
 
       {/* Adjust Modal */}
       <Modal isOpen={showAdjustModal} onClose={() => setShowAdjustModal(false)} title={`재고 조정 — ${selectedItem?.name}`} size="sm">
         <form onSubmit={handleAdjust} className="space-y-4">
-          <div className="text-center text-sm text-[var(--color-text-secondary)]">현재 재고: <span className="font-bold text-[var(--color-text-primary)]">{selectedItem?.currentStock} {selectedItem?.unit}</span></div>
-          <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">변동 수량 (양수=입고, 음수=출고) *</label><input type="number" value={adjChange} onChange={e => setAdjChange(e.target.value)} className={inputClass} required /></div>
-          <div><label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">사유</label><input type="text" value={adjReason} onChange={e => setAdjReason(e.target.value)} className={inputClass} placeholder="입고/출고 사유" /></div>
-          <button type="submit" className="w-full px-4 py-2.5 rounded-lg bg-[var(--color-primary)] text-white text-sm font-medium hover:opacity-90 transition-opacity cursor-pointer">적용</button>
+          <div className="text-center text-sm text-slate-500">현재 재고: <span className="font-bold text-slate-800">{selectedItem?.currentStock} {selectedItem?.unit}</span></div>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">변동 수량 (양수=입고, 음수=출고) *</label>
+            <input type="number" value={adjChange} onChange={e => setAdjChange(e.target.value)} className={inputClass} required />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">사유</label>
+            <input type="text" value={adjReason} onChange={e => setAdjReason(e.target.value)} className={inputClass} placeholder="입고/출고 사유" />
+          </div>
+          <button type="submit" className="w-full px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-colors cursor-pointer shadow-md shadow-indigo-500/10">
+            적용
+          </button>
         </form>
       </Modal>
     </div>
