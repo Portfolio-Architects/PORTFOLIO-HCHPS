@@ -271,7 +271,13 @@ export const PolicyGroupCard = React.memo(({
                       if (c.name) linkedSubItemIds.add(c.name);
                     });
                   });
-                  const generalEntries = catEntries.filter(e => e.actionType !== 'issuance' && e.actionType !== 'daily_expense');
+                   const generalEntries = catEntries.filter(e => {
+                     const isIssuedOrDaily = e.actionType === 'issuance' || e.actionType === 'daily_expense';
+                     if (isIssuedOrDaily) return false;
+                     const isMapped = (e.linkedSubItemId && linkedSubItemIds.has(e.linkedSubItemId)) || 
+                                      (!e.linkedSubItemId && e.purpose && linkedSubItemIds.has(e.purpose));
+                     return !isMapped;
+                   });
                   const issuanceEntries = catEntries.filter(e => e.actionType === 'issuance');
                   const dailyExpenseEntries = catEntries.filter(e => e.actionType === 'daily_expense');
                   const totalIssuance = issuanceEntries.reduce((acc, e) => acc + e.amount, 0);
@@ -402,7 +408,8 @@ export const PolicyGroupCard = React.memo(({
                                                 }
                                               });
                                               const calcSpent = calcEntries.filter(e => e.actionType !== 'issuance').reduce((acc, e) => acc + e.amount, 0);
-                                              const calcRemaining = calc.amount - calcSpent;
+                                              const targetAmount = (calc.virtualAdjustment !== undefined && calc.virtualAdjustment > 0) ? calc.virtualAdjustment : calc.amount;
+                                              const calcRemaining = targetAmount - calcSpent;
                                               return (
                                                 <div key={cIdx} className="flex flex-col pl-3 pr-2 pb-1.5 border-b border-slate-200/40 last:border-0 last:pb-0">
                                                 <div className="flex justify-between items-center pt-0.5">
@@ -413,8 +420,8 @@ export const PolicyGroupCard = React.memo(({
                                                     </div>
                                                   </div>
                                                   <div className="flex flex-col items-end shrink-0 ml-3">
-                                                    <span className="text-[15px] font-semibold text-slate-900 font-mono tabular-nums tracking-tight">{formatN(calc.amount)}원</span>
-                                                    {calc.amount > 0 && calcSpent > 0 && (
+                                                    <span className="text-[15px] font-semibold text-slate-900 font-mono tabular-nums tracking-tight">{formatN(targetAmount)}원</span>
+                                                    {calcSpent > 0 && (
                                                        <div className="flex items-center gap-1.5 mt-1 justify-end flex-wrap">
                                                           <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 border border-slate-200/50 px-1.5 py-0.5 rounded-md font-mono">지출: {formatN(calcSpent)}원</span>
                                                           {calcRemaining < 0 ? (

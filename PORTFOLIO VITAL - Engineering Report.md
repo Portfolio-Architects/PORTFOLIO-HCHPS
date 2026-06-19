@@ -1653,4 +1653,12 @@ sequenceDiagram
 * **누락된 지출 매핑 보완 (Fallback Purpose Matching)**: `linkedSubItemId` 필드가 누락되어 spent/remaining 예산 계산에서 제외되던 구버전/가져오기 데이터들을 정상 매핑하기 위해, `PolicyGroupCard.tsx` 내의 `subEntries` 및 `calcEntries` 필터 조건을 수정했습니다. `linkedSubItemId`가 있는 경우에는 ID/이름 매칭을 하고, 없는 경우에는 `purpose` 문자열이 `calc.name`과 일치하는 것을 탐색해 매핑하는 폴백 로직을 구현했습니다.
 * **일반 지출 뷰 미지정 뱃지 오류 해결 (Unassigned Badge Correction)**: `e.linkedSubItemId`가 없고 `e.purpose`로 세부계산식에 매핑되었음에도 일반 지출 목록 영역에서 '미지정' 뱃지가 뜨던 오진 현상을 해결하기 위해, `isMapped` 판정 수식을 추가하여 올바르게 뱃지가 소거되도록 조치했습니다.
 
+---
+
+### 세부 계산식(Calculations) 가상조정액(virtualAdjustment) 기준 금액 정합성 및 일반 지출 중복 제거 핫픽스 (2026-06-19)
+* **가상 예산 조정액(virtualAdjustment)을 예산 기준액으로 수용**: 세부 계산식(`calculations`)의 한도가 첫 번째 항목에만 몰려있고 나머지는 0원으로 편중 적재된 무결성 왜곡 상황을 해결하고자, calculations의 한도액(`targetAmount`) 계산 시 `calc.virtualAdjustment` (가상 설계/확정 예산액)가 지정되어 있을 경우 이를 최우선 예산 한도로 삼아 잔액(`calcRemaining`)을 구하도록 개선했습니다.
+* **지출 뱃지 렌더링 가드 완화**: 기존에 `calc.amount > 0`인 조건에서만 지출액과 잔액 뱃지가 노출되어 예산액이 0원인 항목들의 지출 상태가 미표시되던 문제를 해결하기 위해, `calcSpent > 0` 인 모든 집행 항목들에 대해 예산 한도 대비 잔액/초과 뱃지가 정상 노출되도록 렌더링 가드를 완화했습니다.
+* **일반 지출 목록 내 중복 노출 제거**: 세부 항목 및 계산식 하위에 매핑되어 이미 상세 목록에 렌더링된 지출 전표들이 하단 "일반 지출 (품의 및 집행) 현황" 목록에 중복해서 노출되지 않도록 `generalEntries` 필터 조건에서 매핑 완료된 전표들을 필터링하여 완벽하게 중복을 소거했습니다.
+
+
 
