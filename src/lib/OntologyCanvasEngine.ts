@@ -87,7 +87,7 @@ export class OntologyCanvasEngine {
   private nodeMap = new Map<string, OrbitalNode>();
   private connectionSet = new Set<string>();  // 'id1|||id2' for O(1) lookup
   private spatialGrid = new Map<number, OrbitalNode[]>();
-  private visitedPairs = new Set<string>();
+  private visitedPairs = new Set<number>();
   private cellArrayPool: OrbitalNode[][] = [];
   private cellArrayPoolUsed = 0;
   private physicsEdges: { sourceNode: OrbitalNode; targetNode: OrbitalNode; weight: number }[] = [];
@@ -378,6 +378,11 @@ export class OntologyCanvasEngine {
       }
     }
 
+    // 각 노드에 정수 인덱스 부여 (물리 척력 연산 내 visitedPairs 비트 연산 최적화용)
+    this.nodes.forEach((node, i) => {
+      node.index = i;
+    });
+
     // 4차 최적화: 엔진 재초기화 시 물리 시뮬레이션을 다시 깨움 (Sleep -> Wake Up)
     this.physicsAlpha = 1.0;
   }
@@ -527,9 +532,9 @@ export class OntologyCanvasEngine {
             if (nodeB.id === nodeA.id) continue;
             
             // 중복 연산 방지
-            const pairKey = nodeA.id < nodeB.id 
-              ? `${nodeA.id}-${nodeB.id}` 
-              : `${nodeB.id}-${nodeA.id}`;
+            const idxA = nodeA.index ?? 0;
+            const idxB = nodeB.index ?? 0;
+            const pairKey = idxA < idxB ? (idxA << 16) | idxB : (idxB << 16) | idxA;
             if (this.visitedPairs.has(pairKey)) continue;
             this.visitedPairs.add(pairKey);
             

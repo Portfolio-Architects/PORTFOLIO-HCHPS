@@ -45,6 +45,18 @@ export class OntologyRenderer {
   private static cachedNeighborsSet = new Set<string>();
   private static textBoxPool: Array<{x1: number, y1: number, x2: number, y2: number}> = [];
   private static drawnTextBoxesList: Array<{x1: number, y1: number, x2: number, y2: number}> = [];
+  private static colorMap = new Map<string, number>();
+  private static colorCounter = 0;
+  private static getColorId(color: string): number {
+    let id = OntologyRenderer.colorMap.get(color);
+    if (id === undefined) {
+      id = OntologyRenderer.colorCounter++;
+      OntologyRenderer.colorMap.set(color, id);
+    }
+    return id;
+  }
+  private static edgePool: BatchedEdge[] = [];
+  private static edgePoolUsed = 0;
 
   private static currentFont = '';
   private static currentFillStyle = '';
@@ -101,7 +113,7 @@ export class OntologyRenderer {
     out.y = cy + rotatedY * zoom * perspectiveScale;
     out.scale = perspectiveScale;
   }
-  private static edgeBatches = new Map<string, {
+  private static edgeBatches = new Map<number, {
     themeColor: string;
     lineWidth: number;
     alpha: number;
@@ -445,6 +457,7 @@ export class OntologyRenderer {
     // Spanning Tree 구조 엣지를 O(1) 룩업하기 위한 캐시된 빌드셋 가져오기
     const spanningTreeEdgeSet = OntologyLayout.lastSpanningTreeEdgeSet;
 
+    OntologyRenderer.edgePoolUsed = 0;
     OntologyRenderer.edgeBatches.forEach(b => b.edgesList.length = 0);
 
     const labelsToDraw: Array<{
@@ -565,9 +578,15 @@ export class OntologyRenderer {
       // 3차 최적화: 스타일 키 이산 양자화 (0.2 및 0.1 단위) + 부동소수점 오차 박멸용 포맷팅
       const roundedLineWidth = Number((Math.round(lineWidth * 5) / 5).toFixed(2));
       const roundedAlpha = Number((Math.round(finalAlpha * 10) / 10).toFixed(2));
-      const styleKey = `${themeColor}|||${roundedLineWidth}|||${roundedAlpha}|||${isDashed}`;
 
-      let batch = OntologyRenderer.edgeBatches.get(styleKey);
+      // 16차 최적화: 문자열 키 생성 오버헤드와 가비지 컬렉션을 차단하기 위해 스타일 요소를 32비트 정수로 인코딩
+      const colorId = OntologyRenderer.getColorId(themeColor);
+      const lwInt = Math.round(roundedLineWidth * 5) & 0xFF; // 8비트
+      const aInt = Math.round(roundedAlpha * 10) & 0xFF; // 8비트
+      const dashInt = isDashed ? 1 : 0; // 1비트
+      const styleKeyInt = (colorId << 17) | (lwInt << 9) | (aInt << 1) | dashInt;
+
+      let batch = OntologyRenderer.edgeBatches.get(styleKeyInt);
       if (!batch) {
         batch = {
           themeColor,
@@ -576,7 +595,7 @@ export class OntologyRenderer {
           isDashed,
           edgesList: []
         };
-        OntologyRenderer.edgeBatches.set(styleKey, batch);
+        OntologyRenderer.edgeBatches.set(styleKeyInt, batch);
       } else {
         batch.themeColor = themeColor;
         batch.lineWidth = roundedLineWidth;
@@ -584,15 +603,26 @@ export class OntologyRenderer {
         batch.isDashed = isDashed;
       }
 
-      const batchedEdge: BatchedEdge = {
-        x1: leftRightX,
-        y1: leftNode.renderY,
-        x2: rightLeftX,
-        y2: rightNode.renderY,
-        cpDist,
-        leftY: leftNode.renderY,
-        rightY: rightNode.renderY
-      };
+      // 17차 최적화: 매 프레임 객체 리터럴 생성을 방지하기 위한 간선 오브젝트 풀 적용
+      let batchedEdge: BatchedEdge;
+      if (OntologyRenderer.edgePoolUsed < OntologyRenderer.edgePool.length) {
+        batchedEdge = OntologyRenderer.edgePool[OntologyRenderer.edgePoolUsed++];
+      } else {
+        batchedEdge = { x1: 0, y1: 0, x2: 0, y2: 0 };
+        OntologyRenderer.edgePool.push(batchedEdge);
+        OntologyRenderer.edgePoolUsed++;
+      }
+      batchedEdge.x1 = leftRightX;
+      batchedEdge.y1 = leftNode.renderY;
+      batchedEdge.x2 = rightLeftX;
+      batchedEdge.y2 = rightNode.renderY;
+      batchedEdge.cpDist = cpDist;
+      batchedEdge.leftY = leftNode.renderY;
+      batchedEdge.rightY = rightNode.renderY;
+      batchedEdge.arrowX = undefined;
+      batchedEdge.arrowY = undefined;
+      batchedEdge.arrowAngle = undefined;
+      batchedEdge.arrowSize = undefined;
 
       if (layoutMode === 'cluster') {
         const dx = tgt.renderX - src.renderX;
