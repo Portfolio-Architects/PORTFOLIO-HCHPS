@@ -346,7 +346,13 @@ export const PolicyGroupCard = React.memo(({
                                <div className="text-[15px] font-bold text-slate-800 mb-2.5 flex items-center gap-1.5"><div className="w-1.5 h-1.5 bg-slate-400 rounded-full"/> 산출 기초 (세부 항목)</div>
                                <div className="space-y-2 pl-2">
                                  {cat.subItems.map((sub, subIdx) => {
-                                    const subEntries = catEntries.filter(e => e.linkedSubItemId && (e.linkedSubItemId === sub.id || e.linkedSubItemId === sub.name || (sub.calculations && sub.calculations.some(c => e.linkedSubItemId === c.id || e.linkedSubItemId === c.name))));
+                                    const subEntries = catEntries.filter(e => {
+                                      if (e.linkedSubItemId) {
+                                        return e.linkedSubItemId === sub.id || e.linkedSubItemId === sub.name || (sub.calculations && sub.calculations.some(c => e.linkedSubItemId === c.id || e.linkedSubItemId === c.name));
+                                      } else {
+                                        return e.purpose === sub.name || (sub.calculations && sub.calculations.some(c => e.purpose === c.name));
+                                      }
+                                    });
                                     const subSpent = subEntries.filter(e => e.actionType !== 'issuance').reduce((acc, e) => acc + e.amount, 0);
                                     const subRemaining = sub.amount - subSpent;
                                     return (
@@ -388,7 +394,13 @@ export const PolicyGroupCard = React.memo(({
                                         ) : (
                                           <div className="mt-2 mb-1 bg-slate-50/50 border-l-[3px] border-indigo-400 rounded-r-xl py-2 flex flex-col gap-1 ml-[5px] shadow-3xs">
                                             {sub.calculations.map((calc, cIdx) => {
-                                              const calcEntries = catEntries.filter(e => e.linkedSubItemId && (e.linkedSubItemId === calc.id || e.linkedSubItemId === calc.name || e.linkedSubItemId === sub.name));
+                                              const calcEntries = catEntries.filter(e => {
+                                                if (e.linkedSubItemId) {
+                                                  return e.linkedSubItemId === calc.id || e.linkedSubItemId === calc.name;
+                                                } else {
+                                                  return e.purpose === calc.name;
+                                                }
+                                              });
                                               const calcSpent = calcEntries.filter(e => e.actionType !== 'issuance').reduce((acc, e) => acc + e.amount, 0);
                                               const calcRemaining = calc.amount - calcSpent;
                                               return (
@@ -484,7 +496,7 @@ export const PolicyGroupCard = React.memo(({
                                              <span className={`font-bold px-1.5 py-0.5 rounded text-[12px] ${e.isPlanned && !e.isSettled ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-blue-100 text-blue-800 border border-blue-200'}`}>
                                                 {e.isPlanned && !e.isSettled ? '품의(원인행위)' : '실지출'}
                                              </span>
-                                             {(!e.linkedSubItemId || !linkedSubItemIds.has(e.linkedSubItemId)) && (
+                                             {!((e.linkedSubItemId && linkedSubItemIds.has(e.linkedSubItemId)) || (!e.linkedSubItemId && e.purpose && linkedSubItemIds.has(e.purpose))) && (
                                                 <span className="bg-gray-100 text-gray-500 border border-gray-200 px-1 py-0.5 rounded text-[11px] font-semibold shrink-0 mr-0.5">미지정</span>
                                              )}
                                              <span className="text-blue-700/70 font-medium tracking-tight shrink-0 bg-white border border-blue-100 px-1 rounded-sm">{e.date.replace(/-/g, '.')}</span>

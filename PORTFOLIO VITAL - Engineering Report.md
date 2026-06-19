@@ -1641,3 +1641,16 @@ sequenceDiagram
 * **게이트키퍼(run-harness.js) 파이프라인 결합**: 빌드 및 린트 검사 완료 단계 직후에 코드 자가 진단을 자동 트리거하여 분석 리포트가 항상 최신 상태를 유지하게 연동했습니다.
 * **재귀적 자율 리팩토링 및 린트 자율 제거 완료**: 진단 보고서를 기반으로 `ExpenseEntryModal.tsx` 내 미사용 변수(`isTransferOut`) 린트 경고를 에이전트가 탐지하여 자율 제거하였고, 하네스 검증 결과 경고 수 `0`을 달성하여 정상 작동을 입증했습니다.
 
+---
+
+### 세부 계산식(Calculations) 지출 내역 중복 합산 및 데이터 정합성 결함 핫픽스 (2026-06-19)
+* **calculations 지출 매칭 오작동 해결**: `PolicyGroupCard.tsx` 내의 세부 계산식 지출 내역 목록 필터링(`calcEntries`) 시, 개별 calculations 매칭 조건에 부모 subItem의 명칭 매칭 조건(`e.linkedSubItemId === sub.name`)이 부적절하게 연동되어 부모 수준에 기입된 전체 지출액이 모든 자식 calculations 항목마다 중복 합산되던 중복 매칭 정합성 오류를 해결했습니다.
+* **데이터 무결성 복원 및 정상 복구**: calculations 지출 필터 조건에서 부모 subItem 명칭 대조를 제거하고 오직 자기 자신의 ID(`calc.id`) 및 이름(`calc.name`)과만 매칭되도록 핫픽스를 가하여, 세부 계산식별 지출액 및 집행 완료(삭선/취소선) 정합성 상태가 정확히 표현되도록 완치했습니다.
+
+---
+
+### 세부 계산식(Calculations) 지출 내역 누락 및 데이터 정합성 보완 패치 (2026-06-19)
+* **누락된 지출 매핑 보완 (Fallback Purpose Matching)**: `linkedSubItemId` 필드가 누락되어 spent/remaining 예산 계산에서 제외되던 구버전/가져오기 데이터들을 정상 매핑하기 위해, `PolicyGroupCard.tsx` 내의 `subEntries` 및 `calcEntries` 필터 조건을 수정했습니다. `linkedSubItemId`가 있는 경우에는 ID/이름 매칭을 하고, 없는 경우에는 `purpose` 문자열이 `calc.name`과 일치하는 것을 탐색해 매핑하는 폴백 로직을 구현했습니다.
+* **일반 지출 뷰 미지정 뱃지 오류 해결 (Unassigned Badge Correction)**: `e.linkedSubItemId`가 없고 `e.purpose`로 세부계산식에 매핑되었음에도 일반 지출 목록 영역에서 '미지정' 뱃지가 뜨던 오진 현상을 해결하기 위해, `isMapped` 판정 수식을 추가하여 올바르게 뱃지가 소거되도록 조치했습니다.
+
+
