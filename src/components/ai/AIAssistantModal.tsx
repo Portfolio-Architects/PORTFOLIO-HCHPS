@@ -43,7 +43,7 @@ function extractTextFromBlocks(blocks: any[]): string {
 }
 
 export function AIAssistantModal({ isOpen, onClose, contextData, appMode = 'VITAL' }: AIAssistantModalProps) {
-  const { messages, addMessage, clearMessages: baseClearMessages, isTyping, chatMutation } = useAIChat();
+  const { messages, addMessage, clearMessages: baseClearMessages, isTyping, setIsTyping, chatMutation } = useAIChat();
   const [input, setInput] = useState('');
   const [wikiContextMap, setWikiContextMap] = useState<Record<string, string>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);

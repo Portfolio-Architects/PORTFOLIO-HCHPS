@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Printer, Maximize2, Minimize2, PlusSquare, RotateCcw } from 'lucide-react';
+import { Printer, Maximize2, Minimize2, PlusSquare, RotateCcw, Orbit, Network } from 'lucide-react';
 import { OrbitalNode, GROUP_COLORS, OntologyGroup } from '@/lib/ontology.types';
 
 interface MindMapHUDProps {
@@ -16,6 +16,8 @@ interface MindMapHUDProps {
   zoomSliderRef: React.RefObject<HTMLInputElement | null>;
   zoomLabelRef: React.RefObject<HTMLSpanElement | null>;
   onZoomChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  layoutMode: 'orbit' | 'tree';
+  onLayoutModeChange: (mode: 'orbit' | 'tree') => void;
 }
 
 export function MindMapHUD({
@@ -29,7 +31,9 @@ export function MindMapHUD({
   onResetCamera,
   zoomSliderRef,
   zoomLabelRef,
-  onZoomChange
+  onZoomChange,
+  layoutMode,
+  onLayoutModeChange
 }: MindMapHUDProps) {
   return (
     <>
@@ -93,6 +97,34 @@ export function MindMapHUD({
             className="w-20 md:w-24 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[var(--color-primary)] focus:outline-none"
             style={{ WebkitAppearance: 'none' }}
           />
+        </div>
+
+        <div className="w-px h-6 bg-slate-300/40 mx-1"></div>
+
+        {/* Layout Switcher (Orbit vs Tree) */}
+        <div className="flex bg-white/80 backdrop-blur-md border border-slate-200/50 rounded-lg p-0.5 shadow-sm h-[38px] items-center gap-0.5">
+          <button
+            onClick={() => onLayoutModeChange('orbit')}
+            className={`rounded-md p-1.5 cursor-pointer transition-all flex items-center justify-center border-0 ${
+              layoutMode === 'orbit'
+                ? 'bg-[var(--color-primary)] text-white shadow-sm'
+                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
+            }`}
+            title="동심원 공전 궤도 (Orbit Layout)"
+          >
+            <Orbit size={18} />
+          </button>
+          <button
+            onClick={() => onLayoutModeChange('tree')}
+            className={`rounded-md p-1.5 cursor-pointer transition-all flex items-center justify-center border-0 ${
+              layoutMode === 'tree'
+                ? 'bg-[var(--color-primary)] text-white shadow-sm'
+                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
+            }`}
+            title="계층형 가로 트리 (Tree Layout)"
+          >
+            <Network size={18} />
+          </button>
         </div>
 
         <div className="w-px h-6 bg-slate-300/40 mx-1"></div>

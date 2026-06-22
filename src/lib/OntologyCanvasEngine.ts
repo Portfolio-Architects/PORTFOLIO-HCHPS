@@ -57,7 +57,7 @@ export class OntologyCanvasEngine {
   public collapsedNodeIds: Set<string> = new Set();
   public hasInitializedCollapse: boolean = false;
   public isInitialCameraSnap: boolean = true;
-  public layoutMode = 'orbit' as const;
+  public layoutMode: 'orbit' | 'tree' = 'orbit';
   public physicsAlpha = 1.0;
 
   // Physics / Interaction
@@ -109,7 +109,7 @@ export class OntologyCanvasEngine {
     zoom: number;
     activeLayersKey: string;
     collapsedNodesKey: string;
-    layoutMode: 'orbit';
+    layoutMode: 'orbit' | 'tree';
     isInteractive: boolean;
   };
 

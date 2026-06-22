@@ -61,9 +61,13 @@ export function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onD
   const [stats, setStats] = useState({ nodes: 0, edges: 0 });
   const [isAddingNode, setIsAddingNode] = useState(false);
   const [newNodeName, setNewNodeName] = useState("");
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [parentModeSource, setParentModeSource] = useState<string | null>(null);
+  const [isWikiOpen, setIsWikiOpen] = useState(false);
   
-  // ── 레이아웃 모드 상태 (우주 궤도 고정) ──
-  const layoutModeRef = useRef<'orbit'>('orbit');
+  // ── 레이아웃 모드 상태 (우주 궤도 고정 vs 가로 트리) ──
+  const layoutModeRef = useRef<'orbit' | 'tree'>('orbit');
+  const [layoutStateMode, setLayoutStateMode] = useState<'orbit' | 'tree'>('orbit');
 
   // ── 수직 적층 온톨로지 레이어 필터 상태 삭제됨 ──
   
@@ -101,24 +105,24 @@ export function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onD
     setIsDeleteModalOpen(false);
   }, [activeNode, onDeleteCategory, deleteCustomNode, setNodeOverride]);
 
-  useEffect(() => {
-    const handleOpenWiki = (e: CustomEvent<{ id: string; label: string }>) => {
-      // Find the actual node if it exists in the engine, otherwise mock enough properties for WikiEditor to work
-      const existingNode = engineRef.current?.nodes.find(n => n.id === e.detail.id);
-      setActiveNode((existingNode || {
-        id: e.detail.id,
-        label: e.detail.label,
-        type: 'core',
-        radius: 20,
-        x: 0, y: 0, vx: 0, vy: 0
-      }) as unknown as OrbitalNode);
-      setIsWikiOpen(true);
-    };
-    
-    const handleCloseWiki = () => {
-      setActiveNode(null);
-    };
+  const handleOpenWiki = useCallback((e: CustomEvent<{ id: string; label: string }>) => {
+    // Find the actual node if it exists in the engine, otherwise mock enough properties for WikiEditor to work
+    const existingNode = engineRef.current?.nodes.find(n => n.id === e.detail.id);
+    setActiveNode((existingNode || {
+      id: e.detail.id,
+      label: e.detail.label,
+      type: 'core',
+      radius: 20,
+      x: 0, y: 0, vx: 0, vy: 0
+    }) as unknown as OrbitalNode);
+    setIsWikiOpen(true);
+  }, [setActiveNode, setIsWikiOpen]);
 
+  const handleCloseWiki = useCallback(() => {
+    setActiveNode(null);
+  }, [setActiveNode]);
+
+  useEffect(() => {
     window.addEventListener('wiki:openNode', handleOpenWiki as EventListener);
     window.addEventListener('wiki:closeNode', handleCloseWiki as EventListener);
     
@@ -126,7 +130,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onD
       window.removeEventListener('wiki:openNode', handleOpenWiki as EventListener);
       window.removeEventListener('wiki:closeNode', handleCloseWiki as EventListener);
     };
-  }, []);
+  }, [handleOpenWiki, handleCloseWiki]);
 
   const [perfMetrics, setPerfMetrics] = useState({
     lastRenderTime: 0,
@@ -264,11 +268,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onD
   customEdgesRef.current = customEdges;
   deletedEdgesRef.current = deletedEdges;
 
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [parentModeSource, setParentModeSource] = useState<string | null>(null);
 
-  
-  const [isWikiOpen, setIsWikiOpen] = useState(false);
   const { blocks: wikiBlocks, isLoaded: wikiLoaded, saveBlocks: saveWikiBlocks } = useWikiStorage(
     isWikiOpen && activeNode ? activeNode.id : null,
     isWikiOpen && activeNode ? activeNode.label : null,
@@ -301,7 +301,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onD
       
       // Init WITHOUT callbacks to avoid triggering setState during init
       engine.init(graph, undefined, engineRef.current ? engineRef.current.nodes : undefined);
-      engine.isOrbiting = true; // 공전 기능 다시 활성화
+      engine.isOrbiting = layoutModeRef.current === 'orbit'; // 트리 모드 시 공전 정지, orbit 모드 시 공전 활성화
       engine.layoutMode = layoutModeRef.current;
 
       // ----- 카메라 및 선택 상태 유지 (깜빡임/리셋 방지) -----
@@ -425,7 +425,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onD
       engineRef.current.zoom = 1.0;
       engineRef.current.needsRedraw = true;
     }
-  }, []);
+  }, [/* resetCamera */]);
 
   // ── Animation Loop ──
   useEffect(() => {
@@ -577,7 +577,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onD
     const clientX = 'touches' in e ? e.touches[0]?.clientX ?? 0 : (e as MouseEvent).clientX;
     const clientY = 'touches' in e ? e.touches[0]?.clientY ?? 0 : (e as MouseEvent).clientY;
     return { x: clientX - rect.left, y: clientY - rect.top };
-  }, []);
+  }, [/* getCanvasPos */]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     const engine = engineRef.current;
@@ -601,10 +601,10 @@ export function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onD
   }, [getCanvasPos]);
 
   const handleMouseUp = useCallback(() => {
-    const engine = engineRef.current;
-    if (!engine) return;
-    engine.handleDragEnd();
-  }, []);
+     const engine = engineRef.current;
+     if (!engine) return;
+     engine.handleDragEnd();
+  }, [/* mouseUp */]);
 
   const handleClick = useCallback((e: React.MouseEvent) => {
     // 터치 직후 브라우저에서 인위적으로 발생시키는 ghost click 차단 (더블클릭 판정으로 노드 선택이 풀리는 현상 방지)
@@ -759,7 +759,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onD
       // 4. 콜백 호출
       engine.callbacks.onActiveNodeChange?.(node);
     }
-  }, []);
+  }, [/* handleNodeClickInPanel */]);
 
 
 
@@ -838,7 +838,18 @@ export function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onD
       engine.targetZoom = val;
       engine.needsRedraw = true;
     }
-  }, []);
+  }, [/* handleZoomChange */]);
+
+  const handleLayoutModeChange = useCallback((mode: 'orbit' | 'tree') => {
+    layoutModeRef.current = mode;
+    setLayoutStateMode(mode);
+    if (engineRef.current) {
+      engineRef.current.layoutMode = mode;
+      engineRef.current.isOrbiting = mode === 'orbit';
+      engineRef.current.layoutWorldGeometryDirty = true;
+      engineRef.current.needsRedraw = true;
+    }
+  }, [/* handleLayoutModeChange */]);
 
   const handlePrintPdf = useCallback(() => {
     const canvas = canvasRef.current;
@@ -879,7 +890,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onD
       </html>
     `);
     printWindow.document.close();
-  }, []);
+  }, [/* handlePrintPdf */]);
 
   // ── Bottom Info Panels Content Renderer ──
   const renderBottomInfoPanels = () => {
@@ -1192,6 +1203,8 @@ export function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onD
                 onZoomChange={handleZoomSliderChange}
                 onAddNodeClick={() => { setIsAddingNode(true); setNewNodeName(""); }}
                 onResetCamera={handleResetCamera}
+                layoutMode={layoutStateMode}
+                onLayoutModeChange={handleLayoutModeChange}
               />
 
               {/* Sliding Wiki Panel Overlay */}

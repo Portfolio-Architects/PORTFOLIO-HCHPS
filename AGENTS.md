@@ -42,13 +42,7 @@
 6. **무인 자율 배포 및 자동 승인(Non-Interactive Auto-Deployment)**: 백그라운드 크론/스케줄러(`task-442` 등)에 의해 자율 개선 틱이 수행될 때는, 사용자의 수동 개입(Proceed 대기)을 유발하는 `RequestFeedback: true` 설정을 **철저히 배제(false로 고정)**합니다. 리팩토링된 코드가 `run-harness.js` (eslint, zod, tsc) 검증을 통과하면, 어떠한 수동 승인 절차 없이 즉시 배포(Auto-Merge) 처리하여 무중단 무인 자율 구동을 실현합니다.
 
 
-## 3. 다중 에이전트 파이프라인 맵
-- `src/lib/agents/planner.ts`: 작업 분해 및 컨텍스트 검색.
-- `src/lib/agents/generator.ts`: 실행 및 코드 합성.
-- `src/lib/agents/evaluator.ts`: Zod 스키마 및 TypeScript 검증 피드백 루프.
 
-## 4. 재귀적 자기 개선 (Recursive Self-Improvement) - 오토 & 진화형(Auto & Evolving)
-6. **무인 자율 배포 및 자동 승인(Non-Interactive Auto-Deployment)**: 백그라운드 크론/스케줄러(`task-442` 등)에 의해 자율 개선 틱이 수행될 때는, 사용자의 수동 개입(Proceed 대기)을 유발하는 `RequestFeedback: true` 설정을 **철저히 배제(false로 고정)**합니다. 리팩토링된 코드가 `run-harness.js` (eslint, zod, tsc) 검증을 통과하면, 어떠한 수동 승인 절차 없이 즉시 배포(Auto-Merge) 처리하여 무중단 무인 자율 구동을 실현합니다.
 
 
 ## 3. 다중 에이전트 파이프라인 맵
@@ -67,8 +61,11 @@
 
 
 ## 5. 최신 동기화된 마일스톤 (Synced Milestones Log)
-- **최신 동기화 일자:** 2026-06-19
+- **최신 동기화 일자:** 2026-06-22
 - **동기화된 마일스톤:**
+  - 3D 마인드맵 런타임 ReferenceError(setIsWikiOpen) 선언 순서 교정 핫픽스 (2026-06-22)
+  - 성능 병목(useEffect 빈 의존성 배열 내 상태 변이) 제거 및 렌더링 최적화 패치 (2026-06-22)
+  - SearchResultModal 미사용 ESLint 비활성화 주석 소거 및 자율 성능 튜닝 패치 (2026-06-22)
   - 예산관리 탭 양방향 이용/전용 정교화 및 잔여액 프리미엄 알약 배지 시각화 패치 (2026-06-19)
   - SPA 대시보드 탭 로딩 속도 최적화 및 렉 스파이크 제거 패치 (2026-06-19)
   - 3D 마인드맵 및 예산 대시보드 UI/UX 가독성 및 프리미엄 시각적 고도화 패치 (2026-06-19)

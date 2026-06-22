@@ -20,7 +20,7 @@ export interface RenderContext {
   cameraOffsetX?: number;
   cameraOffsetY?: number;
   activeLayers?: Set<number>;
-  layoutMode?: 'mindmap' | 'orbit' | 'cluster';
+  layoutMode?: 'mindmap' | 'orbit' | 'cluster' | 'tree';
   isInteractive?: boolean;
   isOrbiting?: boolean;
   centralitySortedNodes?: OrbitalNode[];
