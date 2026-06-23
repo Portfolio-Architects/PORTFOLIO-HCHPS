@@ -294,6 +294,17 @@ sequenceDiagram
 
 ## 8. 최근 엔지니어링 마일스톤 (요약)
 
+### 3D 마인드맵 및 인스펙터 리팩토링 및 0-0-0 무결성 패치 (2026-06-23)
+* **미사용 임포트 및 미사용 변수 소거**: `MindMapInspector.tsx` 내부에서 임포트만 해 두고 실제 렌더링에 사용하지 않던 `Calendar` 아이콘 선언을 정리하고, `route.ts` API 라우트 내부의 페이로드 역직렬화 과정에서 사용되지 않던 `nodeId` 변수를 제거하여 `@typescript-eslint/no-unused-vars` 경고를 완전히 해소했습니다.
+* **React Hook 의존성 배열 정합성 교정**: `MindMapInspector.tsx` 내부의 `useEffect` 훅에서 참조하는 `reportMut` 객체가 의존성 목록에 누락되어 발생하던 `react-hooks/exhaustive-deps` 경고를 의존성 배열에 추가 바인딩함으로써 완벽하게 해결했습니다.
+* **게이트키퍼 0-0-0 완전 무결성 달성**: 로컬 데이터베이스의 Zod 스키마 검증, 코드 스타일 정합성 및 성능 분석 테스트(`node scripts/run-harness.js`)를 재기동하여 전체 프로젝트 내 **Lint Warnings: 0건, Arch Violations: 0건, Perf Bottlenecks: 0건**의 완전 무결 상태(Zero-Debt)를 달성 및 검증 완료했습니다.
+
+### AI 행정 보고서 초안 생성기 및 통합 업무 워크플로우 연동 패치 (2026-06-23)
+* **통합 업무 워크플로우 현황판(Inspector) 시각화**: 마인드맵 인스펙터(`MindMapInspector.tsx`) 내에 🔗 통합 업무 워크플로우 연동 현황판을 신설하여, 선택한 노드에 연동된 예산 대조 현황(총예산, 집행률), 태스크 추진 일정(총건수 및 목록), 시맨틱 파일 레이더 수집 문서(건수 및 목록)를 실시간으로 집합 집계하고 프리미엄 글래스모피즘 카드로 시각화했습니다.
+* **시맨틱 파일 레이더 비동기 데이터 프리페칭**: 인스펙터 노드 클릭 시, `useFileRadar` 훅을 통해 로컬 AI가 추출한 시맨틱 문서 목록과 3줄 핵심 요약 및 담당자 연락처를 백그라운드에서 비동기 페칭하여 실시간 동기화 연동을 완성했습니다.
+* **AI 행정 보고서 초안 생성 기능 및 뷰어 탑재**: Gemini API (`gemini-1.5-flash`)를 활용한 지자체 공문서/행정 보고서 전문 초안 기안서 생성 라우트(`/api/report-generator`) 및 커스텀 React Query 훅(`useReportGenerator`)을 구축했습니다. 인스펙터 하단 버튼 클릭 시 위키 텍스트, 예산 수치, 관련 업무, 로컬 문서 요약을 종합 합성해 한글 공문서식 마크다운 초안을 작성하여 로컬 디스크 `scratch/` 폴더에 MD 파일로 영구 저장하고, 클립보드 복사 기능이 지원되는 프리미엄 기안서 뷰어 모달을 구현했습니다.
+* **하네스 게이트키퍼 0-0-0 무결성 통과**: 데이터 무결성 검증, ESLint 코드 스타일, Next.js 백엔드 Ontological MVC 규칙을 포함한 정적 분석 검증(`node scripts/run-harness.js`)을 기동하여 Zod 스키마, 린트 오류, 렌더링 병목(Total Bottlenecks: 0, Warnings: 0)을 완벽하게 통과시켰습니다.
+
 ### 3D 마인드맵 런타임 ReferenceError(setIsWikiOpen) 선언 순서 교정 핫픽스 (2026-06-22)
 * **상태 변수 물리적 초기화 위치 상향**: `handleOpenWiki` `useCallback` 내부에서 참조하는 `setIsWikiOpen` 상태 변경자 함수가 물리적으로 훅보다 하단(라인 271)에 선언되어 있어 Turbopack/SWC 빌드 런타임 상에서 초기화 전 참조(TDZ ReferenceError)로 크래시를 유발하던 현상을 해결했습니다.
 * **상태 일괄 최상단 재배치**: `isFullscreen`, `parentModeSource`, `isWikiOpen` 등 모든 컴포넌트 레벨 React `useState` 상태 선언문들을 컴포넌트 시작부(최상단)로 일괄 이동하여 변수 선언 순서 의존성 및 런타임 ReferenceError를 원천 차단했습니다.

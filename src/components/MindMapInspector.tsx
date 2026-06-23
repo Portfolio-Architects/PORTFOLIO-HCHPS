@@ -1,11 +1,15 @@
 import React from 'react';
 import { OrbitalNode, OntologyEdge, GROUP_COLORS, OntologyGroup } from '@/lib/ontology.types';
 import { NodeOverride } from '@/hooks/useGraphCustomization';
-import { Edit2, Waypoints, Trash2, Link2, Radio, X, Crosshair, Activity, Bot, Unlink, Phone } from 'lucide-react';
+import { Edit2, Waypoints, Trash2, Link2, Radio, X, Crosshair, Activity, Bot, Unlink, Phone, FileText, DollarSign, CheckCircle2 } from 'lucide-react';
 import { useLocalContacts } from '@/hooks/useLocalContacts';
 import { getCanonicalWikiId } from '@/hooks/useWikiStorage';
 import { readSheet } from '@/lib/sheets-api';
 import { extractRawTextFromBlocks, parseContacts } from '@/lib/contacts-parser';
+import { useTasks } from '@/hooks/useTasks';
+import { useBudget } from '@/hooks/useBudget';
+import { useFileRadar } from '@/hooks/useFileRadar';
+import { useReportGenerator } from '@/hooks/useReportGenerator';
 
 interface ForceGraphEngine {
   nodes: OrbitalNode[];
@@ -49,18 +53,84 @@ export function MindMapInspector(props: MindMapInspectorProps) {
   } = props;
 
   const { recordContactMutation, batchRecordContactsMutation } = useLocalContacts();
+  const { tasks = [] } = useTasks();
+  const { categories = [], getCategoryStats } = useBudget();
+  const { mutate: getFileRadar, data: radarData } = useFileRadar();
+  const reportMut = useReportGenerator();
+  const { reset: resetReport } = reportMut;
 
   const [connectedEdges, setConnectedEdges] = React.useState<Array<{ edge: OntologyEdge; otherNode: OrbitalNode }>>([]);
   const [parentLabel, setParentLabel] = React.useState<string | null>(null);
   const [engineNodes, setEngineNodes] = React.useState<OrbitalNode[]>([]);
   const [isRecording, setIsRecording] = React.useState(false);
   const [recordSuccess, setRecordSuccess] = React.useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = React.useState(false);
+  const [copiedReport, setCopiedReport] = React.useState(false);
 
-  // Clear success feedback when activeNode changes
+  // Clear success feedback and reset report when activeNode changes
   React.useEffect(() => {
     setRecordSuccess(false);
     setIsRecording(false);
-  }, [activeNode]);
+    setCopiedReport(false);
+    resetReport();
+  }, [activeNode, resetReport]);
+
+  // Asynchronously trigger file radar when normal activeNode is selected
+  React.useEffect(() => {
+    if (activeNode && !activeNode.id.startsWith('radar-doc-')) {
+      getFileRadar({ nodeId: activeNode.id, nodeLabel: activeNode.label });
+    }
+  }, [activeNode, getFileRadar]);
+
+  const matchedCat = React.useMemo(() => {
+    if (!activeNode) return null;
+    return categories.find(c => c.name.includes(activeNode.label) || activeNode.label.includes(c.name));
+  }, [activeNode, categories]);
+
+  const catStats = React.useMemo(() => {
+    if (!matchedCat) return null;
+    return getCategoryStats(matchedCat.id);
+  }, [matchedCat, getCategoryStats]);
+
+  const matchedTasks = React.useMemo(() => {
+    if (!activeNode) return [];
+    return tasks.filter(t => t.title?.includes(activeNode.label) || t.category?.includes(activeNode.label));
+  }, [activeNode, tasks]);
+
+  const rawWikiText = React.useMemo(() => {
+    if (!wikiBlocks || wikiBlocks.length === 0) return '';
+    return extractRawTextFromBlocks(wikiBlocks);
+  }, [wikiBlocks]);
+
+  const handleGenerateReport = () => {
+    if (!activeNode) return;
+    reportMut.mutate({
+      nodeId: activeNode.id,
+      nodeLabel: activeNode.label,
+      wikiText: rawWikiText,
+      budgetData: catStats ? {
+        total: catStats.totalBudget,
+        executed: catStats.spent,
+        remaining: catStats.remaining,
+        rate: Math.round(catStats.usageRate)
+      } : undefined,
+      tasks: matchedTasks.map(t => ({
+        title: t.title || t.text,
+        isCompleted: t.status === '완료' || (t as any).isCompleted || false
+      })),
+      files: (radarData?.files || []).map(f => ({
+        displayName: f.displayName,
+        summary: f.summary
+      }))
+    }, {
+      onSuccess: () => {
+        setIsReportModalOpen(true);
+      },
+      onError: (err: any) => {
+        alert(`보고서 생성 중 오류 발생: ${err.message}`);
+      }
+    });
+  };
 
   const handleRecordToNotebookLM = async (phones: string[], emails: string[]) => {
     if (!activeNode || isRecording) return;
@@ -496,6 +566,98 @@ export function MindMapInspector(props: MindMapInspectorProps) {
                         </div>
                         <span className="text-[9px] text-amber-600 font-bold leading-tight">선택 여부와 관계없이 3D 캔버스 내 글로우 후광 상시 유지</span>
                       </div>
+                    </div>
+
+                    {/* 🔗 통합 업무 워크플로우 연동 현황 */}
+                    <div className="flex flex-col gap-3 p-3.5 bg-gradient-to-br from-slate-500/5 to-indigo-500/5 border border-indigo-500/10 rounded-2xl shadow-2xs">
+                      <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                        <Link2 size={13} className="text-indigo-500" /> 🔗 통합 업무 워크플로우 연동 현황
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-2.5">
+                        {/* 1. 예산 연동 */}
+                        <div className="p-3 bg-white/50 border border-slate-200/40 rounded-xl flex items-center justify-between text-[11px] font-semibold text-slate-700 shadow-3xs">
+                          <div className="flex items-center gap-2">
+                            <DollarSign size={14} className="text-emerald-500" />
+                            <span>예산 대조</span>
+                          </div>
+                          {matchedCat && catStats ? (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10.5px] text-slate-800 font-bold">{catStats.totalBudget?.toLocaleString()}원</span>
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/15 text-emerald-700">
+                                집행률 {Math.round(catStats.usageRate)}%
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 font-medium">연동 예산 없음</span>
+                          )}
+                        </div>
+
+                        {/* 2. 태스크 연동 */}
+                        <div className="p-3 bg-white/50 border border-slate-200/40 rounded-xl flex flex-col gap-1.5 shadow-3xs">
+                          <div className="flex items-center justify-between text-[11px] font-semibold text-slate-700">
+                            <div className="flex items-center gap-2">
+                              <CheckCircle2 size={14} className="text-indigo-500" />
+                              <span>태스크 추진 일정</span>
+                            </div>
+                            <span className="text-[10px] text-indigo-600 font-bold bg-indigo-500/10 px-2 py-0.5 rounded-md">
+                              총 {matchedTasks.length}건
+                            </span>
+                          </div>
+                          {matchedTasks.length > 0 && (
+                            <div className="flex flex-col gap-1 border-t border-slate-200/20 pt-1.5">
+                              {matchedTasks.slice(0, 2).map((t, idx) => (
+                                <div key={idx} className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-500">
+                                  <span className={`w-1.5 h-1.5 rounded-full ${t.isCompleted || (t as any).status === '완료' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                                  <span className="truncate flex-1">{t.title || t.text}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* 3. 시맨틱 파일 레이더 수집 문서 */}
+                        <div className="p-3 bg-white/50 border border-slate-200/40 rounded-xl flex flex-col gap-1.5 shadow-3xs">
+                          <div className="flex items-center justify-between text-[11px] font-semibold text-slate-700">
+                            <div className="flex items-center gap-2">
+                              <Radio size={14} className="text-cyan-500 animate-pulse" />
+                              <span>시맨틱 레이더 문서</span>
+                            </div>
+                            <span className="text-[10px] text-cyan-600 font-bold bg-cyan-500/10 px-2 py-0.5 rounded-md">
+                              총 {radarData?.files?.length || 0}건
+                            </span>
+                          </div>
+                          {radarData?.files && radarData.files.length > 0 && (
+                            <div className="flex flex-col gap-1 border-t border-slate-200/20 pt-1.5">
+                              {radarData.files.slice(0, 2).map((f, idx) => (
+                                <div key={idx} className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-500">
+                                  <span className="text-slate-400">📄</span>
+                                  <span className="truncate flex-1" title={f.displayName}>{f.displayName}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* 📝 행정 보고서 초안 자동 생성 */}
+                      <button
+                        onClick={handleGenerateReport}
+                        disabled={reportMut.isPending}
+                        className="mt-1 w-full py-2.5 px-3 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 disabled:from-indigo-400 disabled:to-blue-400 text-white rounded-xl text-[11.5px] font-bold shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        {reportMut.isPending ? (
+                          <>
+                            <Bot size={14} className="animate-spin text-white" />
+                            <span>AI 보고서 초안 생성 중...</span>
+                          </>
+                        ) : (
+                          <>
+                            <FileText size={14} className="text-white" />
+                            <span>📝 행정 보고서 초안 자동 생성</span>
+                          </>
+                        )}
+                      </button>
                     </div>
 
                     {/* 모바일 다이렉트 연락처 카드 */}
@@ -952,5 +1114,63 @@ export function MindMapInspector(props: MindMapInspectorProps) {
     );
   };
 
-  return renderNodeDetails(isOverlay);
+  return (
+    <>
+      {renderNodeDetails(isOverlay)}
+
+      {isReportModalOpen && reportMut.data && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in pointer-events-auto animate-duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-[720px] max-h-[85vh] flex flex-col overflow-hidden animate-scale-up animate-duration-200">
+            {/* Header */}
+            <div className="px-5 py-4 border-b border-slate-200/80 bg-slate-50 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Bot size={18} className="text-indigo-600" />
+                <h3 className="font-bold text-[14.5px] text-slate-800">행정 보고서 초안 기안서</h3>
+              </div>
+              <button 
+                onClick={() => setIsReportModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-200/50 rounded-lg transition-all cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 custom-scrollbar">
+              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm font-semibold text-slate-700 text-[12px] leading-relaxed select-text whitespace-pre-wrap font-sans">
+                {reportMut.data.content}
+              </div>
+              <p className="text-[10px] text-slate-400 font-bold mt-4 text-center">
+                ※ 위 초안은 AI에 의해 자동 취합·작성되었으며, 로컬 디스크 `scratch/{reportMut.data.fileName}` 경로에 영구 저장되었습니다.
+              </p>
+            </div>
+
+            {/* Footer Actions */}
+            <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(reportMut.data.content);
+                  setCopiedReport(true);
+                  setTimeout(() => setCopiedReport(false), 2000);
+                }}
+                className={`px-4 py-2 rounded-xl text-xs font-bold shadow-2xs transition-all cursor-pointer ${
+                  copiedReport 
+                    ? 'bg-emerald-500 text-white hover:bg-emerald-600'
+                    : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                }`}
+              >
+                {copiedReport ? '✓ 복사 완료!' : '📋 클립보드 복사'}
+              </button>
+              <button
+                onClick={() => setIsReportModalOpen(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 transition-all cursor-pointer"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
 }
