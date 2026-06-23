@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useSyncExternalStore } from 'react';
 import dynamic from 'next/dynamic';
 import { ModuleType } from '@/types';
 import { useTasks } from '@/hooks/useTasks';
@@ -12,6 +12,15 @@ import { useSignal } from '@/hooks/useSignal';
 import { useScheduleAlerts } from '@/hooks/useScheduleAlerts';
 import { useNotificationAlerts } from '@/hooks/useNotificationAlerts';
 import { Sidebar } from '@/components/Sidebar';
+
+const emptySubscribe = () => () => {};
+function useIsClient() {
+  return useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false
+  );
+}
 
 const PortfolioDashboardView = dynamic(() => import('@/components/dashboard/PortfolioDashboardView').then(mod => mod.PortfolioDashboardView), {
   ssr: false,
@@ -143,13 +152,7 @@ function ProtectedApp({ appMode, onModeChange }: ProtectedAppProps) {
     });
   }, []);
 
-  // Prevent hydration mismatch — hooks read localStorage data on client
-  useEffect(() => {
-    // Sync tombstones from server to client local storage
-    syncTombstones().catch((err) => {
-      console.error('Failed to sync tombstones on mount:', err);
-    });
-
+  const preloadModulesOnIdle = useCallback(() => {
     // 최초 렌더링 시 대시보드 렌더링과 트랜지션이 완료될 수 있도록 requestIdleCallback을 통해
     // 브라우저가 유휴 상태일 때(혹은 최대 3500ms 대기 후) 백그라운드에서 다른 모듈들을 조용히 프리마운트합니다.
     const idleTimer = (typeof window !== 'undefined' && 'requestIdleCallback' in window)
@@ -169,6 +172,17 @@ function ProtectedApp({ appMode, onModeChange }: ProtectedAppProps) {
             inventory: true
           }));
         }, 3000);
+    return idleTimer;
+  }, []);
+
+  // Prevent hydration mismatch — hooks read localStorage data on client
+  useEffect(() => {
+    // Sync tombstones from server to client local storage
+    syncTombstones().catch((err) => {
+      console.error('Failed to sync tombstones on mount:', err);
+    });
+
+    const idleTimer = preloadModulesOnIdle();
 
     return () => {
       if (typeof window !== 'undefined' && 'cancelIdleCallback' in window && typeof idleTimer === 'number') {
@@ -177,7 +191,7 @@ function ProtectedApp({ appMode, onModeChange }: ProtectedAppProps) {
         clearTimeout(idleTimer as any);
       }
     };
-  }, []);
+  }, [preloadModulesOnIdle]);
 
   // Update browser document title
   useEffect(() => {
@@ -276,7 +290,7 @@ function ProtectedApp({ appMode, onModeChange }: ProtectedAppProps) {
     
     // Minimum horizontal swipe distance
     if (Math.abs(distance) > 60) {
-      const order: ModuleType[] = ['dashboard', 'mindmap', 'workspace', 'inventory'];
+      const order: ModuleType[] = ['dashboard', 'workspace', 'mindmap', 'inventory'];
       const currentIndex = order.indexOf(activeModule);
       
       if (distance > 0 && currentIndex < order.length - 1) {
@@ -508,26 +522,20 @@ function ProtectedApp({ appMode, onModeChange }: ProtectedAppProps) {
 }
 
 export default function Home() {
-  const [mounted, setMounted] = useState(false);
+  const isClient = useIsClient();
   const { isLocked, hasSetupPIN, failCount, verifyPIN, setupPIN } = useSecurityLock();
   const [appMode, setAppMode] = useState<'HCHPS' | 'VITAL'>('VITAL');
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setMounted(true);
-    setAppMode('VITAL');
-  }, []);
-
-  useEffect(() => {
     document.title = 'PORTFOLIO - VITAL';
-  }, []);
+  }, [appMode]);
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleModeChange = (_mode: 'HCHPS' | 'VITAL') => {
     setAppMode('VITAL');
   };
 
-  if (!mounted || hasSetupPIN === null) {
+  if (!isClient || hasSetupPIN === null) {
     return (
       <div className="flex flex-col min-h-screen overflow-x-hidden">
         <header className="sticky top-0 z-50 bg-[var(--color-card)] border-b border-[var(--color-border-light)] shadow-[var(--shadow-sm)]">

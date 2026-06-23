@@ -1,0 +1,39 @@
+Created At: 2026-05-28T02:34:15Z
+Completed At: 2026-05-28T02:34:15Z
+File Path: `file:///d:/Desktop/PORTFOLIO/PORTFOLIO%20-%20VITAL/src/components/dashboard/PortfolioDashboardView.tsx`
+Total Lines: 1020
+Total Bytes: 76196
+Showing lines 870 to 900
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+870:                                                             const currentCalc = updatedCalcs[cIdx];
+871:                                                             const { completed: existingCompleted } = extractSplitFormulaFromNote(currentCalc.note);
+872:                                                             const compBase = existingCompleted 
+873:                                                               ? existingCompleted 
+874:                                                               : (!currentCalc.note && currentCalc.virtualAdjustment ? currentCalc.virtualAdjustment.toString() : '');
+875:                                                             const completedVal = evaluateExpression(compBase);
+876:                                                             const plannedVal = evaluateExpression(inputVal);
+877:                                                             const existingMemo = extractMemoFromNoteWithSplit(currentCalc.note);
+878:                                                             const newNote = buildNoteWithSplitFormula(compBase, inputVal, existingMemo);
+879:                                                             updatedCalcs[cIdx] = {
+880:                                                               ...currentCalc,
+881:                                                               virtualAdjustment: completedVal + plannedVal,
+882:                                                               note: newNote
+883:                                                             };
+884:                                                             updatedSubItems[sIdx] = {
+885:                                                               ...updatedSubItems[sIdx],
+886:                                                               calculations: updatedCalcs
+887:                                                             };
+888:                                                             updateCategory(sub.id, { subItems: updatedSubItems });
+889:                                                           }}
+890:                                                           className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-[14.4px] font-black text-slate-800 text-right focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 outline-none transition-all"
+891:                                                         />
+892:                                                       );
+893:                                                     })()}
+894:                                                   </td>
+895:                                                   <td className="py-2.5 px-4 text-right text-[14.4px]">
+896:                                                     {(() => {
+897:                                                       const calcRemaining = c.amount - (c.virtualAdjustment || 0);
+898:                                                       return (
+899:                                                         <span className={`font-bold ${calcRemaining === 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+900:                                                           {calcRemaining.toLocaleString()}원
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

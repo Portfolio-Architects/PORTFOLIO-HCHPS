@@ -1,0 +1,56 @@
+Created At: 2026-05-28T02:24:06Z
+Completed At: 2026-05-28T02:24:07Z
+File Path: `file:///d:/Desktop/PORTFOLIO/PORTFOLIO%20-%20VITAL/src/components/dashboard/PortfolioDashboardView.tsx`
+Total Lines: 937
+Total Bytes: 69403
+Showing lines 380 to 435
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+380:         </h3>
+381:         
+382:         <div className="flex flex-col gap-3">
+383:           {allBreakdownData.map((item, idx) => {
+384:             const isExpanded = expandedCategory === item.name;
+385:             const subItems = budgetCategories.filter(c => c.detailedProject === item.name);
+386:             
+387:             // 대카테고리 수준에서 모든 소카테고리의 설계 확정 금액을 합산
+388:             let categoryVirtualAdjustment = 0;
+389:             subItems.forEach((sub: BudgetCategory) => {
+390:               if (sub.subItems) {
+391:                 sub.subItems.forEach((s: BudgetSubItem) => {
+392:                   if (typeof s.virtualAdjustment === 'number') categoryVirtualAdjustment += s.virtualAdjustment;
+393:                   if (s.calculations) {
+394:                     s.calculations.forEach((c: BudgetCalculation) => {
+395:                       if (typeof c.virtualAdjustment === 'number') categoryVirtualAdjustment += c.virtualAdjustment;
+396:                     });
+397:                   }
+398:                 });
+399:               }
+400:             });
+401: 
+402:             // 대카테고리 수준의 남은 차액 (총 본예산 - 설계 확정 금액 합산)
+403:             const categoryRemainingDiff = item.total - categoryVirtualAdjustment;
+404:             
+405:             return (
+406:               <div key={idx} className="flex flex-col bg-white rounded-[1.5rem] shadow-sm overflow-hidden transition-all duration-300 border border-transparent 
+<truncated 839 bytes>
+  {/* 대카테고리 총 본예산 칩 */}
+417:                     <div className="flex flex-col sm:items-end px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-100/80 shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)] min-w-[100px] sm:min-w-[120px]">
+418:                       <span className="text-[15px] font-bold text-slate-500 leading-tight">총 본예산</span>
+419:                       <span className="font-extrabold text-[17px] text-slate-700 mt-0.5">{item.total.toLocaleString()}원</span>
+420:                     </div>
+421: 
+422:                     {/* 대카테고리 합산 설계확정 금액 칩 */}
+423:                     <div className="flex flex-col sm:items-end px-3 py-1.5 rounded-xl bg-indigo-50/30 border border-indigo-100/50 shadow-[inset_0_1px_2px_rgba(79,70,229,0.02)] min-w-[100px] sm:min-w-[120px]">
+424:                       <span className="text-[15px] font-bold text-indigo-600/90 leading-tight">설계 확정 금액</span>
+425:                       <span className="font-black text-[17px] text-indigo-600 mt-0.5">{categoryVirtualAdjustment.toLocaleString()}원</span>
+426:                     </div>
+427: 
+428:                     {/* 대카테고리 남은 차액 칩 */}
+429:                     <div className={`flex flex-col sm:items-end px-3 py-1.5 rounded-xl border min-w-[100px] sm:min-w-[120px] ${
+430:                       categoryRemainingDiff === 0 
+431:                         ? 'bg-emerald-50/30 border-emerald-100/50 shadow-[inset_0_1px_2px_rgba(16,185,129,0.02)]' 
+432:                         : 'bg-rose-50/30 border-rose-100/50 shadow-[inset_0_1px_2px_rgba(244,63,94,0.02)]'
+433:                     }`}>
+434:                       <span className={`text-[15px] font-bold leading-tight ${
+435:                         categoryRemainingDiff === 0 ? 'text-emerald-600' : 'text-rose-600'
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

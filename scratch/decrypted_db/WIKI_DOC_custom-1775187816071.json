@@ -1,0 +1,18 @@
+[
+  {
+    "id": "singleton",
+    "blocks": [
+      {
+        "id": "58ccfaac-4a6c-4341-a84e-afc2a8ab3e86",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [],
+        "children": []
+      }
+    ]
+  }
+]

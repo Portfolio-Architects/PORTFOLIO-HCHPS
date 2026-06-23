@@ -1,0 +1,160 @@
+import os
+from PIL import Image, ImageDraw, ImageFont
+
+# Define paths
+src_image_path = r"C:\Users\user\.gemini\antigravity\brain\d05a464b-fea6-416e-b3aa-d924b8ee9a5e\medi_sports_rectangular_hall_swapped_zoomed_1781247901793.png"
+dst_image_path = r"D:\Desktop\AI 스포츠_메디컬_트레이닝 센터_45도 사선구도_통사각_실사진_규모확장_현판_1920x1080.png"
+artifact_dir = r"C:\Users\user\.gemini\antigravity\brain\d05a464b-fea6-416e-b3aa-d924b8ee9a5e"
+artifact_image_path = os.path.join(artifact_dir, "AI_sports_medical_center_signboards_zoomed_1920x1080.png")
+
+if not os.path.exists(src_image_path):
+    print(f"Error: Source image not found at {src_image_path}")
+    exit(1)
+
+# 1. Load, crop to 16:9, and resize to 1920x1080
+img_orig = Image.open(src_image_path)
+width, height = img_orig.size
+
+# 16:9 crop from center
+new_width = width
+new_height = int(width * 9 / 16) # 576
+left = 0
+top = (height - new_height) // 2 # 224
+right = width
+bottom = top + new_height # 800
+
+cropped = img_orig.crop((left, top, right, bottom))
+img_widescreen = cropped.resize((1920, 1080), Image.Resampling.LANCZOS).convert("RGBA")
+print(f"Cropped and resized image to 1920x1080")
+
+# 2. Draw overlay
+overlay = Image.new("RGBA", img_widescreen.size, (0, 0, 0, 0))
+draw = ImageDraw.Draw(overlay)
+
+# Setup Fonts
+font_path = r"C:\Windows\Fonts\malgunbd.ttf"  # Malgun Gothic Bold
+if not os.path.exists(font_path):
+    font_path = r"C:\Windows\Fonts\malgun.ttf"
+
+sub_font_path = r"C:\Windows\Fonts\segoeuib.ttf" # Segoe UI Bold
+if not os.path.exists(sub_font_path):
+    sub_font_path = r"C:\Windows\Fonts\arial.ttf"
+
+if os.path.exists(font_path):
+    font = ImageFont.truetype(font_path, 20)
+else:
+    font = ImageFont.load_default()
+
+if os.path.exists(sub_font_path):
+    sub_font = ImageFont.truetype(sub_font_path, 11)
+else:
+    sub_font = ImageFont.load_default()
+
+# Anticlockwise order (physically swapped 2 and 3)
+# 1. 대사증후군 측정 및 상담 (Green, top-left)
+# 2. 헬스체크업 (Amber, bottom-left)
+# 3. 서울체력장 (Teal, bottom-right)
+# 4. AI 스마트짐 (Blue, top-right)
+# Zoomed coordinates: point_to shifted slightly outward, tag_center placed very close
+zones = [
+    {
+        'text': "1. 대사증후군 측정 및 상담",
+        'sub_text': "METABOLIC CLINIC",
+        'accent_color': (34, 197, 94, 255),  # Emerald green
+        'tag_center': (350, 260),
+        'point_to': (350, 420)
+    },
+    {
+        'text': "2. 헬스체크업",
+        'sub_text': "MUSCULOSKELETAL CHECKUP",
+        'accent_color': (245, 158, 11, 255),  # Amber/Orange
+        'tag_center': (750, 640),
+        'point_to': (650, 780)
+    },
+    {
+        'text': "3. 서울체력장",
+        'sub_text': "FITNESS CERTIFICATION",
+        'accent_color': (20, 184, 166, 255),  # Teal
+        'tag_center': (1320, 660),
+        'point_to': (1420, 800)
+    },
+    {
+        'text': "4. AI 스마트짐",
+        'sub_text': "AI SMART GYM",
+        'accent_color': (59, 130, 246, 255),  # Blue
+        'tag_center': (1350, 180),
+        'point_to': (1350, 320)
+    }
+]
+
+# Draw each signboard
+for zone in zones:
+    text = zone['text']
+    sub_text = zone['sub_text']
+    accent_color = zone['accent_color']
+    tx, ty = zone['tag_center']
+    px, py = zone['point_to']
+
+    # Draw indicator line
+    line_color = (255, 255, 255, 140)
+    draw.line([tx, ty, px, py], fill=line_color, width=2)
+    
+    # Draw target dot
+    r = 7
+    draw.ellipse([px - r, py - r, px + r, py + r], fill=accent_color, outline=(255, 255, 255, 220), width=2)
+    draw.ellipse([px - 2, py - 2, px + 2, py + 2], fill=(255, 255, 255, 255))
+
+    # Calculate text sizes
+    try:
+        bbox = draw.textbbox((0, 0), text, font=font)
+        text_w = bbox[2] - bbox[0]
+        text_h = bbox[3] - bbox[1]
+        
+        s_bbox = draw.textbbox((0, 0), sub_text, font=sub_font)
+        sub_w = s_bbox[2] - s_bbox[0]
+        sub_h = s_bbox[3] - s_bbox[1]
+    except AttributeError:
+        text_w, text_h = draw.textsize(text, font=font)
+        sub_w, sub_h = draw.textsize(sub_text, font=sub_font)
+
+    padding_x = 22
+    padding_y = 12
+    accent_w = 4
+    accent_spacing = 10
+    
+    max_w = max(text_w, sub_w)
+    tag_w = max_w + padding_x * 2 + accent_w + accent_spacing
+    tag_h = text_h + sub_h + padding_y * 2 + 6
+    
+    rx1 = tx - tag_w // 2
+    ry1 = ty - tag_h // 2
+    rx2 = tx + tag_w // 2
+    ry2 = ty + tag_h // 2
+    
+    # Draw glassmorphic container with 85% opacity Slate-900 background
+    bg_color = (15, 23, 42, 220)
+    draw.rounded_rectangle([rx1, ry1, rx2, ry2], radius=10, fill=bg_color, outline=(255, 255, 255, 80), width=2)
+    
+    # Draw vertical accent bar
+    ax1 = rx1 + padding_x
+    ay1 = ry1 + padding_y
+    ax2 = ax1 + accent_w
+    ay2 = ry2 - padding_y
+    draw.rectangle([ax1, ay1, ax2, ay2], fill=accent_color)
+    
+    # Draw texts
+    tx_start = ax2 + accent_spacing
+    ty1 = ry1 + padding_y
+    draw.text((tx_start, ty1), text, font=font, fill=(255, 255, 255, 255))
+    
+    ty2 = ty1 + text_h + 6
+    draw.text((tx_start, ty2), sub_text, font=sub_font, fill=(200, 200, 200, 255))
+
+# Composite and save
+final_img = Image.alpha_composite(img_widescreen, overlay).convert("RGB")
+final_img.save(dst_image_path, "PNG")
+print(f"Saved widescreen modified image to Desktop: {dst_image_path}")
+
+os.makedirs(artifact_dir, exist_ok=True)
+final_img.save(artifact_image_path, "PNG")
+print(f"Saved widescreen modified image to Artifacts: {artifact_image_path}")

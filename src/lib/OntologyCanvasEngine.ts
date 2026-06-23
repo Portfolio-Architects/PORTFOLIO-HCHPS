@@ -29,6 +29,7 @@ export interface EngineCallbacks {
   onNodeReparent?: (nodeId: string, newParentId: string | undefined, newOrbitIndex: number) => void;
   onNodePin?: (nodeId: string, fixedX: number, fixedY: number) => void;
   onNodeBatchPin?: (pins: { id: string; fixedX: number; fixedY: number }[]) => void;
+  onNodeDoubleClick?: (node: OrbitalNode) => void;
 }
 
 // ============ Engine Class ============
@@ -1150,7 +1151,9 @@ export class OntologyCanvasEngine {
 
   handleDoubleClick(mx: number, my: number): void {
     const hit = this.hitTest(mx, my);
-    if (!hit) {
+    if (hit) {
+      this.callbacks.onNodeDoubleClick?.(hit);
+    } else {
       // 💡 빈 바탕 더블클릭 시 줌 1.0배율 및 Tasks 노드(중앙) 위치로 카메라 뷰포트를 부드럽게 홈 리셋시킵니다.
       this.targetZoom = 1.0;
       if (this.centerNode) {

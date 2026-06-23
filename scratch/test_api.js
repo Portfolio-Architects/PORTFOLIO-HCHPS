@@ -1,13 +1,39 @@
-const fs = require('fs');
-fetch('http://localhost:3001/api/data?sheet=BUDGET_CATEGORIES', { headers: { Cookie: 'hchps_session=authenticated-secure-session-token' } }).then(r=>r.text()).then(t => {
-    try {
-        const parsed = JSON.parse(t);
-        const dataArr = parsed.data;
-        const filtered = dataArr.filter(c => c.detailedProject === '건강증진지원실 운영');
-        console.log("Parsed JSON successfully, total items:", dataArr.length);
-        console.log("건강증진지원실 운영 count:", filtered.length);
-    } catch(e) {
-        console.error("NOT JSON:", t.substring(0, 100));
-    }
-    process.exit(0);
+const http = require('http');
+
+const data = JSON.stringify({
+  username: 'ocs5298',
+  password: '34237116!a'
 });
+
+const options = {
+  hostname: 'localhost',
+  port: 3001,
+  path: '/api/auth',
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Content-Length': data.length
+  }
+};
+
+console.log('Sending POST to http://localhost:3001/api/auth ...');
+const req = http.request(options, (res) => {
+  console.log(`STATUS: ${res.statusCode}`);
+  console.log(`HEADERS: ${JSON.stringify(res.headers)}`);
+  res.setEncoding('utf8');
+  let body = '';
+  res.on('data', (chunk) => {
+    body += chunk;
+  });
+  res.on('end', () => {
+    console.log('BODY:', body);
+  });
+});
+
+req.on('error', (e) => {
+  console.error(`problem with request: ${e.message}`);
+});
+
+// Write data to request body
+req.write(data);
+req.end();

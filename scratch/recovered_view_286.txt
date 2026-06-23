@@ -1,0 +1,44 @@
+Created At: 2026-05-28T02:33:57Z
+Completed At: 2026-05-28T02:33:57Z
+File Path: `file:///d:/Desktop/PORTFOLIO/PORTFOLIO%20-%20VITAL/src/components/dashboard/PortfolioDashboardView.tsx`
+Total Lines: 998
+Total Bytes: 74308
+Showing lines 760 to 810
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+760:                                                   </td>
+761:                                                   <td className="py-2.5 px-4 text-right text-[14.4px] font-bold text-slate-500">
+762:                                                     {c.amount.toLocaleString()}원
+763:                                                   </td>
+764:                                                   <td className="py-2.5 px-4 text-center">
+765:                                                     <button 
+766:                                                       onClick={() => {
+767:                                                         const updatedSubItems = [...(sub.subItems || [])];
+768:                                                         const updatedCalcs = [...(updatedSubItems[sIdx].calculations || [])];
+769:                                                         updatedCalcs[cIdx] = {
+770:                                                           ...updatedCalcs[cIdx],
+771:                                                           isLocked: !updatedCalcs[cIdx].isLocked
+772:                                                         };
+773:                                                         updatedSubItems[sIdx] = {
+774:                                                           ...updatedSubItems[sIdx],
+775:                                                           calculations: updatedCalcs
+776:                                                         };
+777:                                                 
+<truncated 1850 bytes>
+           type="text"
+795:                                                           placeholder="완료액"
+796:                                                           defaultValue={displayCompleted}
+797:                                                           onInput={(e: React.FormEvent<HTMLInputElement>) => {
+798:                                                             const val = e.currentTarget.value;
+799:                                                             const cleanVal = val.replace(/[^0-9+\-*/\s,()]/g, '');
+800:                                                             const formatted = cleanVal.replace(/,/g, '').replace(/\d+/g, (m) => parseInt(m, 10).toLocaleString());
+801:                                                             e.currentTarget.value = formatted;
+802:                                                           }}
+803:                                                           onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
+804:                                                             const inputVal = e.currentTarget.value.trim();
+805:                                                             const updatedSubItems = [...(sub.subItems || [])];
+806:                                                             const updatedCalcs = [...(updatedSubItems[sIdx].calculations || [])];
+807:                                                             const currentCalc = updatedCalcs[cIdx];
+808:                                                             const { planned: existingPlanned } = extractSplitFormulaFromNote(currentCalc.note);
+809:                                                             const completedVal = evaluateExpression(inputVal);
+810:                                                             const plannedVal = evaluateExpression(existingPlanned);
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

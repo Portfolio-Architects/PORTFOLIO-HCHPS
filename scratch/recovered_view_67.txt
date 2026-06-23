@@ -1,0 +1,44 @@
+Created At: 2026-05-28T02:07:15Z
+Completed At: 2026-05-28T02:07:15Z
+File Path: `file:///d:/Desktop/PORTFOLIO/PORTFOLIO%20-%20VITAL/src/components/dashboard/PortfolioDashboardView.tsx`
+Total Lines: 751
+Total Bytes: 52705
+Showing lines 550 to 630
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+550:                                                 <td className="py-3 px-4">
+551:                                                   <input 
+552:                                                     key={`note-sub-${sub.id}-${sIdx}-${extractMemoFromNote(s.note)}`}
+553:                                                     type="text"
+554:                                                     placeholder="비고"
+555:                                                     defaultValue={extractMemoFromNote(s.note)}
+556:                                                     onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
+557:                                                       const noteVal = e.currentTarget.value.trim();
+558:                                                       const updatedSubItems = [...(sub.subItems || [])];
+559:                                                       const currentItem = updatedSubItems[sIdx];
+560:                                                       const formula = extractFormulaFromNote(currentItem.note);
+561:                                                       
+562:                                                       const finalNote = formula ? buildNoteWithFormula(formula, noteVal) : noteVal;
+563:                                                       
+564:                                                       updatedSubItems[sIdx] = {
+565:                                                         ...currentItem,
+566:                                                         note: fi
+<truncated 4535 bytes>
+lue={c.virtualAdjustment ? (c.virtualAdjustment > 0 ? `+${c.virtualAdjustment.toLocaleString()}` : c.virtualAdjustment.toLocaleString()) : ''}
+614:                                                       onInput={(e: React.FormEvent<HTMLInputElement>) => {
+615:                                                         const val = e.currentTarget.value;
+616:                                                         const isNegative = val.startsWith('-');
+617:                                                         const digits = val.replace(/[^0-9]/g, '');
+618:                                                         if (!digits) {
+619:                                                           e.currentTarget.value = isNegative ? '-' : '';
+620:                                                           return;
+621:                                                         }
+622:                                                         const formatted = parseInt(digits, 10).toLocaleString();
+623:                                                         e.currentTarget.value = isNegative ? `-${formatted}` : formatted;
+624:                                                       }}
+625:                                                       onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
+626:                                                         const rawVal = e.currentTarget.value.replace(/,/g, '');
+627:                                                         const adjValue = parseInt(rawVal, 10) || 0;
+628:                                                         const updatedSubItems = [...(sub.subItems || [])];
+629:                                                         const updatedCalcs = [...(updatedSubItems[sIdx].calculations || [])];
+630:                                                         updatedCalcs[cIdx] = {
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

@@ -1,0 +1,139 @@
+[
+  {
+    "id": "singleton",
+    "blocks": [
+      {
+        "id": "f919faa5-ba7c-4721-a1e5-0e0ca9a37679",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "연구소 소속 담당 _ 전예진",
+            "styles": {
+              "bold": true
+            }
+          },
+          {
+            "type": "text",
+            "text": " ",
+            "styles": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "23b83f10-f497-499c-9fe5-15387829e6bf",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "주소 : 서울특별시 구로구 가마산로 209",
+            "styles": {
+              "bold": true
+            }
+          },
+          {
+            "type": "text",
+            "text": " ",
+            "styles": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "a9fa5997-a2d5-4276-b1e5-5358ca426637",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "이메일 : ",
+            "styles": {
+              "bold": true
+            }
+          },
+          {
+            "type": "link",
+            "href": "mailto:scoliosis1@daum.net",
+            "content": [
+              {
+                "type": "text",
+                "text": "scoliosis1@daum.net",
+                "styles": {
+                  "bold": true
+                }
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "text": " ",
+            "styles": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "eacd4142-ac2f-4785-a515-63c49a453ae2",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "연락처 : 02 ) 865 - 1541",
+            "styles": {
+              "bold": true
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "dfd21218-d020-4c5e-964f-e7a1e352d489",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "01079353095",
+            "styles": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "eb5648af-4158-41e1-8727-6319b2e4ac71",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [],
+        "children": []
+      }
+    ]
+  }
+]

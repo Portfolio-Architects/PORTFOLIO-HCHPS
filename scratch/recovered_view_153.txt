@@ -1,0 +1,48 @@
+Created At: 2026-05-28T02:18:06Z
+Completed At: 2026-05-28T02:18:06Z
+File Path: `file:///d:/Desktop/PORTFOLIO/PORTFOLIO%20-%20VITAL/src/components/dashboard/PortfolioDashboardView.tsx`
+Total Lines: 811
+Total Bytes: 57123
+Showing lines 450 to 590
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+450:                                   <span className="font-extrabold text-[19px] text-slate-700">{sub.totalBudget.toLocaleString()}원</span>
+451:                                 </div>
+452:                                 <div className="flex flex-col sm:items-end">
+453:                                   <span className="text-[17px] font-semibold text-slate-400">설계 확정 금액</span>
+454:                                   <span className="font-black text-[19px] text-indigo-600">{subVirtualAdjustment.toLocaleString()}원</span>
+455:                                 </div>
+456:                                 <div className="flex flex-col sm:items-end">
+457:                                   <span className="text-[17px] font-semibold text-slate-400">남은 차액</span>
+458:                                   <span className={`font-black text-[19px] ${subRemainingDiff === 0 ? 'text-emerald-600' : 'text-red-500'}`}>{subRemainingDiff.toLocaleString()}원</span>
+459:                                 </div>
+460:                               </div>
+461:                             </div>
+462: 
+463:                             {/* 통계목 상세 플래닝 & 대조 보드 */}
+464:                             {isSubExpanded && (
+465:                               <div className="p-5 border-t border-slate-100 bg-white flex flex-col gap-6 animate-in slide-in-from-top-2 duration-200">
+466:                                 
+467:                                 {/* 2) 공식 예산서 세부 산출 내역 대조 테이블 (su
+<truncated 9868 bytes>
+       <span className={`font-black ${subRemaining === 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+571:                                                         {subRemaining.toLocaleString()}원
+572:                                                       </span>
+573:                                                     );
+574:                                                   })()}
+575:                                                 </td>
+576:                                                 <td className="py-3 px-4">
+577:                                                   <input 
+578:                                                     key={`note-sub-${sub.id}-${sIdx}-${extractMemoFromNote(s.note)}`}
+579:                                                     type="text"
+580:                                                     placeholder="비고"
+581:                                                     defaultValue={extractMemoFromNote(s.note)}
+582:                                                     onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
+583:                                                       const noteVal = e.currentTarget.value.trim();
+584:                                                       const updatedSubItems = [...(sub.subItems || [])];
+585:                                                       const currentItem = updatedSubItems[sIdx];
+586:                                                       const formula = extractFormulaFromNote(currentItem.note);
+587:                                                       
+588:                                                       const finalNote = formula ? buildNoteWithFormula(formula, noteVal) : noteVal;
+589:                                                       
+590:                                                       updatedSubItems[sIdx] = {
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

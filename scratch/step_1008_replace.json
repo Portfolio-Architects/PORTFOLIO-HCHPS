@@ -1,0 +1,25 @@
+{
+  "step_index": 1013,
+  "source": "MODEL",
+  "type": "PLANNER_RESPONSE",
+  "status": "DONE",
+  "created_at": "2026-06-02T03:21:41Z",
+  "thinking": "**Adding Collision Resolution**\n\nI'm focusing on adding a section to `walkthrough.md` that addresses screen-space collision resolution to prevent node overlap, specifically sections 1-9. I'll also be sure to document the collision physics tests' verification results for thoroughness.\n\n\n",
+  "tool_calls": [
+    {
+      "name": "replace_file_content",
+      "args": {
+        "AllowMultiple": "false",
+        "Description": "\"Add Screen-Space Collision Resolution details to walkthrough.md.\"",
+        "EndLine": "48",
+        "Instruction": "\"Insert 1-9 subsection and update verification details in walkthrough.md.\"",
+        "ReplacementContent": "\"  - **형제 및 카테고리 가중치 우선 정렬**: [OntologyLayout.ts](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/lib/engine/OntologyLayout.ts)의 세 가지 노드 정렬 로직 및 [MindMap3D.tsx](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/components/MindMap3D.tsx)의 루트 정렬 로직을 갱신하여, 동일한 `customSortOrder` 환경에서 가중치가 높은 노드가 상단에 위치하도록 정렬 우선순위를 적용했습니다.\\n\\n### 1-9. 2D 화면 공간 충돌 해결(Screen-Space Collision Resolution)을 통한 노드 겹침 방지\\n- **2D 스크린 충돌 물리 반발 이식**: 3D 공간 상에서 거리를 벌리더라도 카메라 각도(`tiltAngle = 42도`) 및 원근 투영 왜곡에 의해 화면상에서 노드가 겹치던 가독성 문제를 해결하기 위해, 투영 직후인 2D 스크린 좌표(`renderX`, `renderY`)를 기준으로 가중치 크기에 맞는 히트박스 반발력을 주는 2D 화면 공간 충돌 방지 루프를 도입했습니다.\\n- **고정(Pin) 노드 관성 및 비고정 노드 반발 구현**: 사용자가 드래그하여 임의로 고정(`fixedX`/`fixedY`)한 노드는 밀리지 않도록 고정 관성을 부여하고, 고정되지 않은 주변 노드만 반발하여 비켜나도록 물리 강도(`damping = 0.45`)를 조정했습니다.\\n- **연쇄 충돌 해소용 최대 8회 반복 루프 도입**: 노드가 연쇄적으로 밀릴 때 안정적으로 자리를 잡도록 루프를 최대 8회 돌며 연쇄 겹침을 해결하고 겹침이 해소되면 즉각 루프를 탈출하도록 최적화했습니다.\\n- **기본 배치 간격 상수 상향**: `OntologyLayout.ts`의 기본 배치 격차를 넓히기 위해 `X_SPACING = 250` (기존 220), `Y_SPACING = 14` (기존 8), `NODE_HEIGHT = 36` (기존 32)으로 상향하여 원천적인 가독성 공간을 넓혔습니다.\\n\\n---\\n\\n## 2. 검증 및 정적 테스트 결과\\n- **TypeScript 빌드 정밀 진단:** `npx tsc --noEmit` 검사를 실행하여 **0건의 오류**로 컴파\n<truncated 488 bytes>",
+        "StartLine": "41",
+        "TargetContent": "\"  - **형제 및 카테고리 가중치 우선 정렬**: [OntologyLayout.ts](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/lib/engine/OntologyLayout.ts)의 세 가지 노드 정렬 로직 및 [MindMap3D.tsx](file:///d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/src/components/MindMap3D.tsx)의 루트 정렬 로직을 갱신하여, 동일한 `customSortOrder` 환경에서 가중치가 높은 노드가 상단에 위치하도록 정렬 우선순위를 적용했습니다.\\n\\n---\\n\\n## 2. 검증 및 정적 테스트 결과\\n- **TypeScript 빌드 정밀 진단:** `npx tsc --noEmit` 검사를 실행하여 **0건의 오류**로 컴파일 무결성을 입증하였습니다.\\n- **로컬 스크립트 실행:** `sync-rules.js` 스크립트를 구동하여 `AGENTS.md` 파일 하단의 동기화 로그에 신규 마일스톤 패치가 정상 등재되었음을 검증했습니다.\"",
+        "TargetFile": "\"C:/Users/user/.gemini/antigravity/brain/2313113a-c476-4aea-9e7e-55614ac9a711/walkthrough.md\"",
+        "toolAction": "\"Update walkthrough.md with collision details\"",
+        "toolSummary": "\"Update walkthrough.md\""
+      }
+    }
+  ]
+}

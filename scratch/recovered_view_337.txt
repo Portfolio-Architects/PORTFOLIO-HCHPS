@@ -1,0 +1,50 @@
+Created At: 2026-05-28T02:37:40Z
+Completed At: 2026-05-28T02:37:40Z
+File Path: `file:///d:/Desktop/PORTFOLIO/PORTFOLIO%20-%20VITAL/src/components/dashboard/PortfolioDashboardView.tsx`
+Total Lines: 813
+Total Bytes: 58057
+Showing lines 590 to 715
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+590:                                                     {s.isLocked ? <Lock className="w-4 h-4 text-red-500" /> : <Unlock className="w-4 h-4 text-emerald-500" />}
+591:                                                   </button>
+592:                                                 </td>
+593:                                                 <td className="py-3 px-4">
+594:                                                   {!hasCalcs && (
+595:                                                     <input 
+596:                                                       type="text"
+597:                                                       placeholder="0"
+598:                                                       defaultValue={s.virtualAdjustment ? (s.virtualAdjustment > 0 ? `+${s.virtualAdjustment.toLocaleString()}` : s.virtualAdjustment.toLocaleString()) : ''}
+599:                                                       onInput={(e: any) => {
+600:                                                         // 음수 및 숫자 콤마 포맷터
+601:                                                         const val = e.target.value;
+602:                                                         const isNegative = val.startsWith('-');
+603:                                                         const digits = val.replace(/[^0-9]/g, '');
+604:                                                         if (!digits) {
+605:                                                           e.target.value = isNegative ? '-' : '';
+606:                          
+<truncated 8160 bytes>
+                                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-black text-slate-800 text-right focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 outline-none transition-all"
+693:                                                     />
+694:                                                   </td>
+695:                                                 </tr>
+696:                                               ))}
+697:                                             </React.Fragment>
+698:                                           );
+699:                                         })}
+700:                                         {(!sub.subItems || sub.subItems.length === 0) && (
+701:                                           <tr>
+702:                                             <td colSpan={4} className="py-4 text-center text-xs text-slate-400 font-medium">공식 예산서 세부 산출 내역이 비어 있습니다.</td>
+703:                                           </tr>
+704:                                         )}
+705:                                       </tbody>
+706:                                     </table>
+707:                                   </div>
+708:                                 </div>
+709: 
+710:                                 {/* 3) 실제 집행 지출 내역 목록 (대조 보드) */}
+711:                                 <div className="flex flex-col gap-2.5">
+712:                                   <div className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+713:                                     <AlertCircle className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+714:                                     <span>실제 지출 집행 완료 내역</span>
+715:                                   </div>
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

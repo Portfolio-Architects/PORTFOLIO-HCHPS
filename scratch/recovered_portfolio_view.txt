@@ -1,0 +1,79 @@
+Created At: 2026-05-27T04:54:17Z
+Completed At: 2026-05-27T04:54:17Z
+File Path: `file:///d:/Desktop/PORTFOLIO/PORTFOLIO%20-%20VITAL/src/components/dashboard/PortfolioDashboardView.tsx`
+Total Lines: 424
+Total Bytes: 27021
+Showing lines 1 to 424
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+1: import React, { useState, useMemo } from 'react';
+2: import { PieChart, Pie, Cell, LineChart, Line, Bar, ReferenceLine, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area, CartesianGrid, ComposedChart } from 'recharts';
+3: import { Task, BudgetCategory, BudgetEntry } from '@/types';
+4: import { usePortfolioAnalytics } from '@/hooks/usePortfolioAnalytics';
+5: import { Expand, Shrink, ChevronRight, LayoutDashboard, ChevronDown, ChevronUp } from 'lucide-react';
+6: import { format } from 'date-fns';
+7: 
+8: interface DashboardProps {
+9:   tasks: Task[];
+10:   budgetCategories: BudgetCategory[];
+11:   budgetEntries: BudgetEntry[];
+12:   onLogout?: () => void;
+13:   appMode?: 'HCHPS' | 'VITAL';
+14: }
+15: 
+16: export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries, onLogout, appMode = 'VITAL' }: DashboardProps) {
+17:   const [trendTab, setTrendTab] = useState('Growth');
+18:   const [timeFilter, setTimeFilter] = useState('ALL');
+19:   const [expanded, setExpanded] = useState(false);
+20:   const [chartType, setChartType] = useState<'monthly' | 'cumulative'>('monthly');
+21:   const {
+22:     selectedProject, setSelectedProject,
+23:     expandedCategory, setExpandedCategory,
+24:     detailedProjects,
+25:     filteredCategories,
+26:     totalBudget,
+27:     executedBudget,
+28:     remainingBudget,
+29:     executionRate,
+30:     pieData,
+31:     breakdownData,
+32:     allBreakdownData,
+33:     monthlyExecutionData,
+34:     maxSpendMonth,
+35:     avgMonthlySpend,
+<truncated 25505 bytes>
+ck text-slate-800 leading-tight mb-1">{insight.name}</span>
+391:                   <span className="text-[12px] font-semibold text-slate-500 leading-relaxed">{insight.insightText}</span>
+392:                 </div>
+393:               </div>
+394:               <div className="flex flex-col items-end pt-4 border-t border-slate-100 mt-2">
+395:                 <span className={`text-lg font-black ${insight.action === 'INCREASE' ? 'text-red-500' : (isHchps ? 'text-emerald-500' : 'text-blue-500')}`}>
+396:                   {insight.diffAmount > 0 ? '+' : ''}{insight.diffAmount.toLocaleString()} <span className="text-xs">KRW</span>
+397:                 </span>
+398:                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{insight.action} RECOMMENDATION</span>
+399:               </div>
+400:             </div>
+401:           )) : (
+402:             <div className="col-span-full text-center py-10 text-sm font-bold text-slate-400">
+403:               특이 소진 항목이 발견되지 않았습니다.
+404:             </div>
+405:           )}
+406:         </div>
+407:       </div>
+408: 
+409:       {/* Footer */}
+410:       <div className="mt-8 pt-8 pb-4 border-t border-slate-200/60">
+411:         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 text-[10px] font-black text-slate-400 tracking-widest uppercase">
+412:           <span>© 2026 PORTFOLIO {appMode}. All rights reserved.</span>
+413:           <span className="flex items-center gap-3">
+414:             Precision Operations Intelligence
+415:             <span className="text-slate-300">|</span> 
+416:             <button onClick={onLogout} className={`text-${isHchps ? 'emerald' : 'blue'}-500 hover:text-${isHchps ? 'emerald' : 'blue'}-600 transition-colors`}>SECURE</button>
+417:           </span>
+418:         </div>
+419:       </div>
+420:       
+421:     </div>
+422:   );
+423: }
+424: 
+The above content shows the entire, complete file contents of the requested file.

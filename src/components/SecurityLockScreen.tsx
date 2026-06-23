@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Lock, Unlock } from 'lucide-react';
 
 interface Props {
@@ -57,26 +57,26 @@ export const SecurityLockScreen: React.FC<Props> = ({ hasSetupPIN, onVerify, onS
   }, [pin]);
 
   // 물리적 키보드(키패드) 입력 지원
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // 숫자 키 입력
-      if (e.key >= '0' && e.key <= '9') {
-        setPin(prev => {
-          if (prev.length < PIN_LENGTH) return prev + e.key;
-          return prev;
-        });
-        setErrorMsg('');
-      } 
-      // 백스페이스 및 삭제 
-      else if (e.key === 'Backspace' || e.key === 'Delete') {
-        setPin(prev => prev.slice(0, -1));
-        setErrorMsg('');
-      }
-    };
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    // 숫자 키 입력
+    if (e.key >= '0' && e.key <= '9') {
+      setPin(prev => {
+        if (prev.length < PIN_LENGTH) return prev + e.key;
+        return prev;
+      });
+      setErrorMsg('');
+    } 
+    // 백스페이스 및 삭제 
+    else if (e.key === 'Backspace' || e.key === 'Delete') {
+      setPin(prev => prev.slice(0, -1));
+      setErrorMsg('');
+    }
+  }, [/* handleKeyDown */]);
 
+  useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [handleKeyDown]);
 
 
 

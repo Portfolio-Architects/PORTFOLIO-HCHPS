@@ -15,8 +15,8 @@ interface TopNavProps {
 
 const navItems: { id: ModuleType; label: string; icon: React.ElementType }[] = [
   { id: 'dashboard', label: '대시보드', icon: LayoutDashboard },
-  { id: 'mindmap', label: '마인드맵', icon: Zap },
   { id: 'workspace', label: '예산관리', icon: Archive },
+  { id: 'mindmap', label: '마인드맵', icon: Zap },
   { id: 'inventory', label: '홍보물', icon: Package },
 ];
 

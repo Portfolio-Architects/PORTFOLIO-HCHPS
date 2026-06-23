@@ -1,0 +1,47 @@
+Created At: 2026-05-28T02:11:16Z
+Completed At: 2026-05-28T02:11:16Z
+File Path: `file:///d:/Desktop/PORTFOLIO/PORTFOLIO%20-%20VITAL/src/components/dashboard/PortfolioDashboardView.tsx`
+Total Lines: 775
+Total Bytes: 54936
+Showing lines 420 to 540
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+420:                               className="flex flex-col sm:flex-row sm:items-center justify-between p-4 cursor-pointer hover:bg-slate-50/40 transition-colors gap-3 sm:gap-0"
+421:                               onClick={() => setExpandedSubCategory(isSubExpanded ? null : sub.id)}
+422:                             >
+423:                               <div className="flex items-center gap-3">
+424:                                 <div className="flex flex-col">
+425:                                   <span className="font-black text-[16px] text-slate-800">{sub.name}</span>
+426:                                   {sub.formationItem && (
+427:                                     <span className="text-[14px] font-bold text-slate-400 uppercase tracking-wider">{sub.formationItem} {sub.statItem && `| ${sub.statItem}`}</span>
+428:                                   )}
+429:                                 </div>
+430:                               </div>
+431:                               
+432:                               <div className="flex items-center justify-between sm:justify-end gap-6 w-full sm:w-auto">
+433:                                 <div className="flex flex-col sm:items-end">
+434:                                   <span className="text-[17px] font-semibold text-slate-400">총 본예산</span>
+435:                                   <span className="font-extrabold text-[19px] text-slate-700">{sub.totalBudget.toLocaleString()}원</span>
+436:                                 </div>
+437:                                 <di
+<truncated 7951 bytes>
+                                                   onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
+522:                                                           const inputVal = e.currentTarget.value.trim();
+523:                                                           const adjValue = evaluateExpression(inputVal);
+524:                                                           
+525:                                                           const updatedSubItems = [...(sub.subItems || [])];
+526:                                                           const currentItem = updatedSubItems[sIdx];
+527:                                                           
+528:                                                           const hasOperators = /[+\-*/()]/.test(inputVal);
+529:                                                           const existingMemo = extractMemoFromNote(currentItem.note);
+530:                                                           
+531:                                                           let newNote = currentItem.note || '';
+532:                                                           if (hasOperators && inputVal) {
+533:                                                             newNote = buildNoteWithFormula(inputVal, existingMemo);
+534:                                                           } else {
+535:                                                             newNote = existingMemo;
+536:                                                           }
+537:                                                           
+538:                                                           updatedSubItems[sIdx] = {
+539:                                                             ...currentItem,
+540:                                                             virtualAdjustment: adjValue,
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

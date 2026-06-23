@@ -1,0 +1,214 @@
+Index: 0 | Text: 'Ⅰ 보건행정과1.02.03.01. 강남 AI 메디헬스 센터(가칭) 조성<보건행정과>' | paraPrIDRef: 22 | styleIDRef: 0 | charPrIDRef: 7
+Index: 1 | Text: '' | paraPrIDRef: 32 | styleIDRef: 0 | charPrIDRef: 28
+Index: 2 | Text: '' | paraPrIDRef: 32 | styleIDRef: 0 | charPrIDRef: 28
+Index: 3 | Text: 'Ⅰ' | paraPrIDRef: 33 | styleIDRef: 0 | charPrIDRef: 29
+Index: 4 | Text: '보건행정과' | paraPrIDRef: 32 | styleIDRef: 0 | charPrIDRef: 33
+Index: 5 | Text: '' | paraPrIDRef: 34 | styleIDRef: 0 | charPrIDRef: 28
+Index: 6 | Text: '1.' | paraPrIDRef: 35 | styleIDRef: 0 | charPrIDRef: 28
+Index: 7 | Text: '' | paraPrIDRef: 1 | styleIDRef: 0 | charPrIDRef: 10
+Index: 8 | Text: '' | paraPrIDRef: 1 | styleIDRef: 0 | charPrIDRef: 10
+Index: 9 | Text: '0' | paraPrIDRef: 36 | styleIDRef: 0 | charPrIDRef: 10
+Index: 10 | Text: '2.' | paraPrIDRef: 35 | styleIDRef: 0 | charPrIDRef: 28
+Index: 11 | Text: '' | paraPrIDRef: 1 | styleIDRef: 0 | charPrIDRef: 10
+Index: 12 | Text: '' | paraPrIDRef: 1 | styleIDRef: 0 | charPrIDRef: 30
+Index: 13 | Text: '0' | paraPrIDRef: 35 | styleIDRef: 0 | charPrIDRef: 31
+Index: 14 | Text: '3.' | paraPrIDRef: 35 | styleIDRef: 0 | charPrIDRef: 28
+Index: 15 | Text: '' | paraPrIDRef: 1 | styleIDRef: 24 | charPrIDRef: 10
+Index: 16 | Text: '' | paraPrIDRef: 1 | styleIDRef: 24 | charPrIDRef: 30
+Index: 17 | Text: '0' | paraPrIDRef: 35 | styleIDRef: 0 | charPrIDRef: 31
+Index: 18 | Text: '' | paraPrIDRef: 35 | styleIDRef: 0 | charPrIDRef: 31
+Index: 19 | Text: '1. 강남 AI 메디헬스 센터(가칭) 조성' | paraPrIDRef: 1 | styleIDRef: 0 | charPrIDRef: 11
+Index: 20 | Text: '<보건행정과>' | paraPrIDRef: 21 | styleIDRef: 0 | charPrIDRef: 10
+Index: 21 | Text: '' | paraPrIDRef: 0 | styleIDRef: 0 | charPrIDRef: 9
+Index: 22 | Text: '' | paraPrIDRef: 0 | styleIDRef: 0 | charPrIDRef: 9
+Index: 23 | Text: '' | paraPrIDRef: 1 | styleIDRef: 0 | charPrIDRef: 12
+Index: 24 | Text: '1추진 배경' | paraPrIDRef: 37 | styleIDRef: 0 | charPrIDRef: 7
+Index: 25 | Text: '1' | paraPrIDRef: 24 | styleIDRef: 0 | charPrIDRef: 15
+Index: 26 | Text: '' | paraPrIDRef: 1 | styleIDRef: 0 | charPrIDRef: 16
+Index: 27 | Text: '추진 배경' | paraPrIDRef: 24 | styleIDRef: 0 | charPrIDRef: 14
+Index: 28 | Text: '󰏚 고혈압, 비만, 당뇨병 증가로 공공 보건의 예방적 건강관리 수요 증가' | paraPrIDRef: 38 | styleIDRef: 0 | charPrIDRef: 17
+Index: 29 | Text: '󰏚 분산화된 건강관리 사업으로 인한 건강 서비스 이용 불편 제기' | paraPrIDRef: 38 | styleIDRef: 0 | charPrIDRef: 17
+Index: 30 | Text: '󰏚 다각적 건강 지표 분석을 위한 AI 기반 스마트 솔루션 수립 요구' | paraPrIDRef: 38 | styleIDRef: 0 | charPrIDRef: 17
+Index: 31 | Text: '2현황 및 실태' | paraPrIDRef: 37 | styleIDRef: 0 | charPrIDRef: 13
+Index: 32 | Text: '2' | paraPrIDRef: 24 | styleIDRef: 0 | charPrIDRef: 15
+Index: 33 | Text: '' | paraPrIDRef: 1 | styleIDRef: 0 | charPrIDRef: 16
+Index: 34 | Text: '현황 및 실태' | paraPrIDRef: 24 | styleIDRef: 0 | charPrIDRef: 14
+Index: 35 | Text: '󰏚 건강 서비스 분산화로 인한 민원 이용 불편 및 혼선 초래' | paraPrIDRef: 38 | styleIDRef: 0 | charPrIDRef: 17
+Index: 36 | Text: '❍ 보건소 건강서비스 이용을 위해 헬스체크업, 서울체력장, 대사증후군 관리 센터에 각각 방문 하여 개별 예약을 진행해야 하는 불편 및 혼선 초래' | paraPrIDRef: 42 | styleIDRef: 0 | charPrIDRef: 18
+Index: 37 | Text: '󰏚 건강 관련 유사 데이터 미연동으로 상담의 일관성과 신뢰성 저하' | paraPrIDRef: 38 | styleIDRef: 0 | charPrIDRef: 17
+Index: 38 | Text: '❍ 혈액 지표, 체력 지표 등 데이터 미연동으로 종합적 건강 상태 판정 어려움' | paraPrIDRef: 42 | styleIDRef: 0 | charPrIDRef: 18
+Index: 39 | Text: '󰏚 신체활동 실천을 유도하는 실질적 사후 관리 인프라 부재' | paraPrIDRef: 38 | styleIDRef: 0 | charPrIDRef: 17
+Index: 40 | Text: '❍ 각 건강 지표 측정 이후 건강관리 시스템 연결 및 장비 부족으로, 자가 건강 관리 능력 강화 및 실질적 건강 증진 활동으로의 연결 부재' | paraPrIDRef: 41 | styleIDRef: 0 | charPrIDRef: 18
+Index: 41 | Text: '3추진 계획' | paraPrIDRef: 38 | styleIDRef: 0 | charPrIDRef: 17
+Index: 42 | Text: '3' | paraPrIDRef: 24 | styleIDRef: 0 | charPrIDRef: 15
+Index: 43 | Text: '' | paraPrIDRef: 1 | styleIDRef: 0 | charPrIDRef: 16
+Index: 44 | Text: '추진 계획' | paraPrIDRef: 24 | styleIDRef: 0 | charPrIDRef: 14
+Index: 45 | Text: '󰏚 기    간 : 2026. 7. ~ 2027. 12. (예정)' | paraPrIDRef: 37 | styleIDRef: 0 | charPrIDRef: 17
+Index: 46 | Text: '󰏚 장    소 : 강남구보건소 본관 4층, 약 500m2 (150평)' | paraPrIDRef: 37 | styleIDRef: 0 | charPrIDRef: 17
+Index: 47 | Text: '󰏚 인    력 : 총 13명 (기존 인력 활용)' | paraPrIDRef: 38 | styleIDRef: 0 | charPrIDRef: 17
+Index: 48 | Text: '❍ 의사 1명, 간호사 2명, 영양사 4명, 건강운동관리사 5명, 행정인력 1명 등' | paraPrIDRef: 41 | styleIDRef: 0 | charPrIDRef: 18
+Index: 49 | Text: '󰏚 주요내용 : 통합 건강 인프라 센터 조성을 통한 AI 운동 처방 시스템 구축' | paraPrIDRef: 38 | styleIDRef: 0 | charPrIDRef: 17
+Index: 50 | Text: '건강 인프라 통합⇨AI 맞춤형 솔루션 제공⇨건강 관리 서비스· 헬스체크업 프로그램· 대사증후군 관리센터· 서울체력장 강남센터(신규)· 스마트 짐 프로그램(신규)· 혈액 수치, 체력 계측, 근골격계 질환 검사▶ 의사 진료, AI 운동·영양 상담· 스마트짐 프로그램· 운동 프로그램 매칭· 관내 체육 시설 연계' | paraPrIDRef: 37 | styleIDRef: 0 | charPrIDRef: 18
+Index: 51 | Text: '건강 인프라 통합' | paraPrIDRef: 28 | styleIDRef: 0 | charPrIDRef: 25
+Index: 52 | Text: '⇨' | paraPrIDRef: 30 | styleIDRef: 0 | charPrIDRef: 27
+Index: 53 | Text: 'AI 맞춤형 솔루션 제공' | paraPrIDRef: 28 | styleIDRef: 0 | charPrIDRef: 26
+Index: 54 | Text: '⇨' | paraPrIDRef: 30 | styleIDRef: 0 | charPrIDRef: 27
+Index: 55 | Text: '건강 관리 서비스' | paraPrIDRef: 28 | styleIDRef: 0 | charPrIDRef: 26
+Index: 56 | Text: '' | paraPrIDRef: 28 | styleIDRef: 0 | charPrIDRef: 22
+Index: 57 | Text: '' | paraPrIDRef: 28 | styleIDRef: 0 | charPrIDRef: 22
+Index: 58 | Text: '' | paraPrIDRef: 28 | styleIDRef: 0 | charPrIDRef: 24
+Index: 59 | Text: '· 헬스체크업 프로그램' | paraPrIDRef: 47 | styleIDRef: 0 | charPrIDRef: 23
+Index: 60 | Text: '· 대사증후군 관리센터' | paraPrIDRef: 47 | styleIDRef: 0 | charPrIDRef: 23
+Index: 61 | Text: '· 서울체력장 강남센터(신규)' | paraPrIDRef: 47 | styleIDRef: 0 | charPrIDRef: 37
+Index: 62 | Text: '· 스마트 짐 프로그램(신규)' | paraPrIDRef: 47 | styleIDRef: 0 | charPrIDRef: 35
+Index: 63 | Text: '· 혈액 수치, 체력 계측, 근골격계 질환 검사' | paraPrIDRef: 48 | styleIDRef: 0 | charPrIDRef: 23
+Index: 64 | Text: '▶ 의사 진료, AI 운동·영양 상담' | paraPrIDRef: 49 | styleIDRef: 0 | charPrIDRef: 38
+Index: 65 | Text: '· 스마트짐 프로그램' | paraPrIDRef: 50 | styleIDRef: 0 | charPrIDRef: 23
+Index: 66 | Text: '· 운동 프로그램 매칭' | paraPrIDRef: 50 | styleIDRef: 0 | charPrIDRef: 23
+Index: 67 | Text: '· 관내 체육 시설 연계' | paraPrIDRef: 50 | styleIDRef: 0 | charPrIDRef: 23
+Index: 68 | Text: '󰏚 소요예산 : 850,000천원' | paraPrIDRef: 38 | styleIDRef: 0 | charPrIDRef: 17
+Index: 69 | Text: '❍ 시설비(300,000천원) : 4층 공간 확보 및 AI 메디헬스 센터 리모델링 공사' | paraPrIDRef: 41 | styleIDRef: 0 | charPrIDRef: 18
+Index: 70 | Text: '❍ 자산및물품취득비(500,000천원) : AI 스마트 짐 신규 장비 및 물품 구매' | paraPrIDRef: 41 | styleIDRef: 0 | charPrIDRef: 18
+Index: 71 | Text: '❍ 통합전산시스템 구축(50,000천원) : 측정 데이터 연계 통합 분석 시스템 개발' | paraPrIDRef: 41 | styleIDRef: 0 | charPrIDRef: 18
+Index: 72 | Text: '󰏚 일    정' | paraPrIDRef: 40 | styleIDRef: 0 | charPrIDRef: 17
+Index: 73 | Text: '2026.07.~12.⇨2027.01.~06.⇨2027.06.~09.⇨2027.09.~12.· 사업 계획 수립· 공간 이전 협의· 예산 편성· 리모델링 공사· 운동 물품 구매· 전산시스템 구축· 시범 운영· 데이터 검증· 센터 정식 개소· 체육시설 연계' | paraPrIDRef: 39 | styleIDRef: 23 | charPrIDRef: 18
+Index: 74 | Text: '2026.07.~12.' | paraPrIDRef: 28 | styleIDRef: 0 | charPrIDRef: 25
+Index: 75 | Text: '⇨' | paraPrIDRef: 30 | styleIDRef: 0 | charPrIDRef: 27
+Index: 76 | Text: '2027.01.~06.' | paraPrIDRef: 28 | styleIDRef: 0 | charPrIDRef: 26
+Index: 77 | Text: '⇨' | paraPrIDRef: 30 | styleIDRef: 0 | charPrIDRef: 27
+Index: 78 | Text: '2027.06.~09.' | paraPrIDRef: 28 | styleIDRef: 0 | charPrIDRef: 26
+Index: 79 | Text: '⇨' | paraPrIDRef: 30 | styleIDRef: 0 | charPrIDRef: 27
+Index: 80 | Text: '2027.09.~12.' | paraPrIDRef: 28 | styleIDRef: 0 | charPrIDRef: 26
+Index: 81 | Text: '' | paraPrIDRef: 28 | styleIDRef: 0 | charPrIDRef: 22
+Index: 82 | Text: '' | paraPrIDRef: 28 | styleIDRef: 0 | charPrIDRef: 22
+Index: 83 | Text: '' | paraPrIDRef: 28 | styleIDRef: 0 | charPrIDRef: 24
+Index: 84 | Text: '' | paraPrIDRef: 28 | styleIDRef: 0 | charPrIDRef: 24
+Index: 85 | Text: '· 사업 계획 수립' | paraPrIDRef: 45 | styleIDRef: 0 | charPrIDRef: 23
+Index: 86 | Text: '· 공간 이전 협의' | paraPrIDRef: 45 | styleIDRef: 0 | charPrIDRef: 23
+Index: 87 | Text: '· 예산 편성' | paraPrIDRef: 45 | styleIDRef: 0 | charPrIDRef: 23
+Index: 88 | Text: '· 리모델링 공사' | paraPrIDRef: 44 | styleIDRef: 0 | charPrIDRef: 23
+Index: 89 | Text: '· 운동 물품 구매' | paraPrIDRef: 44 | styleIDRef: 0 | charPrIDRef: 23
+Index: 90 | Text: '· 전산시스템 구축' | paraPrIDRef: 44 | styleIDRef: 0 | charPrIDRef: 23
+Index: 91 | Text: '· 시범 운영' | paraPrIDRef: 29 | styleIDRef: 0 | charPrIDRef: 23
+Index: 92 | Text: '· 데이터 검증' | paraPrIDRef: 29 | styleIDRef: 0 | charPrIDRef: 23
+Index: 93 | Text: '· 센터 정식 개소' | paraPrIDRef: 29 | styleIDRef: 0 | charPrIDRef: 23
+Index: 94 | Text: '· 체육시설 연계' | paraPrIDRef: 29 | styleIDRef: 0 | charPrIDRef: 23
+Index: 95 | Text: '󰏚 2026 하반기 추진사항' | paraPrIDRef: 40 | styleIDRef: 0 | charPrIDRef: 17
+Index: 96 | Text: '❍ 강남 AI 메디헬스 센터 조성 사업 계획 수립' | paraPrIDRef: 39 | styleIDRef: 23 | charPrIDRef: 18
+Index: 97 | Text: '❍ ＇27년도 예산 편성 및 보건소 4층 기 배치 부서 공간 이전 협의' | paraPrIDRef: 37 | styleIDRef: 23 | charPrIDRef: 18
+Index: 98 | Text: '4기    타' | paraPrIDRef: 43 | styleIDRef: 0 | charPrIDRef: 18
+Index: 99 | Text: '4' | paraPrIDRef: 24 | styleIDRef: 0 | charPrIDRef: 15
+Index: 100 | Text: '' | paraPrIDRef: 1 | styleIDRef: 0 | charPrIDRef: 16
+Index: 101 | Text: '기    타' | paraPrIDRef: 24 | styleIDRef: 0 | charPrIDRef: 14
+Index: 102 | Text: '󰏚 조감도(안)' | paraPrIDRef: 40 | styleIDRef: 0 | charPrIDRef: 17
+Index: 103 | Text: '' | paraPrIDRef: 40 | styleIDRef: 0 | charPrIDRef: 17
+Index: 104 | Text: '' | paraPrIDRef: 1 | styleIDRef: 0 | charPrIDRef: 0
+Index: 105 | Text: '󰏚 보건소 4층 평면도' | paraPrIDRef: 40 | styleIDRef: 0 | charPrIDRef: 17
+Index: 106 | Text: '센터 조성(전)센터 조성(후)' | paraPrIDRef: 31 | styleIDRef: 23 | charPrIDRef: 18
+Index: 107 | Text: '' | paraPrIDRef: 1 | styleIDRef: 0 | charPrIDRef: 0
+Index: 108 | Text: '' | paraPrIDRef: 1 | styleIDRef: 0 | charPrIDRef: 0
+Index: 109 | Text: '센터 조성(전)' | paraPrIDRef: 46 | styleIDRef: 0 | charPrIDRef: 36
+Index: 110 | Text: '센터 조성(후)' | paraPrIDRef: 46 | styleIDRef: 0 | charPrIDRef: 36
+Index: 111 | Text: '작 성 자보건행정과장: 홍종남 ☎7010  건강증진팀장: 김재은 ☎7031  담당: 오창선 ☎7116' | paraPrIDRef: 25 | styleIDRef: 23 | charPrIDRef: 18
+Index: 112 | Text: '작 성 자' | paraPrIDRef: 27 | styleIDRef: 0 | charPrIDRef: 20
+Index: 113 | Text: '보건행정과장: 홍종남 ☎7010  건강증진팀장: 김재은 ☎7031  담당: 오창선 ☎7116' | paraPrIDRef: 27 | styleIDRef: 0 | charPrIDRef: 21
+Index: 114 | Text: 'Ⅰ참고 자료' | paraPrIDRef: 37 | styleIDRef: 0 | charPrIDRef: 13
+Index: 115 | Text: 'Ⅰ' | paraPrIDRef: 24 | styleIDRef: 0 | charPrIDRef: 15
+Index: 116 | Text: '' | paraPrIDRef: 1 | styleIDRef: 0 | charPrIDRef: 16
+Index: 117 | Text: '참고 자료' | paraPrIDRef: 24 | styleIDRef: 0 | charPrIDRef: 14
+Index: 118 | Text: '󰏚 사업별 운영 현황' | paraPrIDRef: 38 | styleIDRef: 0 | charPrIDRef: 17
+Index: 119 | Text: '❍ 대사증후군 검진 센터' | paraPrIDRef: 42 | styleIDRef: 0 | charPrIDRef: 18
+Index: 120 | Text: '대상자 모집 및 예약⇨측정 및 상담⇨사후 관리 서비스▪전화 및 방문 예약  (전날 22시부터 금식)▪건보공단 검진 결과 연동1. 서울시 관리 시스템 등록2. 허리둘레, 중성지방, 혈압, 콜레스테롤, 혈당 등3. 운동사, 영양사, 간호사 원스톱 상담(실제 운동 X)4. 신규 및 질환자 의사상담▪6, 12개월 간격 재측정▪고혈압, 당뇨병 강좌 연계' | paraPrIDRef: 42 | styleIDRef: 0 | charPrIDRef: 18
+Index: 121 | Text: '대상자 모집 및 예약' | paraPrIDRef: 21 | styleIDRef: 0 | charPrIDRef: 47
+Index: 122 | Text: '⇨' | paraPrIDRef: 30 | styleIDRef: 0 | charPrIDRef: 23
+Index: 123 | Text: '측정 및 상담' | paraPrIDRef: 21 | styleIDRef: 0 | charPrIDRef: 47
+Index: 124 | Text: '⇨' | paraPrIDRef: 30 | styleIDRef: 0 | charPrIDRef: 23
+Index: 125 | Text: '사후 관리 서비스' | paraPrIDRef: 28 | styleIDRef: 0 | charPrIDRef: 48
+Index: 126 | Text: '' | paraPrIDRef: 28 | styleIDRef: 0 | charPrIDRef: 22
+Index: 127 | Text: '' | paraPrIDRef: 28 | styleIDRef: 0 | charPrIDRef: 22
+Index: 128 | Text: '' | paraPrIDRef: 28 | styleIDRef: 0 | charPrIDRef: 24
+Index: 129 | Text: '▪전화 및 방문 예약' | paraPrIDRef: 53 | styleIDRef: 0 | charPrIDRef: 40
+Index: 130 | Text: '(전날 22시부터 금식)' | paraPrIDRef: 53 | styleIDRef: 0 | charPrIDRef: 40
+Index: 131 | Text: '▪건보공단 검진 결과 연동' | paraPrIDRef: 53 | styleIDRef: 0 | charPrIDRef: 40
+Index: 132 | Text: '1. 서울시 관리 시스템 등록' | paraPrIDRef: 53 | styleIDRef: 0 | charPrIDRef: 40
+Index: 133 | Text: '2. 허리둘레, 중성지방, 혈압, 콜레스테롤, 혈당 등' | paraPrIDRef: 54 | styleIDRef: 0 | charPrIDRef: 40
+Index: 134 | Text: '3. 운동사, 영양사, 간호사 원스톱 상담(실제 운동 X)' | paraPrIDRef: 54 | styleIDRef: 0 | charPrIDRef: 40
+Index: 135 | Text: '4. 신규 및 질환자 의사상담' | paraPrIDRef: 51 | styleIDRef: 0 | charPrIDRef: 40
+Index: 136 | Text: '▪6, 12개월 간격 재측정' | paraPrIDRef: 53 | styleIDRef: 0 | charPrIDRef: 40
+Index: 137 | Text: '▪고혈압, 당뇨병 강좌 연계' | paraPrIDRef: 53 | styleIDRef: 0 | charPrIDRef: 40
+Index: 138 | Text: '❍ 헬스체크업 프로그램' | paraPrIDRef: 42 | styleIDRef: 0 | charPrIDRef: 18
+Index: 139 | Text: '대상자 모집 및 예약⇨측정 및 운동처방⇨사후 관리 서비스▪보건소 홈페이지 예약▪당일 이용 가능1. PHIS 등록2. 사전 설문, 스트레스, 혈압, 체성분, 체형 측정3. 영양·운동 상담 및 시범   ※미국스포츠의학회 기준▪운동 프로그램 연계  (중년여성 비만예방 등)▪공공 PT 프로그램 연계' | paraPrIDRef: 42 | styleIDRef: 0 | charPrIDRef: 18
+Index: 140 | Text: '대상자 모집 및 예약' | paraPrIDRef: 21 | styleIDRef: 0 | charPrIDRef: 47
+Index: 141 | Text: '⇨' | paraPrIDRef: 30 | styleIDRef: 0 | charPrIDRef: 23
+Index: 142 | Text: '측정 및 운동처방' | paraPrIDRef: 21 | styleIDRef: 0 | charPrIDRef: 47
+Index: 143 | Text: '⇨' | paraPrIDRef: 30 | styleIDRef: 0 | charPrIDRef: 23
+Index: 144 | Text: '사후 관리 서비스' | paraPrIDRef: 28 | styleIDRef: 0 | charPrIDRef: 48
+Index: 145 | Text: '' | paraPrIDRef: 28 | styleIDRef: 0 | charPrIDRef: 22
+Index: 146 | Text: '' | paraPrIDRef: 28 | styleIDRef: 0 | charPrIDRef: 22
+Index: 147 | Text: '' | paraPrIDRef: 28 | styleIDRef: 0 | charPrIDRef: 24
+Index: 148 | Text: '▪보건소 홈페이지 예약' | paraPrIDRef: 53 | styleIDRef: 0 | charPrIDRef: 40
+Index: 149 | Text: '▪당일 이용 가능' | paraPrIDRef: 53 | styleIDRef: 0 | charPrIDRef: 40
+Index: 150 | Text: '1. PHIS 등록' | paraPrIDRef: 53 | styleIDRef: 0 | charPrIDRef: 40
+Index: 151 | Text: '2. 사전 설문, 스트레스, 혈압, 체성분, 체형 측정' | paraPrIDRef: 54 | styleIDRef: 0 | charPrIDRef: 40
+Index: 152 | Text: '3. 영양·운동 상담 및 시범' | paraPrIDRef: 51 | styleIDRef: 0 | charPrIDRef: 40
+Index: 153 | Text: '※미국스포츠의학회 기준' | paraPrIDRef: 51 | styleIDRef: 0 | charPrIDRef: 45
+Index: 154 | Text: '▪운동 프로그램 연계' | paraPrIDRef: 52 | styleIDRef: 0 | charPrIDRef: 40
+Index: 155 | Text: '(중년여성 비만예방 등)' | paraPrIDRef: 52 | styleIDRef: 0 | charPrIDRef: 40
+Index: 156 | Text: '▪공공 PT 프로그램 연계' | paraPrIDRef: 52 | styleIDRef: 0 | charPrIDRef: 40
+Index: 157 | Text: '❍ 서울체력장 강남센터' | paraPrIDRef: 42 | styleIDRef: 0 | charPrIDRef: 18
+Index: 158 | Text: '대상자 모집 및 예약⇨측정 및 운동처방⇨사후 관리 서비스▪손목닥터9988 앱 예약▪당일 이용 가능▪성인(6항목), 어르신(7항목) 체력 측정▪미정' | paraPrIDRef: 56 | styleIDRef: 0 | charPrIDRef: 18
+Index: 159 | Text: '대상자 모집 및 예약' | paraPrIDRef: 21 | styleIDRef: 0 | charPrIDRef: 47
+Index: 160 | Text: '⇨' | paraPrIDRef: 30 | styleIDRef: 0 | charPrIDRef: 23
+Index: 161 | Text: '측정 및 운동처방' | paraPrIDRef: 21 | styleIDRef: 0 | charPrIDRef: 47
+Index: 162 | Text: '⇨' | paraPrIDRef: 30 | styleIDRef: 0 | charPrIDRef: 23
+Index: 163 | Text: '사후 관리 서비스' | paraPrIDRef: 28 | styleIDRef: 0 | charPrIDRef: 48
+Index: 164 | Text: '' | paraPrIDRef: 28 | styleIDRef: 0 | charPrIDRef: 22
+Index: 165 | Text: '' | paraPrIDRef: 28 | styleIDRef: 0 | charPrIDRef: 22
+Index: 166 | Text: '' | paraPrIDRef: 28 | styleIDRef: 0 | charPrIDRef: 24
+Index: 167 | Text: '▪손목닥터9988 앱 예약' | paraPrIDRef: 53 | styleIDRef: 0 | charPrIDRef: 40
+Index: 168 | Text: '▪당일 이용 가능' | paraPrIDRef: 53 | styleIDRef: 0 | charPrIDRef: 40
+Index: 169 | Text: '▪성인(6항목), 어르신(7항목) 체력 측정' | paraPrIDRef: 51 | styleIDRef: 0 | charPrIDRef: 40
+Index: 170 | Text: '▪미정' | paraPrIDRef: 52 | styleIDRef: 0 | charPrIDRef: 40
+Index: 171 | Text: '󰏚 향후 연계 계획(안)' | paraPrIDRef: 38 | styleIDRef: 0 | charPrIDRef: 17
+Index: 172 | Text: '❍ 분리 상태 유지' | paraPrIDRef: 42 | styleIDRef: 0 | charPrIDRef: 18
+Index: 173 | Text: '대상자 모집(별도)⇨측정, 상담, 운동처방⇨사후 관리 서비스▪헬스체크업 + 서울체력장 통합 예약------------------------------▪대사증후군 측정자 연계1. 헬스체크업 측정2. 서울체력장 측정 - 3항목 측정 데이터 통합(AI)3. 통합 운동 처방 및 교육▪3개월 인터벌 관리▪운동 프로그램 연계▪공공 PT 프로그램 연계' | paraPrIDRef: 42 | styleIDRef: 0 | charPrIDRef: 18
+Index: 174 | Text: '대상자 모집(별도)' | paraPrIDRef: 21 | styleIDRef: 0 | charPrIDRef: 47
+Index: 175 | Text: '⇨' | paraPrIDRef: 55 | styleIDRef: 0 | charPrIDRef: 23
+Index: 176 | Text: '측정, 상담, 운동처방' | paraPrIDRef: 21 | styleIDRef: 0 | charPrIDRef: 47
+Index: 177 | Text: '⇨' | paraPrIDRef: 55 | styleIDRef: 0 | charPrIDRef: 23
+Index: 178 | Text: '사후 관리 서비스' | paraPrIDRef: 28 | styleIDRef: 0 | charPrIDRef: 48
+Index: 179 | Text: '' | paraPrIDRef: 28 | styleIDRef: 0 | charPrIDRef: 22
+Index: 180 | Text: '' | paraPrIDRef: 28 | styleIDRef: 0 | charPrIDRef: 22
+Index: 181 | Text: '' | paraPrIDRef: 28 | styleIDRef: 0 | charPrIDRef: 24
+Index: 182 | Text: '▪헬스체크업 + 서울체력장 통합 예약' | paraPrIDRef: 57 | styleIDRef: 0 | charPrIDRef: 40
+Index: 183 | Text: '------------------------------' | paraPrIDRef: 51 | styleIDRef: 0 | charPrIDRef: 40
+Index: 184 | Text: '▪대사증후군 측정자 연계' | paraPrIDRef: 53 | styleIDRef: 0 | charPrIDRef: 40
+Index: 185 | Text: '1. 헬스체크업 측정' | paraPrIDRef: 51 | styleIDRef: 0 | charPrIDRef: 40
+Index: 186 | Text: '2. 서울체력장 측정' | paraPrIDRef: 51 | styleIDRef: 0 | charPrIDRef: 40
+Index: 187 | Text: '- 3항목 측정 데이터 통합(AI)' | paraPrIDRef: 51 | styleIDRef: 0 | charPrIDRef: 44
+Index: 188 | Text: '3. 통합 운동 처방 및 교육' | paraPrIDRef: 51 | styleIDRef: 0 | charPrIDRef: 40
+Index: 189 | Text: '▪3개월 인터벌 관리' | paraPrIDRef: 53 | styleIDRef: 0 | charPrIDRef: 40
+Index: 190 | Text: '▪운동 프로그램 연계' | paraPrIDRef: 52 | styleIDRef: 0 | charPrIDRef: 40
+Index: 191 | Text: '▪공공 PT 프로그램 연계' | paraPrIDRef: 52 | styleIDRef: 0 | charPrIDRef: 40
+Index: 192 | Text: '❍ 통합 센터 구축' | paraPrIDRef: 42 | styleIDRef: 0 | charPrIDRef: 18
+Index: 193 | Text: '예약⇨측정, 상담, 운동처방⇨건강 관리 서비스▪통합 시스템 예약1. 대사증후군 측정   (영양 상담 포함)2. 헬스체크업 측정3. 서울체력장 측정4. 의사 상담(또는 진료)= 통합 운동 처방▪스마트짐 프로그램 연계▪3개월 간격 재방문 유도▪대사증후군 강좌 연계▪운동 프로그램 연계▪공공 PT 서비스 연계' | paraPrIDRef: 42 | styleIDRef: 0 | charPrIDRef: 18
+Index: 194 | Text: '예약' | paraPrIDRef: 21 | styleIDRef: 0 | charPrIDRef: 47
+Index: 195 | Text: '⇨' | paraPrIDRef: 30 | styleIDRef: 0 | charPrIDRef: 23
+Index: 196 | Text: '측정, 상담, 운동처방' | paraPrIDRef: 21 | styleIDRef: 0 | charPrIDRef: 47
+Index: 197 | Text: '⇨' | paraPrIDRef: 30 | styleIDRef: 0 | charPrIDRef: 23
+Index: 198 | Text: '건강 관리 서비스' | paraPrIDRef: 28 | styleIDRef: 0 | charPrIDRef: 48
+Index: 199 | Text: '' | paraPrIDRef: 28 | styleIDRef: 0 | charPrIDRef: 22
+Index: 200 | Text: '' | paraPrIDRef: 28 | styleIDRef: 0 | charPrIDRef: 22
+Index: 201 | Text: '' | paraPrIDRef: 28 | styleIDRef: 0 | charPrIDRef: 24
+Index: 202 | Text: '▪통합 시스템 예약' | paraPrIDRef: 53 | styleIDRef: 0 | charPrIDRef: 40
+Index: 203 | Text: '1. 대사증후군 측정' | paraPrIDRef: 33 | styleIDRef: 0 | charPrIDRef: 40
+Index: 204 | Text: '(영양 상담 포함)' | paraPrIDRef: 53 | styleIDRef: 0 | charPrIDRef: 43
+Index: 205 | Text: '2. 헬스체크업 측정' | paraPrIDRef: 51 | styleIDRef: 0 | charPrIDRef: 40
+Index: 206 | Text: '3. 서울체력장 측정' | paraPrIDRef: 51 | styleIDRef: 0 | charPrIDRef: 40
+Index: 207 | Text: '4. 의사 상담(또는 진료)' | paraPrIDRef: 51 | styleIDRef: 0 | charPrIDRef: 41
+Index: 208 | Text: '= 통합 운동 처방' | paraPrIDRef: 51 | styleIDRef: 0 | charPrIDRef: 43
+Index: 209 | Text: '▪스마트짐 프로그램 연계' | paraPrIDRef: 53 | styleIDRef: 0 | charPrIDRef: 41
+Index: 210 | Text: '▪3개월 간격 재방문 유도' | paraPrIDRef: 53 | styleIDRef: 0 | charPrIDRef: 40
+Index: 211 | Text: '▪대사증후군 강좌 연계' | paraPrIDRef: 53 | styleIDRef: 0 | charPrIDRef: 40
+Index: 212 | Text: '▪운동 프로그램 연계' | paraPrIDRef: 52 | styleIDRef: 0 | charPrIDRef: 40
+Index: 213 | Text: '▪공공 PT 서비스 연계' | paraPrIDRef: 52 | styleIDRef: 0 | charPrIDRef: 40

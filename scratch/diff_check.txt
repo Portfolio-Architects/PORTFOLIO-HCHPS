@@ -1,0 +1,696 @@
+diff --git a/src/components/dashboard/PortfolioDashboardView.tsx b/src/components/dashboard/PortfolioDashboardView.tsx
+index 57ddc8c..81207cf 100644
+--- a/src/components/dashboard/PortfolioDashboardView.tsx
++++ b/src/components/dashboard/PortfolioDashboardView.tsx
+@@ -6,6 +6,53 @@ import { useBudget } from '@/hooks/useBudget';
+ import { Expand, Shrink, ChevronRight, LayoutDashboard, ChevronDown, ChevronUp, AlertCircle, Folder, FileText, Lock, Unlock, Layers } from 'lucide-react';
+ import { format } from 'date-fns';
+ 
++// --- 수식 계산 및 파싱 헬퍼 함수 ---
++const evaluateExpression = (expr: string): number => {
++  try {
++    const cleanExpr = expr.replace(/,/g, '');
++    if (!/^[0-9+\-*/\s()]*$/.test(cleanExpr)) {
++      return 0;
++    }
++    // eslint-disable-next-line no-new-func
++    const result = new Function(`return (${cleanExpr})`)();
++    return typeof result === 'number' && !isNaN(result) ? result : 0;
++  } catch (e) {
++    return 0;
++  }
++};
++
++interface SplitFormula {
++  completed: string;
++  planned: string;
++}
++
++const extractSplitFormulaFromNote = (note: string | undefined): SplitFormula => {
++  const result = { completed: '', planned: '' };
++  if (!note) return result;
++  
++  const match = note.match(/^\[완료:\s*(.*?)\s*\|\s*예정:\s*(.*?)\s*\]/);
++  if (match) {
++    result.completed = match[1];
++    result.planned = match[2];
++  }
++  return result;
++};
++
++const extractMemoFromNoteWithSplit = (note: string | undefined): string => {
++  if (!note) return '';
++  return note.replace(/^\[완료:.*?\|.*?\]\s*/, '');
++};
++
++const buildNoteWithSplitFormula = (completedFormula: string, plannedFormula: string, memo: string): string => {
++  const comp = completedFormula.trim();
++  const plan = plannedFormula.trim();
++  const trimmedMemo = memo.trim();
++  
++  if (!comp && !plan) return trimmedMemo;
++  
++  return `[완료: ${comp} | 예정: ${plan}]${trimmedMemo ? ' ' + trimmedMemo : ''}`;
++};
++
+ interface DashboardProps {
+   tasks: Task[];
+   budgetCategories: BudgetCategory[];
+@@ -20,6 +67,7 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
+   const [expanded, setExpanded] = useState(false);
+   const [chartType, setChartType] = useState<'monthly' | 'cumulative'>('monthly');
+   const [expandedSubCategory, setExpandedSubCategory] = useState<string | null>(null);
++  const [activeInputId, setActiveInputId] = useState<string | null>(null);
+ 
+   const { addEntry, updateEntry, deleteEntry, updateCategory, entries, getCategoryStats } = useBudget();
+ 
+@@ -324,8 +372,6 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
+               </ResponsiveContainer>
+             </div>
+           </div>
+-
+-
+         </div>
+       </div>
+ 
+@@ -341,6 +387,35 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
+             const isExpanded = expandedCategory === item.name;
+             const subItems = budgetCategories.filter(c => c.detailedProject === item.name);
+             
++            // 대카테고리 수준에서 모든 소카테고리의 설계 확정 금액(가상 조정액) 합산
++            let categoryVirtualAdjustment = 0;
++            subItems.forEach((sub: any) => {
++              if (sub.subItems) {
++                sub.subItems.forEach((s: any) => {
++                  const hasCalcs = s.calculations && s.calculations.length > 0;
++                  if (hasCalcs) {
++                    s.calculations.forEach((c: any) => {
++                      if (typeof c.virtualAdjustment === 'number') {
++                        categoryVirtualAdjustment += c.virtualAdjustment;
++                      }
++                    });
++                  } else {
++                    if (typeof s.virtualAdjustment === 'number') {
++                      categoryVirtualAdjustment += s.virtualAdjustment;
++                    }
++                  }
++                });
++              }
++            });
++
++            // 대카테고리 수준의 남은 차액 (총 본예산 - 설계 확정 금액 합산)
++            const categoryRemainingDiff = item.total - categoryVirtualAdjustment;
++            
++            // 실제 집행률, 설계 확정률, 남은 예산 비율 계산
++            const executionRate = item.rate;
++            const designRate = item.total > 0 ? (categoryVirtualAdjustment / item.total) * 100 : 0;
++            const remainingRate = item.total > 0 ? (categoryRemainingDiff / item.total) * 100 : 0;
++            
+             return (
+               <div key={idx} className="flex flex-col bg-white rounded-[1.5rem] shadow-sm overflow-hidden transition-all duration-300 border border-transparent hover:border-slate-100">
+                 <div 
+@@ -351,11 +426,38 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
+                     <div className="w-4 h-4 rounded-full shadow-sm" style={{ backgroundColor: themeColors[idx % themeColors.length] || '#cbd5e1' }} />
+                     <span className="text-lg font-black text-slate-800 tracking-tight">{item.name}</span>
+                   </div>
+-                  <div className="flex items-center justify-between sm:justify-end gap-6 w-full sm:w-auto">
+-                    <div className="flex flex-col sm:items-end">
+-                      <span className="text-xl font-black text-slate-900">{item.total.toLocaleString()} <span className="text-xs text-slate-400">KRW</span></span>
++                  <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto">
++                    <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
++                      {/* 대카테고리 총 본예산 칩 */}
++                      <div className="flex flex-col sm:items-end px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-100/80 shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)] min-w-[100px] sm:min-w-[120px]">
++                        <span className="text-[15px] font-bold text-slate-500 leading-tight">총 본예산</span>
++                        <span className="font-extrabold text-[17px] text-slate-700 mt-0.5">{item.total.toLocaleString()}원</span>
++                      </div>
++  
++                      {/* 대카테고리 합산 설계확정 금액 칩 */}
++                      <div className="flex flex-col sm:items-end px-3 py-1.5 rounded-xl bg-indigo-50/30 border border-indigo-100/50 shadow-[inset_0_1px_2px_rgba(79,70,229,0.02)] min-w-[100px] sm:min-w-[120px]">
++                        <span className="text-[15px] font-bold text-indigo-600/90 leading-tight">설계 확정 금액</span>
++                        <span className="font-black text-[17px] text-indigo-600 mt-0.5">{categoryVirtualAdjustment.toLocaleString()}원</span>
++                      </div>
++  
++                      {/* 대카테고리 남은 차액 칩 */}
++                      <div className={`flex flex-col sm:items-end px-3 py-1.5 rounded-xl border min-w-[100px] sm:min-w-[120px] ${
++                        categoryRemainingDiff === 0 
++                          ? 'bg-emerald-50/30 border-emerald-100/50 shadow-[inset_0_1px_2px_rgba(16,185,129,0.02)]' 
++                          : 'bg-rose-50/30 border-rose-100/50 shadow-[inset_0_1px_2px_rgba(244,63,94,0.02)]'
++                      }`}>
++                        <span className={`text-[15px] font-bold leading-tight ${categoryRemainingDiff === 0 ? 'text-emerald-600' : 'text-rose-600'}`}>남은 차액</span>
++                        <span className={`font-black text-[17px] mt-0.5 ${categoryRemainingDiff === 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{categoryRemainingDiff.toLocaleString()}원</span>
++                      </div>
++                    </div>
++                    
++                    {/* 다차원 비율 정보 패널 */}
++                    <div className="border-l border-slate-200 pl-4 flex flex-col gap-0.5 text-[11px] font-black text-slate-500 min-w-[155px] text-right pr-2">
++                      <div>실제 집행률: <span className="text-slate-800 font-extrabold">{executionRate.toFixed(1)}%</span></div>
++                      <div>설계 확정률: <span className="text-indigo-600 font-black">{designRate.toFixed(1)}%</span></div>
++                      <div>남은 예산 비율: <span className={categoryRemainingDiff === 0 ? 'text-emerald-600 font-black' : 'text-rose-600 font-black'}>{remainingRate.toFixed(1)}%</span></div>
+                     </div>
+-                    <span className={`text-sm font-black ${isHchps ? 'text-emerald-500' : 'text-blue-500'} w-12 text-right`}>{item.rate.toFixed(1)}%</span>
++                    
+                     {isExpanded ? <ChevronUp className="w-5 h-5 text-slate-400 shrink-0" /> : <ChevronDown className="w-5 h-5 text-slate-400 shrink-0" />}
+                   </div>
+                 </div>
+@@ -553,12 +655,40 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
+                                           <th className="py-2.5 px-4">구분 / 세부 항목명</th>
+                                           <th className="py-2.5 px-4 text-right">공식 예산액 (원)</th>
+                                           <th className="py-2.5 px-4 text-center">집행 제어</th>
+-                                          <th className="py-2.5 px-4 text-right w-[180px]">가상 조정액 (원)</th>
++                                          <th className="py-2.5 px-4 text-right w-[150px]">확정액 (지출 완료)</th>
++                                          <th className="py-2.5 px-4 text-right w-[150px]">확정액 (지출 예정)</th>
++                                          <th className="py-2.5 px-4 text-right w-[140px]">남은 차액 (원)</th>
++                                          <th className="py-2.5 px-4 text-left w-[200px]">비고</th>
+                                         </tr>
+                                       </thead>
+                                       <tbody className="text-sm font-bold text-slate-600 divide-y divide-slate-100">
+                                         {sub.subItems && sub.subItems.map((s: any, sIdx: number) => {
+                                           const hasCalcs = s.calculations && s.calculations.length > 0;
++                                          
++                                          // Calculate completed/planned amounts for step 1
++                                          let sCompTotal = 0;
++                                          let sPlanTotal = 0;
++                                          
++                                          if (hasCalcs) {
++                                            s.calculations.forEach((c: any) => {
++                                              const { completed, planned } = extractSplitFormulaFromNote(c.note);
++                                              const compBase = completed 
++                                                ? completed 
++                                                : (!completed && !planned && c.virtualAdjustment ? c.virtualAdjustment.toString() : '');
++                                              sCompTotal += evaluateExpression(compBase);
++                                              sPlanTotal += evaluateExpression(planned);
++                                            });
++                                          } else {
++                                            const { completed, planned } = extractSplitFormulaFromNote(s.note);
++                                            const compBase = completed 
++                                              ? completed 
++                                              : (!completed && !planned && s.virtualAdjustment ? s.virtualAdjustment.toString() : '');
++                                            sCompTotal = evaluateExpression(compBase);
++                                            sPlanTotal = evaluateExpression(planned);
++                                          }
++                                          
++                                          const sRemainingDiff = s.amount - (sCompTotal + sPlanTotal);
++                                          
+                                           return (
+                                             <React.Fragment key={sIdx}>
+                                               {/* 1단계 통계목 아이템 */}
+@@ -589,116 +719,410 @@ export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries,
+                                                     {s.isLocked ? <Lock className="w-4 h-4 text-red-500" /> : <Unlock className="w-4 h-4 text-emerald-500" />}
+                                                   </button>
+                                                 </td>
++                                                {/* 확정액 (지출 완료) */}
++                                                <td className="py-3 px-4 text-right">
++                                                  {hasCalcs ? (
++                                                    <span className="text-[13px] font-extrabold text-slate-500">
++                                                      {sCompTotal > 0 ? `${sCompTotal.toLocaleString()}원` : '-'}
++                                                    </span>
++                                                  ) : (() => {
++                                                    const { completed: compFormula, planned: planFormula } = extractSplitFormulaFromNote(s.note);
++                                                    const compBase = compFormula 
++                                                      ? compFormula 
++                                                      : (!compFormula && !planFormula && s.virtualAdjustment ? s.virtualAdjustment.toString() : '');
++                                                    const compVal = evaluateExpression(compBase);
++                                                    const displayCompleted = compFormula || compBase;
++                                                    
++                                                    const inputId = `sub-comp-${sub.id}-${sIdx}`;
++                                                    const isEditing = activeInputId === inputId;
++                                                    
++                                                    if (isEditing) {
++                                                      return (
++                                                        <input 
++                                                          autoFocus
++                                                          key={`input-sub-comp-${sub.id}-${sIdx}`}
++                                                          type="text"
++                                                          placeholder="0"
++                                                          defaultValue={displayCompleted}
++                                                          onInput={(e: React.FormEvent<HTMLInputElement>) => {
++                                                            const val = e.currentTarget.value;
++                                                            const cleanVal = val.replace(/[^0-9+\-*/\s,()]/g, '');
++                                                            const formatted = cleanVal.replace(/,/g, '').replace(/\d+/g, (m) => parseInt(m, 10).toLocaleString());
++                                                            e.currentTarget.value = formatted;
++                                                          }}
++                                                          onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
++                                                            const inputVal = e.target.value.trim();
++                                                            const updatedSubItems = [...(sub.subItems || [])];
++                                                            const currentItem = updatedSubItems[sIdx];
++                                                            const { planned: existingPlanned } = extractSplitFormulaFromNote(currentItem.note);
++                                                            
++                                                            const completedVal = evaluateExpression(inputVal);
++                                                            const plannedVal = evaluateExpression(existingPlanned);
++                                                            const existingMemo = extractMemoFromNoteWithSplit(currentItem.note);
++                                                            
++                                                            const newNote = buildNoteWithSplitFormula(inputVal, existingPlanned, existingMemo);
++                                                            
++                                                            updatedSubItems[sIdx] = {
++                                                              ...currentItem,
++                                                              virtualAdjustment: completedVal + plannedVal,
++                                                              note: newNote
++                                                            };
++                                                            updateCategory(sub.id, { subItems: updatedSubItems });
++                                                            setTimeout(() => setActiveInputId(null), 150);
++                                                          }}
++                                                          className="w-full bg-white border border-blue-500 rounded-lg px-2.5 py-1 text-xs font-black text-slate-800 text-right focus:ring-1 focus:ring-blue-500/20 outline-none"
++                                                        />
++                                                      );
++                                                    }
++                                                    
++                                                    return (
++                                                      <div 
++                                                        onClick={(e) => {
++                                                          e.stopPropagation();
++                                                          setTimeout(() => setActiveInputId(inputId), 50);
++                                                        }}
++                                                        className={`px-3 py-1.5 rounded-full text-right cursor-pointer text-xs font-black transition-colors min-w-[80px] inline-block ${
++                                                          compVal > 0 
++                                                            ? 'text-slate-700 bg-slate-50 border border-slate-200 hover:bg-slate-100/70' 
++                                                            : 'text-slate-300 bg-slate-50/50 border border-dashed border-slate-200 hover:bg-slate-50'
++                                                        }`}
++                                                      >
++                                                        {compVal > 0 ? compVal.toLocaleString() : '완료액'}
++                                                      </div>
++                                                    );
++                                                  })()}
++                                                </td>
++                                                {/* 확정액 (지출 예정) */}
++                                                <td className="py-3 px-4 text-right">
++                                                  {hasCalcs ? (
++                                                    <span className="text-[13px] font-extrabold text-slate-500">
++                                                      {sPlanTotal > 0 ? `${sPlanTotal.toLocaleString()}원` : '-'}
++                                                    </span>
++                                                  ) : (() => {
++                                                    const { completed: compFormula, planned: planFormula } = extractSplitFormulaFromNote(s.note);
++                                                    const planVal = evaluateExpression(planFormula);
++                                                    
++                                                    const inputId = `sub-plan-${sub.id}-${sIdx}`;
++                                                    const isEditing = activeInputId === inputId;
++                                                    
++                                                    if (isEditing) {
++                                                      return (
++                                                        <input 
++                                                          autoFocus
++                                                          key={`input-sub-plan-${sub.id}-${sIdx}`}
++                                                          type="text"
++                                                          placeholder="0"
++                                                          defaultValue={planFormula}
++                                                          onInput={(e: React.FormEvent<HTMLInputElement>) => {
++                                                            const val = e.currentTarget.value;
++                                                            const cleanVal = val.replace(/[^0-9+\-*/\s,()]/g, '');
++                                                            const formatted = cleanVal.replace(/,/g, '').replace(/\d+/g, (m) => parseInt(m, 10).toLocaleString());
++                                                            e.currentTarget.value = formatted;
++                                                          }}
++                                                          onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
++                                                            const inputVal = e.target.value.trim();
++                                                            const updatedSubItems = [...(sub.subItems || [])];
++                                                            const currentItem = updatedSubItems[sIdx];
++                                                            const { completed: existingCompleted } = extractSplitFormulaFromNote(currentItem.note);
++                                                            const compBase = existingCompleted 
++                                                              ? existingCompleted 
++                                                              : (!currentItem.note && currentItem.virtualAdjustment ? currentItem.virtualAdjustment.toString() : '');
++                                                            
++                                                            const completedVal = evaluateExpression(compBase);
++                                                            const plannedVal = evaluateExpression(inputVal);
++                                                            const existingMemo = extractMemoFromNoteWithSplit(currentItem.note);
++                                                            
++                                                            const newNote = buildNoteWithSplitFormula(compBase, inputVal, existingMemo);
++                                                            
++                                                            updatedSubItems[sIdx] = {
++                                                              ...currentItem,
++                                                              virtualAdjustment: completedVal + plannedVal,
++                                                              note: newNote
++                                                            };
++                                                            updateCategory(sub.id, { subItems: updatedSubItems });
++                                                            setTimeout(() => setActiveInputId(null), 150);
++                                                          }}
++                                                          className="w-full bg-white border border-blue-500 rounded-lg px-2.5 py-1 text-xs font-black text-slate-800 text-right focus:ring-1 focus:ring-blue-500/20 outline-none"
++                                                        />
++                                                      );
++                                                    }
++                                                    
++                                                    return (
++                                                      <div 
++                                                        onClick={(e) => {
++                                                          e.stopPropagation();
++                                                          setActiveInputId(inputId);
++                                                        }}
++                                                        className={`px-3 py-1.5 rounded-full text-right cursor-pointer text-xs font-black transition-colors min-w-[80px] inline-block ${
++                                                          planVal > 0 
++                                                            ? 'text-slate-700 bg-slate-50 border border-slate-200 hover:bg-slate-100/70' 
++                                                            : 'text-slate-300 bg-slate-50/50 border border-dashed border-slate-200 hover:bg-slate-50'
++                                                        }`}
++                                                      >
++                                                        {planVal > 0 ? planVal.toLocaleString() : '예정액'}
++                                                      </div>
++                                                    );
++                                                  })()}
++                                                </td>
++                                                {/* 남은 차액 (원) */}
++                                                <td className={`py-3 px-4 text-right font-extrabold text-[13px] ${
++                                                  sRemainingDiff === 0 ? 'text-emerald-600' : 'text-rose-600'
++                                                }`}>
++                                                  {sRemainingDiff.toLocaleString()}원
++                                                </td>
++                                                {/* 비고 */}
+                                                 <td className="py-3 px-4">
+-                                                  {!hasCalcs && (
++                                                  {!hasCalcs ? (
+                                                     <input 
+                                                       type="text"
+-                                                      placeholder="0"
+-                                                      defaultValue={s.virtualAdjustment ? (s.virtualAdjustment > 0 ? `+${s.virtualAdjustment.toLocaleString()}` : s.virtualAdjustment.toLocaleString()) : ''}
+-                                                      onInput={(e: any) => {
+-                                                        // 음수 및 숫자 콤마 포맷터
+-                                                        const val = e.target.value;
+-                                                        const isNegative = val.startsWith('-');
+-                                                        const digits = val.replace(/[^0-9]/g, '');
+-                                                        if (!digits) {
+-                                                          e.target.value = isNegative ? '-' : '';
+-                                                          return;
+-                                                        }
+-                                                        const formatted = parseInt(digits, 10).toLocaleString();
+-                                                        e.target.value = isNegative ? `-${formatted}` : formatted;
+-                                                      }}
++                                                      placeholder="비고 입력"
++                                                      defaultValue={extractMemoFromNoteWithSplit(s.note)}
+                                                       onBlur={(e: any) => {
+-                                                        const rawVal = e.target.value.replace(/,/g, '');
+-                                                        const adjValue = parseInt(rawVal, 10) || 0;
++                                                        const noteVal = e.target.value.trim();
+                                                         const updatedSubItems = [...sub.subItems];
++                                                        const currentItem = updatedSubItems[sIdx];
++                                                        const { completed, planned } = extractSplitFormulaFromNote(currentItem.note);
++                                                        
++                                                        const finalNote = buildNoteWithSplitFormula(completed, planned, noteVal);
++                                                        
+                                                         updatedSubItems[sIdx] = {
+-                                                          ...updatedSubItems[sIdx],
+-                                                          virtualAdjustment: adjValue
++                                                          ...currentItem,
++                                                          note: finalNote
+                                                         };
+                                                         updateCategory(sub.id, { subItems: updatedSubItems });
+                                                       }}
+-                                                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-black text-slate-800 text-right focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 outline-none transition-all"
++                                                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-600 focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 outline-none transition-all"
+                                                     />
++                                                  ) : (
++                                                    <span className="text-xs text-slate-400 font-semibold italic">하위 계산식 참고</span>
+                                                   )}
+                                                 </td>
+                                               </tr>
+ 
+                                               {/* 2단계 세부 계산식 아이템 */}
+-                                              {hasCalcs && s.calculations.map((c: any, cIdx: number) => (
+-                                                <tr key={`calc-${cIdx}`} className="bg-slate-50/5 hover:bg-slate-50/20 transition-colors">
+-                                                  <td className="py-2.5 px-4 pl-8 flex items-center gap-2 text-xs">
+-                                                    <FileText className="w-3.5 h-3.5 text-slate-300 shrink-0" />
+-                                                    <span className="text-slate-500">{c.name || c.calculation}</span>
+-                                                    {c.isLocked && (
+-                                                      <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-red-50 text-red-500 border border-red-100">차단됨</span>
+-                                                    )}
+-                                                  </td>
+-                                                  <td className="py-2.5 px-4 text-right text-xs font-bold text-slate-500">
+-                                                    {c.amount.toLocaleString()}원
+-                                                  </td>
+-                                                  <td className="py-2.5 px-4 text-center">
+-                                                    <button 
+-                                                      onClick={() => {
+-                                                        const updatedSubItems = [...sub.subItems];
+-                                                        const updatedCalcs = [...updatedSubItems[sIdx].calculations];
+-                                                        updatedCalcs[cIdx] = {
+-                                                          ...updatedCalcs[cIdx],
+-                                                          isLocked: !updatedCalcs[cIdx].isLocked
+-                                                        };
+-                                                        updatedSubItems[sIdx] = {
+-                                                          ...updatedSubItems[sIdx],
+-                                                          calculations: updatedCalcs
+-                                                        };
+-                                                        updateCategory(sub.id, { subItems: updatedSubItems });
+-                                                      }}
+-                                                      className="p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer inline-flex items-center justify-center"
+-                                                      title={c.isLocked ? "예산 통제 잠금 해제" : "예산 통제 잠금 (사용 불가)"}
+-                                                    >
+-                                                      {c.isLocked ? <Lock className="w-3.5 h-3.5 text-red-500" /> : <Unlock className="w-3.5 h-3.5 text-emerald-500" />}
+-                                                    </button>
+-                                                  </td>
+-                                                  <td className="py-2.5 px-4">
+-                                                    <input 
+-                                                      type="text"
+-                                                      placeholder="0"
+-                                                      defaultValue={c.virtualAdjustment ? (c.virtualAdjustment > 0 ? `+${c.virtualAdjustment.toLocaleString()}` : c.virtualAdjustment.toLocaleString()) : ''}
+-                                                      onInput={(e: any) => {
+-                                                        const val = e.target.value;
+-                                                        const isNegative = val.startsWith('-');
+-                                                        const digits = val.replace(/[^0-9]/g, '');
+-                                                        if (!digits) {
+-                                                          e.target.value = isNegative ? '-' : '';
+-                                                          return;
++                                              {hasCalcs && s.calculations.map((c: any, cIdx: number) => {
++                                                const { completed, planned } = extractSplitFormulaFromNote(c.note);
++                                                const compBase = completed 
++                                                  ? completed 
++                                                  : (!completed && !planned && c.virtualAdjustment ? c.virtualAdjustment.toString() : '');
++                                                const cCompVal = evaluateExpression(compBase);
++                                                const cPlanVal = evaluateExpression(planned);
++                                                const cRemainingDiff = c.amount - (cCompVal + cPlanVal);
++                                                
++                                                return (
++                                                  <tr key={`calc-${cIdx}`} className="bg-slate-50/5 hover:bg-slate-50/20 transition-colors">
++                                                    <td className="py-2.5 px-4 pl-8 flex items-center gap-2 text-xs">
++                                                      <FileText className="w-3.5 h-3.5 text-slate-300 shrink-0" />
++                                                      <span className="text-slate-500">{c.name || c.calculation}</span>
++                                                      {c.isLocked && (
++                                                        <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-red-50 text-red-500 border border-red-100">차단됨</span>
++                                                      )}
++                                                    </td>
++                                                    <td className="py-2.5 px-4 text-right text-xs font-bold text-slate-500">
++                                                      {c.amount.toLocaleString()}원
++                                                    </td>
++                                                    <td className="py-2.5 px-4 text-center">
++                                                      <button 
++                                                        onClick={() => {
++                                                          const updatedSubItems = [...sub.subItems];
++                                                          const updatedCalcs = [...updatedSubItems[sIdx].calculations];
++                                                          updatedCalcs[cIdx] = {
++                                                            ...updatedCalcs[cIdx],
++                                                            isLocked: !updatedCalcs[cIdx].isLocked
++                                                          };
++                                                          updatedSubItems[sIdx] = {
++                                                            ...updatedSubItems[sIdx],
++                                                            calculations: updatedCalcs
++                                                          };
++                                                          updateCategory(sub.id, { subItems: updatedSubItems });
++                                                        }}
++                                                        className="p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer inline-flex items-center justify-center"
++                                                        title={c.isLocked ? "예산 통제 잠금 해제" : "예산 통제 잠금 (사용 불가)"}
++                                                      >
++                                                        {c.isLocked ? <Lock className="w-3.5 h-3.5 text-red-500" /> : <Unlock className="w-3.5 h-3.5 text-emerald-500" />}
++                                                      </button>
++                                                    </td>
++                                                    {/* 2단계 완료액 */}
++                                                    <td className="py-2.5 px-4 text-right">
++                                                      {(() => {
++                                                        const displayCompleted = completed || compBase;
++                                                        const inputId = `calc-comp-${sub.id}-${sIdx}-${cIdx}`;
++                                                        const isEditing = activeInputId === inputId;
++                                                        
++                                                        if (isEditing) {
++                                                          return (
++                                                            <input 
++                                                              autoFocus
++                                                              key={`input-calc-comp-${sub.id}-${sIdx}-${cIdx}`}
++                                                              type="text"
++                                                              placeholder="0"
++                                                              defaultValue={displayCompleted}
++                                                              onInput={(e: React.FormEvent<HTMLInputElement>) => {
++                                                                const val = e.currentTarget.value;
++                                                                const cleanVal = val.replace(/[^0-9+\-*/\s,()]/g, '');
++                                                                const formatted = cleanVal.replace(/,/g, '').replace(/\d+/g, (m) => parseInt(m, 10).toLocaleString());
++                                                                e.currentTarget.value = formatted;
++                                                              }}
++                                                              onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
++                                                                const inputVal = e.target.value.trim();
++                                                                const updatedSubItems = [...sub.subItems];
++                                                                const updatedCalcs = [...updatedSubItems[sIdx].calculations];
++                                                                const currentCalc = updatedCalcs[cIdx];
++                                                                const { planned: existingPlanned } = extractSplitFormulaFromNote(currentCalc.note);
++                                                                
++                                                                const completedVal = evaluateExpression(inputVal);
++                                                                const plannedVal = evaluateExpression(existingPlanned);
++                                                                const existingMemo = extractMemoFromNoteWithSplit(currentCalc.note);
++                                                                
++                                                                const newNote = buildNoteWithSplitFormula(inputVal, existingPlanned, existingMemo);
++                                                                
++                                                                updatedCalcs[cIdx] = {
++                                                                  ...currentCalc,
++                                                                  virtualAdjustment: completedVal + plannedVal,
++                                                                  note: newNote
++                                                                };
++                                                                updatedSubItems[sIdx] = {
++                                                                  ...updatedSubItems[sIdx],
++                                                                  calculations: updatedCalcs
++                                                                };
++                                                                updateCategory(sub.id, { subItems: updatedSubItems });
++                                                                setTimeout(() => setActiveInputId(null), 150);
++                                                              }}
++                                                              className="w-full bg-white border border-blue-500 rounded-lg px-2 py-0.5 text-xs font-black text-slate-800 text-right focus:ring-1 focus:ring-blue-500/20 outline-none"
++                                                            />
++                                                          );
+                                                         }
+-                                                        const formatted = parseInt(digits, 10).toLocaleString();
+-                                                        e.target.value = isNegative ? `-${formatted}` : formatted;
+-                                                      }}
+-                                                      onBlur={(e: any) => {
+-                                                        const rawVal = e.target.value.replace(/,/g, '');
+-                                                        const adjValue = parseInt(rawVal, 10) || 0;
+-                                                        const updatedSubItems = [...sub.subItems];
+-                                                        const updatedCalcs = [...updatedSubItems[sIdx].calculations];
+-                                                        updatedCalcs[cIdx] = {
+-                                                          ...updatedCalcs[cIdx],
+-                                                          virtualAdjustment: adjValue
+-                                                        };
+-                                                        updatedSubItems[sIdx] = {
+-                                                          ...updatedSubItems[sIdx],
+-                                                          calculations: updatedCalcs
+-                                                        };
+-                                                        updateCategory(sub.id, { subItems: updatedSubItems });
+-                                                      }}
+-                                                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-black text-slate-800 text-right focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 outline-none transition-all"
+-                                                    />
+-                                                  </td>
+-                                                </tr>
+-                                              ))}
++                                                        
++                                                        return (
++                                                          <div 
++                                                            onClick={(e) => {
++                                                              e.stopPropagation();
++                                                              setTimeout(() => setActiveInputId(inputId), 50);
++                                                            }}
++                                                            className={`px-2.5 py-1 rounded-full text-right cursor-pointer text-xs font-extrabold transition-colors min-w-[70px] inline-block ${
++                                                              cCompVal > 0 
++                                                                ? 'text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100/70' 
++                                                                : 'text-slate-300 bg-slate-50/50 border border-dashed border-slate-200 hover:bg-slate-50'
++                                                            }`}
++                                                          >
++                                                            {cCompVal > 0 ? cCompVal.toLocaleString() : '완료액'}
++                                                          </div>
++                                                        );
++                                                      })()}
++                                                    </td>
++                                                    {/* 2단계 예정액 */}
++                                                    <td className="py-2.5 px-4 text-right">
++                                                      {(() => {
++                                                        const inputId = `calc-plan-${sub.id}-${sIdx}-${cIdx}`;
++                                                        const isEditing = activeInputId === inputId;
++                                                        
++                                                        if (isEditing) {
++                                                          return (
++                                                            <input 
++                                                              autoFocus
++                                                              key={`input-calc-plan-${sub.id}-${sIdx}-${cIdx}`}
++                                                              type="text"
++                                                              placeholder="0"
++                                                              defaultValue={planned}
++                                                              onInput={(e: React.FormEvent<HTMLInputElement>) => {
++                                                                const val = e.currentTarget.value;
++                                                                const cleanVal = val.replace(/[^0-9+\-*/\s,()]/g, '');
++                                                                const formatted = cleanVal.replace(/,/g, '').replace(/\d+/g, (m) => parseInt(m, 10).toLocaleString());
++                                                                e.currentTarget.value = formatted;
++                                                              }}
++                                                              onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
++                                                                const inputVal = e.target.value.trim();
++                                                                const updatedSubItems = [...sub.subItems];
++                                                                const updatedCalcs = [...updatedSubItems[sIdx].calculations];
++                                                                const currentCalc = updatedCalcs[cIdx];
++                                                                const { completed: existingCompleted } = extractSplitFormulaFromNote(currentCalc.note);
++                                                                const compBase = existingCompleted 
++                                                                  ? existingCompleted 
++                                                                  : (!currentCalc.note && currentCalc.virtualAdjustment ? currentCalc.virtualAdjustment.toString() : '');
++                                                                
++                                                                const completedVal = evaluateExpression(compBase);
++                                                                const plannedVal = evaluateExpression(inputVal);
++                                                                const existingMemo = extractMemoFromNoteWithSplit(currentCalc.note);
++                                                                
++                                                                const newNote = buildNoteWithSplitFormula(compBase, inputVal, existingMemo);
++                                                                
++                                                                updatedCalcs[cIdx] = {
++                                                                  ...currentCalc,
++                                                                  virtualAdjustment: completedVal + plannedVal,
++                                                                  note: newNote
++                                                                };
++                                                                updatedSubItems[sIdx] = {
++                                                                  ...updatedSubItems[sIdx],
++                                                                  calculations: updatedCalcs
++                                                                };
++                                                                updateCategory(sub.id, { subItems: updatedSubItems });
++                                                                setTimeout(() => setActiveInputId(null), 150);
++                                                              }}
++                                                              className="w-full bg-white border border-blue-500 rounded-lg px-2 py-0.5 text-xs font-black text-slate-800 text-right focus:ring-1 focus:ring-blue-500/20 outline-none"
++                                                            />
++                                                          );
++                                                        }
++                                                        
++                                                        return (
++                                                          <div 
++                                                            onClick={(e) => {
++                                                              e.stopPropagation();
++                                                              setTimeout(() => setActiveInputId(inputId), 50);
++                                                            }}
++                                                            className={`px-2.5 py-1 rounded-full text-right cursor-pointer text-xs font-extrabold transition-colors min-w-[70px] inline-block ${
++                                                              cPlanVal > 0 
++                                                                ? 'text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100/70' 
++                                                                : 'text-slate-300 bg-slate-50/50 border border-dashed border-slate-200 hover:bg-slate-50'
++                                                            }`}
++                                                          >
++                                                            {cPlanVal > 0 ? cPlanVal.toLocaleString() : '예정액'}
++                                                          </div>
++                                                        );
++                                                      })()}
++                                                    </td>
++                                                    {/* 2단계 남은 차액 (원) */}
++                                                    <td className={`py-2.5 px-4 text-right text-xs font-bold ${
++                                                      cRemainingDiff === 0 ? 'text-emerald-600' : 'text-rose-600'
++                                                    }`}>
++                                                      {cRemainingDiff.toLocaleString()}원
++                                                    </td>
++                                                    {/* 2단계 비고 */}
++                                                    <td className="py-2.5 px-4">
++                                                      <input 
++                                                        type="text"
++                                                        placeholder="비고 입력"
++                                                        defaultValue={extractMemoFromNoteWithSplit(c.note)}
++                                                        onBlur={(e: any) => {
++                                                          const noteVal = e.target.value.trim();
++                                                          const updatedSubItems = [...sub.subItems];
++                                                          const updatedCalcs = [...updatedSubItems[sIdx].calculations];
++                                                          const currentCalc = updatedCalcs[cIdx];
++                                                          const { completed, planned } = extractSplitFormulaFromNote(currentCalc.note);
++                                                          
++                                                          const finalNote = buildNoteWithSplitFormula(completed, planned, noteVal);
++                                                          
++                                                          updatedCalcs[cIdx] = {
++                                                            ...currentCalc,
++                                                            note: finalNote
++                                                          };
++                                                          updatedSubItems[sIdx] = {
++                                                            ...updatedSubItems[sIdx],
++                                                            calculations: updatedCalcs
++                                                          };
++                                                          updateCategory(sub.id, { subItems: updatedSubItems });
++                                                        }}
++                                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-0.5 text-xs font-medium text-slate-500 focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 outline-none transition-all"
++                                                      />
++                                                    </td>
++                                                  </tr>
++                                                );
++                                              })}
+                                             </React.Fragment>
+                                           );
+                                         })}
+                                         {(!sub.subItems || sub.subItems.length === 0) && (
+                                           <tr>
+-                                            <td colSpan={4} className="py-4 text-center text-xs text-slate-400 font-medium">공식 예산서 세부 산출 내역이 비어 있습니다.</td>
++                                            <td colSpan={7} className="py-4 text-center text-xs text-slate-400 font-medium">공식 예산서 세부 산출 내역이 비어 있습니다.</td>
+                                           </tr>
+                                         )}
+                                       </tbody>

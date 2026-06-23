@@ -1,0 +1,41 @@
+Created At: 2026-05-28T02:34:11Z
+Completed At: 2026-05-28T02:34:11Z
+File Path: `file:///d:/Desktop/PORTFOLIO/PORTFOLIO%20-%20VITAL/src/components/dashboard/PortfolioDashboardView.tsx`
+Total Lines: 1020
+Total Bytes: 76196
+Showing lines 830 to 875
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+830:                                                             }}
+831:                                                             className="w-full bg-white border border-blue-500 rounded-lg px-2.5 py-1 text-[14.4px] font-black text-slate-800 text-right focus:ring-1 focus:ring-blue-500/20 outline-none transition-all"
+832:                                                           />
+833:                                                         );
+834:                                                       }
+835: 
+836:                                                       const computedVal = evaluateExpression(compFormula);
+837:                                                       const displayVal = compFormula 
+838:                                                         ? (computedVal > 0 ? computedVal.toLocaleString() : '') 
+839:                                                         : (!planFormula && c.virtualAdjustment ? c.virtualAdjustment.toLocaleString() : '');
+840: 
+841:                                                       return (
+842:                                                         <div 
+843:                                                           onClick={() => setActiveInputId(inputId)}
+844:                                                           className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-[14.4px] font-black text-slate-800 text-right cursor-pointer hover:bg-slate-100 hover:border-slate-300 transition-all min-h-[30px] flex items-center justify-end"
+845:  
+<truncated 1323 bytes>
+                          onInput={(e: React.FormEvent<HTMLInputElement>) => {
+861:                                                             const val = e.currentTarget.value;
+862:                                                             const cleanVal = val.replace(/[^0-9+\-*/\s,()]/g, '');
+863:                                                             const formatted = cleanVal.replace(/,/g, '').replace(/\d+/g, (m) => parseInt(m, 10).toLocaleString());
+864:                                                             e.currentTarget.value = formatted;
+865:                                                           }}
+866:                                                           onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
+867:                                                             const inputVal = e.currentTarget.value.trim();
+868:                                                             const updatedSubItems = [...(sub.subItems || [])];
+869:                                                             const updatedCalcs = [...(updatedSubItems[sIdx].calculations || [])];
+870:                                                             const currentCalc = updatedCalcs[cIdx];
+871:                                                             const { completed: existingCompleted } = extractSplitFormulaFromNote(currentCalc.note);
+872:                                                             const compBase = existingCompleted 
+873:                                                               ? existingCompleted 
+874:                                                               : (!currentCalc.note && currentCalc.virtualAdjustment ? currentCalc.virtualAdjustment.toString() : '');
+875:                                                             const completedVal = evaluateExpression(compBase);
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

@@ -1,0 +1,24 @@
+Created At: 2026-05-28T01:59:55Z
+Completed At: 2026-05-28T01:59:55Z
+File Path: `file:///d:/Desktop/PORTFOLIO/PORTFOLIO%20-%20VITAL/src/components/dashboard/PortfolioDashboardView.tsx`
+Total Lines: 731
+Total Bytes: 52157
+Showing lines 35 to 50
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+35:     pieData,
+36:     breakdownData,
+37:     allBreakdownData,
+38:     monthlyExecutionData,
+39:     maxSpendMonth,
+40:     avgMonthlySpend,
+41:     velocityInsights,
+42:     remainingTargetAmount,
+43:     recommendedMonthlySpendForTarget,
+44:     exhaustionMonthName,
+45:     projectedEoyExecutionRate
+46:   } = usePortfolioAnalytics(budgetCategories, budgetEntries);
+47: 
+48: 
+49:   const isHchps = appMode === 'HCHPS';
+50:   const themeColors = useMemo(() => {
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

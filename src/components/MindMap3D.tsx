@@ -17,6 +17,7 @@ import { MindMapHeader } from './mindmap/ui/MindMapHeader';
 import { MindMapHUD } from './mindmap/ui/MindMapHUD';
 import { useWikiStorage } from '@/hooks/useWikiStorage';
 import { useClassificationWords } from '@/hooks/useClassificationWords';
+import { useFileRadar } from '@/hooks/useFileRadar';
 
 import {
   Loader2, AlertTriangle, X, Trash2, PlusSquare, Search, Radio
@@ -64,6 +65,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onD
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [parentModeSource, setParentModeSource] = useState<string | null>(null);
   const [isWikiOpen, setIsWikiOpen] = useState(false);
+  const [radarFiles, setRadarFiles] = useState<{ nodeId: string; files: any[] } | null>(null);
   
   // ── 레이아웃 모드 상태 (우주 궤도 고정 vs 가로 트리) ──
   const layoutModeRef = useRef<'orbit' | 'tree'>('orbit');
@@ -76,6 +78,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onD
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [selectedSearchIndex, setSelectedSearchIndex] = useState(-1);
   const { overrides = {}, customNodes = [], customEdges = [], deletedEdges = [], undo, redo, setNodeOverride, batchSetNodeOverrides, clearNodeOverride, addCustomNode, deleteCustomNode, updateCustomNodeText, addCustomEdge, deleteCustomEdge, removeCustomTombstone, renameNodeId, isCloudLoaded } = useGraphCustomization();
+  const { mutate: getFileRadar } = useFileRadar();
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
@@ -290,6 +293,37 @@ export function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onD
         customEdges: customEdgesRef.current,
         deletedEdges: deletedEdgesRef.current // Fix stale closure issue
       });
+
+      // ── 시맨틱 파일 레이더 가상 문서 노드 동적 주입 ──
+      if (radarFiles && radarFiles.files.length > 0) {
+        radarFiles.files.forEach((f: any) => {
+          const fileNodeId = `radar-doc-${radarFiles.nodeId}-${f.fileName}`;
+          
+          graph.nodes.push({
+            id: fileNodeId,
+            label: `📄 ${f.displayName}`,
+            group: 'INFRASTRUCTURE',
+            baseValue: 40,
+            parentId: radarFiles.nodeId,
+            layerId: 3,
+            customColor: '#06b6d4', // cyan-500
+            meta: {
+              type: 'radar-doc',
+              fileName: f.fileName,
+              summary: f.summary,
+              contacts: f.contacts
+            }
+          } as any);
+
+          graph.edges.push({
+            source: radarFiles.nodeId,
+            target: fileNodeId,
+            type: 'COMPONENTS',
+            weight: 1.5
+          });
+        });
+      }
+
       setUsingSample(Object.keys(signalKeywordsRef.current).length === 0);
 
       const engine = new OntologyCanvasEngine();
@@ -341,9 +375,48 @@ export function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onD
              setParentModeSource(null); // 자기자신을 한 번 더 누르면 취소
           }
 
+          // 만약 클릭된 노드가 radar-doc-으로 시작하지 않고,
+          // 현재 radarFiles가 표시되고 있는 부모 노드도 아니라면 radarFiles를 초기화합니다.
+          if (node) {
+            const isRadarDoc = node.id.startsWith('radar-doc-');
+            const isRadarParent = radarFiles && radarFiles.nodeId === node.id;
+            if (!isRadarDoc && !isRadarParent) {
+              setRadarFiles(null);
+            }
+          } else {
+            setRadarFiles(null);
+          }
+
           setActiveNode(node ?? null);
         },
         onHoveredNodeChange: (node) => setHoveredNode(node ?? null),
+        onNodeDoubleClick: (node) => {
+          console.log('[MindMap3D] Double clicked node for file radar:', node.id, node.label);
+          getFileRadar(
+            { nodeId: node.id, nodeLabel: node.label },
+            {
+              onSuccess: (data) => {
+                if (data && data.files && data.files.length > 0) {
+                  setRadarFiles({ nodeId: node.id, files: data.files });
+                  
+                  // Expand node if collapsed
+                  if (engineRef.current) {
+                    engineRef.current.collapsedNodeIds.delete(node.id);
+                    engineRef.current.activeNode = node;
+                    engineRef.current.topologyDirty = true;
+                    engineRef.current.needsRedraw = true;
+                  }
+                } else {
+                  setRadarFiles(null);
+                }
+              },
+              onError: (err) => {
+                console.error('[MindMap3D] Failed to fetch file radar:', err);
+                setRadarFiles(null);
+              }
+            }
+          );
+        },
         onNodeReparent: (id, newParentId, newOrbit) => {
           // Changed categorical parent, set target orbit, and clean up any physical pins
           setNodeOverride(id, { customParent: newParentId, customOrbitIndex: newOrbit, fixedX: undefined, fixedY: undefined });
@@ -372,7 +445,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onD
     } finally {
       setLoading(false);
     }
-  }, [batchSetNodeOverrides, setNodeOverride]);
+  }, [batchSetNodeOverrides, setNodeOverride, radarFiles, getFileRadar]);
 
   const handleExecuteAddNode = useCallback(() => {
     const trimmedName = newNodeName.trim();

@@ -1,0 +1,119 @@
+[
+  {
+    "id": "singleton",
+    "blocks": [
+      {
+        "id": "7505d12f-8436-4a2e-bd8a-e3245679f622",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "010 9799 6065 건강뜀 일정변경 문의",
+            "styles": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "2f3bbd57-7711-4957-a73d-1682e1944481",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [],
+        "children": []
+      },
+      {
+        "id": "6bbb752d-dac2-4c24-827f-6e4497ce3e83",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "기존 교육 2번, 5월 2회",
+            "styles": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "e15e453c-5d09-418d-a61f-7dca370e6dad",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [],
+        "children": []
+      },
+      {
+        "id": "5ef3a528-f503-4b96-b664-0ebefe092c6a",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "6월 초 1회, 하반기에 2회",
+            "styles": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "d0611203-40a0-4c4b-844c-34de559b3965",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [],
+        "children": []
+      },
+      {
+        "id": "7833b3fa-d96e-4c67-9edf-9997ed999c7a",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "6월 10일 2시부터, 스포츠 테이핑",
+            "styles": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "7ade1d51-90d4-4121-b030-0c2f35d548af",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [],
+        "children": []
+      }
+    ]
+  }
+]

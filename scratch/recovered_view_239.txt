@@ -1,0 +1,49 @@
+Created At: 2026-05-28T02:23:04Z
+Completed At: 2026-05-28T02:23:05Z
+File Path: `file:///d:/Desktop/PORTFOLIO/PORTFOLIO%20-%20VITAL/src/components/dashboard/PortfolioDashboardView.tsx`
+Total Lines: 937
+Total Bytes: 69403
+Showing lines 60 to 100
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+60:   onLogout?: () => void;
+61:   appMode?: 'HCHPS' | 'VITAL';
+62: }
+63: 
+64: export function PortfolioDashboardView({ tasks, budgetCategories, budgetEntries, onLogout, appMode = 'VITAL' }: DashboardProps) {
+65:   const [trendTab, setTrendTab] = useState('Growth');
+66:   const [timeFilter, setTimeFilter] = useState('ALL');
+67:   const [expanded, setExpanded] = useState(false);
+68:   const [chartType, setChartType] = useState<'monthly' | 'cumulative'>('monthly');
+69:   const [expandedSubCategory, setExpandedSubCategory] = useState<string | null>(null);
+70: 
+71:   const { addEntry, updateEntry, deleteEntry, updateCategory, entries, getCategoryStats } = useBudget();
+72: 
+73:   const {
+74:     selectedProject, setSelectedProject,
+75:     expandedCategory, setExpandedCategory,
+76:     detailedProjects,
+77:     filteredCategories,
+78:     totalBudget,
+79:     executedBudget,
+80:     remainingBudget,
+81:     executionRate,
+82:     pieData,
+83:     breakdownData,
+84:     allBreakdownData,
+85:     monthlyExecutionData,
+86:     maxSpendMonth,
+87:     avgMonthlySpend,
+88:     remainingTargetAmount,
+89:     recommendedMonthlySpendForTarget,
+90:     exhaustionMonthName,
+91:     projectedEoyExecutionRate
+92:   } = usePortfolioAnalytics(budgetCategories, budgetEntries);
+93: 
+94: 
+95:   const isHchps = appMode === 'HCHPS';
+96:   const themeColors = useMemo(() => {
+97:     return isHchps
+98:       ? ['#059669', '#064e3b', '#34d399', '#047857', '#6ee7b7', '#d1fae5']
+99:       : ['#3B82F6', '#1E3A8A', '#93C5FD', '#1D4ED8', '#60A5FA', '#DBEAFE'];
+100:   }, [isHchps]);
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

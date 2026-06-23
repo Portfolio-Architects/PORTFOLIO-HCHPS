@@ -1,0 +1,25 @@
+{
+  "step_index": 997,
+  "source": "MODEL",
+  "type": "PLANNER_RESPONSE",
+  "status": "DONE",
+  "created_at": "2026-06-02T03:21:16Z",
+  "thinking": "**Adding New Milestone**\n\nI'm focusing on adding a new milestone immediately after the \"Recent Engineering Milestones (Summary)\" section, specifically at line 286. I'm using `replace_file_content` to edit `PORTFOLIO VITAL - Engineering Report.md`, targeting the precise insertion point.\n\n\n",
+  "tool_calls": [
+    {
+      "name": "replace_file_content",
+      "args": {
+        "AllowMultiple": "false",
+        "Description": "\"Insert the latest engineering milestone regarding Screen-Space Collision Resolution into PORTFOLIO VITAL - Engineering Report.md.\"",
+        "EndLine": "287",
+        "Instruction": "\"Add the new milestone section below the header for '8. 최근 엔지니어링 마일스톤 (요약)' in PORTFOLIO VITAL - Engineering Report.md.\"",
+        "ReplacementContent": "\"## 8. 최근 엔지니어링 마일스톤 (요약)\\n\\n### 3D 마인드맵 노드 겹침 원천 방지용 2D 화면 공간 충돌 해결(Screen-Space Collision Resolution) 알고리즘 도입 (2026-06-02)\\n* **2D 화면 좌표 충돌 물리 반발 이식**: 3D 공간 상에서 거리를 벌리더라도 카메라 각도(`tiltAngle = 42도`) 및 원근 투영 왜곡에 의해 화면상에서 노드가 겹치던 가독성 문제를 해결하기 위해, 투영 직후인 2D 스크린 좌표(`renderX`, `renderY`)를 기준으로 가중치 크기에 맞는 히트박스 반발력을 주는 2D 화면 공간 충돌 방지 루프를 도입했습니다.\\n* **고정(Pin) 노드 관성 및 비고정 노드 반발 구현**: 사용자가 드래그하여 임의로 고정(`fixedX`/`fixedY`)한 노드는 밀리지 않도록 고정 관성을 부여하고, 고정되지 않은 주변 노드만 반발하여 비켜나도록 물리 강도(`damping = 0.45`)를 조정했습니다.\\n* **연쇄 충돌 해소용 최대 8회 반복 루프 도입**: 노드가 연쇄적으로 밀릴 때 안정적으로 자리를 잡도록 루프를 최대 8회 돌며 연쇄 겹침을 해결하고 겹침이 해소되면 즉각 루프를 탈출하도록 최적화했습니다.\\n* **기본 배치 간격 상수 상향**: `OntologyLayout.ts`의 기본 배치 격차를 넓히기 위해 `X_SPACING = 250` (기존 220), `Y_SPACING = 14` (기존 8), `NODE_HEIGHT = 36` (기존 32)으로 상향하여 원천적인 가독성 공간을 넓혔습니다.\\n* **정적 타입 검사 무오류 검증**: 알고리즘 도입 후 `npx tsc --noEmit` 진단을 무오류로 통과하며 코드 무결성을 입증했습니다.\\n\\n### 온톨로지 3~4단계: 지식 그래프 KG-RAG 결합 및 규칙 기반 추론기 연동 (2026-05-29)\"",
+        "StartLine": "284",
+        "TargetContent": "\"## 8. 최근 엔지니어링 마일스톤 (요약)\\n\\n### 온톨로지 3~4단계: 지식 그래프 KG-RAG 결합 및 규칙 기반 추론기 연동 (2026-05-29)\"",
+        "TargetFile": "\"d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/PORTFOLIO VITAL - Engineering Report.md\"",
+        "toolAction": "\"Insert latest milestone\"",
+        "toolSummary": "\"Insert latest milestone in Engineering Report\""
+      }
+    }
+  ]
+}

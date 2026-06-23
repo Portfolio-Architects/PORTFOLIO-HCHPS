@@ -1,0 +1,45 @@
+Created At: 2026-05-28T02:33:47Z
+Completed At: 2026-05-28T02:33:47Z
+File Path: `file:///d:/Desktop/PORTFOLIO/PORTFOLIO%20-%20VITAL/src/components/dashboard/PortfolioDashboardView.tsx`
+Total Lines: 978
+Total Bytes: 72660
+Showing lines 650 to 695
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+650:                                                       >
+651:                                                         {displayVal || <span className="text-slate-300 font-bold">완료액</span>}
+652:                                                       </div>
+653:                                                     );
+654:                                                   })()}
+655:                                                 </td>
+656:                                                 <td className="py-3 px-4">
+657:                                                   {!hasCalcs && (() => {
+658:                                                     const { completed: compFormula, planned: planFormula } = extractSplitFormulaFromNote(s.note);
+659:                                                     return (
+660:                                                       <input 
+661:                                                         key={`input-sub-plan-${sub.id}-${sIdx}-${planFormula}`}
+662:                                                         type="text"
+663:                                                         placeholder="예정액"
+664:                                                         defaultValue={planFormula}
+665:                                                         onInput={(e: React.FormEvent<HTMLInputElement>) => {
+666:                                                           const val = e.currentTarget.value;
+667:                                                           const cleanVal = val
+<truncated 1209 bytes>
+          : (!currentItem.note && currentItem.virtualAdjustment ? currentItem.virtualAdjustment.toString() : '');
+679:                                                           const completedVal = evaluateExpression(compBase);
+680:                                                           const plannedVal = evaluateExpression(inputVal);
+681:                                                           const existingMemo = extractMemoFromNoteWithSplit(currentItem.note);
+682:                                                           const newNote = buildNoteWithSplitFormula(compBase, inputVal, existingMemo);
+683:                                                           updatedSubItems[sIdx] = {
+684:                                                             ...currentItem,
+685:                                                             virtualAdjustment: completedVal + plannedVal,
+686:                                                             note: newNote
+687:                                                           };
+688:                                                           updateCategory(sub.id, { subItems: updatedSubItems });
+689:                                                         }}
+690:                                                         className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-[14.4px] font-black text-slate-800 text-right focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 outline-none transition-all"
+691:                                                       />
+692:                                                     );
+693:                                                   })()}
+694:                                                 </td>
+695:                                                 <td className="py-3 px-4 text-right">
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

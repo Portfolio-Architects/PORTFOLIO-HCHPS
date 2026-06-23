@@ -1,0 +1,1146 @@
+[
+  {
+    "id": "mnrcir0v56b8pixdb",
+    "name": "건강증진지원실 운영 - 사무관리비",
+    "totalBudget": 19496000,
+    "color": "#3b82f6",
+    "policyProject": "건강도시 조성",
+    "unitProject": "건강생활 실천사업",
+    "detailedProject": "건강증진지원실 운영",
+    "statItem": "201-01 사무관리비",
+    "formationItem": "201 일반운영비",
+    "fundingSource": "구비 (100.00%)",
+    "fundingSplits": [
+      {
+        "source": "구비",
+        "amount": 19496000
+      }
+    ],
+    "subItems": [
+      {
+        "id": "id_6338526c9037",
+        "prefix": "1)",
+        "name": "건강증진지원실 운영",
+        "calculation": "",
+        "amount": 7000000,
+        "virtualAdjustment": 2376000,
+        "calculations": [
+          {
+            "id": "id_6fd7af486205",
+            "name": "헬스체크업 사업 안내 리플릿 제작비",
+            "calculation": "1,500원*1,000부*2종=",
+            "amount": 3000000,
+            "virtualAdjustment": 2376000,
+            "note": ""
+          }
+        ]
+      },
+      {
+        "id": "id_f8ac8f6bd167",
+        "prefix": "1)",
+        "name": "헬스체크업 홍보물품",
+        "calculation": "4,000원*1,000명=",
+        "amount": 4000000,
+        "virtualAdjustment": 0,
+        "note": "",
+        "calculations": []
+      },
+      {
+        "id": "id_b91fa6d03f27",
+        "prefix": "1)",
+        "name": "지원실 운영 소모품 등",
+        "calculation": "",
+        "amount": 6620000,
+        "virtualAdjustment": 1816000,
+        "note": "",
+        "calculations": [
+          {
+            "id": "id_ad1f69c85169",
+            "name": "(일상경비)서울체력장(건강증진지원실) 사무용품 구매비 지출",
+            "calculation": "50,000원*4명*2회=",
+            "amount": 400000,
+            "virtualAdjustment": 300000,
+            "note": ""
+          },
+          {
+            "id": "id_6b07861cf37d",
+            "name": "(일상경비)서울체력장 강남센터, 체성분 측정 결과지 구매비 지급",
+            "calculation": "460원*4,000명=",
+            "amount": 1840000,
+            "virtualAdjustment": 220000,
+            "note": ""
+          },
+          {
+            "id": "id_e64960e05e96",
+            "name": "공공 PT 프로그램 운영 용품 구매비",
+            "calculation": "50,000원*5종*10회=",
+            "amount": 2500000,
+            "virtualAdjustment": 492000,
+            "note": "[완료: 492,000 | 예정: ]"
+          },
+          {
+            "id": "calc-1779950906398-l81357re1",
+            "name": "TRX, (일상경비)서울체력장 강남센터, 운영 물품(운동 용품) 구매",
+            "calculation": "",
+            "amount": 0,
+            "virtualAdjustment": 804000,
+            "note": "[완료: 804,000 | 예정: 0]"
+          }
+        ]
+      },
+      {
+        "id": "id_9e0ceff69d91",
+        "prefix": "1)",
+        "name": "시간선택제임기제 특근매식비",
+        "calculation": "9,000원*3명*4회*12월=",
+        "amount": 1296000,
+        "calculations": []
+      },
+      {
+        "id": "id_5060fc39b9b6",
+        "prefix": "1)",
+        "name": "헬스체크업 운영인력 피복비",
+        "calculation": "",
+        "amount": 580000,
+        "calculations": [
+          {
+            "id": "id_ff2f7d7bd4e2",
+            "name": "근무복",
+            "calculation": "145,000원*4명*1착=",
+            "amount": 580000
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "mnrcir0v1twl22zuk",
+    "name": "건강증진지원실 운영 - 공공운영비",
+    "totalBudget": 456000,
+    "policyProject": "건강도시 조성",
+    "unitProject": "건강생활 실천사업",
+    "detailedProject": "건강증진지원실 운영",
+    "statItem": "201-02 공공운영비",
+    "subItems": [
+      {
+        "id": "id_2e7213407eed",
+        "prefix": "1)",
+        "name": "등기우편료",
+        "calculation": "2,530원*15통*12월=",
+        "amount": 456000,
+        "calculations": []
+      }
+    ],
+    "fundingSplits": [
+      {
+        "source": "구비",
+        "amount": 456000
+      }
+    ],
+    "fundingSource": "구비 (100.00%)",
+    "formationItem": "201 일반운영비"
+  },
+  {
+    "id": "mnrcir0v0vx5ae1qd",
+    "name": "건강증진지원실 운영 - 행사운영비",
+    "totalBudget": 6300000,
+    "color": "#3b82f6",
+    "policyProject": "건강도시 조성",
+    "unitProject": "건강생활 실천사업",
+    "detailedProject": "건강증진지원실 운영",
+    "statItem": "201-03 행사운영비",
+    "formationItem": "201 일반운영비",
+    "fundingSource": "구비 (100.00%)",
+    "fundingSplits": [
+      {
+        "source": "구비",
+        "amount": 6300000
+      }
+    ],
+    "subItems": [
+      {
+        "id": "id_34ca3edbfa05",
+        "prefix": "1)",
+        "name": "사후관리 교육",
+        "calculation": "",
+        "amount": 6300000,
+        "calculations": [
+          {
+            "id": "id_1bbfeace1daf",
+            "name": "교육강사수당",
+            "calculation": "250,000원*12회=",
+            "amount": 3000000,
+            "virtualAdjustment": 3000000,
+            "note": "[완료:  | 예정: 3000000]"
+          },
+          {
+            "id": "id_cd91ca580ca5",
+            "name": "교육홍보물",
+            "calculation": "275,000원*12회=",
+            "amount": 3300000,
+            "virtualAdjustment": 3300000,
+            "note": "[완료:  | 예정: 3300000]"
+          }
+        ],
+        "virtualAdjustment": 6300000
+      }
+    ]
+  },
+  {
+    "id": "mnrcir0vaotz2abch",
+    "name": "건강증진지원실 운영 - 국내여비",
+    "totalBudget": 1440000,
+    "policyProject": "건강도시 조성",
+    "unitProject": "건강생활 실천사업",
+    "detailedProject": "건강증진지원실 운영",
+    "statItem": "202-01 국내여비",
+    "subItems": [
+      {
+        "id": "id_c6d2e76c55c6",
+        "prefix": "1)",
+        "name": "시간선택제임기제 출장비",
+        "calculation": "10,000원*3명*4회*12월=",
+        "amount": 1440000,
+        "calculations": []
+      }
+    ],
+    "fundingSplits": [
+      {
+        "source": "구비",
+        "amount": 1440000
+      }
+    ],
+    "fundingSource": "구비 (100.00%)",
+    "formationItem": "202 여비"
+  },
+  {
+    "id": "mnrcir0vn4jrzj682",
+    "name": "건강증진지원실 운영 - 시책추진업무",
+    "totalBudget": 1800000,
+    "color": "#3b82f6",
+    "policyProject": "건강도시 조성",
+    "unitProject": "건강생활 실천사업",
+    "detailedProject": "건강증진지원실 운영",
+    "statItem": "203-03 시책추진업무추진비",
+    "formationItem": "203 업무추진비",
+    "fundingSource": "구비 (100.00%)",
+    "fundingSplits": [
+      {
+        "source": "구비",
+        "amount": 1800000
+      }
+    ],
+    "subItems": [
+      {
+        "id": "id_b155ee3ee8ea",
+        "prefix": "1)",
+        "name": "어린이 조기검진 추진간담회",
+        "calculation": "300,000원*6회=",
+        "amount": 1800000,
+        "calculations": [],
+        "virtualAdjustment": 1800000,
+        "note": "[완료: 1,800,000 | 예정: 0]"
+      }
+    ]
+  },
+  {
+    "id": "mnrcir0vpun1ops6x",
+    "name": "건강증진지원실 운영 - 의료회복비",
+    "totalBudget": 27000000,
+    "color": "#3b82f6",
+    "policyProject": "건강도시 조성",
+    "unitProject": "건강생활 실천사업",
+    "detailedProject": "건강증진지원실 운영",
+    "statItem": "307-01 의료 및 회복비",
+    "formationItem": "307 민간이전",
+    "fundingSource": "구비 (100.00%)",
+    "fundingSplits": [
+      {
+        "source": "구비",
+        "amount": 27000000
+      }
+    ],
+    "subItems": [
+      {
+        "id": "id_fb5421f23147",
+        "prefix": "1)",
+        "name": "척추측만증 검진비",
+        "calculation": "4,000원*3,000명=",
+        "amount": 12000000,
+        "calculations": [],
+        "virtualAdjustment": 12000000,
+        "note": "[완료: 12,000,000 | 예정: 0]"
+      },
+      {
+        "id": "id_4fc0ac001b2a",
+        "prefix": "1)",
+        "name": "거북목증후군 검진비",
+        "calculation": "4,000원*3,000명=",
+        "amount": 12000000,
+        "calculations": [],
+        "note": "[완료: 12,000,000 | 예정: 0]",
+        "virtualAdjustment": 12000000
+      },
+      {
+        "id": "id_4f9a96b4e610",
+        "prefix": "1)",
+        "name": "건강변인 측정 시약",
+        "calculation": "10,000원*300명=",
+        "amount": 3000000,
+        "calculations": [],
+        "virtualAdjustment": 1987500,
+        "note": "[완료: 1,987,500 | 예정: ]"
+      }
+    ]
+  },
+  {
+    "id": "mnrcir0v5zjn4qxyg",
+    "name": "강남체력인증 - 기간제보수",
+    "totalBudget": 65549000,
+    "color": "#047857",
+    "policyProject": "건강도시 조성",
+    "unitProject": "건강생활 실천사업",
+    "detailedProject": "강남체력인증센터 운영",
+    "statItem": "101-04 기간제근로자등보수",
+    "formationItem": "101 인건비",
+    "fundingSource": "특별교부세 (100.00%)",
+    "fundingSplits": [
+      {
+        "source": "특별교부세",
+        "amount": 65549000
+      }
+    ],
+    "subItems": [
+      {
+        "id": "id_d84832992499",
+        "prefix": "1)",
+        "name": "기본급(건강운동관리사)",
+        "calculation": "3,310,489원*2명*8월=",
+        "amount": 52968000,
+        "isLocked": false,
+        "virtualAdjustment": 52967840,
+        "note": "[완료:  | 예정: 52,967,840]",
+        "calculations": []
+      },
+      {
+        "id": "id_49a0ffc9cca2",
+        "prefix": "1)",
+        "name": "복지수당",
+        "calculation": "20,000원*2명*8월=",
+        "amount": 320000,
+        "virtualAdjustment": 320000,
+        "note": "[완료: + | 예정: 320,000]",
+        "calculations": []
+      },
+      {
+        "id": "id_212baf8c082a",
+        "prefix": "1)",
+        "name": "명절상여",
+        "calculation": "30,000원*2명*1회=",
+        "amount": 60000,
+        "virtualAdjustment": 60000,
+        "note": "[완료: + | 예정: 60,000]",
+        "calculations": []
+      },
+      {
+        "id": "id_5e5839b8c63b",
+        "prefix": "1)",
+        "name": "출장비",
+        "calculation": "10,000원*2명*4회*8월=",
+        "amount": 640000,
+        "virtualAdjustment": 0,
+        "calculations": []
+      },
+      {
+        "id": "id_2da37477c1c4",
+        "prefix": "1)",
+        "name": "보험부담금",
+        "calculation": "",
+        "amount": 7939000,
+        "calculations": [
+          {
+            "id": "id_672884566243",
+            "name": "국민연금보험료",
+            "calculation": "6,620,978원*4.75%*8월=",
+            "amount": 2516000,
+            "virtualAdjustment": 2515520,
+            "note": "[완료: + | 예정: 2,515,520]"
+          },
+          {
+            "id": "id_eb44735c1761",
+            "name": "국민건강보험료",
+            "calculation": "6,620,987원*3.6%*8월=",
+            "amount": 1907000,
+            "virtualAdjustment": 1077120,
+            "note": "[완료: + | 예정: 1,077,120]"
+          },
+          {
+            "id": "id_c28436fd2ed7",
+            "name": "장기요양보험료",
+            "calculation": "1,906,844원*13.14%*8월=",
+            "amount": 2005000,
+            "virtualAdjustment": 1077120,
+            "note": "[완료: + | 예정: 1,077,120]"
+          },
+          {
+            "id": "id_f28903d69fb8",
+            "name": "고용보험료",
+            "calculation": "6,620,978원*1.8%*8월=",
+            "amount": 954000,
+            "virtualAdjustment": 926720,
+            "note": "[완료: + | 예정: 926,720]"
+          },
+          {
+            "id": "id_cb2fe5a250d4",
+            "name": "산재보험료",
+            "calculation": "6,620,978원*1.05%*8월=",
+            "amount": 557000,
+            "virtualAdjustment": 423680,
+            "note": "[완료: + | 예정: 423,680]"
+          }
+        ]
+      },
+      {
+        "id": "id_76cdb2cd55de",
+        "prefix": "1)",
+        "name": "시간외근무수당",
+        "calculation": "23,760원*2시간*2명*4회*8월=",
+        "amount": 3042000,
+        "virtualAdjustment": 0,
+        "calculations": []
+      },
+      {
+        "id": "id_d3100c0ecef3",
+        "prefix": "1)",
+        "name": "근무자 근무복",
+        "calculation": "145,000원*2명*2착=",
+        "amount": 580000,
+        "virtualAdjustment": 0,
+        "calculations": []
+      }
+    ]
+  },
+  {
+    "id": "mnrcir0vl18vfnb68",
+    "name": "강남체력인증 - 사무관리비",
+    "totalBudget": 35451000,
+    "color": "#047857",
+    "policyProject": "건강도시 조성",
+    "unitProject": "건강생활 실천사업",
+    "detailedProject": "강남체력인증센터 운영",
+    "statItem": "201-01 사무관리비",
+    "formationItem": "201 일반운영비",
+    "fundingSource": "특별교부세 (100.00%)",
+    "fundingSplits": [
+      {
+        "source": "특별교부세",
+        "amount": 35451000
+      }
+    ],
+    "subItems": [
+      {
+        "id": "id_81c42892a26c",
+        "prefix": "1)",
+        "name": "사무용품 및 소모품 구매",
+        "calculation": "375,000원*4회=",
+        "amount": 1500000,
+        "virtualAdjustment": 0,
+        "note": "",
+        "calculations": []
+      },
+      {
+        "id": "id_99ad50c40518",
+        "prefix": "1)",
+        "name": "홍보물품 제작 및 구매",
+        "calculation": "23,951,000원*1회=",
+        "amount": 23951000,
+        "virtualAdjustment": 6600000,
+        "note": "",
+        "calculations": [
+          {
+            "id": "calc-1779942065748-mig",
+            "name": "리플릿",
+            "calculation": "",
+            "amount": 23951000,
+            "virtualAdjustment": 3300000,
+            "note": "[완료: + | 예정: 3,300,000]"
+          },
+          {
+            "id": "calc-1779950262722-wlwmu1w8j",
+            "name": "백월 및 미디어 디자인",
+            "calculation": "",
+            "amount": 0,
+            "virtualAdjustment": 3300000,
+            "note": "[완료:  | 예정: 3,300,000]"
+          }
+        ]
+      },
+      {
+        "id": "id_6955556d1b80",
+        "prefix": "1)",
+        "name": "교육자료 제작",
+        "calculation": "5,000,000원*1회=",
+        "amount": 5000000,
+        "virtualAdjustment": 0,
+        "note": "",
+        "calculations": []
+      },
+      {
+        "id": "id_049b182571e6",
+        "prefix": "1)",
+        "name": "사인물 및 안내표지 제작 설치",
+        "calculation": "5,000,000원*1회=",
+        "amount": 5000000,
+        "virtualAdjustment": 3124000,
+        "note": "",
+        "calculations": [
+          {
+            "id": "calc-1779941853587-mig",
+            "name": "건강증진지원실 이전 및 재설치비 지급",
+            "calculation": "",
+            "amount": 5000000,
+            "virtualAdjustment": 3124000,
+            "note": "[완료: +3,124,000 | 예정: ]",
+            "checked": false
+          },
+          {
+            "id": "calc-1779941853587-ek51stpo7",
+            "name": "보건소 건강증진지원실 체형분석기 이전 배치 비용 지급",
+            "calculation": "",
+            "amount": 0,
+            "virtualAdjustment": 880000,
+            "note": "[완료: 880,000 | 예정: ]"
+          },
+          {
+            "id": "calc-1779941856830-qsoke1hd2",
+            "name": "서울체력장 강남센터, 영상정보장치 설치비 지급",
+            "calculation": "",
+            "amount": 0,
+            "virtualAdjustment": 150000,
+            "note": "[완료: 150,000 | 예정: ]"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "mnrcir0v0gtfi55ks",
+    "name": "강남체력인증 - 행사운영비",
+    "totalBudget": 2000000,
+    "color": "#047857",
+    "policyProject": "건강도시 조성",
+    "unitProject": "건강생활 실천사업",
+    "detailedProject": "강남체력인증센터 운영",
+    "statItem": "201-03 행사운영비",
+    "subItems": [
+      {
+        "id": "id_efeb708c6f5d",
+        "prefix": "1)",
+        "name": "센터개소식 행사",
+        "calculation": "2,000,000원*1식=",
+        "amount": 2000000,
+        "calculations": []
+      }
+    ],
+    "fundingSplits": [
+      {
+        "source": "특별교부세",
+        "amount": 2000000
+      }
+    ],
+    "fundingSource": "특별교부세 (100.00%)",
+    "formationItem": "201 일반운영비"
+  },
+  {
+    "id": "mnrcir0vwrr1z2yol",
+    "name": "강남체력인증 - 시설비",
+    "totalBudget": 55000000,
+    "color": "#047857",
+    "policyProject": "건강도시 조성",
+    "unitProject": "건강생활 실천사업",
+    "detailedProject": "강남체력인증센터 운영",
+    "statItem": "401-01 시설비",
+    "formationItem": "401 시설비및부대비",
+    "fundingSource": "특별교부세 (100.00%)",
+    "fundingSplits": [
+      {
+        "source": "특별교부세",
+        "amount": 55000000
+      }
+    ],
+    "subItems": [
+      {
+        "id": "id_c5e669882dc4",
+        "prefix": "1)",
+        "name": "체력인증센터 설치공사",
+        "calculation": "55,000,000원*1개소=",
+        "amount": 55000000,
+        "virtualAdjustment": 54930000,
+        "note": "",
+        "calculations": [
+          {
+            "id": "calc-1779942274320-mig",
+            "name": "강남체력인증센터 조성 공사(전기)",
+            "calculation": "",
+            "amount": 55000000,
+            "virtualAdjustment": 19718000,
+            "note": "[완료: 19,718,000 | 예정: ]"
+          },
+          {
+            "id": "calc-1779942274320-jx6lboxu0",
+            "name": "강남체력인증센터 조성 공사(시설)",
+            "calculation": "",
+            "amount": 0,
+            "virtualAdjustment": 35212000,
+            "note": "[완료: 35,212,000 | 예정: 0]"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "mnrcir0vbxmmvztoq",
+    "name": "강남체력인증 - 자산취득비",
+    "totalBudget": 15000000,
+    "color": "#047857",
+    "policyProject": "건강도시 조성",
+    "unitProject": "건강생활 실천사업",
+    "detailedProject": "강남체력인증센터 운영",
+    "statItem": "405-01 자산및물품취득비",
+    "formationItem": "405 자산취득비",
+    "fundingSource": "특별교부세 (100.00%)",
+    "fundingSplits": [
+      {
+        "source": "특별교부세",
+        "amount": 15000000
+      }
+    ],
+    "subItems": [
+      {
+        "id": "id_2bb4f5d42503",
+        "prefix": "1)",
+        "name": "사무집기 및 측정장비 등",
+        "calculation": "15,000,000원*1식=",
+        "amount": 15000000,
+        "virtualAdjustment": 4021600,
+        "note": "",
+        "calculations": [
+          {
+            "id": "calc-1779942643738-mig",
+            "name": "(조달구매)서울체력장 강남센터 영상정보장치 구매비 지출",
+            "calculation": "",
+            "amount": 15000000,
+            "virtualAdjustment": 4021600,
+            "note": "[완료: 4,021,600 | 예정: ]"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "mnrcir0voap2bpm8z",
+    "name": "201-01 사무관리비",
+    "totalBudget": 20380000,
+    "color": "#3b82f6",
+    "policyProject": "건강도시 조성",
+    "unitProject": "건강증진사업관리",
+    "detailedProject": "건강생활실천사업(건강증진)",
+    "statItem": "201-01 사무관리비",
+    "formationItem": "201 일반운영비",
+    "budgetType": "본예산",
+    "fundingSource": "구비 (56.00%), 기타 (20.00%), 시비 (24.00%)",
+    "fundingSplits": [
+      {
+        "source": "구비",
+        "amount": 11413000
+      },
+      {
+        "source": "기타",
+        "amount": 4076000
+      },
+      {
+        "source": "시비",
+        "amount": 4891000
+      }
+    ],
+    "subItems": [
+      {
+        "id": "id_7b641601aaf2",
+        "prefix": "1)",
+        "name": "건강생활정보자료 제작",
+        "calculation": "4,800,000원*1종=",
+        "amount": 4800000,
+        "isCustomFunding": true,
+        "isLocked": false,
+        "virtualAdjustment": 0,
+        "note": "",
+        "fundingSplits": [
+          {
+            "source": "기타",
+            "amount": 960000
+          },
+          {
+            "source": "시비",
+            "amount": 1152000
+          },
+          {
+            "source": "구비",
+            "amount": 2688000
+          }
+        ]
+      },
+      {
+        "id": "id_24f50ccc0b80",
+        "prefix": "1)",
+        "name": "홍보물 제작",
+        "calculation": "5,000원*1,000개*3종=",
+        "amount": 15000000,
+        "isCustomFunding": true,
+        "isLocked": false,
+        "virtualAdjustment": 15000000,
+        "note": "",
+        "fundingSplits": [
+          {
+            "source": "기타",
+            "amount": 3000000
+          },
+          {
+            "source": "시비",
+            "amount": 3600000
+          },
+          {
+            "source": "구비",
+            "amount": 8400000
+          }
+        ],
+        "calculations": [
+          {
+            "id": "calc-1779942702306-mig",
+            "name": "(일상경비)2026 지역사회 비만예방 합동 캠페인 운영 물품 구매",
+            "calculation": "",
+            "amount": 15000000,
+            "virtualAdjustment": 2450000,
+            "note": "[완료: 2,450,000 | 예정: ]"
+          },
+          {
+            "id": "calc-1779942702306-mbei11bkz",
+            "name": "로고조명 철거비 지급",
+            "calculation": "",
+            "amount": 0,
+            "virtualAdjustment": 1130000,
+            "note": "[완료: 1,130,000 | 예정: 0]"
+          }
+        ]
+      },
+      {
+        "id": "id_1add5ddd78db",
+        "prefix": "1)",
+        "name": "사업운영 소모품 구입",
+        "calculation": "290,000원*2회=",
+        "amount": 580000,
+        "isCustomFunding": true,
+        "isLocked": false,
+        "virtualAdjustment": 1700000,
+        "note": "",
+        "fundingSplits": [
+          {
+            "source": "기타",
+            "amount": 116000
+          },
+          {
+            "source": "시비",
+            "amount": 139000
+          },
+          {
+            "source": "구비",
+            "amount": 325000
+          }
+        ],
+        "calculations": [
+          {
+            "id": "calc-1779942723546-mig",
+            "name": "스포츠 테이핑 교육 전용 가위 구입",
+            "calculation": "",
+            "amount": 580000,
+            "virtualAdjustment": 1700000,
+            "note": "[완료: 1,700,000 | 예정: ]"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "mnrcir0vhyhg1xb87",
+    "name": "201-03 행사운영비",
+    "totalBudget": 96100000,
+    "color": "#3b82f6",
+    "policyProject": "건강도시 조성",
+    "unitProject": "건강증진사업관리",
+    "detailedProject": "건강생활실천사업(건강증진)",
+    "statItem": "201-03 행사운영비",
+    "formationItem": "201 일반운영비",
+    "budgetType": "본예산",
+    "fundingSource": "구비 (79.35%), 기타 (9.39%), 시비 (11.26%)",
+    "fundingSplits": [
+      {
+        "source": "구비",
+        "amount": 76256000
+      },
+      {
+        "source": "기타",
+        "amount": 9020000
+      },
+      {
+        "source": "시비",
+        "amount": 10824000
+      }
+    ],
+    "subItems": [
+      {
+        "id": "id_ccfd74c4b63a",
+        "prefix": "1)",
+        "name": "어린이신체활동증진",
+        "amount": 13500000,
+        "isCustomFunding": false,
+        "isLocked": false,
+        "virtualAdjustment": 9900000,
+        "note": "",
+        "calculations": [
+          {
+            "id": "id_110c9d9511d6",
+            "name": "2026년 아이뛰움 프로그램 운영 용역",
+            "calculation": "250,000원*30개소=",
+            "amount": 7500000,
+            "isCustomFunding": true,
+            "isLocked": false,
+            "virtualAdjustment": 9900000,
+            "note": "[완료: 9,900,000 | 예정: 0]",
+            "fundingSplits": [
+              {
+                "source": "기타",
+                "amount": 1500000
+              },
+              {
+                "source": "시비",
+                "amount": 1800000
+              },
+              {
+                "source": "구비",
+                "amount": 4200000
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "id_c960812f990d",
+        "prefix": "1)",
+        "name": "건강체험교육행사",
+        "amount": 51000000,
+        "isCustomFunding": true,
+        "isLocked": false,
+        "virtualAdjustment": 51000000,
+        "note": "[완료:  | 예정: 51,000,000]",
+        "fundingSplits": [
+          {
+            "source": "구비",
+            "amount": 51000000
+          }
+        ]
+      },
+      {
+        "id": "id_96f34fc8fe8b",
+        "prefix": "1)",
+        "name": "아이뛰움인센티브",
+        "calculation": "5,000원*40명*30개소=",
+        "amount": 6000000,
+        "isCustomFunding": true,
+        "isLocked": false,
+        "virtualAdjustment": 3300000,
+        "note": "",
+        "fundingSplits": [
+          {
+            "source": "기타",
+            "amount": 1200000
+          },
+          {
+            "source": "시비",
+            "amount": 1440000
+          },
+          {
+            "source": "구비",
+            "amount": 3360000
+          }
+        ],
+        "calculations": [
+          {
+            "id": "calc-1779950484128-mig",
+            "name": "(일상경비)2026년 아이뛰움, 체험활동 운영물품 구매비 지급",
+            "calculation": "",
+            "amount": 6000000,
+            "virtualAdjustment": 3300000,
+            "note": "[완료: 3,300,000 | 예정: ]"
+          }
+        ]
+      },
+      {
+        "id": "id_9b4d2e311a75",
+        "prefix": "1)",
+        "name": "건강 뜀 운영",
+        "calculation": "300,000원*42회=",
+        "amount": 12600000,
+        "isCustomFunding": true,
+        "isLocked": false,
+        "virtualAdjustment": 6600000,
+        "note": "",
+        "fundingSplits": [
+          {
+            "source": "기타",
+            "amount": 2520000
+          },
+          {
+            "source": "시비",
+            "amount": 3024000
+          },
+          {
+            "source": "구비",
+            "amount": 7056000
+          }
+        ],
+        "calculations": [
+          {
+            "id": "calc-1779950437709-mig",
+            "name": "비만예방 운동 프로그램 강사료 지급(4월 2차)",
+            "calculation": "",
+            "amount": 12600000,
+            "virtualAdjustment": 1260000,
+            "note": "[완료: 1,260,000 | 예정: ]"
+          },
+          {
+            "id": "calc-1779950437709-fk1qbzskv",
+            "name": "비만예방 운동 프로그램 강사료 지급(4월)",
+            "calculation": "",
+            "amount": 0,
+            "virtualAdjustment": 1440000,
+            "note": "[완료: 1,440,000 | 예정: 0]"
+          },
+          {
+            "id": "calc-1779950459989-ln6l9kkrn",
+            "name": "2026년 3월 사업장 건강관리 교육 지원 사업 강사료 지출",
+            "calculation": "",
+            "amount": 0,
+            "virtualAdjustment": 240000,
+            "note": "[완료: 240,000 | 예정: 0]"
+          },
+          {
+            "id": "calc-1779950626351-ai9dc8uu5",
+            "name": "건강관리교육 지원 사업 강사료 지급",
+            "calculation": "",
+            "amount": 0,
+            "virtualAdjustment": 120000,
+            "note": "[완료: 120,000 | 예정: 0]"
+          },
+          {
+            "id": "calc-1781497207149-d8hsqdtka",
+            "name": "비만예방 운동 프로그램 강사료 지급(5월)",
+            "calculation": "",
+            "amount": 0,
+            "virtualAdjustment": 720000,
+            "note": "[완료: 720,000 | 예정: 0]"
+          },
+          {
+            "id": "calc-1781497335489-8upfy933b",
+            "name": "비만예방 운동 프로그램 강사료 지급(5월 2차)",
+            "calculation": "",
+            "amount": 0,
+            "virtualAdjustment": 1500000,
+            "note": "[완료: 1,500,000 | 예정: 0]"
+          },
+          {
+            "id": "calc-1781497352603-knax2gplo",
+            "name": "비만예방 운동 프로그램 강사료 지급(5월 3차)",
+            "calculation": "",
+            "amount": 0,
+            "virtualAdjustment": 1320000,
+            "note": "[완료: 1,320,000 | 예정: 0]"
+          }
+        ]
+      },
+      {
+        "id": "id_9c79cbf7cd00",
+        "prefix": "1)",
+        "name": "건강생활실천 캠페인",
+        "calculation": "1,000,000원*4회=",
+        "amount": 4000000,
+        "isCustomFunding": true,
+        "isLocked": false,
+        "virtualAdjustment": 781000,
+        "note": "",
+        "fundingSplits": [
+          {
+            "source": "기타",
+            "amount": 800000
+          },
+          {
+            "source": "시비",
+            "amount": 960000
+          },
+          {
+            "source": "구비",
+            "amount": 2240000
+          }
+        ],
+        "calculations": [
+          {
+            "id": "calc-1779950557704-mig",
+            "name": "지역사회 비만예방 통합캠페인 배너 및 현수막 제작비",
+            "calculation": "",
+            "amount": 4000000,
+            "virtualAdjustment": 237000,
+            "note": "[완료: 237,000 | 예정: ]"
+          },
+          {
+            "id": "calc-1779950557704-j0ykncv13",
+            "name": "2026 지역사회 비만예방 합동 캠페인 운영 부스 렌탈",
+            "calculation": "",
+            "amount": 0,
+            "virtualAdjustment": 544000,
+            "note": "[완료: 544,000 | 예정: 0]"
+          }
+        ]
+      },
+      {
+        "id": "id_d79d0450bee3",
+        "prefix": "1)",
+        "name": "과일바구니 교육 강사비",
+        "calculation": "200,000원*10회=",
+        "amount": 2000000,
+        "isCustomFunding": true,
+        "isLocked": false,
+        "virtualAdjustment": 2000000,
+        "note": "[완료: 2,000,000 | 예정: 0]",
+        "fundingSplits": [
+          {
+            "source": "기타",
+            "amount": 400000
+          },
+          {
+            "source": "시비",
+            "amount": 480000
+          },
+          {
+            "source": "구비",
+            "amount": 1120000
+          }
+        ]
+      },
+      {
+        "id": "id_35b4ea7298c1",
+        "prefix": "1)",
+        "name": "과일바구니 교육 운영비",
+        "calculation": "20,000원*100명=",
+        "amount": 2000000,
+        "isCustomFunding": true,
+        "isLocked": false,
+        "virtualAdjustment": 2000000,
+        "note": "[완료: 2,000,000 | 예정: 0]",
+        "fundingSplits": [
+          {
+            "source": "기타",
+            "amount": 400000
+          },
+          {
+            "source": "시비",
+            "amount": 480000
+          },
+          {
+            "source": "구비",
+            "amount": 1120000
+          }
+        ]
+      },
+      {
+        "id": "id_a38d4637b15d",
+        "prefix": "1)",
+        "name": "오미오감 식경험 프로그램",
+        "calculation": "2,500,000원*2회=",
+        "amount": 5000000,
+        "isCustomFunding": true,
+        "isLocked": false,
+        "virtualAdjustment": 5000000,
+        "note": "[완료: 5,000,000 | 예정: 0]",
+        "fundingSplits": [
+          {
+            "source": "기타",
+            "amount": 1000000
+          },
+          {
+            "source": "시비",
+            "amount": 1200000
+          },
+          {
+            "source": "구비",
+            "amount": 2800000
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "mnrcir0vwspp9jw51",
+    "name": "건강생활실천사업(건강증진) - 시책추진",
+    "totalBudget": 1900000,
+    "color": "#3b82f6",
+    "policyProject": "건강도시 조성",
+    "unitProject": "건강증진사업관리",
+    "detailedProject": "건강생활실천사업(건강증진)",
+    "statItem": "203-03 시책추진업무추진비",
+    "formationItem": "203 업무추진비",
+    "fundingSource": "구비 (100.00%)",
+    "fundingSplits": [
+      {
+        "source": "구비",
+        "amount": 1900000
+      }
+    ],
+    "subItems": [
+      {
+        "id": "id_a149c6c50ca5",
+        "prefix": "1)",
+        "name": "업무추진간담회",
+        "calculation": "380,000원*5회=",
+        "amount": 1900000,
+        "calculations": [],
+        "virtualAdjustment": 1900000,
+        "note": "[완료: 1,900,000 | 예정: 0]"
+      }
+    ]
+  },
+  {
+    "id": "mnrcir0vkiq1dafm3",
+    "name": "건강생활실천사업(건강증진) - 행사실비",
+    "totalBudget": 3000000,
+    "policyProject": "건강도시 조성",
+    "unitProject": "건강증진사업관리",
+    "detailedProject": "건강생활실천사업(건강증진)",
+    "statItem": "301-11 행사실비지원금",
+    "subItems": [
+      {
+        "id": "id_52be4e74b6e9",
+        "prefix": "1)",
+        "name": "체험교육행사 다과비",
+        "calculation": "3,000원*1,000명=",
+        "amount": 3000000,
+        "calculations": []
+      }
+    ],
+    "fundingSplits": [
+      {
+        "source": "구비",
+        "amount": 3000000
+      }
+    ],
+    "fundingSource": "구비 (100.00%)",
+    "formationItem": "301 일반보전금"
+  }
+]

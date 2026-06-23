@@ -1,0 +1,39 @@
+Created At: 2026-05-28T02:34:01Z
+Completed At: 2026-05-28T02:34:01Z
+File Path: `file:///d:/Desktop/PORTFOLIO/PORTFOLIO%20-%20VITAL/src/components/dashboard/PortfolioDashboardView.tsx`
+Total Lines: 998
+Total Bytes: 74308
+Showing lines 810 to 840
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+810:                                                             const plannedVal = evaluateExpression(existingPlanned);
+811:                                                             const existingMemo = extractMemoFromNoteWithSplit(currentCalc.note);
+812:                                                             const newNote = buildNoteWithSplitFormula(inputVal, existingPlanned, existingMemo);
+813:                                                             updatedCalcs[cIdx] = {
+814:                                                               ...currentCalc,
+815:                                                               virtualAdjustment: completedVal + plannedVal,
+816:                                                               note: newNote
+817:                                                             };
+818:                                                             updatedSubItems[sIdx] = {
+819:                                                               ...updatedSubItems[sIdx],
+820:                                                               calculations: updatedCalcs
+821:                                                             };
+822:                                                             updateCategory(sub.id, { subItems: updatedSubItems });
+823:                                                           }}
+824:                                                           className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-[14.4px] font-black text-slate-800 text-right focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 outline-none transition-all"
+825:                                                         />
+826:                                                       );
+827:                                                     })()}
+828:                                                   </td>
+829:                                                   <td className="py-2.5 px-4">
+830:                                                     {(() => {
+831:                                                       const { completed: compFormula, planned: planFormula } = extractSplitFormulaFromNote(c.note);
+832:                                                       return (
+833:                                                         <input 
+834:                                                           key={`input-calc-plan-${sub.id}-${sIdx}-${cIdx}-${planFormula}`}
+835:                                                           type="text"
+836:                                                           placeholder="예정액"
+837:                                                           defaultValue={planFormula}
+838:                                                           onInput={(e: React.FormEvent<HTMLInputElement>) => {
+839:                                                             const val = e.currentTarget.value;
+840:                                                             const cleanVal = val.replace(/[^0-9+\-*/\s,()]/g, '');
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

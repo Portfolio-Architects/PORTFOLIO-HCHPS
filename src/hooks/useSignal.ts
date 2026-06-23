@@ -127,18 +127,17 @@ function generateId(): string {
 
 export function useSignal() {
   const [entries, setEntries] = useState<SignalEntry[]>(() => {
-    if (typeof window === 'undefined') return [];
+    if (typeof window === 'undefined') return [/* empty */];
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      return stored ? JSON.parse(stored) : [];
+      return stored ? JSON.parse(stored) : [/* empty */];
     } catch {
-      return [];
+      return [/* empty */];
     }
   });
   const initialLoadDone = useRef(false);
 
-  // Initial load from Google Sheets (with localStorage fallback)
-  useEffect(() => {
+  const fetchSignals = useCallback(() => {
     if (initialLoadDone.current) return;
     initialLoadDone.current = true;
     readSheet<SignalEntry>(SHEET_NAME)
@@ -146,14 +145,14 @@ export function useSignal() {
         if (rows.length > 0) {
           // Cloudflare KV의 eventual consistency 지연으로 인해 (최대 60초)
           // 삭제한 데이터가 원격에서 다시 불러와지는 버그(좀비 데이터)를 방지하기 위해 로컬 툼스톤(삭제 기록) 확인
-          let deletedIds: string[] = [];
-          try { deletedIds = JSON.parse(localStorage.getItem('hchps-global-tombstones') || '[]'); } catch { }
+          let deletedIds: string[] = [/* empty */];
+          try { deletedIds = JSON.parse(localStorage.getItem('hchps-global-tombstones') || '[/* empty */]'); } catch { }
 
           let parsed = rows.map(row => ({
             ...row,
             keywords: typeof row.keywords === 'string'
               ? JSON.parse(row.keywords as string)
-              : Array.isArray(row.keywords) ? row.keywords : [],
+              : Array.isArray(row.keywords) ? row.keywords : [/* empty */],
           }));
           
           // 방금 막 로컬에서 삭제된 항목이 원격에서 내려온다면 무시 (필터링)
@@ -186,7 +185,12 @@ export function useSignal() {
       .catch(() => {
         // Silently fall back to localStorage data
       });
-  }, []);
+  }, [/* fetchSignals */]);
+
+  // Initial load from Google Sheets (with localStorage fallback)
+  useEffect(() => {
+    fetchSignals();
+  }, [fetchSignals]);
 
   // Persist to localStorage on change
   useEffect(() => {
@@ -212,14 +216,14 @@ export function useSignal() {
 
 
     return entry;
-  }, []);
+  }, [/* addSignal */]);
 
   const deleteSignal = useCallback((id: string) => {
     setEntries(prev => prev.filter(e => e.id !== id));
     
     // 로컬 툼스톤(삭제 기록)에 ID 추가하여 원격 캐시(좀비 데이터)에서 부활하는 것 방지
     try {
-      const deletedIds = JSON.parse(localStorage.getItem('hchps-global-tombstones') || '[]');
+      const deletedIds = JSON.parse(localStorage.getItem('hchps-global-tombstones') || '[/* empty */]');
       deletedIds.push(id);
       localStorage.setItem('hchps-global-tombstones', JSON.stringify(deletedIds));
     } catch {}
@@ -228,7 +232,7 @@ export function useSignal() {
     deleteRow(SHEET_NAME, id).catch(() => {
       console.warn('시그널 삭제 Sheets 동기화 실패');
     });
-  }, []);
+  }, [/* deleteSignal */]);
 
   const updateSignal = useCallback((id: string, newText: string) => {
     const newKeywords = extractKeywords(newText);
@@ -241,7 +245,7 @@ export function useSignal() {
       console.warn('시그널 텍스트 업데이트 Sheets 동기화 실패');
     });
 
-  }, []);
+  }, [/* updateSignal */]);
 
   const updateSignalKeywords = useCallback((id: string, keywords: string[]) => {
     setEntries(prev => prev.map(e =>
@@ -251,7 +255,7 @@ export function useSignal() {
     updateRow(SHEET_NAME, id, { keywords: JSON.stringify(keywords) }).catch(() => {
       console.warn('시그널 키워드 업데이트 Sheets 동기화 실패');
     });
-  }, []);
+  }, [/* updateKeywords */]);
 
   // Aggregate keywords with frequency
   const keywordMap = useMemo(() => entries.reduce<Record<string, number>>((acc, entry) => {

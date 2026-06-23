@@ -1,0 +1,58 @@
+[
+  {
+    "id": "singleton",
+    "blocks": [
+      {
+        "id": "00e7fac9-739d-4dd7-a455-93b33839fdec",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "center"
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "010-9688-0748",
+            "styles": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "f4d9be15-7eb1-4720-b245-e559e9b25560",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "center"
+        },
+        "content": [
+          {
+            "type": "link",
+            "href": "mailto:csj820523@hanmail.net",
+            "content": [
+              {
+                "type": "text",
+                "text": "csj820523@hanmail.net",
+                "styles": {}
+              }
+            ]
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "e9b7c61a-206e-4bd9-b3ef-e6a14883d6b5",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [],
+        "children": []
+      }
+    ]
+  }
+]

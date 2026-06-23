@@ -272,8 +272,123 @@ export function MindMapInspector(props: MindMapInspectorProps) {
         </div>
         <div className="flex-1 overflow-y-auto custom-scrollbar" style={{ maxHeight: isOverlay ? '45vh' : 'auto' }}>
                 {activeNode ? (
-                  <div className="p-4.5 flex flex-col gap-4">
-                    {/* Group color + label */}
+                  (() => {
+                    const isRadarDoc = activeNode.id.startsWith('radar-doc-');
+                    if (isRadarDoc) {
+                      const meta = (activeNode as any).meta;
+                      const summary = meta?.summary || [];
+                      const contacts = meta?.contacts || [];
+                      const displayName = activeNode.label.replace('📄 ', '');
+                      
+                      return (
+                        <div className="p-4.5 flex flex-col gap-4 animate-slide-up-fade">
+                          {/* Title area */}
+                          <div className="flex items-center gap-3.5 bg-gradient-to-r from-cyan-500/5 to-blue-500/5 p-4 rounded-2xl border border-cyan-500/15 shadow-2xs">
+                            <div className="w-11 h-11 rounded-xl shrink-0 flex items-center justify-center bg-cyan-500 text-white text-base font-bold shadow-md">
+                              📄
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-bold text-[14px] text-slate-800 leading-snug truncate" title={displayName}>
+                                {displayName}
+                              </h4>
+                              <span className="text-[9.5px] font-bold text-cyan-600 bg-cyan-500/10 border border-cyan-500/15 px-2 py-0.5 rounded-md mt-1 inline-block uppercase tracking-wider">
+                                시맨틱 파일 레이더
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* 3-Line Summary */}
+                          <div className="flex flex-col gap-2">
+                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center px-1 gap-1.5">
+                              <Bot size={13} className="text-cyan-500 animate-pulse" /> AI 3줄 요약
+                            </div>
+                            <div className="flex flex-col gap-2.5 bg-slate-500/5 border border-slate-200/40 rounded-2xl p-4 shadow-2xs">
+                              {summary.map((line: string, idx: number) => (
+                                <div key={idx} className="flex gap-2.5 items-start">
+                                  <span className="shrink-0 w-5 h-5 rounded-full bg-cyan-500/10 text-cyan-700 font-bold text-[9.5px] flex items-center justify-center border border-cyan-500/15">
+                                    {idx + 1}
+                                  </span>
+                                  <p className="text-[11px] font-semibold text-slate-600 leading-relaxed">
+                                    {line}
+                                  </p>
+                                </div>
+                              ))}
+                              {summary.length === 0 && (
+                                <p className="text-[11px] font-semibold text-slate-500 italic">요약이 존재하지 않습니다.</p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Key Contacts */}
+                          <div className="flex flex-col gap-2">
+                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center px-1 gap-1.5">
+                              <Phone size={13} className="text-cyan-500" /> 실무 사업 담당자
+                            </div>
+                            <div className="flex flex-col gap-2">
+                              {contacts.map((contact: any, idx: number) => (
+                                <div key={idx} className="flex items-center justify-between bg-white/60 hover:bg-white p-3 rounded-2xl border border-slate-200/30 text-[11px] font-semibold text-slate-700 shadow-2xs transition-all duration-150">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2 mb-0.5">
+                                      <span className="font-bold text-slate-800 text-[11.5px]">{contact.name || '미상'}</span>
+                                      <span className="text-[9.5px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md">
+                                        {contact.role || '담당자'}
+                                      </span>
+                                    </div>
+                                    <span className="text-slate-500 font-mono text-[10.5px]">{contact.phone || '번호 없음'}</span>
+                                  </div>
+                                  {contact.phone && (
+                                    <div className="flex gap-1.5">
+                                      <button
+                                        onClick={() => {
+                                          navigator.clipboard.writeText(contact.phone);
+                                          alert('전화번호가 클립보드에 복사되었습니다.');
+                                        }}
+                                        className="px-2.5 py-1.5 bg-slate-100 border border-slate-200 text-slate-600 hover:bg-slate-200 rounded-lg text-[10px] font-bold cursor-pointer transition-all shadow-3xs"
+                                      >
+                                        복사
+                                      </button>
+                                      <a
+                                        href={`tel:${contact.phone}`}
+                                        className="px-2.5 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-[10px] font-bold cursor-pointer transition-all shadow-3xs flex items-center gap-1"
+                                      >
+                                        전화
+                                      </a>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                              {contacts.length === 0 && (
+                                <p className="text-[11px] font-semibold text-slate-500 italic p-3 bg-slate-500/5 rounded-2xl border border-slate-200/30">
+                                  문서에서 담당자 정보를 식별하지 못했습니다.
+                                </p>
+                              )}
+                              
+                              {contacts.length > 0 && (
+                                <button
+                                  onClick={() => {
+                                    const phones = contacts.map((c: any) => c.phone).filter(Boolean);
+                                    handleRecordToNotebookLM(phones, []);
+                                  }}
+                                  disabled={isRecording}
+                                  className={`mt-2 w-full py-2.5 px-3.5 rounded-xl text-xs font-bold shadow-2xs flex items-center justify-center gap-1.5 transition-all duration-200 cursor-pointer ${
+                                    recordSuccess
+                                      ? 'bg-emerald-500 text-white hover:bg-emerald-600'
+                                      : 'bg-cyan-600 hover:bg-cyan-700 text-white disabled:bg-cyan-400'
+                                  }`}
+                                >
+                                  <Bot size={13} className={isRecording ? "animate-spin" : ""} />
+                                  {isRecording ? '기록 중...' : recordSuccess ? '✓ 노트북 LM 기록 완료!' : '💾 노트북 LM에 담당자 연락처 기록'}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="p-4.5 flex flex-col gap-4">
+                        {/* Group color + label */}
                     <div className="flex items-center gap-3.5 bg-white/40 p-3.5 rounded-2xl border border-slate-200/30">
                       <div
                         className="w-11 h-11 rounded-xl shrink-0 flex items-center justify-center text-white text-base font-bold shadow-sm"
@@ -729,7 +844,9 @@ export function MindMapInspector(props: MindMapInspectorProps) {
                       </div>
                     )}
 
-                  </div>
+                      </div>
+                    );
+                  })()
                 ) : (
                   <div className="p-4.5 flex flex-col h-full gap-4">
                     {priorityNodes.length > 0 ? (

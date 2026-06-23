@@ -1,0 +1,35 @@
+[
+  {
+    "id": "singleton",
+    "blocks": [
+      {
+        "id": "40f11dc2-d547-442f-bbae-42873a00d9fa",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "A and F 김태심 기획팀장님 010-3200-7895",
+            "styles": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "f8f0ec41-bcd4-4946-94cf-17c0c673aea4",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [],
+        "children": []
+      }
+    ]
+  }
+]

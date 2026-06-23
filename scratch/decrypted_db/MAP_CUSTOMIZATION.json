@@ -1,0 +1,3296 @@
+[
+  {
+    "id": "singleton",
+    "overrides": {
+      "custom-1774853572583": {
+        "customGroup": "MACRO_RESEARCH",
+        "customOrbitIndex": null,
+        "customColor": "#FFDD00",
+        "customParent": null,
+        "customLabel": "#기타",
+        "fixedX": 37.84958926575791,
+        "fixedY": 140.849128069352,
+        "customSortOrder": null,
+        "hidden": true
+      },
+      "leaf-tag-서울체력-과장님": {
+        "customParent": null,
+        "customOrbitIndex": null,
+        "fixedX": 180.55709648829716,
+        "fixedY": 222.1418141415519,
+        "customSortOrder": null,
+        "hidden": true
+      },
+      "leaf-tag-서울체력-점심": {
+        "customParent": null,
+        "customOrbitIndex": null,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": null,
+        "hidden": true
+      },
+      "tag-💭 미분류": {
+        "customParent": null,
+        "customOrbitIndex": null,
+        "hidden": true,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": null
+      },
+      "leaf-tag-💭 미분류-까지": {
+        "hidden": true,
+        "fixedX": null,
+        "fixedY": null,
+        "customParent": null,
+        "customOrbitIndex": null,
+        "customSortOrder": null
+      },
+      "leaf-tag-비만예방-코어": {
+        "customParent": null,
+        "customOrbitIndex": null,
+        "fixedX": -321.7346179779479,
+        "fixedY": -119.68162783259498,
+        "customSortOrder": null
+      },
+      "root-HCHPS": {
+        "customLabel": "업무",
+        "customColor": "#FFFFFF",
+        "fixedX": null,
+        "fixedY": null,
+        "customOrbitIndex": null,
+        "customSortOrder": 2,
+        "dueDate": null
+      },
+      "leaf-tag-비만예방-완료": {
+        "hidden": true,
+        "fixedX": null,
+        "fixedY": null,
+        "customParent": null,
+        "customOrbitIndex": null,
+        "customSortOrder": null
+      },
+      "leaf-tag-💭 미분류-담당": {
+        "hidden": true,
+        "fixedX": null,
+        "fixedY": null,
+        "customParent": null,
+        "customOrbitIndex": null,
+        "customSortOrder": null
+      },
+      "leaf-tag-💭 미분류-공문": {
+        "hidden": true,
+        "fixedX": null,
+        "fixedY": null,
+        "customParent": null,
+        "customOrbitIndex": null,
+        "customSortOrder": null
+      },
+      "leaf-tag-💭 미분류-체력인증센터": {
+        "hidden": true,
+        "fixedX": null,
+        "fixedY": null,
+        "customParent": null,
+        "customOrbitIndex": null,
+        "customSortOrder": null
+      },
+      "leaf-tag-💭 미분류-서울시": {
+        "customParent": "NONE",
+        "customOrbitIndex": 1,
+        "fixedX": 191.8495892657579,
+        "fixedY": 5.146756843972534,
+        "customSortOrder": 3,
+        "customColor": "#FF2222"
+      },
+      "leaf-tag-아이뛰움-날인": {
+        "hidden": true,
+        "fixedX": null,
+        "fixedY": null,
+        "customParent": null,
+        "customOrbitIndex": null,
+        "customSortOrder": null
+      },
+      "leaf-tag-아이뛰움-전체": {
+        "hidden": true,
+        "fixedX": null,
+        "fixedY": null,
+        "customParent": null,
+        "customOrbitIndex": null,
+        "customSortOrder": null
+      },
+      "leaf-tag-💭 미분류-김미경": {
+        "customLabel": "김미경",
+        "fixedX": 342.93079408951974,
+        "fixedY": 91.19890918761845,
+        "customColor": "#00CC44",
+        "customParent": "leaf-tag-💭 미분류-서울시",
+        "customOrbitIndex": 2,
+        "story5W1H": null
+      },
+      "leaf-tag-아이뛰움-감독관께서": {
+        "hidden": true,
+        "fixedX": null,
+        "fixedY": null,
+        "customParent": null,
+        "customOrbitIndex": null,
+        "customSortOrder": null
+      },
+      "leaf-tag-비만예방-문자": {
+        "hidden": true,
+        "fixedX": null,
+        "fixedY": null,
+        "customParent": null,
+        "customOrbitIndex": null,
+        "customSortOrder": null
+      },
+      "leaf-tag-아이뛰움-확인": {
+        "hidden": true,
+        "fixedX": null,
+        "fixedY": null,
+        "customParent": null,
+        "customOrbitIndex": null,
+        "customSortOrder": null
+      },
+      "leaf-tag-비만예방-자료": {
+        "hidden": true,
+        "fixedX": null,
+        "fixedY": null,
+        "customParent": null,
+        "customOrbitIndex": null,
+        "customSortOrder": null
+      },
+      "leaf-tag-비만예방-대상자": {
+        "customParent": null,
+        "customOrbitIndex": null,
+        "hidden": true,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": null
+      },
+      "leaf-tag-비만예방-프로그램": {
+        "hidden": true,
+        "fixedX": null,
+        "fixedY": null,
+        "customParent": null,
+        "customOrbitIndex": null,
+        "customSortOrder": null
+      },
+      "leaf-tag-비만예방-교육": {
+        "hidden": true,
+        "fixedX": null,
+        "fixedY": null,
+        "customParent": null,
+        "customOrbitIndex": null,
+        "customSortOrder": null
+      },
+      "leaf-tag-💭 미분류-교육": {
+        "hidden": true,
+        "fixedX": null,
+        "fixedY": null,
+        "customParent": null,
+        "customOrbitIndex": null,
+        "customSortOrder": null
+      },
+      "leaf-tag-아이뛰움-제출시": {
+        "hidden": true,
+        "fixedX": null,
+        "fixedY": null,
+        "customParent": null,
+        "customOrbitIndex": null,
+        "customSortOrder": null
+      },
+      "custom-1774786497657": {
+        "customParent": null,
+        "customOrbitIndex": null,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": null
+      },
+      "leaf-tag-💭 미분류-삼성전자": {
+        "customParent": "custom-1774873120608",
+        "customOrbitIndex": 3
+      },
+      "leaf-tag-아이뛰움-서류": {
+        "hidden": true,
+        "fixedX": null,
+        "fixedY": null,
+        "customParent": null,
+        "customOrbitIndex": null,
+        "customSortOrder": null
+      },
+      "leaf-tag-아이뛰움-업체": {
+        "customParent": null,
+        "customOrbitIndex": null,
+        "hidden": true,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": null
+      },
+      "leaf-tag-아이뛰움-착수계": {
+        "customParent": null,
+        "customOrbitIndex": null,
+        "hidden": true,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": null
+      },
+      "leaf-tag-비만예방-서킷": {
+        "customParent": null,
+        "customOrbitIndex": null,
+        "customLabel": "해맞이공원",
+        "fixedX": -324.15041073828286,
+        "fixedY": -38.47186250672743,
+        "customSortOrder": null
+      },
+      "custom-1774873120608": {
+        "customParent": "leaf-tag-예산-비만예방",
+        "customOrbitIndex": 2,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": 1
+      },
+      "custom-1774875732973": {
+        "customParent": null,
+        "customOrbitIndex": null,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": 0,
+        "hidden": true
+      },
+      "custom-1774876678768": {
+        "customParent": "custom-1775700696370",
+        "customOrbitIndex": 2,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": null
+      },
+      "custom-1774878756690": {
+        "hidden": true
+      },
+      "custom-1774878774667": {
+        "customParent": null,
+        "hidden": true,
+        "fixedX": null,
+        "fixedY": null,
+        "customOrbitIndex": null,
+        "customSortOrder": null
+      },
+      "custom-1774878806284": {
+        "customParent": null,
+        "customOrbitIndex": null,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": null,
+        "hidden": true
+      },
+      "custom-1774879054308": {
+        "customParent": null,
+        "customOrbitIndex": null,
+        "hidden": true,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": null
+      },
+      "custom-1774879624068": {
+        "customParent": null,
+        "customOrbitIndex": null,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": null,
+        "hidden": true
+      },
+      "custom-1774879638619": {
+        "customParent": "tag-서울체력",
+        "customOrbitIndex": 2,
+        "fixedX": 114.69917853110223,
+        "fixedY": 278.063371194846,
+        "customSortOrder": null,
+        "hidden": true
+      },
+      "custom-1774879647226": {
+        "customParent": null,
+        "customOrbitIndex": null,
+        "customLabel": "0405(일) 08:00",
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": null,
+        "hidden": true
+      },
+      "custom-1774879659856": {
+        "customParent": null,
+        "customOrbitIndex": null,
+        "hidden": true,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": null
+      },
+      "custom-1774879676201": {
+        "customParent": null,
+        "customOrbitIndex": null,
+        "hidden": true,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": null
+      },
+      "custom-1774883171627": {
+        "customParent": "NONE",
+        "customOrbitIndex": null,
+        "customLabel": "용품구매",
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": null,
+        "hidden": true
+      },
+      "custom-1774883243679": {
+        "hidden": true
+      },
+      "custom-1774883265631": {
+        "hidden": true
+      },
+      "custom-1774883288750": {
+        "customParent": null,
+        "customOrbitIndex": null,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": null,
+        "hidden": true
+      },
+      "custom-1774883443270": {
+        "customParent": "custom-1775022780402",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": null,
+        "customLabel": "서울시 물품 4월 중 일괄 배송"
+      },
+      "custom-1774942336691": {
+        "customParent": null,
+        "customOrbitIndex": null,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": null,
+        "story5W1H": null,
+        "hidden": true
+      },
+      "custom-1774942898514": {
+        "hidden": true
+      },
+      "custom-1774942982353": {
+        "customParent": "leaf-tag-예산-비만예방",
+        "customOrbitIndex": 2,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": 3,
+        "customLabel": "양재천 출발마당"
+      },
+      "custom-1774943329986": {
+        "customParent": "leaf-tag-예산-서울체력장",
+        "customOrbitIndex": 2,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": null
+      },
+      "custom-1774945060019": {
+        "customParent": "leaf-tag-예산-비만예방",
+        "customOrbitIndex": 2,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": 5,
+        "isHighlighted": false
+      },
+      "custom-1774945267008": {
+        "customParent": null,
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": null,
+        "hidden": true
+      },
+      "custom-1774945289808": {
+        "customParent": null,
+        "customOrbitIndex": null,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": null,
+        "hidden": true
+      },
+      "custom-1775018221226": {
+        "hidden": true
+      },
+      "custom-1775018232153": {
+        "customParent": null,
+        "customOrbitIndex": null,
+        "hidden": true,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": null
+      },
+      "custom-1775018583785": {
+        "customParent": null,
+        "customOrbitIndex": null,
+        "hidden": true,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": null
+      },
+      "custom-1775022711074": {
+        "customParent": "root-HCHPS",
+        "customOrbitIndex": 1,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": null,
+        "hidden": true
+      },
+      "custom-1775022728865": {
+        "customParent": null,
+        "customOrbitIndex": null,
+        "hidden": true,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": null
+      },
+      "custom-1775022780402": {
+        "customParent": "custom-1775306453205",
+        "customOrbitIndex": 2,
+        "story5W1H": null,
+        "customSortOrder": null,
+        "fixedX": null,
+        "fixedY": null
+      },
+      "custom-1775022783410": {
+        "customParent": "custom-1775306453205",
+        "customOrbitIndex": 2,
+        "customSortOrder": null,
+        "fixedX": null,
+        "fixedY": null,
+        "customColor": "#FF2222",
+        "story5W1H": null,
+        "isHighlighted": false,
+        "dueDate": "2026-04-27"
+      },
+      "custom-1775022798737": {
+        "hidden": true
+      },
+      "custom-1775093368380": {
+        "customParent": null,
+        "customOrbitIndex": null,
+        "hidden": true,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": null
+      },
+      "custom-1775093445786": {
+        "customParent": null,
+        "customOrbitIndex": 4,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": 1,
+        "hidden": true
+      },
+      "custom-1775102624256": {
+        "customParent": null,
+        "customOrbitIndex": 4,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": 0,
+        "story5W1H": null
+      },
+      "custom-1775102732526": {
+        "customParent": null,
+        "customOrbitIndex": null,
+        "hidden": true,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": null
+      },
+      "custom-1775102877754": {
+        "customParent": null,
+        "customOrbitIndex": 4,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": 2,
+        "story5W1H": null,
+        "isHighlighted": true
+      },
+      "custom-1775102912460": {
+        "customParent": "custom-1775654438442",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": null
+      },
+      "tag-아이뛰움": {
+        "customOrbitIndex": 1,
+        "fixedX": 64.84958926578031,
+        "fixedY": -151.15329572789523,
+        "customParent": "root-HCHPS",
+        "customSortOrder": 2
+      },
+      "custom-1775141236589": {
+        "customParent": null,
+        "customOrbitIndex": null,
+        "customColor": "#00CC44",
+        "fixedX": 342.93079408951974,
+        "fixedY": 91.19890918761845,
+        "customSortOrder": null,
+        "hidden": true
+      },
+      "tag-서울체력": {
+        "customParent": null,
+        "customOrbitIndex": null,
+        "customColor": "#00BBDD",
+        "fixedX": 165.8495892657579,
+        "fixedY": 128.73284492422883,
+        "customSortOrder": 1
+      },
+      "custom-1775141448389": {
+        "customParent": null,
+        "customOrbitIndex": null,
+        "fixedX": -311.88320901448003,
+        "fixedY": 22.876909835423845,
+        "customColor": "#00BBDD",
+        "customSortOrder": null,
+        "hidden": true
+      },
+      "tag-비만예방": {
+        "customParent": "root-HCHPS",
+        "customOrbitIndex": 1,
+        "customColor": "#00CC44",
+        "fixedX": -118.15041073424209,
+        "fixedY": -148.73003909909167,
+        "customSortOrder": 1
+      },
+      "custom-1775187816071": {
+        "customParent": "leaf-tag-예산-비만예방",
+        "customOrbitIndex": 2,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": 0,
+        "customColor": "#00CC44"
+      },
+      "custom-1775194175125": {
+        "customOrbitIndex": 4,
+        "fixedX": null,
+        "fixedY": null,
+        "customParent": "custom-1774883443270",
+        "customSortOrder": null,
+        "hidden": true
+      },
+      "custom-1775194257380": {
+        "customParent": null,
+        "customOrbitIndex": 1,
+        "fixedX": -9.150410734242087,
+        "fixedY": 200.2189154804555,
+        "customSortOrder": 5
+      },
+      "custom-1775195030946": {
+        "customParent": "NONE",
+        "customOrbitIndex": null,
+        "fixedX": -210.1504107341318,
+        "fixedY": -4.546269672154237,
+        "customSortOrder": 8
+      },
+      "custom-1775268402721": {
+        "customParent": null,
+        "customOrbitIndex": 1,
+        "fixedX": -173.15041073616544,
+        "fixedY": 134.79098649688513,
+        "customSortOrder": 6
+      },
+      "leaf-tag-💭 미분류-유승우": {
+        "customParent": "custom-1775187816071",
+        "customOrbitIndex": 4
+      },
+      "custom-1775275557366": {
+        "customParent": null,
+        "fixedX": null,
+        "fixedY": null,
+        "customOrbitIndex": null,
+        "customSortOrder": null,
+        "hidden": true
+      },
+      "custom-1775275562463": {
+        "customParent": null,
+        "customOrbitIndex": null,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": null,
+        "hidden": true
+      },
+      "custom-1775279356329": {
+        "customParent": null,
+        "customOrbitIndex": null,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": null,
+        "hidden": true
+      },
+      "custom-1775279861826": {
+        "customParent": null,
+        "customOrbitIndex": null,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": null,
+        "hidden": true
+      },
+      "custom-1775305299201": {
+        "customParent": "custom-1775187816071",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null,
+        "hidden": true
+      },
+      "custom-1775268614121": {
+        "customParent": "leaf-tag-예산-서울체력장",
+        "customOrbitIndex": 2,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": null,
+        "isHighlighted": true
+      },
+      "custom-1775307064598": {
+        "customParent": "leaf-tag-예산-서울체력장",
+        "customOrbitIndex": 2,
+        "fixedX": null,
+        "fixedY": null
+      },
+      "custom-1775306453205": {
+        "customParent": "root-HCHPS",
+        "customOrbitIndex": 1,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": 0
+      },
+      "custom-1775280057570": {
+        "customParent": null,
+        "customOrbitIndex": null,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": null,
+        "hidden": true
+      },
+      "custom-1775275510789": {
+        "customParent": null,
+        "fixedX": null,
+        "fixedY": null,
+        "customOrbitIndex": null,
+        "customSortOrder": null,
+        "hidden": true
+      },
+      "custom-1775487928972": {
+        "customParent": "leaf-tag-비만예방-서킷",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null,
+        "hidden": true
+      },
+      "leaf-tag-비만예방-출발마당": {
+        "customOrbitIndex": 2,
+        "customLabel": "슬로우조깅",
+        "customParent": "leaf-tag-예산-비만예방"
+      },
+      "custom-1775638110881": {
+        "customParent": "root-HCHPS",
+        "customOrbitIndex": 1,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": 1,
+        "customLabel": "서울체력장"
+      },
+      "custom-1775638253777": {
+        "customParent": "custom-1775307064598",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null,
+        "isHighlighted": true,
+        "hidden": true
+      },
+      "custom-1775638352833": {
+        "hidden": true
+      },
+      "custom-1775638380130": {
+        "hidden": true
+      },
+      "custom-1775638387377": {
+        "customParent": "custom-1775187816071",
+        "customOrbitIndex": 4,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": 1
+      },
+      "leaf-tag-아이뛰움-“계약승인요청”": {
+        "hidden": true
+      },
+      "leaf-tag-아이뛰움-“용역”": {
+        "hidden": true
+      },
+      "leaf-tag-아이뛰움-이호조": {
+        "hidden": true
+      },
+      "leaf-tag-아이뛰움-지출품의승인내역등록": {
+        "hidden": true
+      },
+      "leaf-tag-아이뛰움-품의유형": {
+        "hidden": true
+      },
+      "custom-1775638432673": {
+        "hidden": true
+      },
+      "custom-1775638448274": {
+        "hidden": true
+      },
+      "custom-1775654438442": {
+        "customParent": "leaf-tag-예산-비만예방",
+        "customOrbitIndex": 2,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": 2,
+        "isHighlighted": false,
+        "customLabel": "청담평생학습관"
+      },
+      "leaf-tag-비만예방-달리기": {
+        "customLabel": "서킷트레이닝"
+      },
+      "custom-1775654487103": {
+        "customParent": "custom-1775654438442",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null,
+        "isHighlighted": true,
+        "isCompleted": true,
+        "hidden": true
+      },
+      "custom-1775654502065": {
+        "customParent": "custom-1775195030946",
+        "customOrbitIndex": 2,
+        "fixedX": null,
+        "fixedY": null,
+        "hidden": true
+      },
+      "custom-1775654519427": {
+        "hidden": true
+      },
+      "custom-1775655234890": {
+        "hidden": true
+      },
+      "custom-1775698209091": {
+        "customParent": "root-HCHPS",
+        "customOrbitIndex": 1,
+        "fixedX": null,
+        "fixedY": null,
+        "dueDate": null,
+        "customSortOrder": 2,
+        "isHighlighted": false,
+        "customLabel": "보건소"
+      },
+      "custom-1775698220787": {
+        "customParent": "custom-1776921869704",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null,
+        "isPerson": true,
+        "leadershipStyle": "VISIONARY",
+        "customLabel": "홍종남 과장님"
+      },
+      "custom-1775698225571": {
+        "customParent": "custom-1779434908123",
+        "customOrbitIndex": 4,
+        "fixedX": null,
+        "fixedY": null,
+        "isPerson": true,
+        "leadershipStyle": "MICROMANAGER",
+        "isPreparingExam": true,
+        "useCustomContext": true,
+        "customLabel": "김재은 팀장님"
+      },
+      "custom-1775698243859": {
+        "customParent": "custom-1775698264931",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null,
+        "customLabel": "김형종 주임님"
+      },
+      "custom-1775698247347": {
+        "customParent": "custom-1775698264931",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null,
+        "customLabel": "신진성 주임님"
+      },
+      "custom-1775698251955": {
+        "customParent": "custom-1779434908123",
+        "customOrbitIndex": 4,
+        "fixedX": null,
+        "fixedY": null,
+        "customLabel": "김은주 주임님"
+      },
+      "custom-1775698264931": {
+        "customParent": "custom-1779434908123",
+        "customOrbitIndex": 4,
+        "fixedX": null,
+        "fixedY": null
+      },
+      "custom-1775699048947": {
+        "customParent": "custom-1774873120608",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": 1
+      },
+      "custom-1775699053411": {
+        "customParent": "custom-1775699048947",
+        "customOrbitIndex": 4,
+        "fixedX": null,
+        "fixedY": null
+      },
+      "custom-1775699123139": {
+        "customParent": "custom-1775699048947",
+        "customOrbitIndex": 4,
+        "fixedX": null,
+        "fixedY": null
+      },
+      "leaf-tag-💭 미분류-오진철": {
+        "customParent": "leaf-tag-💭 미분류-삼성전자",
+        "customOrbitIndex": 4
+      },
+      "custom-1775700671506": {
+        "customParent": "root-HCHPS",
+        "customOrbitIndex": 1,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": 2
+      },
+      "custom-1775700696370": {
+        "customParent": "root-HCHPS",
+        "customOrbitIndex": 1,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": 4
+      },
+      "leaf-tag-💭 미분류-개소식": {
+        "customParent": "leaf-tag-예산-서울체력장",
+        "customOrbitIndex": 2
+      },
+      "custom-1775703180161": {
+        "hidden": true
+      },
+      "custom-1775703194944": {
+        "hidden": true
+      },
+      "custom-1775703964465": {
+        "customParent": "custom-1775268614121",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null
+      },
+      "custom-1775710378541": {
+        "customParent": "custom-1775743986510",
+        "customOrbitIndex": 2,
+        "fixedX": null,
+        "fixedY": null,
+        "dueDate": "2026-04-10",
+        "isHighlighted": true,
+        "hidden": true
+      },
+      "tag-규정": {
+        "hidden": true
+      },
+      "leaf-tag-규정-지출": {
+        "hidden": true
+      },
+      "leaf-tag-규정-통합건강증진사업": {
+        "hidden": true
+      },
+      "leaf-tag-규정-지역사회": {
+        "hidden": true
+      },
+      "leaf-tag-규정-예산": {
+        "customParent": "root-HCHPS",
+        "customOrbitIndex": 1,
+        "fixedX": null,
+        "fixedY": null,
+        "hidden": true
+      },
+      "tag-컴플라이언스": {
+        "hidden": true
+      },
+      "leaf-tag-컴플라이언스-예산": {
+        "hidden": true
+      },
+      "leaf-tag-컴플라이언스-지역사회": {
+        "hidden": true
+      },
+      "leaf-tag-컴플라이언스-지출": {
+        "hidden": true
+      },
+      "leaf-tag-컴플라이언스-편성": {
+        "hidden": true
+      },
+      "leaf-tag-컴플라이언스-5대": {
+        "hidden": true
+      },
+      "leaf-tag-컴플라이언스-원칙": {
+        "hidden": true
+      },
+      "leaf-tag-컴플라이언스-지침": {
+        "hidden": true
+      },
+      "leaf-tag-컴플라이언스-통합건강증진사업": {
+        "hidden": true
+      },
+      "tag-예산": {
+        "hidden": true
+      },
+      "tag-통합건강증진": {
+        "hidden": true
+      },
+      "leaf-tag-통합건강증진-예산": {
+        "hidden": true
+      },
+      "leaf-tag-통합건강증진-지역사회": {
+        "hidden": true
+      },
+      "leaf-tag-통합건강증진-통합건강증진사업": {
+        "hidden": true
+      },
+      "leaf-tag-통합건강증진-지출": {
+        "hidden": true
+      },
+      "leaf-tag-통합건강증진-편성": {
+        "hidden": true
+      },
+      "leaf-tag-통합건강증진-5대": {
+        "hidden": true
+      },
+      "leaf-tag-통합건강증진-원칙": {
+        "hidden": true
+      },
+      "leaf-tag-통합건강증진-지침": {
+        "hidden": true
+      },
+      "leaf-tag-예산-지역사회": {
+        "hidden": true
+      },
+      "leaf-tag-예산-집행": {
+        "hidden": true
+      },
+      "leaf-tag-예산-활용": {
+        "hidden": true
+      },
+      "leaf-tag-예산-등을": {
+        "hidden": true
+      },
+      "leaf-tag-예산-관리": {
+        "hidden": true
+      },
+      "leaf-tag-예산-집행률": {
+        "hidden": true
+      },
+      "leaf-tag-예산-사업": {
+        "hidden": true
+      },
+      "leaf-tag-예산-즉각": {
+        "hidden": true
+      },
+      "custom-1775737866943": {
+        "hidden": true
+      },
+      "custom-1775743955108": {
+        "customParent": "custom-1775698209091",
+        "customOrbitIndex": 2,
+        "fixedX": null,
+        "fixedY": null,
+        "dueDate": "2026-04-13",
+        "isHighlighted": false,
+        "isCompleted": true,
+        "hidden": true
+      },
+      "custom-1775743986510": {
+        "hidden": true
+      },
+      "custom-1775784975907": {
+        "customParent": "custom-1774873120608",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": 3
+      },
+      "custom-1775785007829": {
+        "hidden": true
+      },
+      "custom-1775785869573": {
+        "hidden": true
+      },
+      "custom-1775785898357": {
+        "customParent": "custom-1775306453205",
+        "customOrbitIndex": 2,
+        "fixedX": null,
+        "fixedY": null
+      },
+      "custom-1775796286144": {
+        "customParent": "custom-1774943329986",
+        "customOrbitIndex": 4,
+        "fixedX": null,
+        "fixedY": null
+      },
+      "custom-1776082225528": {
+        "customParent": "custom-1775268614121",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null,
+        "isHighlighted": true
+      },
+      "custom-1776082368982": {
+        "hidden": true
+      },
+      "custom-1776082395163": {
+        "customParent": "custom-1774876678768",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null
+      },
+      "custom-1776082413996": {
+        "customParent": "custom-1775194257380",
+        "customOrbitIndex": 2,
+        "fixedX": null,
+        "fixedY": null
+      },
+      "custom-1776082432151": {
+        "customParent": "custom-1775654487103",
+        "customOrbitIndex": 4,
+        "fixedX": null,
+        "fixedY": null,
+        "customLabel": "강사 섭외",
+        "isCompleted": true,
+        "hidden": true
+      },
+      "custom-1776086744704": {
+        "customParent": "leaf-tag-예산-서울체력장",
+        "customOrbitIndex": 2,
+        "fixedX": null,
+        "fixedY": null,
+        "customLabel": "공간 디자인 및 리플릿"
+      },
+      "custom-1776088205378": {
+        "customParent": "leaf-tag-예산-서울체력장",
+        "customOrbitIndex": 2,
+        "fixedX": null,
+        "fixedY": null,
+        "hidden": true
+      },
+      "custom-1776128426520": {
+        "customParent": "custom-1775306453205",
+        "customOrbitIndex": 2,
+        "fixedX": null,
+        "fixedY": null,
+        "isHighlighted": false
+      },
+      "custom-1776132806359": {
+        "customParent": "custom-1776086744704",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": 0
+      },
+      "custom-1776135899245": {
+        "hidden": true
+      },
+      "custom-1776139863312": {
+        "customParent": "custom-1774873120608",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": 2
+      },
+      "custom-1776139882849": {
+        "customParent": "custom-1776139863312",
+        "customOrbitIndex": 4,
+        "fixedX": null,
+        "fixedY": null,
+        "customLabel": "강윤건 매니저님"
+      },
+      "custom-1776139916800": {
+        "customParent": "custom-1776139863312",
+        "customOrbitIndex": 4,
+        "fixedX": null,
+        "fixedY": null,
+        "isHighlighted": false
+      },
+      "custom-1776139923391": {
+        "customParent": "custom-1776139863312",
+        "customOrbitIndex": 4,
+        "fixedX": null,
+        "fixedY": null,
+        "isHighlighted": true
+      },
+      "custom-1776140075919": {
+        "customParent": "custom-1775784975907",
+        "customOrbitIndex": 4,
+        "fixedX": null,
+        "fixedY": null,
+        "customLabel": "이은정 담당님"
+      },
+      "custom-1776140289584": {
+        "customParent": "custom-1775784975907",
+        "customOrbitIndex": 4,
+        "fixedX": null,
+        "fixedY": null,
+        "customLabel": "0610 1차",
+        "isHighlighted": true
+      },
+      "custom-1776140295919": {
+        "customParent": "custom-1775784975907",
+        "customOrbitIndex": 4,
+        "fixedX": null,
+        "fixedY": null,
+        "customLabel": "하반기 2회 예정"
+      },
+      "custom-1776155477512": {
+        "customParent": "custom-1775195030946",
+        "customOrbitIndex": 2,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": 1
+      },
+      "custom-1776156857930": {
+        "hidden": true
+      },
+      "custom-1776214860272": {
+        "hidden": true
+      },
+      "custom-1776214894462": {
+        "hidden": true
+      },
+      "custom-1776238035610": {
+        "hidden": true
+      },
+      "custom-1776239915704": {
+        "hidden": true
+      },
+      "custom-1776328538107": {
+        "customParent": "custom-1775654438442",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null,
+        "hidden": true
+      },
+      "custom-1776412366413": {
+        "hidden": true
+      },
+      "custom-1776412379659": {
+        "hidden": true
+      },
+      "custom-1776412387852": {
+        "customParent": "custom-1776412366413",
+        "customOrbitIndex": 4,
+        "fixedX": null,
+        "fixedY": null,
+        "hidden": true
+      },
+      "custom-1776412392156": {
+        "hidden": true
+      },
+      "custom-1776412413372": {
+        "hidden": true
+      },
+      "custom-1776412474603": {
+        "customParent": "custom-1775654438442",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null,
+        "isHighlighted": true,
+        "customLabel": "신체활동 강사 구해야 함",
+        "hidden": true
+      },
+      "custom-1776646861660": {
+        "customParent": "leaf-tag-예산-서울체력장",
+        "customOrbitIndex": 2,
+        "fixedX": null,
+        "fixedY": null,
+        "isHighlighted": true
+      },
+      "custom-1776647092491": {
+        "customParent": "leaf-tag-예산-비만예방",
+        "customOrbitIndex": 2,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": 4,
+        "customLabel": "해맞이 공원",
+        "isHighlighted": false
+      },
+      "custom-1776647106344": {
+        "hidden": true
+      },
+      "custom-1776647159883": {
+        "customParent": "custom-1775102877754",
+        "customOrbitIndex": 5,
+        "fixedX": null,
+        "fixedY": null,
+        "isHighlighted": true
+      },
+      "custom-1776647225068": {
+        "customParent": "custom-1774945060019",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null,
+        "isHighlighted": true
+      },
+      "custom-1776647653115": {
+        "hidden": true
+      },
+      "custom-1776647662587": {
+        "hidden": true
+      },
+      "custom-1776648158026": {
+        "hidden": true
+      },
+      "custom-1776661757889": {
+        "customParent": "custom-1774943329986",
+        "customOrbitIndex": 4,
+        "fixedX": null,
+        "fixedY": null
+      },
+      "custom-1776741921895": {
+        "customParent": "custom-1775796286144",
+        "customOrbitIndex": 5,
+        "fixedX": null,
+        "fixedY": null
+      },
+      "custom-1776751807878": {
+        "hidden": true
+      },
+      "custom-1776752694551": {
+        "hidden": true
+      },
+      "custom-1776753915159": {
+        "customParent": "custom-1776921977672",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null,
+        "isHighlighted": false,
+        "dueDate": "2026-04-30",
+        "isCompleted": false
+      },
+      "custom-1776823362289": {
+        "customParent": "custom-1775654438442",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null,
+        "isHighlighted": false
+      },
+      "custom-1776826817151": {
+        "customParent": "custom-1776086744704",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": 2
+      },
+      "custom-1776826830575": {
+        "customParent": "custom-1776086744704",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null,
+        "customLabel": "빔프로젝트 출력",
+        "customSortOrder": 3
+      },
+      "custom-1776834023933": {
+        "hidden": true
+      },
+      "custom-1776843571216": {
+        "hidden": true
+      },
+      "custom-1776908729300": {
+        "customParent": "custom-1775654502065",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null,
+        "hidden": true
+      },
+      "custom-1776908901716": {
+        "hidden": true
+      },
+      "custom-1776921869704": {
+        "customParent": "custom-1775698209091",
+        "customOrbitIndex": 2,
+        "fixedX": null,
+        "fixedY": null
+      },
+      "custom-1776921977672": {
+        "customParent": "custom-1775698209091",
+        "customOrbitIndex": 2,
+        "fixedX": null,
+        "fixedY": null
+      },
+      "custom-1776921984984": {
+        "customParent": "custom-1779435043610",
+        "customOrbitIndex": 4,
+        "fixedX": null,
+        "fixedY": null
+      },
+      "custom-1776921990584": {
+        "customParent": "custom-1776921984984",
+        "customOrbitIndex": 4,
+        "fixedX": null,
+        "fixedY": null
+      },
+      "custom-1776921997272": {
+        "customParent": "custom-1776921990584",
+        "customOrbitIndex": 5,
+        "fixedX": null,
+        "fixedY": null
+      },
+      "custom-1777005776194": {
+        "hidden": true
+      },
+      "custom-1777009226389": {
+        "hidden": true
+      },
+      "custom-1777009245798": {
+        "hidden": true
+      },
+      "custom-1777011301319": {
+        "customParent": "custom-1775022783410",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null
+      },
+      "custom-1777012288487": {
+        "hidden": true
+      },
+      "custom-1777268316137": {
+        "hidden": true
+      },
+      "custom-1777277153360": {
+        "hidden": true
+      },
+      "custom-1777279481151": {
+        "customParent": "custom-1775187816071",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null,
+        "isHighlighted": false,
+        "customSortOrder": 4
+      },
+      "custom-1777353067240": {
+        "customParent": "custom-1775187816071",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null,
+        "isHighlighted": false,
+        "customLabel": "이현탁",
+        "customSortOrder": 3
+      },
+      "custom-1777388900817": {
+        "hidden": true
+      },
+      "custom-1777388994728": {
+        "hidden": true
+      },
+      "custom-1777389017879": {
+        "customParent": "custom-1775195030946",
+        "customOrbitIndex": 2,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": 0
+      },
+      "custom-1777451650573": {
+        "hidden": true
+      },
+      "custom-1777532842681": {
+        "hidden": true
+      },
+      "custom-1778137666222": {
+        "customParent": "leaf-tag-예산-서울체력장",
+        "customOrbitIndex": 2,
+        "fixedX": null,
+        "fixedY": null
+      },
+      "custom-1778137682685": {
+        "customParent": "custom-1778137666222",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null
+      },
+      "custom-1778217576701": {
+        "customParent": "custom-1778137666222",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null
+      },
+      "custom-1778467668247": {
+        "customParent": "custom-1776753915159",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null
+      },
+      "custom-1778467697350": {
+        "hidden": true
+      },
+      "custom-1778467730471": {
+        "hidden": true
+      },
+      "custom-1778467739047": {
+        "hidden": true
+      },
+      "custom-1778467742439": {
+        "hidden": true
+      },
+      "custom-1778467751286": {
+        "hidden": true
+      },
+      "leaf-tag-예산-비만예방": {
+        "customParent": "root-HCHPS",
+        "customOrbitIndex": 1,
+        "customSortOrder": 3
+      },
+      "custom-1778470121529": {
+        "hidden": true
+      },
+      "custom-1778489696634": {
+        "hidden": true
+      },
+      "custom-1778489840158": {
+        "customParent": "custom-1777389017879",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null,
+        "isHighlighted": false
+      },
+      "custom-1778489917802": {
+        "hidden": true
+      },
+      "custom-1778662539933": {
+        "customParent": "custom-1775307064598",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null,
+        "isHighlighted": true
+      },
+      "custom-1778662550908": {
+        "customParent": "custom-1776082225528",
+        "customOrbitIndex": 4,
+        "fixedX": null,
+        "fixedY": null
+      },
+      "custom-1778662753853": {
+        "hidden": true
+      },
+      "custom-1778662768380": {
+        "hidden": true
+      },
+      "custom-1779434908123": {
+        "customParent": "custom-1776921869704",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null
+      },
+      "custom-1779434912011": {
+        "customParent": "custom-1776921869704",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null
+      },
+      "custom-1779434932523": {
+        "customParent": "custom-1779434912011",
+        "customOrbitIndex": 4,
+        "fixedX": null,
+        "fixedY": null
+      },
+      "custom-1779434979275": {
+        "customParent": "custom-1779434908123",
+        "customOrbitIndex": 4,
+        "fixedX": null,
+        "fixedY": null
+      },
+      "custom-1779434986859": {
+        "customParent": "custom-1779434912011",
+        "customOrbitIndex": 4,
+        "fixedX": null,
+        "fixedY": null
+      },
+      "custom-1779435043610": {
+        "customParent": "custom-1776921977672",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null
+      },
+      "custom-1779435114156": {
+        "customParent": "custom-1776139916800",
+        "customOrbitIndex": 5,
+        "fixedX": null,
+        "fixedY": null,
+        "isHighlighted": true
+      },
+      "custom-1779435426202": {
+        "customParent": "custom-1776647225068",
+        "customOrbitIndex": 4,
+        "fixedX": null,
+        "fixedY": null,
+        "isHighlighted": true
+      },
+      "custom-1779435728810": {
+        "customParent": "custom-1777389017879",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null,
+        "isHighlighted": false
+      },
+      "custom-1779436173790": {
+        "customParent": "custom-1777279481151",
+        "customOrbitIndex": 4,
+        "fixedX": null,
+        "fixedY": null,
+        "isHighlighted": true
+      },
+      "custom-1779439088619": {
+        "customParent": "custom-1775194257380",
+        "customOrbitIndex": 2,
+        "fixedX": null,
+        "fixedY": null,
+        "isHighlighted": true
+      },
+      "custom-1779439099914": {
+        "hidden": true
+      },
+      "leaf-tag-예산-서울체력장": {
+        "customSortOrder": 7,
+        "customParent": "root-HCHPS",
+        "customOrbitIndex": 1,
+        "customLabel": "서울체력장"
+      },
+      "custom-1779439164458": {
+        "customParent": "custom-1775700696370",
+        "customOrbitIndex": 2,
+        "fixedX": null,
+        "fixedY": null,
+        "isHighlighted": false
+      },
+      "custom-1779439279354": {
+        "customParent": "custom-1776086744704",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null,
+        "customSortOrder": 1,
+        "isHighlighted": false
+      },
+      "custom-1779439290874": {
+        "customParent": "custom-1779439279354",
+        "customOrbitIndex": 4,
+        "fixedX": null,
+        "fixedY": null,
+        "customLabel": "제작비 결제해야 함",
+        "isHighlighted": true
+      },
+      "custom-1779781637403": {
+        "customParent": "custom-1775268614121",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null,
+        "customLabel": "계획"
+      },
+      "custom-1779785407695": {
+        "hidden": true
+      },
+      "custom-1779785787583": {
+        "customParent": "custom-1775698251955",
+        "customOrbitIndex": 5,
+        "fixedX": null,
+        "fixedY": null,
+        "isHighlighted": true
+      },
+      "custom-1779858554480": {
+        "customParent": "custom-1776661757889",
+        "customOrbitIndex": 5,
+        "fixedX": null,
+        "fixedY": null
+      },
+      "custom-1779949911087": {
+        "customParent": "custom-1776647092491",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null,
+        "isHighlighted": false
+      },
+      "custom-1779952260703": {
+        "customParent": "leaf-tag-예산-서울체력장",
+        "customOrbitIndex": 2,
+        "fixedX": null,
+        "fixedY": null,
+        "isHighlighted": true
+      },
+      "custom-1780040446819": {
+        "customParent": "custom-1779439088619",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null,
+        "isHighlighted": true
+      },
+      "custom-1780304542039": {
+        "customParent": "custom-1776921869704",
+        "customOrbitIndex": 3,
+        "fixedX": null,
+        "fixedY": null,
+        "isHighlighted": true
+      },
+      "custom-1780304554071": {
+        "customParent": "custom-1780304542039",
+        "customOrbitIndex": 4,
+        "fixedX": null,
+        "fixedY": null,
+        "isHighlighted": true
+      },
+      "custom-1780304559607": {
+        "customParent": "custom-1780304542039",
+        "customOrbitIndex": 4,
+        "fixedX": null,
+        "fixedY": null,
+        "isHighlighted": true
+      },
+      "custom-1780304570886": {
+        "customParent": "custom-1780304542039",
+        "customOrbitIndex": 4,
+        "fixedX": null,
+        "fixedY": null,
+        "isHighlighted": true
+      },
+      "tag-재고": {
+        "customSortOrder": 1
+      }
+    },
+    "customNodes": [
+      {
+        "id": "custom-1774873120608",
+        "label": "직장지원",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "parentId": "leaf-tag-예산-비만예방",
+        "customOrbitIndex": 2,
+        "customSortOrder": 1
+      },
+      {
+        "id": "custom-1774876678768",
+        "label": "역량강화교육",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 2,
+        "parentId": "custom-1775700696370"
+      },
+      {
+        "id": "custom-1774879659856",
+        "label": "임시 배치도 검토",
+        "group": "INFRASTRUCTURE",
+        "baseValue": 80,
+        "customColor": "#00BBDD",
+        "centralityScore": 100,
+        "parentId": "custom-1774879638619"
+      },
+      {
+        "id": "custom-1774879676201",
+        "label": "0331(화) 10:30",
+        "group": "INFRASTRUCTURE",
+        "baseValue": 80,
+        "customColor": "#00BBDD",
+        "centralityScore": 100,
+        "parentId": "custom-1774879659856"
+      },
+      {
+        "id": "custom-1774883443270",
+        "label": "서울시 물품 4월 중 일괄 배송",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 3,
+        "parentId": "custom-1775022780402"
+      },
+      {
+        "id": "custom-1774942982353",
+        "label": "양재천 출발마당",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 2,
+        "parentId": "leaf-tag-예산-비만예방",
+        "customSortOrder": 3
+      },
+      {
+        "id": "custom-1774943329986",
+        "label": "측정 장비",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 2,
+        "parentId": "leaf-tag-예산-서울체력장"
+      },
+      {
+        "id": "custom-1774945060019",
+        "label": "노르딕",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 2,
+        "parentId": "leaf-tag-예산-비만예방",
+        "customSortOrder": 5,
+        "isHighlighted": false
+      },
+      {
+        "id": "custom-1775018232153",
+        "label": "견적서",
+        "group": "INFRASTRUCTURE",
+        "baseValue": 80,
+        "customColor": "#FFDD00",
+        "centralityScore": 100,
+        "parentId": "custom-1775018221226"
+      },
+      {
+        "id": "custom-1775022780402",
+        "label": "조성호",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "centralityScore": 100,
+        "customOrbitIndex": 2,
+        "parentId": "custom-1775306453205",
+        "pieColors": [
+          "#00BBDD"
+        ],
+        "customColor": "#FFFFFF",
+        "orbitIndex": 2
+      },
+      {
+        "id": "custom-1775022783410",
+        "label": "최장미",
+        "group": "MACRO_RESEARCH",
+        "baseValue": 80,
+        "centralityScore": 100,
+        "parentId": "custom-1775306453205",
+        "pieColors": [
+          "#00BBDD"
+        ],
+        "customColor": "#FF2222",
+        "orbitIndex": 2,
+        "isExplicitColor": true,
+        "customOrbitIndex": 2,
+        "dueDate": "2026-04-27",
+        "isHighlighted": false
+      },
+      {
+        "id": "custom-1775093368380",
+        "label": "목요일: 박스 수령",
+        "group": "INFRASTRUCTURE",
+        "baseValue": 80,
+        "customColor": "#FFDD00",
+        "centralityScore": 100,
+        "parentId": "custom-1774879638619",
+        "pieColors": [
+          "#00BBDD"
+        ]
+      },
+      {
+        "id": "custom-1775102624256",
+        "label": "유승우",
+        "group": "DCF_MODELING",
+        "baseValue": 80,
+        "customColor": "#00CC44",
+        "centralityScore": 100,
+        "orbitIndex": 3,
+        "parentId": "custom-1775187816071",
+        "customSortOrder": 0,
+        "customOrbitIndex": 4
+      },
+      {
+        "id": "custom-1775102877754",
+        "label": "이정원",
+        "group": "DCF_MODELING",
+        "baseValue": 80,
+        "customColor": "#00CC44",
+        "centralityScore": 100,
+        "customOrbitIndex": 4,
+        "orbitIndex": 3,
+        "parentId": "custom-1775187816071",
+        "customSortOrder": 2,
+        "isHighlighted": true
+      },
+      {
+        "id": "custom-1775102912460",
+        "label": "최수진",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 3,
+        "parentId": "custom-1775654438442",
+        "orbitIndex": 3
+      },
+      {
+        "id": "custom-1775307064598",
+        "label": "물품 구매",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 2,
+        "parentId": "leaf-tag-예산-서울체력장"
+      },
+      {
+        "id": "custom-1775306453205",
+        "label": "서울시",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "centralityScore": 100,
+        "customOrbitIndex": 1,
+        "parentId": "root-HCHPS",
+        "customColor": "#FFFFFF",
+        "customSortOrder": 0
+      },
+      {
+        "id": "custom-1775187816071",
+        "label": "강사",
+        "group": "DCF_MODELING",
+        "baseValue": 80,
+        "customColor": "#00CC44",
+        "centralityScore": 100,
+        "customOrbitIndex": 2,
+        "parentId": "leaf-tag-예산-비만예방",
+        "isExplicitColor": true,
+        "customSortOrder": 0
+      },
+      {
+        "id": "custom-1775194257380",
+        "label": "헬스체크업",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "fixedX": -9.150410734242087,
+        "fixedY": 200.2189154804555,
+        "customColor": "#FF00AA",
+        "centralityScore": 100,
+        "customOrbitIndex": 1,
+        "parentId": "root-HCHPS",
+        "customSortOrder": 5
+      },
+      {
+        "id": "custom-1775195030946",
+        "label": "바른자세개선",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FF00AA",
+        "centralityScore": 100,
+        "fixedX": -210.1504107341318,
+        "fixedY": -4.546269672154237,
+        "customSortOrder": 8
+      },
+      {
+        "id": "custom-1775268402721",
+        "label": "공공PT",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FF00AA",
+        "centralityScore": 100,
+        "customOrbitIndex": 1,
+        "parentId": "root-HCHPS",
+        "fixedX": -173.15041073616544,
+        "fixedY": 134.79098649688513,
+        "customSortOrder": 6
+      },
+      {
+        "id": "custom-1775268614121",
+        "label": "개소식",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 2,
+        "parentId": "leaf-tag-예산-서울체력장",
+        "isHighlighted": true
+      },
+      {
+        "id": "custom-1775638110881",
+        "label": "서울체력장",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 1,
+        "parentId": "root-HCHPS",
+        "customSortOrder": 1
+      },
+      {
+        "id": "custom-1775638387377",
+        "label": "이장섭",
+        "group": "DCF_MODELING",
+        "baseValue": 80,
+        "customColor": "#00CC44",
+        "centralityScore": 100,
+        "customOrbitIndex": 4,
+        "parentId": "custom-1775187816071",
+        "customSortOrder": 1
+      },
+      {
+        "id": "custom-1775654438442",
+        "label": "청담평생학습관",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 2,
+        "parentId": "leaf-tag-예산-비만예방",
+        "customSortOrder": 2,
+        "isHighlighted": false
+      },
+      {
+        "id": "custom-1775698209091",
+        "label": "보건소",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 1,
+        "parentId": "root-HCHPS",
+        "customSortOrder": 2,
+        "isHighlighted": false
+      },
+      {
+        "id": "custom-1775698220787",
+        "label": "홍종남 과장님",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 3,
+        "parentId": "custom-1776921869704",
+        "isPerson": true
+      },
+      {
+        "id": "custom-1775698225571",
+        "label": "김재은 팀장님",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 4,
+        "parentId": "custom-1779434908123",
+        "isPerson": true
+      },
+      {
+        "id": "custom-1775698243859",
+        "label": "김형종 주임님",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 3,
+        "parentId": "custom-1775698264931"
+      },
+      {
+        "id": "custom-1775698247347",
+        "label": "신진성 주임님",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 3,
+        "parentId": "custom-1775698264931"
+      },
+      {
+        "id": "custom-1775698251955",
+        "label": "김은주 주임님",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 4,
+        "parentId": "custom-1779434908123"
+      },
+      {
+        "id": "custom-1775698264931",
+        "label": "건강증진지원실",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 4,
+        "parentId": "custom-1779434908123"
+      },
+      {
+        "id": "custom-1775699048947",
+        "label": "삼성전자",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "centralityScore": 100,
+        "customOrbitIndex": 3,
+        "parentId": "custom-1774873120608",
+        "customColor": "#FFFFFF",
+        "customSortOrder": 1
+      },
+      {
+        "id": "custom-1775699053411",
+        "label": "오진철",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "centralityScore": 100,
+        "customOrbitIndex": 4,
+        "parentId": "custom-1775699048947",
+        "customColor": "#FFFFFF"
+      },
+      {
+        "id": "custom-1775699123139",
+        "label": "이채혁",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 4,
+        "parentId": "custom-1775699048947"
+      },
+      {
+        "id": "custom-1775700671506",
+        "label": "비만예방",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 1,
+        "parentId": "root-HCHPS",
+        "customSortOrder": 2
+      },
+      {
+        "id": "custom-1775700696370",
+        "label": "아이뛰움",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 1,
+        "parentId": "root-HCHPS",
+        "customSortOrder": 4
+      },
+      {
+        "id": "custom-1775703964465",
+        "label": "업체 - 잔치꾼",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 3,
+        "parentId": "custom-1775268614121"
+      },
+      {
+        "id": "custom-1775710378541",
+        "label": "한팀장님 요청 서류 보내기, 지출 예산 질의 응답 관련 민원 답변",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 2,
+        "parentId": "custom-1775743986510",
+        "dueDate": "2026-04-10",
+        "isHighlighted": true
+      },
+      {
+        "id": "custom-1775784975907",
+        "label": "롯데이커머스",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 3,
+        "parentId": "custom-1774873120608",
+        "customSortOrder": 3
+      },
+      {
+        "id": "custom-1775785898357",
+        "label": "김민욱",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 2,
+        "parentId": "custom-1775306453205"
+      },
+      {
+        "id": "custom-1775796286144",
+        "label": "시드테크",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 4,
+        "parentId": "custom-1774943329986"
+      },
+      {
+        "id": "custom-1776082225528",
+        "label": "언제?",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 3,
+        "parentId": "custom-1775268614121",
+        "isHighlighted": true
+      },
+      {
+        "id": "custom-1776082395163",
+        "label": "하반기 송파구",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 3,
+        "parentId": "custom-1774876678768"
+      },
+      {
+        "id": "custom-1776082413996",
+        "label": "서울체력과 연계",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FF00AA",
+        "centralityScore": 100,
+        "customOrbitIndex": 2,
+        "parentId": "custom-1775194257380"
+      },
+      {
+        "id": "custom-1776086744704",
+        "label": "공간 디자인 및 리플릿",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 2,
+        "parentId": "leaf-tag-예산-서울체력장"
+      },
+      {
+        "id": "custom-1776128426520",
+        "label": "김미경",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 2,
+        "parentId": "custom-1775306453205",
+        "isHighlighted": false
+      },
+      {
+        "id": "custom-1776132806359",
+        "label": "A and F",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 3,
+        "parentId": "custom-1776086744704",
+        "customSortOrder": 0
+      },
+      {
+        "id": "custom-1776139863312",
+        "label": "동국제약",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 3,
+        "parentId": "custom-1774873120608",
+        "customSortOrder": 2
+      },
+      {
+        "id": "custom-1776139882849",
+        "label": "강윤건 매니저님",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 4,
+        "parentId": "custom-1776139863312"
+      },
+      {
+        "id": "custom-1776139916800",
+        "label": "0515 2차",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 4,
+        "parentId": "custom-1776139863312",
+        "isHighlighted": false
+      },
+      {
+        "id": "custom-1776139923391",
+        "label": "0612 3차",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 4,
+        "parentId": "custom-1776139863312",
+        "isHighlighted": true
+      },
+      {
+        "id": "custom-1776140075919",
+        "label": "이은정 담당님",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 4,
+        "parentId": "custom-1775784975907"
+      },
+      {
+        "id": "custom-1776140289584",
+        "label": "0610 1차",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 4,
+        "parentId": "custom-1775784975907",
+        "isHighlighted": true
+      },
+      {
+        "id": "custom-1776140295919",
+        "label": "하반기 2회 예정",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 4,
+        "parentId": "custom-1775784975907"
+      },
+      {
+        "id": "custom-1776155477512",
+        "label": "세브란스 송경철",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FF00AA",
+        "centralityScore": 100,
+        "customOrbitIndex": 2,
+        "parentId": "custom-1775195030946",
+        "customSortOrder": 1
+      },
+      {
+        "id": "custom-1776646861660",
+        "label": "4차 서울시 특교금 처리",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 2,
+        "parentId": "leaf-tag-예산-서울체력장",
+        "isHighlighted": true
+      },
+      {
+        "id": "custom-1776647092491",
+        "label": "해맞이 공원",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 2,
+        "parentId": "leaf-tag-예산-비만예방",
+        "customSortOrder": 4,
+        "isHighlighted": false
+      },
+      {
+        "id": "custom-1776647159883",
+        "label": "현재 강사비 미지급",
+        "group": "DCF_MODELING",
+        "baseValue": 80,
+        "customColor": "#00CC44",
+        "centralityScore": 100,
+        "customOrbitIndex": 5,
+        "parentId": "custom-1775102877754",
+        "isHighlighted": true
+      },
+      {
+        "id": "custom-1776647225068",
+        "label": "9월 예정",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 3,
+        "parentId": "custom-1774945060019",
+        "isHighlighted": true
+      },
+      {
+        "id": "custom-1776661757889",
+        "label": "인바디",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 4,
+        "parentId": "custom-1774943329986"
+      },
+      {
+        "id": "custom-1776741921895",
+        "label": "납품 일정",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 5,
+        "parentId": "custom-1775796286144"
+      },
+      {
+        "id": "custom-1776753915159",
+        "label": "산후체조",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 3,
+        "parentId": "custom-1776921977672",
+        "dueDate": "2026-04-30",
+        "isHighlighted": false,
+        "isCompleted": false
+      },
+      {
+        "id": "custom-1776823362289",
+        "label": "케어사이트",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 3,
+        "parentId": "custom-1775654438442",
+        "isHighlighted": false
+      },
+      {
+        "id": "custom-1776826817151",
+        "label": "포토월",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 3,
+        "parentId": "custom-1776086744704",
+        "customSortOrder": 2
+      },
+      {
+        "id": "custom-1776826830575",
+        "label": "빔프로젝트 출력",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 3,
+        "parentId": "custom-1776086744704",
+        "customSortOrder": 3
+      },
+      {
+        "id": "custom-1776921869704",
+        "label": "보건행정과",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 2,
+        "parentId": "custom-1775698209091"
+      },
+      {
+        "id": "custom-1776921977672",
+        "label": "건강관리과",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 2,
+        "parentId": "custom-1775698209091"
+      },
+      {
+        "id": "custom-1776921984984",
+        "label": "웰에이징센터",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 4,
+        "parentId": "custom-1779435043610"
+      },
+      {
+        "id": "custom-1776921990584",
+        "label": "이은정 주임님",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 4,
+        "parentId": "custom-1776921984984"
+      },
+      {
+        "id": "custom-1776921997272",
+        "label": "강사 섭외",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 5,
+        "parentId": "custom-1776921990584"
+      },
+      {
+        "id": "custom-1777011301319",
+        "label": "비만예방합동캠페인",
+        "group": "MACRO_RESEARCH",
+        "baseValue": 80,
+        "customColor": "#FF2222",
+        "centralityScore": 100,
+        "customOrbitIndex": 3,
+        "parentId": "custom-1775022783410"
+      },
+      {
+        "id": "custom-1777279481151",
+        "label": "최문기",
+        "group": "DCF_MODELING",
+        "baseValue": 80,
+        "customColor": "#00CC44",
+        "centralityScore": 100,
+        "customOrbitIndex": 3,
+        "parentId": "custom-1775187816071",
+        "isHighlighted": false,
+        "customSortOrder": 4
+      },
+      {
+        "id": "custom-1777353067240",
+        "label": "이현탁",
+        "group": "DCF_MODELING",
+        "baseValue": 80,
+        "customColor": "#00CC44",
+        "centralityScore": 100,
+        "customOrbitIndex": 3,
+        "parentId": "custom-1775187816071",
+        "isHighlighted": false,
+        "customSortOrder": 3
+      },
+      {
+        "id": "custom-1777389017879",
+        "label": "수의계약",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FF00AA",
+        "centralityScore": 100,
+        "customOrbitIndex": 2,
+        "parentId": "custom-1775195030946",
+        "customSortOrder": 0
+      },
+      {
+        "id": "custom-1778137666222",
+        "label": "인력관리",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 2,
+        "parentId": "leaf-tag-예산-서울체력장"
+      },
+      {
+        "id": "custom-1778137682685",
+        "label": "4대보험정보연계센터",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 3,
+        "parentId": "custom-1778137666222"
+      },
+      {
+        "id": "custom-1778217576701",
+        "label": "건보강남동부지사",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 3,
+        "parentId": "custom-1778137666222"
+      },
+      {
+        "id": "custom-1778467668247",
+        "label": "하반기",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 3,
+        "parentId": "custom-1776753915159"
+      },
+      {
+        "id": "custom-1778489840158",
+        "label": "검사(수) 등록",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FF00AA",
+        "centralityScore": 100,
+        "customOrbitIndex": 3,
+        "parentId": "custom-1777389017879",
+        "isHighlighted": false
+      },
+      {
+        "id": "custom-1778662539933",
+        "label": "TRX 구매",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 3,
+        "parentId": "custom-1775307064598",
+        "isHighlighted": true
+      },
+      {
+        "id": "custom-1778662550908",
+        "label": "6~7월..?",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 4,
+        "parentId": "custom-1776082225528"
+      },
+      {
+        "id": "custom-1779434908123",
+        "label": "건강증진팀",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 3,
+        "parentId": "custom-1776921869704"
+      },
+      {
+        "id": "custom-1779434912011",
+        "label": "보건행정팀",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 3,
+        "parentId": "custom-1776921869704"
+      },
+      {
+        "id": "custom-1779434932523",
+        "label": "이민옥 팀장님",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 4,
+        "parentId": "custom-1779434912011"
+      },
+      {
+        "id": "custom-1779434979275",
+        "label": "이현정 주임님",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 4,
+        "parentId": "custom-1779434908123"
+      },
+      {
+        "id": "custom-1779434986859",
+        "label": "서승오 주임님",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 4,
+        "parentId": "custom-1779434912011"
+      },
+      {
+        "id": "custom-1779435043610",
+        "label": "어르신건강팀",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 3,
+        "parentId": "custom-1776921977672"
+      },
+      {
+        "id": "custom-1779435114156",
+        "label": "강사료 지급",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 5,
+        "parentId": "custom-1776139916800",
+        "isHighlighted": true
+      },
+      {
+        "id": "custom-1779435426202",
+        "label": "김광심 의원 참여",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 4,
+        "parentId": "custom-1776647225068",
+        "isHighlighted": true
+      },
+      {
+        "id": "custom-1779435728810",
+        "label": "착수계",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FF00AA",
+        "centralityScore": 100,
+        "customOrbitIndex": 3,
+        "parentId": "custom-1777389017879",
+        "isHighlighted": false
+      },
+      {
+        "id": "custom-1779436173790",
+        "label": "동국제약 5/15 건 미지급 상태",
+        "group": "DCF_MODELING",
+        "baseValue": 80,
+        "customColor": "#00CC44",
+        "centralityScore": 100,
+        "customOrbitIndex": 4,
+        "parentId": "custom-1777279481151",
+        "isHighlighted": true
+      },
+      {
+        "id": "custom-1779439088619",
+        "label": "AI 운동처방",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FF00AA",
+        "centralityScore": 100,
+        "customOrbitIndex": 2,
+        "parentId": "custom-1775194257380",
+        "isHighlighted": true
+      },
+      {
+        "id": "custom-1779439164458",
+        "label": "상반기 기성준공",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 2,
+        "parentId": "custom-1775700696370",
+        "isHighlighted": false
+      },
+      {
+        "id": "custom-1779439279354",
+        "label": "리플릿",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 3,
+        "parentId": "custom-1776086744704",
+        "customSortOrder": 1,
+        "isHighlighted": false
+      },
+      {
+        "id": "custom-1779439290874",
+        "label": "제작비 결제해야 함",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 4,
+        "parentId": "custom-1779439279354",
+        "isHighlighted": true
+      },
+      {
+        "id": "custom-1779781637403",
+        "label": "계획",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 3,
+        "parentId": "custom-1775268614121"
+      },
+      {
+        "id": "custom-1779785787583",
+        "label": "6월 10일 통합건강 증진 캠페인",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 5,
+        "parentId": "custom-1775698251955",
+        "isHighlighted": true
+      },
+      {
+        "id": "custom-1779858554480",
+        "label": "김만중",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 5,
+        "parentId": "custom-1776661757889"
+      },
+      {
+        "id": "custom-1779949911087",
+        "label": "주차단속 처리",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 3,
+        "parentId": "custom-1776647092491",
+        "isHighlighted": false
+      },
+      {
+        "id": "custom-1779952260703",
+        "label": "관악구",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 2,
+        "parentId": "leaf-tag-예산-서울체력장",
+        "isHighlighted": true
+      },
+      {
+        "id": "custom-1780040446819",
+        "label": "세브란스",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FF00AA",
+        "centralityScore": 100,
+        "customOrbitIndex": 3,
+        "parentId": "custom-1779439088619",
+        "isHighlighted": true
+      },
+      {
+        "id": "custom-1780304542039",
+        "label": "캠페인",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 3,
+        "parentId": "custom-1776921869704",
+        "isHighlighted": true
+      },
+      {
+        "id": "custom-1780304554071",
+        "label": "6월 10일",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 4,
+        "parentId": "custom-1780304542039",
+        "isHighlighted": true
+      },
+      {
+        "id": "custom-1780304559607",
+        "label": "6월 12일",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 4,
+        "parentId": "custom-1780304542039",
+        "isHighlighted": true
+      },
+      {
+        "id": "custom-1780304570886",
+        "label": "물품 구매",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "customColor": "#FFFFFF",
+        "centralityScore": 100,
+        "customOrbitIndex": 4,
+        "parentId": "custom-1780304542039",
+        "isHighlighted": true
+      },
+      {
+        "id": "hong_jongnam",
+        "label": "홍종남 (보건행정과장)",
+        "group": "CORE_PROJECT",
+        "baseValue": 90,
+        "layerId": 0,
+        "centralityScore": 100,
+        "parentId": "custom-1776921869704"
+      },
+      {
+        "id": "kim_jaeeun",
+        "label": "김재은 (건강증진팀장)",
+        "group": "CORE_PROJECT",
+        "baseValue": 85,
+        "layerId": 0,
+        "centralityScore": 100,
+        "parentId": "custom-1779434908123"
+      },
+      {
+        "id": "oh_changsun",
+        "label": "오창선 (담당자)",
+        "group": "CORE_PROJECT",
+        "baseValue": 80,
+        "layerId": 0,
+        "centralityScore": 100
+      },
+      {
+        "id": "gangnam_health_center",
+        "label": "강남구보건소",
+        "group": "INFRASTRUCTURE",
+        "baseValue": 70,
+        "layerId": 0,
+        "centralityScore": 100,
+        "parentId": "custom-1775698209091"
+      },
+      {
+        "id": "medi_sports_center",
+        "label": "AI 메디 스포츠 센터",
+        "group": "CORE_PROJECT",
+        "baseValue": 95,
+        "layerId": 2,
+        "centralityScore": 100,
+        "parentId": "gangnam_health_center"
+      },
+      {
+        "id": "budget_medi_sports",
+        "label": "메디 스포츠 추경 예산",
+        "group": "INFRASTRUCTURE",
+        "baseValue": 80,
+        "layerId": 1,
+        "centralityScore": 100,
+        "parentId": "tag-예산"
+      },
+      {
+        "id": "smart_gym_equipment",
+        "label": "AI 스마트짐 장비",
+        "group": "INFRASTRUCTURE",
+        "baseValue": 80,
+        "layerId": 1,
+        "centralityScore": 100,
+        "parentId": "medi_sports_center"
+      },
+      {
+        "id": "ai_solution_system",
+        "label": "통합 전산 AI 솔루션 시스템",
+        "group": "DATA_PIPELINE",
+        "baseValue": 85,
+        "layerId": 2,
+        "centralityScore": 100,
+        "parentId": "medi_sports_center"
+      },
+      {
+        "id": "metabolic_syndrome_center",
+        "label": "대사증후군 센터",
+        "group": "INFRASTRUCTURE",
+        "baseValue": 60,
+        "layerId": 0,
+        "centralityScore": 100,
+        "parentId": "medi_sports_center"
+      },
+      {
+        "id": "seoul_fitness_gangnam",
+        "label": "서울체력장 강남센터",
+        "group": "INFRASTRUCTURE",
+        "baseValue": 60,
+        "layerId": 0,
+        "centralityScore": 100,
+        "parentId": "leaf-tag-예산-서울체력장"
+      },
+      {
+        "id": "health_checkup_program",
+        "label": "보건소 헬스체크업 프로그램",
+        "group": "MACRO_RESEARCH",
+        "baseValue": 70,
+        "layerId": 2,
+        "centralityScore": 100,
+        "parentId": "custom-1775194257380"
+      },
+      {
+        "id": "doc_medi_sports_proposal",
+        "label": "AI 메디 스포츠 센터 기획 제안서",
+        "group": "DATA_PIPELINE",
+        "baseValue": 90,
+        "layerId": 3,
+        "centralityScore": 100,
+        "parentId": "medi_sports_center"
+      },
+      {
+        "id": "severance_health_checkup",
+        "label": "세브란스 헬스체크업",
+        "group": "INFRASTRUCTURE",
+        "baseValue": 75,
+        "layerId": 0,
+        "centralityScore": 100,
+        "parentId": "custom-1775194257380"
+      },
+      {
+        "id": "basic_checkup",
+        "label": "베이직 기본 검진",
+        "group": "MACRO_RESEARCH",
+        "baseValue": 65,
+        "layerId": 2,
+        "centralityScore": 100,
+        "parentId": "severance_health_checkup"
+      },
+      {
+        "id": "premium_checkup",
+        "label": "프리미엄 검진",
+        "group": "MACRO_RESEARCH",
+        "baseValue": 75,
+        "layerId": 2,
+        "centralityScore": 100,
+        "parentId": "severance_health_checkup"
+      },
+      {
+        "id": "platinum_checkup",
+        "label": "플래티넘 검진",
+        "group": "MACRO_RESEARCH",
+        "baseValue": 85,
+        "layerId": 2,
+        "centralityScore": 100,
+        "parentId": "severance_health_checkup"
+      },
+      {
+        "id": "noblesse_checkup",
+        "label": "노블레스 검진",
+        "group": "MACRO_RESEARCH",
+        "baseValue": 90,
+        "layerId": 2,
+        "centralityScore": 100,
+        "parentId": "severance_health_checkup"
+      },
+      {
+        "id": "budget_basic_checkup",
+        "label": "기본 검진비 (75만원)",
+        "group": "INFRASTRUCTURE",
+        "baseValue": 65,
+        "layerId": 1,
+        "centralityScore": 100,
+        "parentId": "basic_checkup"
+      },
+      {
+        "id": "budget_premium_checkup",
+        "label": "프리미엄 검진비 (128-308만원)",
+        "group": "INFRASTRUCTURE",
+        "baseValue": 75,
+        "layerId": 1,
+        "centralityScore": 100,
+        "parentId": "premium_checkup"
+      },
+      {
+        "id": "budget_platinum_checkup",
+        "label": "플래티넘 검진비 (231-486만원)",
+        "group": "INFRASTRUCTURE",
+        "baseValue": 85,
+        "layerId": 1,
+        "centralityScore": 100,
+        "parentId": "platinum_checkup"
+      },
+      {
+        "id": "mri_mra_brain",
+        "label": "뇌 MRI+MRA 검사",
+        "group": "MACRO_RESEARCH",
+        "baseValue": 80,
+        "layerId": 2,
+        "centralityScore": 100,
+        "parentId": "premium_checkup"
+      },
+      {
+        "id": "musculoskeletal_posture_test",
+        "label": "근골격 불균형/부정렬 검사",
+        "group": "MACRO_RESEARCH",
+        "baseValue": 75,
+        "layerId": 2,
+        "centralityScore": 100,
+        "parentId": "basic_checkup"
+      },
+      {
+        "id": "heart_ultrasound",
+        "label": "심장 초음파",
+        "group": "MACRO_RESEARCH",
+        "baseValue": 70,
+        "layerId": 2,
+        "centralityScore": 100
+      },
+      {
+        "id": "genetic_panel_test",
+        "label": "유전자 패널 검사",
+        "group": "MACRO_RESEARCH",
+        "baseValue": 80,
+        "layerId": 2,
+        "centralityScore": 100,
+        "parentId": "platinum_checkup"
+      },
+      {
+        "id": "doc_severance_catalog",
+        "label": "세브란스 헬스체크업 검진 브로셔",
+        "group": "DATA_PIPELINE",
+        "baseValue": 80,
+        "layerId": 3,
+        "centralityScore": 100,
+        "parentId": "severance_health_checkup"
+      }
+    ],
+    "customEdges": [
+      {
+        "source": "tag-비만예방",
+        "target": "custom-1774945060019",
+        "weight": 1,
+        "type": "DEPENDENCY"
+      },
+      {
+        "source": "root-HCHPS",
+        "target": "root-HCHPS",
+        "weight": 1,
+        "type": "DEPENDENCY"
+      },
+      {
+        "source": "leaf-tag-💭 미분류-김미경",
+        "target": "leaf-tag-💭 미분류-서울시",
+        "weight": 1,
+        "type": "DEPENDENCY"
+      },
+      {
+        "source": "root-HCHPS",
+        "target": "tag-아이뛰움",
+        "weight": 1,
+        "type": "DEPENDENCY"
+      },
+      {
+        "source": "tag-서울체력",
+        "target": "leaf-tag-💭 미분류-김미경",
+        "weight": 1,
+        "type": "DEPENDENCY"
+      },
+      {
+        "source": "root-HCHPS",
+        "target": "tag-비만예방",
+        "weight": 1,
+        "type": "DEPENDENCY"
+      },
+      {
+        "source": "root-HCHPS",
+        "target": "custom-1775268402721",
+        "weight": 1,
+        "type": "DEPENDENCY"
+      },
+      {
+        "source": "leaf-tag-💭 미분류-유승우",
+        "target": "custom-1775187816071",
+        "weight": 1,
+        "type": "DEPENDENCY"
+      },
+      {
+        "source": "custom-1774942982353",
+        "target": "tag-비만예방",
+        "weight": 1,
+        "type": "DEPENDENCY"
+      },
+      {
+        "source": "custom-1775022783410",
+        "target": "leaf-tag-💭 미분류-서울시",
+        "weight": 1,
+        "type": "DEPENDENCY"
+      },
+      {
+        "source": "root-HCHPS",
+        "target": "custom-1775194257380",
+        "weight": 1,
+        "type": "DEPENDENCY"
+      },
+      {
+        "source": "root-HCHPS",
+        "target": "custom-1775195030946",
+        "weight": 1,
+        "type": "DEPENDENCY"
+      },
+      {
+        "source": "tag-비만예방",
+        "target": "custom-1774873120608",
+        "weight": 1,
+        "type": "DEPENDENCY"
+      },
+      {
+        "source": "leaf-tag-💭 미분류-삼성전자",
+        "target": "custom-1774873120608",
+        "weight": 1,
+        "type": "DEPENDENCY"
+      },
+      {
+        "source": "root-HCHPS",
+        "target": "leaf-tag-💭 미분류-서울시",
+        "weight": 1,
+        "type": "DEPENDENCY"
+      },
+      {
+        "source": "custom-1775022780402",
+        "target": "custom-1774883443270",
+        "weight": 1,
+        "type": "DEPENDENCY"
+      },
+      {
+        "source": "custom-1775187816071",
+        "target": "custom-1775102624256",
+        "weight": 1,
+        "type": "DEPENDENCY"
+      },
+      {
+        "source": "custom-1775187816071",
+        "target": "custom-1775102877754",
+        "weight": 1,
+        "type": "DEPENDENCY"
+      },
+      {
+        "source": "hong_jongnam",
+        "target": "medi_sports_center",
+        "weight": 0.9,
+        "type": "ASSIGNEE"
+      },
+      {
+        "source": "kim_jaeeun",
+        "target": "medi_sports_center",
+        "weight": 0.85,
+        "type": "ASSIGNEE"
+      },
+      {
+        "source": "oh_changsun",
+        "target": "medi_sports_center",
+        "weight": 0.8,
+        "type": "ASSIGNEE"
+      },
+      {
+        "source": "budget_medi_sports",
+        "target": "medi_sports_center",
+        "weight": 0.95,
+        "type": "BUDGET_SOURCE"
+      },
+      {
+        "source": "smart_gym_equipment",
+        "target": "medi_sports_center",
+        "weight": 0.8,
+        "type": "COMPONENTS"
+      },
+      {
+        "source": "ai_solution_system",
+        "target": "medi_sports_center",
+        "weight": 0.9,
+        "type": "COMPONENTS"
+      },
+      {
+        "source": "metabolic_syndrome_center",
+        "target": "medi_sports_center",
+        "weight": 0.75,
+        "type": "COMPONENTS"
+      },
+      {
+        "source": "seoul_fitness_gangnam",
+        "target": "medi_sports_center",
+        "weight": 0.75,
+        "type": "COMPONENTS"
+      },
+      {
+        "source": "health_checkup_program",
+        "target": "medi_sports_center",
+        "weight": 0.75,
+        "type": "COMPONENTS"
+      },
+      {
+        "source": "medi_sports_center",
+        "target": "doc_medi_sports_proposal",
+        "weight": 0.9,
+        "type": "DEPENDENCY"
+      },
+      {
+        "source": "gangnam_health_center",
+        "target": "medi_sports_center",
+        "weight": 0.8,
+        "type": "DEPENDENCY"
+      },
+      {
+        "source": "basic_checkup",
+        "target": "severance_health_checkup",
+        "weight": 0.8,
+        "type": "COMPONENTS"
+      },
+      {
+        "source": "premium_checkup",
+        "target": "severance_health_checkup",
+        "weight": 0.85,
+        "type": "COMPONENTS"
+      },
+      {
+        "source": "platinum_checkup",
+        "target": "severance_health_checkup",
+        "weight": 0.9,
+        "type": "COMPONENTS"
+      },
+      {
+        "source": "noblesse_checkup",
+        "target": "severance_health_checkup",
+        "weight": 0.95,
+        "type": "COMPONENTS"
+      },
+      {
+        "source": "budget_basic_checkup",
+        "target": "basic_checkup",
+        "weight": 0.8,
+        "type": "BUDGET_SOURCE"
+      },
+      {
+        "source": "budget_premium_checkup",
+        "target": "premium_checkup",
+        "weight": 0.85,
+        "type": "BUDGET_SOURCE"
+      },
+      {
+        "source": "budget_platinum_checkup",
+        "target": "platinum_checkup",
+        "weight": 0.9,
+        "type": "BUDGET_SOURCE"
+      },
+      {
+        "source": "mri_mra_brain",
+        "target": "premium_checkup",
+        "weight": 0.75,
+        "type": "COMPONENTS"
+      },
+      {
+        "source": "musculoskeletal_posture_test",
+        "target": "basic_checkup",
+        "weight": 0.7,
+        "type": "COMPONENTS"
+      },
+      {
+        "source": "genetic_panel_test",
+        "target": "platinum_checkup",
+        "weight": 0.8,
+        "type": "COMPONENTS"
+      },
+      {
+        "source": "severance_health_checkup",
+        "target": "doc_severance_catalog",
+        "weight": 0.85,
+        "type": "DEPENDENCY"
+      },
+      {
+        "source": "health_checkup_program",
+        "target": "severance_health_checkup",
+        "weight": 0.85,
+        "type": "DEPENDENCY"
+      }
+    ],
+    "deletedEdges": [
+      "tag-아이뛰움|||leaf-tag-💭 미분류-서울시",
+      "leaf-tag-💭 미분류-서울시|||tag-아이뛰움",
+      "leaf-tag-💭 미분류-유승우|||custom-1775195030946",
+      "custom-1775268402721|||custom-1775195030946",
+      "custom-1774883171627|||tag-서울체력",
+      "leaf-tag-💭 미분류-삼성전자|||root-HCHPS",
+      "root-HCHPS|||leaf-tag-💭 미분류-삼성전자",
+      "custom-1774883171627|||custom-1774943329986",
+      "custom-1774943329986|||custom-1774883171627",
+      "custom-1774943329986|||root-HCHPS",
+      "leaf-tag-💭 미분류-김미경|||custom-1774943329986",
+      "custom-1775187816071|||custom-1774873120608",
+      "custom-1775307064598|||custom-1774943329986"
+    ]
+  }
+]

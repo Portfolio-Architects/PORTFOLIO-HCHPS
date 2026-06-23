@@ -1,0 +1,80 @@
+[
+  {
+    "id": "singleton",
+    "blocks": [
+      {
+        "id": "ddd6b643-7be6-43c3-84aa-92f18a469be5",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "02-2259-3208",
+            "styles": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "fc578adb-cbf9-4ce8-a48f-43011f6ece82",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "문민석 과장님 / 헬스체크업 경영팀",
+            "styles": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "444524c8-8711-49d5-9a56-494f27ef81fd",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [],
+        "children": []
+      },
+      {
+        "id": "4dccc9c0-585e-4e8f-b334-9bf0366364c9",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "월요일에 다시 전화하기로",
+            "styles": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "ab26fc3e-1bf1-482c-8e13-a18fa7d4978e",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [],
+        "children": []
+      }
+    ]
+  }
+]

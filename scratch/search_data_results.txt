@@ -1,0 +1,45 @@
+[FOUND] '인증센터' in data file: BUDGET_CATEGORIES.json
+  Matches found. Size: 48090 bytes
+------------------------------------------------------------
+[FOUND] '인증센터' in data file: BUDGET_ENTRIES.json
+  Matches found. Size: 20844 bytes
+------------------------------------------------------------
+[FOUND] 'AI' in data file: CLASSIFICATION_WORDS.json
+  Matches found. Size: 24384 bytes
+------------------------------------------------------------
+[FOUND] 'AI' in data file: MAP_CUSTOMIZATION.json
+  Matches found. Size: 378149 bytes
+------------------------------------------------------------
+[FOUND] 'AI' in data file: SIGNAL_LOG.json
+  Matches found. Size: 22666 bytes
+------------------------------------------------------------
+[FOUND] '건강' in data file: WIKI_DOC_custom-1775022780402.json
+  Matches found. Size: 1175 bytes
+------------------------------------------------------------
+[FOUND] '건강' in data file: WIKI_DOC_custom-1775022783410.json
+  Matches found. Size: 2760 bytes
+------------------------------------------------------------
+[FOUND] '인증센터' in data file: WIKI_DOC_custom-1775785898357.json
+  Matches found. Size: 1926 bytes
+------------------------------------------------------------
+[FOUND] 'AI' in data file: WIKI_DOC_custom-1775796286144.json
+  Matches found. Size: 2941 bytes
+------------------------------------------------------------
+[FOUND] '인증센터' in data file: WIKI_DOC_custom-1776239915704.json
+  Matches found. Size: 2015 bytes
+------------------------------------------------------------
+[FOUND] 'AI' in data file: WIKI_DOC_custom-1777277153360.json
+  Matches found. Size: 637 bytes
+------------------------------------------------------------
+[FOUND] 'AI' in data file: WIKI_DOC_custom-1778217576701.json
+  Matches found. Size: 633 bytes
+------------------------------------------------------------
+[FOUND] 'AI' in data file: WIKI_DOC_custom-1779434932523.json
+  Matches found. Size: 337 bytes
+------------------------------------------------------------
+[FOUND] '건강' in data file: WIKI_DOC_leaf-tag-💭 미분류-김미경.json
+  Matches found. Size: 1171 bytes
+------------------------------------------------------------
+[FOUND] 'AI' in data file: WIKI_DOC_sig-1775702700993-unj6.json
+  Matches found. Size: 563 bytes
+------------------------------------------------------------

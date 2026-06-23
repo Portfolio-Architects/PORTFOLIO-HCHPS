@@ -1,0 +1,43 @@
+Created At: 2026-05-28T02:36:35Z
+Completed At: 2026-05-28T02:36:35Z
+File Path: `file:///d:/Desktop/PORTFOLIO/PORTFOLIO%20-%20VITAL/src/components/dashboard/PortfolioDashboardView.tsx`
+Total Lines: 1040
+Total Bytes: 77895
+Showing lines 696 to 730
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+696:                                                           }}
+697:                                                           className="w-full bg-white border border-blue-500 rounded-lg px-2.5 py-1 text-[14.4px] font-black text-slate-800 text-right focus:ring-1 focus:ring-blue-500/20 outline-none transition-all"
+698:                                                         />
+699:                                                       );
+700:                                                     }
+701: 
+702:                                                     const computedVal = evaluateExpression(planFormula);
+703:                                                     const displayVal = planFormula ? (computedVal > 0 ? computedVal.toLocaleString() : '') : '';
+704: 
+705:                                                     return (
+706:                                                       <div 
+707:                                                         onClick={() => setActiveInputId(inputId)}
+708:                                                         className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-[14.4px] font-black text-slate-800 text-right cursor-pointer hover:bg-slate-100 hover:border-slate-300 transition-all min-h-[33px] flex items-center justify-end"
+709:                                                       >
+710:                                                         {displayVal || <span className="text-slate-300 font-bold">예정액</span>}
+711:                                                       </div>
+712:                                                     );
+713:                                                   })()}
+714:                                                 </td>
+715:                                                 <td className="py-3 px-4 text-right">
+716:                                                   {(() => {
+717:                                                     const subRemaining = s.amount - (s.virtualAdjustment || 0);
+718:                                                     return (
+719:                                                       <span className={`font-black ${subRemaining === 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+720:                                                         {subRemaining.toLocaleString()}원
+721:                                                       </span>
+722:                                                     );
+723:                                                   })()}
+724:                                                 </td>
+725:                                                 <td className="py-3 px-4">
+726:                                                   <input 
+727:                                                     key={`note-sub-${sub.id}-${sIdx}-${extractMemoFromNoteWithSplit(s.note)}`}
+728:                                                     type="text"
+729:                                                     placeholder="비고"
+730:                                                     defaultValue={extractMemoFromNoteWithSplit(s.note)}
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

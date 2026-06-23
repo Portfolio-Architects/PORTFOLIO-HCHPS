@@ -1,0 +1,52 @@
+[
+  {
+    "id": "singleton",
+    "blocks": [
+      {
+        "id": "51b21b58-e893-4ce5-8a86-fc5096d550dc",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "김태심 팀장님, 027565174",
+            "styles": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "d71c0766-2c75-4d08-995e-3b63c3fe216c",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "01032007895",
+            "styles": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "f65d1749-7956-4759-a399-366b607810bb",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [],
+        "children": []
+      }
+    ]
+  }
+]

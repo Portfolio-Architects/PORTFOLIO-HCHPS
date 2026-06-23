@@ -43,8 +43,17 @@ interface SearchResultModalProps {
 
 export function SearchResultModal({ isOpen, onClose, query, results: localResults, appMode = 'VITAL' }: SearchResultModalProps) {
   const [semanticResults, setSemanticResults] = useState<VectorResult[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  const [prevQuery, setPrevQuery] = useState('');
+  const [prevIsOpen, setPrevIsOpen] = useState(false);
+
+  if (query !== prevQuery || isOpen !== prevIsOpen) {
+    setPrevQuery(query);
+    setPrevIsOpen(isOpen);
+    setSemanticResults([]);
+    setErrorMsg('');
+  }
 
   const semanticSearchMutation = useSemanticSearch();
 
@@ -55,12 +64,6 @@ export function SearchResultModal({ isOpen, onClose, query, results: localResult
     window.dispatchEvent(new CustomEvent('wiki:closeNode'));
 
     let isMounted = true;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setIsLoading(true);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSemanticResults([]);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setErrorMsg('');
 
     semanticSearchMutation.mutate({
       query,
@@ -75,18 +78,15 @@ export function SearchResultModal({ isOpen, onClose, query, results: localResult
         if (isMounted) {
           setErrorMsg(err.message || 'Unknown network error');
         }
-      },
-      onSettled: () => {
-        if (isMounted) {
-          setIsLoading(false);
-        }
       }
     });
 
     return () => { isMounted = false; };
-  }, [isOpen, query, localResults, semanticSearchMutation]);
+  }, [isOpen, query, semanticSearchMutation]);
 
   if (!isOpen) return null;
+
+  const isPending = semanticSearchMutation.isPending;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-black/50 backdrop-blur-md transition-opacity duration-300" onClick={onClose}>
@@ -118,27 +118,27 @@ export function SearchResultModal({ isOpen, onClose, query, results: localResult
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50/20 custom-scrollbar flex flex-col gap-4">
           
-          {isLoading && (
+          {isPending && (
             <div className="flex flex-col items-center justify-center p-12 text-slate-500 gap-3">
               <span className="w-7 h-7 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin"/>
               <span className="text-xs font-semibold tracking-wide">Vector DB에서 최적 문서 탐색 중...</span>
             </div>
           )}
           
-          {!isLoading && errorMsg && localResults.length === 0 && (
+          {!isPending && errorMsg && localResults.length === 0 && (
             <div className="text-xs font-bold text-rose-600 bg-rose-500/10 border border-rose-500/20 p-4 rounded-xl flex items-center gap-2">
               <X size={15} /> 검색 로드 장애: {errorMsg}
             </div>
           )}
 
-          {!isLoading && semanticResults.length === 0 && localResults.length === 0 && !errorMsg && (
+          {!isPending && semanticResults.length === 0 && localResults.length === 0 && !errorMsg && (
             <div className="flex flex-col items-center justify-center p-12 text-slate-400 gap-2">
               <Search size={36} className="opacity-25 mb-1.5 text-slate-400"/>
               <p className="text-[13px] font-bold text-slate-500">지식베이스 내 관련 문서를 찾지 못했습니다.</p>
             </div>
           )}
 
-          {!isLoading && (semanticResults.length > 0 || localResults.length > 0) && (
+          {!isPending && (semanticResults.length > 0 || localResults.length > 0) && (
             <div className="flex flex-col gap-3.5">
               {semanticResults.length > 0 
                 ? semanticResults.map((doc, idx) => {

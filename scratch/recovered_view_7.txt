@@ -1,0 +1,76 @@
+Created At: 2026-05-28T01:59:48Z
+Completed At: 2026-05-28T01:59:48Z
+File Path: `file:///d:/Desktop/PORTFOLIO/PORTFOLIO%20-%20VITAL/src/components/dashboard/PortfolioDashboardView.tsx`
+Total Lines: 731
+Total Bytes: 52157
+Showing lines 650 to 731
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+650:                                               {e.amount.toLocaleString()}원
+651:                                             </td>
+652:                                           </tr>
+653:                                         ))}
+654:                                         {entries.filter(e => e.categoryId === sub.id && !e.isPlanned).length === 0 && (
+655:                                           <tr>
+656:                                             <td colSpan={3} className="py-3 text-center text-[14.4px] text-slate-400 font-medium">실제 집행된 지출 내역이 없습니다.</td>
+657:                                           </tr>
+658:                                         )}
+659:                                       </tbody>
+660:                                     </table>
+661:                                   </div>
+662:                                 </div>
+663: 
+664:                               </div>
+665:                             )}
+666: 
+667:                           </div>
+668:                         );
+669:                       })}
+670:                       {subItems.length === 0 && (
+671:                         <span className="text-sm text-slate-400 font-medium py-4 text-center">하위 통계목 내역이 존재하지 않습니다.</span>
+672:                       )}
+673:                     </div>
+674:                   </div>
+675:                 )}
+676: 
+677:               </div>
+678:             );
+679:           })}
+680:         </div>
+681:       </div>
+6
+<truncated 1486 bytes>
+t-[12px] font-semibold text-slate-500 leading-relaxed">{insight.insightText}</span>
+699:                 </div>
+700:               </div>
+701:               <div className="flex flex-col items-end pt-4 border-t border-slate-100 mt-2">
+702:                 <span className={`text-lg font-black ${insight.action === 'INCREASE' ? 'text-red-500' : (isHchps ? 'text-emerald-500' : 'text-blue-500')}`}>
+703:                   {insight.diffAmount > 0 ? '+' : ''}{insight.diffAmount.toLocaleString()} <span className="text-xs">KRW</span>
+704:                 </span>
+705:                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{insight.action} RECOMMENDATION</span>
+706:               </div>
+707:             </div>
+708:           )) : (
+709:             <div className="col-span-full text-center py-10 text-sm font-bold text-slate-400">
+710:               특이 소진 항목이 발견되지 않았습니다.
+711:             </div>
+712:           )}
+713:         </div>
+714:       </div>
+715: 
+716:       {/* Footer */}
+717:       <div className="mt-8 pt-8 pb-4 border-t border-slate-200/60">
+718:         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 text-[10px] font-black text-slate-400 tracking-widest uppercase">
+719:           <span>© 2026 PORTFOLIO {appMode}. All rights reserved.</span>
+720:           <span className="flex items-center gap-3">
+721:             Precision Operations Intelligence
+722:             <span className="text-slate-300">|</span> 
+723:             <button onClick={onLogout} className={`text-${isHchps ? 'emerald' : 'blue'}-500 hover:text-${isHchps ? 'emerald' : 'blue'}-600 transition-colors`}>SECURE</button>
+724:           </span>
+725:         </div>
+726:       </div>
+727:       
+728:     </div>
+729:   );
+730: }
+731: 
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
