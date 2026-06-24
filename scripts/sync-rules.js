@@ -52,8 +52,25 @@ function updateAgentsManifest(milestones) {
   
   const marker = '## 5. 최신 동기화된 마일스톤 (Synced Milestones Log)';
   
-  // Format milestones as a markdown list
-  const milestoneList = milestones.map(m => `  - ${m}`).join('\n');
+  // Format milestones as a markdown list (Keep only recent 12, group the rest)
+  const LIMIT = 12;
+  const recentMilestones = milestones.slice(0, LIMIT);
+  const olderCount = milestones.length - LIMIT;
+  
+  let milestoneList = recentMilestones.map(m => `  - ${m}`).join('\n');
+  
+  if (olderCount > 0) {
+    const lastMilestone = milestones[milestones.length - 1];
+    const dateMatch = lastMilestone.match(/\((\d{4}-\d{2}-\d{2})\)/);
+    const oldestDateStr = dateMatch ? dateMatch[1] : '초기';
+    
+    const borderMilestone = milestones[LIMIT];
+    const borderDateMatch = borderMilestone.match(/\((\d{4}-\d{2}-\d{2})\)/);
+    const borderDateStr = borderDateMatch ? borderDateMatch[1] : '최근';
+    
+    milestoneList += `\n  - 그 외 과거 누적 마일스톤 총 ${olderCount}건 통합 요약 (${oldestDateStr} ~ ${borderDateStr} 이전 패치 내역)`;
+  }
+  
   const newSectionContent = `${marker}
 - **최신 동기화 일자:** ${today}
 - **동기화된 마일스톤:**

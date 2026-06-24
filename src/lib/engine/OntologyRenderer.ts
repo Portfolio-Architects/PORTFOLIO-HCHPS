@@ -20,7 +20,7 @@ export interface RenderContext {
   cameraOffsetX?: number;
   cameraOffsetY?: number;
   activeLayers?: Set<number>;
-  layoutMode?: 'mindmap' | 'orbit' | 'cluster' | 'tree';
+  layoutMode?: 'mindmap' | 'orbit' | 'cluster';
   isInteractive?: boolean;
   isOrbiting?: boolean;
   centralitySortedNodes?: OrbitalNode[];
@@ -43,6 +43,8 @@ export interface BatchedEdge {
 export class OntologyRenderer {
   private static lastActiveNodeId: string | null = null;
   private static cachedNeighborsSet = new Set<string>();
+  private static lastActiveNodeIdForDescendants: string | null = null;
+  private static cachedDescendantsSet = new Set<string>();
   private static textBoxPool: Array<{x1: number, y1: number, x2: number, y2: number}> = [];
   private static drawnTextBoxesList: Array<{x1: number, y1: number, x2: number, y2: number}> = [];
   private static colorMap = new Map<string, number>();
@@ -57,6 +59,31 @@ export class OntologyRenderer {
   }
   private static edgePool: BatchedEdge[] = [];
   private static edgePoolUsed = 0;
+  private static textAllowedSet = new Set<string>();
+  private static fontParseCache = new Map<string, { weight: string; size: number }>();
+  private static labelsToDrawPool: Array<{
+    edge: OntologyEdge;
+    leftRightX: number;
+    rightLeftX: number;
+    leftNode: OrbitalNode;
+    rightNode: OrbitalNode;
+    cpDist: number;
+    avgScale: number;
+    themeColor: string;
+    alpha: number;
+  }> = [];
+  private static labelsToDrawPoolUsed = 0;
+  private static labelsToDrawList: Array<{
+    edge: OntologyEdge;
+    leftRightX: number;
+    rightLeftX: number;
+    leftNode: OrbitalNode;
+    rightNode: OrbitalNode;
+    cpDist: number;
+    avgScale: number;
+    themeColor: string;
+    alpha: number;
+  }> = [];
 
   private static currentFont = '';
   private static currentFillStyle = '';
@@ -128,11 +155,23 @@ export class OntologyRenderer {
     }
   }
 
+  private static parseFont(fontStr: string): { weight: string; size: number } {
+    let cached = OntologyRenderer.fontParseCache.get(fontStr);
+    if (!cached) {
+      const weightMatch = fontStr.match(/^(bold|600|500)/);
+      const weight = weightMatch ? weightMatch[1] : '500';
+      const sizeMatch = fontStr.match(/(\d+(?:\.\d+)?)px/);
+      const fontSize = sizeMatch ? parseFloat(sizeMatch[1]) : 12;
+      cached = { weight, size: fontSize };
+      OntologyRenderer.fontParseCache.set(fontStr, cached);
+    }
+    return cached;
+  }
+
   private static getTextWidth(ctx: CanvasRenderingContext2D, text: string, fontStr: string): number {
-    const weightMatch = fontStr.match(/^(bold|600|500)/);
-    const weight = weightMatch ? weightMatch[1] : '500';
-    const sizeMatch = fontStr.match(/(\d+(?:\.\d+)?)px/);
-    const fontSize = sizeMatch ? parseFloat(sizeMatch[1]) : 12;
+    const parsed = OntologyRenderer.parseFont(fontStr);
+    const weight = parsed.weight;
+    const fontSize = parsed.size;
 
     const cacheKey = `${text}|||${weight}`;
     let baseW = this.baseTextWidthCache.get(cacheKey);
@@ -164,31 +203,15 @@ export class OntologyRenderer {
 
     ctx.clearRect(0, 0, 128, 128);
 
-    // Core sphere
+    // Core Flat circle
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.fillStyle = color;
     ctx.fill();
 
-    // 3D Reflection
-    const reflection = ctx.createRadialGradient(
-      cx - r * 0.3,
-      cy - r * 0.3,
-      0,
-      cx,
-      cy,
-      r
-    );
-    reflection.addColorStop(0, 'rgba(255, 255, 255, 0.6)');
-    reflection.addColorStop(0.3, 'rgba(255, 255, 255, 0.15)');
-    reflection.addColorStop(0.8, 'rgba(0, 0, 0, 0.05)');
-    reflection.addColorStop(1, 'rgba(0, 0, 0, 0.25)');
-    ctx.fillStyle = reflection;
-    ctx.fill();
-
-    // White border
+    // White border (Flat UI style)
     ctx.strokeStyle = '#FFFFFF';
-    ctx.lineWidth = isCluster ? 6.5 : 4.0;
+    ctx.lineWidth = isCluster ? 6.5 : 4.5;
     ctx.stroke();
 
     this.nodeCache.set(key, canvas);
@@ -221,7 +244,7 @@ export class OntologyRenderer {
     if (layoutMode === 'orbit') {
       this.renderOrbitRings(context);
     } else if (layoutMode === 'cluster') {
-      // 포도송이(Cluster) 뷰: 궤도 링 및 4단 플레이트 모두 그리기를 건너뜁니다.
+      // 포도송이(Cluster) 뷰: 수직 적층 플레이트 그리기를 건너뛰어 시각적 겹침 방지
     } else {
       this.renderBackgroundLayers(ctx, canvasW, canvasH, cameraOffsetX, cameraOffsetY, zoom, activeLayers);
     }
@@ -257,197 +280,11 @@ export class OntologyRenderer {
     zoom: number,
     activeLayers?: Set<number>
   ): void {
-    const cx = canvasW / 2 + cameraOffsetX;
-    const cy = canvasH / 2 + cameraOffsetY;
-    const tiltAngle = 42 * Math.PI / 180; // 42도 경사각
-    const cosTilt = Math.cos(tiltAngle);
-    const sinTilt = Math.sin(tiltAngle);
-    const cameraDist = 1000;
-    const LAYER_GAP = 190;                // 레이어 간 수직 격차 확대 (가독성/입체감 대폭 향상)
-    const X_LIMIT = 850;
-    const Y_LIMIT = 450;
-
-    const layerLabels: Record<number, string> = {
-      0: '인물 레이어 (Agent)',
-      1: '예산/비품 레이어 (Resource)',
-      2: '업무/회의 레이어 (Execution)',
-      3: '위키/문서 레이어 (Knowledge)'
-    };
-
-    const layerColors: Record<number, string> = {
-      0: 'rgba(59, 130, 246, 0.025)',  // Blue-500 2.5%
-      1: 'rgba(16, 185, 129, 0.025)',  // Emerald-500 2.5%
-      2: 'rgba(139, 92, 246, 0.025)',  // Violet-500 2.5%
-      3: 'rgba(245, 158, 11, 0.025)'   // Amber-500 2.5%
-    };
-
-    const strokeColors: Record<number, string> = {
-      0: 'rgba(59, 130, 246, 0.32)',   // 테두리 32%로 가독성 강화
-      1: 'rgba(16, 185, 129, 0.32)',
-      2: 'rgba(139, 92, 246, 0.32)',
-      3: 'rgba(245, 158, 11, 0.32)'
-    };
-
-    // 1. Precompute corner points for all layers
-    for (let layer = 0; layer < 4; layer++) {
-      const h = layer * LAYER_GAP;
-      const c = this.cornersCache[layer];
-      this.projectTo(-X_LIMIT, -Y_LIMIT, h, cosTilt, sinTilt, cameraDist, cx, cy, zoom, c.p1);
-      this.projectTo(X_LIMIT, -Y_LIMIT, h, cosTilt, sinTilt, cameraDist, cx, cy, zoom, c.p2);
-      this.projectTo(X_LIMIT, Y_LIMIT, h, cosTilt, sinTilt, cameraDist, cx, cy, zoom, c.p3);
-      this.projectTo(-X_LIMIT, Y_LIMIT, h, cosTilt, sinTilt, cameraDist, cx, cy, zoom, c.p4);
-    }
-
-    // 2. Draw vertical dashed corner columns (connecting L0 -> L3 corners to visualize structure)
-    ctx.save();
-    ctx.strokeStyle = 'rgba(148, 163, 184, 0.28)'; // slate-400 28%
-    ctx.lineWidth = 1.2 * zoom;
-    ctx.setLineDash([4, 8]);
-
-    for (let cornerIndex = 1; cornerIndex <= 4; cornerIndex++) {
-      const prop = `p${cornerIndex}` as 'p1'|'p2'|'p3'|'p4';
-      ctx.beginPath();
-      ctx.moveTo(this.cornersCache[0][prop].x, this.cornersCache[0][prop].y);
-      for (let l = 1; l < 4; l++) {
-        ctx.lineTo(this.cornersCache[l][prop].x, this.cornersCache[l][prop].y);
-      }
-      ctx.stroke();
-    }
-    ctx.restore();
-
-    // 3. Render flat transparent grid plates and headers (먼 레이어부터 순서대로 렌더링)
-    ctx.save();
-    for (let layer = 3; layer >= 0; layer--) {
-      const isActive = !activeLayers || activeLayers.has(layer);
-      if (!isActive) continue;
-
-      const h = layer * LAYER_GAP;
-      const p1 = this.cornersCache[layer].p1;
-      const p2 = this.cornersCache[layer].p2;
-      const p3 = this.cornersCache[layer].p3;
-      const p4 = this.cornersCache[layer].p4;
-
-      // Draw the flat transparent layer grid plate
-      ctx.beginPath();
-      ctx.moveTo(p1.x, p1.y);
-      ctx.lineTo(p2.x, p2.y);
-      ctx.lineTo(p3.x, p3.y);
-      ctx.lineTo(p4.x, p4.y);
-      ctx.closePath();
-
-      ctx.fillStyle = layerColors[layer];
-      ctx.fill();
-
-      // ─── 4단 플레이트 내부 홀로그램 그리드 라인망 드로잉 추가 ───
-      ctx.save();
-      ctx.strokeStyle = strokeColors[layer].replace('0.32', '0.07'); // 아주 은은한 7% 불투명도 그리드선
-      ctx.lineWidth = 0.8 * zoom * ((p1.scale + p3.scale) / 2);
-      ctx.setLineDash([]);
-      
-      ctx.beginPath();
-      const numLines = 6;
-      for (let i = 1; i < numLines; i++) {
-        const t = i / numLines;
-        // 가로 그리드선
-        const startX = -X_LIMIT;
-        const endX = X_LIMIT;
-        const gridY = -Y_LIMIT + t * (Y_LIMIT * 2);
-        
-        this.projectTo(startX, gridY, h, cosTilt, sinTilt, cameraDist, cx, cy, zoom, this.tempProj1);
-        this.projectTo(endX, gridY, h, cosTilt, sinTilt, cameraDist, cx, cy, zoom, this.tempProj2);
-        
-        ctx.moveTo(this.tempProj1.x, this.tempProj1.y);
-        ctx.lineTo(this.tempProj2.x, this.tempProj2.y);
-        
-        // 세로 그리드선
-        const gridX = -X_LIMIT + t * (X_LIMIT * 2);
-        const startY = -Y_LIMIT;
-        const endY = Y_LIMIT;
-        
-        this.projectTo(gridX, startY, h, cosTilt, sinTilt, cameraDist, cx, cy, zoom, this.tempProj1);
-        this.projectTo(gridX, endY, h, cosTilt, sinTilt, cameraDist, cx, cy, zoom, this.tempProj2);
-        
-        ctx.moveTo(this.tempProj1.x, this.tempProj1.y);
-        ctx.lineTo(this.tempProj2.x, this.tempProj2.y);
-      }
-      ctx.stroke();
-      ctx.restore();
-
-      ctx.strokeStyle = strokeColors[layer];
-      ctx.lineWidth = 1.5 * zoom * ((p1.scale + p3.scale) / 2);
-      ctx.setLineDash([8, 6]);
-      ctx.stroke();
-
-      // Draw the layer index text on top-right corners
-      ctx.setLineDash([]);
-      ctx.fillStyle = strokeColors[layer].replace('0.32', '0.75'); // 텍스트 라벨 투명도 상향
-      const fontSize = Math.round(10.5 * zoom * p2.scale);
-      this.setFont(ctx, `bold ${fontSize}px 'Pretendard', sans-serif`);
-      ctx.textAlign = 'right';
-      ctx.textBaseline = 'bottom';
-      ctx.fillText(layerLabels[layer], p2.x - 15 * zoom * p2.scale, p2.y + 25 * zoom * p2.scale);
-    }
-
-    ctx.restore();
+    // 3D 수직 적층 판 플레이트 및 corner line, hologram grid는 2D 평면 뷰에서 완전히 소거
   }
 
   private static renderOrbitRings(rc: RenderContext): void {
-    const { ctx, canvasW, canvasH, cameraOffsetX = 0, cameraOffsetY = 0, zoom, nodes } = rc;
-    const isFastPath = !!(rc.isInteractive || rc.isOrbiting);
-
-    const cx = canvasW / 2 + cameraOffsetX;
-    const cy = canvasH / 2 + cameraOffsetY;
-    const tiltAngle = 42 * Math.PI / 180; // 42도 경사각
-    const cosTilt = Math.cos(tiltAngle);
-    const sinTilt = Math.sin(tiltAngle);
-    const cameraDist = 1000;
-    const ELLIPSE_RATIO = 1.3; // OntologyLayout.ts와 완벽하게 일치시킴
-
-    // 1. 실제로 화면에 노출 중인 노드들의 최대 궤도 인덱스(depth) 동적 감지
-    let maxOrbitIndex = 1;
-    for (const node of nodes) {
-      if (!node.layoutHidden && node.orbitIndex !== undefined) {
-        if (node.orbitIndex > maxOrbitIndex) {
-          maxOrbitIndex = node.orbitIndex;
-        }
-      }
-    }
-
-    ctx.save();
-    ctx.lineWidth = 1.0 * zoom;
-    ctx.setLineDash([4, 6]);
-    ctx.strokeStyle = 'rgba(99, 102, 241, 0.15)'; // 밤하늘의 궤도처럼 은은한 인디고 15%
-
-    const h = 0; // 단일 평면 궤도
-
-    // 2. 동심 궤도 링 그리기 (concentric orbits)
-    for (let orbitIndex = 1; orbitIndex <= maxOrbitIndex; orbitIndex++) {
-      const R = orbitIndex * 240; // 궤도 반지름
-
-      ctx.beginPath();
-      const segments = isFastPath ? 40 : 70; // 상호작용 및 공전 중에는 궤도 세그먼트를 40개로 축소하여 연산량 경감 (평시 70개)
-      for (let i = 0; i <= segments; i++) {
-        const theta = (2 * Math.PI * i) / segments;
-        const wx = R * Math.cos(theta) * ELLIPSE_RATIO;
-        const wy = R * Math.sin(theta);
-
-        const rotatedY = wy * cosTilt - h * sinTilt;
-        const depth = -wy * sinTilt + h * cosTilt;
-        const perspectiveScale = Math.max(0.05, cameraDist / Math.max(120, cameraDist + depth));
-
-        const sx = cx + wx * zoom * perspectiveScale;
-        const sy = cy + rotatedY * zoom * perspectiveScale;
-
-        if (i === 0) {
-          ctx.moveTo(sx, sy);
-        } else {
-          ctx.lineTo(sx, sy);
-        }
-      }
-      ctx.stroke();
-    }
-
-    ctx.restore();
+    // 2D 평면 뷰에서는 동심원 궤도 선을 그리지 않음
   }
 
   private static renderEdges(rc: RenderContext): void {
@@ -458,19 +295,12 @@ export class OntologyRenderer {
     const spanningTreeEdgeSet = OntologyLayout.lastSpanningTreeEdgeSet;
 
     OntologyRenderer.edgePoolUsed = 0;
-    OntologyRenderer.edgeBatches.forEach(b => b.edgesList.length = 0);
+    for (const [, b] of OntologyRenderer.edgeBatches) {
+      b.edgesList.length = 0;
+    }
 
-    const labelsToDraw: Array<{
-      edge: OntologyEdge;
-      leftRightX: number;
-      rightLeftX: number;
-      leftNode: OrbitalNode;
-      rightNode: OrbitalNode;
-      cpDist: number;
-      avgScale: number;
-      themeColor: string;
-      alpha: number;
-    }> = [];
+    OntologyRenderer.labelsToDrawList.length = 0;
+    OntologyRenderer.labelsToDrawPoolUsed = 0;
 
     // 노트북LM 스타일은 직선이나 꺾은선 대신 부드러운 베지어 곡선을 사용합니다.
     for (const edge of edges) {
@@ -659,23 +489,41 @@ export class OntologyRenderer {
                               edge.type !== 'DEPENDENCY';
 
       if (shouldDrawLabel) {
-        labelsToDraw.push({
-          edge,
-          leftRightX,
-          rightLeftX,
-          leftNode,
-          rightNode,
-          cpDist,
-          avgScale,
-          themeColor,
-          alpha
-        });
+        let labelItem;
+        if (OntologyRenderer.labelsToDrawPoolUsed < OntologyRenderer.labelsToDrawPool.length) {
+          labelItem = OntologyRenderer.labelsToDrawPool[OntologyRenderer.labelsToDrawPoolUsed++];
+        } else {
+          labelItem = {
+            edge,
+            leftRightX,
+            rightLeftX,
+            leftNode,
+            rightNode,
+            cpDist,
+            avgScale,
+            themeColor,
+            alpha
+          };
+          OntologyRenderer.labelsToDrawPool.push(labelItem);
+          OntologyRenderer.labelsToDrawPoolUsed++;
+        }
+        labelItem.edge = edge;
+        labelItem.leftRightX = leftRightX;
+        labelItem.rightLeftX = rightLeftX;
+        labelItem.leftNode = leftNode;
+        labelItem.rightNode = rightNode;
+        labelItem.cpDist = cpDist;
+        labelItem.avgScale = avgScale;
+        labelItem.themeColor = themeColor;
+        labelItem.alpha = alpha;
+
+        OntologyRenderer.labelsToDrawList.push(labelItem);
       }
     }
 
     // 일괄 배치 렌더링 시작 (Draw calls 극단적 최적화)
-    OntologyRenderer.edgeBatches.forEach(batch => {
-      if (batch.edgesList.length === 0) return;
+    for (const [, batch] of OntologyRenderer.edgeBatches) {
+      if (batch.edgesList.length === 0) continue;
       ctx.globalAlpha = batch.alpha;
       ctx.strokeStyle = batch.themeColor;
       ctx.lineWidth = batch.lineWidth;
@@ -735,10 +583,10 @@ export class OntologyRenderer {
           }
         }
       }
-    });
+    }
 
     // 엣지 텍스트 라벨 일괄 드로잉
-    for (const item of labelsToDraw) {
+    for (const item of OntologyRenderer.labelsToDrawList) {
       const { edge, leftRightX, rightLeftX, leftNode, rightNode, avgScale, themeColor, alpha } = item;
       ctx.save();
       
@@ -844,6 +692,26 @@ export class OntologyRenderer {
     }
     const neighborsSet = this.cachedNeighborsSet;
 
+    // activeNodeId가 변경되었을 때 하위 자손 노드들을 캐싱 (BFS)
+    if (activeNodeId !== this.lastActiveNodeIdForDescendants) {
+      this.cachedDescendantsSet.clear();
+      if (activeNodeId && activeNodeId !== 'root-HCHPS') {
+        const queue = [activeNodeId];
+        while (queue.length > 0) {
+          const currentId = queue.shift()!;
+          const children = OntologyLayout.lastTreeChildrenMap.get(currentId) || [];
+          for (const childId of children) {
+            if (!this.cachedDescendantsSet.has(childId)) {
+              this.cachedDescendantsSet.add(childId);
+              queue.push(childId);
+            }
+          }
+        }
+      }
+      this.lastActiveNodeIdForDescendants = activeNodeId;
+    }
+    const descendantsSet = this.cachedDescendantsSet;
+
     // 1. 전역 텍스트 겹침 방지(Text Overlap Prevention) 사전 계산 (textBoxPool 활용을 통한 GC 프리)
     this.drawnTextBoxesList.length = 0;
     let poolIdx = 0;
@@ -858,7 +726,7 @@ export class OntologyRenderer {
       box.y2 = y2;
       return box;
     };
-    const textAllowedSet = new Set<string>();
+    OntologyRenderer.textAllowedSet.clear();
 
     // 중요도(renderSize) 내림차순으로 정렬된 노드 리스트 복사본 생성 (캐시가 있으면 캐시 사용)
     const centralitySorted = rc.centralitySortedNodes || [...sortedNodesBuffer].sort((a, b) => {
@@ -873,9 +741,14 @@ export class OntologyRenderer {
       // 극단적 줌 아웃 시에는 활성 노드, 호버 노드, 그리고 활성 트리 노드에 예외적으로 텍스트를 허용하여 렉을 방지
       for (const node of centralitySorted) {
         if (node.layoutHidden) continue;
+        if (!activeNodeId && node.orbitIndex !== undefined && node.orbitIndex > 3) {
+          continue;
+        }
         const isTreeActive = activeNodeId && activeTreeSet.has(node.id);
-        if (node.id === activeNodeId || node.id === hoveredNodeId || isTreeActive) {
-          textAllowedSet.add(node.id);
+        const isTreeActiveCategory = !!(isTreeActive && node.orbitIndex !== undefined && node.orbitIndex <= 3);
+        const isDirectChild = !!(activeNodeId && node.parentId === activeNodeId);
+        if (node.id === activeNodeId || node.id === hoveredNodeId || isDirectChild || isTreeActiveCategory) {
+          OntologyRenderer.textAllowedSet.add(node.id);
         }
       }
     } else if (isFastPath) {
@@ -883,6 +756,9 @@ export class OntologyRenderer {
       // 오직 루트 노드, 활성 노드, 호버 노드, 중요도 0.85를 초과하는 핵심 노드, 그리고 활성 노드의 이웃 노드 및 활성 트리 노드에 텍스트 드로잉 허용
       for (const node of centralitySorted) {
         if (node.layoutHidden) continue;
+        if (!activeNodeId && node.orbitIndex !== undefined && node.orbitIndex > 3) {
+          continue;
+        }
         const isActive = node.id === activeNodeId;
         const isHovered = node.id === hoveredNodeId;
         const isCenter = node.orbitIndex === 0;
@@ -890,13 +766,20 @@ export class OntologyRenderer {
         const isNeighbor = activeNodeId && neighborsSet.has(node.id);
         const isTreeActive = activeNodeId && activeTreeSet.has(node.id);
 
-        if (isCenter || isActive || isHovered || isHighlyCentral || isNeighbor || isTreeActive) {
-          textAllowedSet.add(node.id);
+        const isTreeActiveCategory = !!(isTreeActive && node.orbitIndex !== undefined && node.orbitIndex <= 3);
+        const isNeighborCategory = !!(isNeighbor && node.orbitIndex !== undefined && node.orbitIndex <= 3);
+        const isDirectChild = !!(activeNodeId && node.parentId === activeNodeId);
+
+        if (isCenter || isActive || isHovered || isHighlyCentral || isDirectChild || isNeighborCategory || isTreeActiveCategory) {
+          OntologyRenderer.textAllowedSet.add(node.id);
         }
       }
     } else {
       for (const node of centralitySorted) {
         if (node.layoutHidden) continue;
+        if (!activeNodeId && node.orbitIndex !== undefined && node.orbitIndex > 3) {
+          continue;
+        }
         
         const isActive = node.id === activeNodeId;
         const isHovered = node.id === hoveredNodeId;
@@ -904,9 +787,16 @@ export class OntologyRenderer {
         const isNeighbor = !!(activeNodeId && neighborsSet.has(node.id));
         const isNeighborAllowed = isNeighbor && neighborsSet.size <= 15;
         
-        // 최상위 루트 노드, 활성 노드, 호버 노드, 활성 트리 노드(하위/상위 노드) 및 이웃 노드(개수가 15개 이하일 때만)는 겹침과 무관하게 무조건 텍스트 표시 허용
-        if (node.orbitIndex === 0 || isActive || isHovered || isTreeActive || isNeighborAllowed) {
-          textAllowedSet.add(node.id);
+        // 활성 트리 노드와 이웃 노드는 3차 카테고리 이하(orbitIndex <= 3)일 때만 무조건 텍스트 허용.
+        // 단, 활성 노드의 직속 자식 노드는 겹침과 무관하게 무조건 텍스트 표시 허용!
+        const isTreeActiveCategory = !!(isTreeActive && node.orbitIndex !== undefined && node.orbitIndex <= 3);
+        const isNeighborAllowedCategory = !!(isNeighborAllowed && node.orbitIndex !== undefined && node.orbitIndex <= 3);
+        const isDirectChild = !!(activeNodeId && node.parentId === activeNodeId);
+        
+        // 최상위 루트 노드, 1차 카테고리 노드, 활성 노드, 호버 노드, 직속 자식 노드는 무조건 텍스트 표시 허용 (자손 노드는 겹침 검사 유도)
+        const isCategory1 = node.orbitIndex === 1;
+        if (node.orbitIndex === 0 || isCategory1 || isActive || isHovered || isDirectChild || isTreeActiveCategory || isNeighborAllowedCategory) {
+          OntologyRenderer.textAllowedSet.add(node.id);
           
           // 예상 바운딩 박스 계산 및 등록
           const nodeScale = (node as any).perspectiveScale ?? 1.0;
@@ -987,7 +877,7 @@ export class OntologyRenderer {
         }
 
         if (!hasOverlap) {
-          textAllowedSet.add(node.id);
+          OntologyRenderer.textAllowedSet.add(node.id);
           this.drawnTextBoxesList.push(getTextBoxFromPool(x1, y1, x2, y2));
         }
       }
@@ -1004,8 +894,26 @@ export class OntologyRenderer {
       const isTreeActive = activeNodeId && activeTreeSet.has(node.id);
       const isHovered = node.id === hoveredNodeId;
       const isNeighbor = activeNodeId && neighborsSet.has(node.id);
-      // 중앙 노드 root-HCHPS는 항상 100% 투명도로 표시되도록 예외 처리
-      const opacity = (!activeNodeId || isTreeActive || isActive || isNeighbor || node.id === 'root-HCHPS') ? 1 : 0.3;
+      
+      // 활성 노드 유무에 따른 노드 불투명도(Opacity) 동적 제어
+      let opacity = 0.4;
+      if (node.id === 'root-HCHPS') {
+        opacity = 1;
+      } else if (activeNodeId) {
+        const isDirectChild = node.parentId === activeNodeId;
+        const isDescendant = descendantsSet.has(node.id);
+        if (isActive || isHovered || isDirectChild || isDescendant) {
+          opacity = 1.0; // 하위 자손 노드는 1.0으로 진하게 활성화!
+        } else if (isTreeActive || isNeighbor) {
+          // 활성 트리에 연결되었더라도 4차 이하 하위 노드는 opacity = 0.75로 다소 흐리게 격리
+          opacity = (node.orbitIndex !== undefined && node.orbitIndex <= 3) ? 1.0 : 0.75;
+        } else {
+          opacity = 0.4; // 관련 없는 외곽 노드는 적당히 흐리게(0.4) 처리하여 구조 가시성 유지
+        }
+      } else {
+        // 활성 노드가 없을 때 (페이지 첫 진입 시): 3차 카테고리(orbitIndex <= 3)까지만 1.0 활성화하고 나머지는 0.5로 흐리게 처리
+        opacity = (node.orbitIndex !== undefined && node.orbitIndex <= 3) ? 1.0 : 0.5;
+      }
       const isInactiveOutsideFocus = !!(activeNodeId && !isActive && !isTreeActive && !isNeighbor && node.id !== 'root-HCHPS');
 
       const nodeScale = (node as any).perspectiveScale ?? 1.0;
@@ -1017,7 +925,7 @@ export class OntologyRenderer {
 
       // ─── Semantic Zooming (LOD 2.0) 최적화 및 텍스트 겹침 방지 ───
       // 전역 겹침 사전 계산 결과에 의해 라벨이 허용되지 않은 노드는 100% 도트(Dot)로 렌더링
-      const isLODDot = !textAllowedSet.has(node.id);
+      const isLODDot = !OntologyRenderer.textAllowedSet.has(node.id);
 
       if (isLODDot) {
         const themeColor = node.themeColor || '#94A3B8';
@@ -1037,7 +945,14 @@ export class OntologyRenderer {
       const isCenter = node.orbitIndex === 0;
 
       let labelText = node.label || '';
-      if (!isActive && !isHovered && !isCenter && labelText.length > 7) {
+      const isCategoryNode = node.orbitIndex !== undefined && node.orbitIndex <= 3;
+      const isCategory1 = node.orbitIndex === 1;
+      const isDirectChild = activeNodeId && node.parentId === activeNodeId;
+      const isDescendant = activeNodeId && descendantsSet.has(node.id);
+      // 오직 중심 노드, 클릭된 노드(isActive), 호버 중인 노드(isHovered), 1차 카테고리 노드(isCategory1), 활성 노드의 직속 자식 노드(isDirectChild) 및 자손 노드만 풀네임 노출.
+      // 3차 카테고리 이하 노드(isCategoryNode)는 활성 노드가 없을 때(!activeNodeId)만 풀네임 노출 허용.
+      const skipTruncate = isActive || isHovered || isCenter || isDirectChild || isDescendant || isCategory1 || (!activeNodeId && isCategoryNode);
+      if (!skipTruncate && labelText.length > 7) {
         labelText = labelText.substring(0, 7) + '...';
       }
       
@@ -1086,10 +1001,22 @@ export class OntologyRenderer {
         ctx.fill();
       }
 
-      // Draw cached Sphere core (LOD에 따라 플랫 도트 혹은 캐시된 이미지)
+      // ─── 리스크 경고 펄스 링 (Warning Pulse Glow Ring) 오버레이 ───
+      if (isRiskHigh && !isFastPath) {
+        const pulse = 1.0 + 0.4 * Math.sin(Date.now() / 250);
+        ctx.beginPath();
+        ctx.arc(node.renderX, node.renderY, dotRadius * (1.2 + pulse * 0.15), 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(239, 68, 68, ${0.45 - pulse * 0.15})`;
+        ctx.lineWidth = 1.5 * localZoom;
+        ctx.stroke();
+      }
+
+      // ─── 젤리 모핑 및 Specular 실시간 연산 제거 (성능 최적화 및 렉 스파이크 제거) ───
+      // 기존에 렉을 유발하던 Math.sqrt, Matrix 변형(rotate, scale) 및 createRadialGradient 실시간 계산을 완전히 소거하여 60 FPS를 사수합니다.
+
       if (isFastPath && !isActive && !isHovered) {
         // 성능 최적화: 드래그/공전 등의 상호작용 중이며 비활성/비호버 상태일 때는 
-        // 템플릿 드로잉 오버헤드마저 아끼기 위해 단순 단색 원으로 렌더링
+        // 템플릿 드로잉 오버헤드마저 아끼기 위해 단순 단색 원으로 렌더링 (save/restore 오버헤드도 완전 배제)
         ctx.beginPath();
         ctx.arc(node.renderX, node.renderY, dotRadius, 0, Math.PI * 2);
         ctx.fillStyle = themeColor;
@@ -1098,7 +1025,7 @@ export class OntologyRenderer {
         ctx.lineWidth = (isCluster ? 2.4 : 1.5) * localZoom;
         ctx.stroke();
       } else {
-        // 일반 상태나 타겟/호버 노드는 고화질 캐시 템플릿을 드로잉하여 입체감 보존
+        // 일반 상태나 타겟/호버 노드는 고화질 캐시 템플릿을 드로잉하여 입체감 보존 (save/restore 오버헤드 방지 및 static drawImage)
         if (typeof window !== 'undefined') {
           let templateCanvas = (node as any)._cachedTemplate;
           if (!templateCanvas || (node as any)._cachedTemplateColor !== themeColor || (node as any)._cachedTemplateCluster !== isCluster) {
@@ -1125,20 +1052,11 @@ export class OntologyRenderer {
         }
       }
 
-      // Risk flashing core indicator (상호작용 중이 아닐 때만 그립니다)
-      if (isRiskHigh && !isFastPath) {
-        const pulse = 0.6 + 0.4 * Math.sin(Date.now() / 200);
-        ctx.beginPath();
-        ctx.arc(node.renderX, node.renderY - dotRadius * 0.4, dotRadius * 0.35, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255, 255, 255, ${pulse})`;
-        ctx.fill();
-      }
-
       ctx.shadowColor = 'transparent';
 
       // 상호작용 중에도 텍스트를 그리되, measureText와 같은 헤비한 연산을 생략하여 성능을 사수하고 깜빡임을 완벽히 차단
       if (isCluster) {
-        this.drawNodeTextInside(ctx, labelText, node.renderX, node.renderY, dotRadius, localZoom, isActive, isFastPath);
+        this.drawNodeTextInside(ctx, node, dotRadius, localZoom, isActive, isTreeActive || false, isFastPath);
       } else {
         // 2) Text Label drawing
         const textOffsetX = dotRadius + 6 * localZoom;
@@ -1178,17 +1096,24 @@ export class OntologyRenderer {
 
   private static drawNodeTextInside(
     ctx: CanvasRenderingContext2D,
-    text: string,
-    cx: number,
-    cy: number,
+    node: OrbitalNode,
     radius: number,
     localZoom: number,
     isActive: boolean,
+    isTreeActive: boolean,
     isInteractive?: boolean
   ): void {
+    const label = node.label || '';
+    const cx = node.renderX;
+    const cy = node.renderY;
+
+    if (!node._cachedWords) {
+      node._cachedWords = label.split(/\s+/);
+    }
+    const words = node._cachedWords;
+
     if (isInteractive) {
       // 상호작용(줌, 패닝, 드래그) 중일 때는 measureText를 절대 부르지 않는 최속(Fast-path) 렌더링
-      // 3차 최적화: 폰트 크기를 2px 단위로 양자화하여 캐시 히트율을 올림
       const rawFontSize = Math.max(7.5 * localZoom, 10 * localZoom * (isActive ? 1.12 : 1.0));
       const fontSize = Math.round(rawFontSize / 2) * 2;
       this.setFont(ctx, `bold ${fontSize}px 'Pretendard', sans-serif`);
@@ -1196,48 +1121,74 @@ export class OntologyRenderer {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       
-      // 글자 크기가 원 반지름에 맞지 않아 삐져나가는 것을 방지하기 위해, 상호작용 중에는 첫 단어만 노출하거나 적당히 잘라 1줄로 단순 렌더링
-      const words = text.split(/\s+/);
-      const displayStr = words[0] || '';
-      const finalStr = displayStr.length > 5 ? displayStr.slice(0, 4) + '..' : displayStr;
+      if (!node._cachedInteractiveText) {
+        const displayStr = words[0] || '';
+        node._cachedInteractiveText = displayStr.length > 5 ? displayStr.slice(0, 4) + '..' : displayStr;
+      }
+      const finalStr = node._cachedInteractiveText;
       ctx.fillText(finalStr, cx, cy);
       return;
     }
 
-    // 1. Text wrapping: split by space or custom delimiters
-    const words = text.split(/\s+/);
-    const lines: string[] = [];
-    let currentLine = words[0] || '';
+    if (!node._cachedLines) {
+      const linesList: string[] = [];
+      let currentLine = words[0] || '';
 
-    for (let i = 1; i < words.length; i++) {
-      const word = words[i];
-      if (currentLine.length + word.length > 7) {
-        lines.push(currentLine);
-        currentLine = word;
-      } else {
-        currentLine += ' ' + word;
+      for (let i = 1; i < words.length; i++) {
+        const word = words[i];
+        if (currentLine.length + word.length > 7) {
+          linesList.push(currentLine);
+          currentLine = word;
+        } else {
+          currentLine += ' ' + word;
+        }
       }
+      if (currentLine) {
+        linesList.push(currentLine);
+      }
+      node._cachedLines = linesList;
     }
-    if (currentLine) {
-      lines.push(currentLine);
-    }
+    const lines = node._cachedLines;
 
     // 2. Determine base font size based on radius
     let fontSize = Math.max(8.0 * localZoom, 11 * localZoom * (isActive ? 1.12 : 1.0));
     
     // Fit text inside circle
-    // 3차 최적화: 폰트 크기를 2px 단위로 양자화하여 캐시 히트율을 올림
     const initialFontSize = Math.round(fontSize / 2) * 2;
-    const fontStr = `600 ${initialFontSize}px 'Pretendard', sans-serif`;
-    let maxLineWidth = 0;
-    for (const line of lines) {
-      const w = this.getTextWidth(ctx, line, fontStr);
-      if (w > maxLineWidth) maxLineWidth = w;
+    const weightStyle = (isActive || isTreeActive) ? '600' : '500';
+    
+    let baseMaxWidth: number | undefined;
+    if (weightStyle === '600') {
+      baseMaxWidth = node._cachedLinesMaxWidth600;
+      if (baseMaxWidth === undefined) {
+        const fontStr = `600 12px 'Pretendard', sans-serif`;
+        let maxW = 0;
+        for (const line of lines) {
+          const w = this.getTextWidth(ctx, line, fontStr);
+          if (w > maxW) maxW = w;
+        }
+        baseMaxWidth = maxW;
+        node._cachedLinesMaxWidth600 = baseMaxWidth;
+      }
+    } else {
+      baseMaxWidth = node._cachedLinesMaxWidth500;
+      if (baseMaxWidth === undefined) {
+        const fontStr = `500 12px 'Pretendard', sans-serif`;
+        let maxW = 0;
+        for (const line of lines) {
+          const w = this.getTextWidth(ctx, line, fontStr);
+          if (w > maxW) maxW = w;
+        }
+        baseMaxWidth = maxW;
+        node._cachedLinesMaxWidth500 = baseMaxWidth;
+      }
     }
     
-    const maxAllowedWidth = radius * 1.55; // 1.62 -> 1.55로 안전 마진 확보
+    const maxLineWidth = baseMaxWidth * (initialFontSize / 12);
+    
+    const maxAllowedWidth = radius * 1.55; // 안전 마진 확보
     const totalHeight = lines.length * fontSize * 1.22;
-    const maxAllowedHeight = radius * 1.55; // 1.62 -> 1.55
+    const maxAllowedHeight = radius * 1.55;
 
     if (maxLineWidth > maxAllowedWidth || totalHeight > maxAllowedHeight) {
       const scaleW = maxAllowedWidth / maxLineWidth;

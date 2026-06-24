@@ -1,8 +1,10 @@
 'use client';
 
 import React from 'react';
-import { Printer, Maximize2, Minimize2, PlusSquare, RotateCcw, Orbit, Network } from 'lucide-react';
+import { Printer, Maximize2, Minimize2, PlusSquare, RotateCcw } from 'lucide-react';
 import { OrbitalNode, GROUP_COLORS, OntologyGroup } from '@/lib/ontology.types';
+import { OntologyCanvasEngine } from '@/lib/OntologyCanvasEngine';
+import { OntologyLayout } from '@/lib/engine/OntologyLayout';
 
 interface MindMapHUDProps {
   containerWidth: number;
@@ -16,11 +18,11 @@ interface MindMapHUDProps {
   zoomSliderRef: React.RefObject<HTMLInputElement | null>;
   zoomLabelRef: React.RefObject<HTMLSpanElement | null>;
   onZoomChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  layoutMode: 'orbit' | 'tree';
-  onLayoutModeChange: (mode: 'orbit' | 'tree') => void;
+  engineRef: React.RefObject<OntologyCanvasEngine | null>;
+  onRefresh: () => void;
 }
 
-export function MindMapHUD({
+export const MindMapHUD = React.memo(function MindMapHUD({
   containerWidth,
   hoveredNode,
   activeNode,
@@ -32,11 +34,18 @@ export function MindMapHUD({
   zoomSliderRef,
   zoomLabelRef,
   onZoomChange,
-  layoutMode,
-  onLayoutModeChange
+  engineRef,
+  onRefresh
 }: MindMapHUDProps) {
+
+
+
+
+
   return (
     <>
+
+
       {/* Hover tooltip (for nodes that are NOT active) */}
       {hoveredNode && hoveredNode.id !== activeNode?.id && (
         <div
@@ -84,6 +93,8 @@ export function MindMapHUD({
 
         {onResetCamera && <div className="w-px h-6 bg-slate-300/40 mx-1"></div>}
 
+
+
         {/* Zoom Ratio Slider */}
         <div className="bg-white/80 backdrop-blur-md border border-slate-200/50 rounded-lg px-3 py-1.5 shadow-sm flex items-center gap-2 select-none h-[38px]">
           <span ref={zoomLabelRef} className="text-[11px] font-bold text-slate-600 min-w-[36px] text-right">100%</span>
@@ -99,33 +110,7 @@ export function MindMapHUD({
           />
         </div>
 
-        <div className="w-px h-6 bg-slate-300/40 mx-1"></div>
 
-        {/* Layout Switcher (Orbit vs Tree) */}
-        <div className="flex bg-white/80 backdrop-blur-md border border-slate-200/50 rounded-lg p-0.5 shadow-sm h-[38px] items-center gap-0.5">
-          <button
-            onClick={() => onLayoutModeChange('orbit')}
-            className={`rounded-md p-1.5 cursor-pointer transition-all flex items-center justify-center border-0 ${
-              layoutMode === 'orbit'
-                ? 'bg-[var(--color-primary)] text-white shadow-sm'
-                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
-            }`}
-            title="동심원 공전 궤도 (Orbit Layout)"
-          >
-            <Orbit size={18} />
-          </button>
-          <button
-            onClick={() => onLayoutModeChange('tree')}
-            className={`rounded-md p-1.5 cursor-pointer transition-all flex items-center justify-center border-0 ${
-              layoutMode === 'tree'
-                ? 'bg-[var(--color-primary)] text-white shadow-sm'
-                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
-            }`}
-            title="계층형 가로 트리 (Tree Layout)"
-          >
-            <Network size={18} />
-          </button>
-        </div>
 
         <div className="w-px h-6 bg-slate-300/40 mx-1"></div>
 
@@ -149,4 +134,4 @@ export function MindMapHUD({
       </div>
     </>
   );
-}
+});

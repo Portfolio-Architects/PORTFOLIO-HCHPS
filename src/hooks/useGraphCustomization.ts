@@ -259,7 +259,7 @@ export function useGraphCustomization() {
     });
   }, [ydoc]);
 
-  const addCustomEdge = useCallback((source: string, target: string) => {
+  const addCustomEdge = useCallback((source: string, target: string, type: string = 'DEPENDENCY', weight: number = 1.0) => {
     const edgeId = `${source}|||${target}`;
     const reverseId = `${target}|||${source}`;
     
@@ -272,7 +272,7 @@ export function useGraphCustomization() {
       if (deletedMap.has(reverseId)) deletedMap.delete(reverseId);
 
       if (!map.has(edgeId) && !map.has(reverseId)) {
-        map.set(edgeId, { source, target, weight: 1.0, type: 'DEPENDENCY' });
+        map.set(edgeId, { source, target, weight, type: type as any });
       }
     });
   }, [ydoc]);

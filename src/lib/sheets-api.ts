@@ -53,8 +53,34 @@ export async function readSheet<T>(sheetName: string): Promise<T[]> {
     const decryptedPromises = json.data.map(async (row: Record<string, unknown>) => {
       if (row._enc) {
         try {
-          const dec = await decryptPayload(row._enc as string);
-          return { id: row.id, ...(dec as Record<string, unknown>) };
+          const dec = await decryptPayload(row._enc as string) as Record<string, any>;
+          let finalDec = { ...dec };
+          
+          // Self-Healing: 복호화된 BUDGET_CATEGORIES의 calculations가 지출 내역 purpose로 오염되었을 경우 디스크 평문 백업 데이터로 복구
+          if (sheetName === 'BUDGET_CATEGORIES' && row.subItems && Array.isArray(row.subItems) && dec.subItems && Array.isArray(dec.subItems)) {
+            finalDec.subItems = dec.subItems.map((decSub: any) => {
+              const originalSub = (row.subItems as any[]).find((s: any) => s.id === decSub.id || s.name === decSub.name);
+              if (originalSub) {
+                const restoredSub = { ...decSub };
+                if (originalSub.calculations && Array.isArray(originalSub.calculations)) {
+                  const decCalcs = Array.isArray(decSub.calculations) ? decSub.calculations : [];
+                  restoredSub.calculations = originalSub.calculations.map((origCalc: any) => {
+                    const decCalc = decCalcs.find((c: any) => c.id === origCalc.id) || {};
+                    return {
+                      ...origCalc,
+                      isLocked: typeof decCalc.isLocked === 'boolean' ? decCalc.isLocked : (origCalc.isLocked || false)
+                    };
+                  });
+                } else {
+                  restoredSub.calculations = [];
+                }
+                return restoredSub;
+              }
+              return decSub;
+            });
+          }
+          
+          return { id: row.id, ...finalDec };
         } catch (e) {
           console.error('Decryption failed for row', row.id, e);
           throw e; // Decryption failure must propagate to prevent silent empty overwrites!

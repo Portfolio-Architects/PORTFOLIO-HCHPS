@@ -146,4 +146,8 @@ export class PerformanceProfiler {
   public getLagSpikes(): string[] {
     return this.lagSpikes;
   }
+
+  public clearLagSpikes(): void {
+    this.lagSpikes = [];
+  }
 }

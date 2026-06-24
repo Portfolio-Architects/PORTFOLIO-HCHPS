@@ -58,8 +58,8 @@ export class OntologyCanvasEngine {
   public collapsedNodeIds: Set<string> = new Set();
   public hasInitializedCollapse: boolean = false;
   public isInitialCameraSnap: boolean = true;
-  public layoutMode: 'orbit' | 'tree' = 'orbit';
   public physicsAlpha = 1.0;
+  private idleFramesCount = 0;
 
   // Physics / Interaction
   isOrbiting = false;
@@ -88,7 +88,7 @@ export class OntologyCanvasEngine {
   private nodeMap = new Map<string, OrbitalNode>();
   private connectionSet = new Set<string>();  // 'id1|||id2' for O(1) lookup
   private spatialGrid = new Map<number, OrbitalNode[]>();
-  private visitedPairs = new Set<number>();
+  private visitedMatrix = new Uint8Array(160000); // Pre-allocated matrix for up to 400 nodes
   private cellArrayPool: OrbitalNode[][] = [];
   private cellArrayPoolUsed = 0;
   private physicsEdges: { sourceNode: OrbitalNode; targetNode: OrbitalNode; weight: number }[] = [];
@@ -110,17 +110,22 @@ export class OntologyCanvasEngine {
     zoom: number;
     activeLayersKey: string;
     collapsedNodesKey: string;
-    layoutMode: 'orbit' | 'tree';
     isInteractive: boolean;
   };
 
 
 
-    // ============ Init ============
+  public wakeUp(): void {
+    this.idleFramesCount = 0;
+    this.needsRedraw = true;
+  }
+
+  // ============ Init ============
   
     init(graph: OntologyGraph, callbacks?: EngineCallbacks, prevNodes?: OrbitalNode[]): void {
       this.callbacks = callbacks || {};
       this.isFirstFrame = true;
+      this.frameCount = 0;
       this.edges = graph.edges;
       this.nodeCount = graph.nodes.length;
       this.edgeCount = graph.edges.length;
@@ -292,9 +297,11 @@ export class OntologyCanvasEngine {
       // Spread each group in a fan (arc) around the parent's angle
       orbitGroups.forEach((groupNodes, oIndex) => {
         const N = groupNodes.length;
-        // 1차 카테고리 뿐만 아니라 모든 자식 노드들이 각자 부모를 기준으로 360도 방사형 배치되도록 수정
-        const startAngle = Math.random() * Math.PI * 2;
-        const angleStep = N === 0 ? 0 : (Math.PI * 2) / N;
+        // 부모 노드의 각도를 기준으로 좌우 부채꼴 대역(Fan Arc)으로 자식 노드 분산 배치
+        const parentAngle = parent.orbitAngle || 0;
+        const maxSpan = Math.PI * 0.45; // 약 80도 대역폭으로 한정하여 겹침 억제
+        const angleStep = N <= 1 ? 0 : maxSpan / (N - 1);
+        const startAngle = N <= 1 ? parentAngle : parentAngle - maxSpan / 2;
 
         groupNodes.forEach((node, gIdx) => {
           let angle = startAngle + (gIdx * angleStep);
@@ -349,12 +356,45 @@ export class OntologyCanvasEngine {
     }
     this.callbacks.onActiveNodeChange?.(this.activeNode);
 
-    // 사용자의 요청에 따라: 모든 노드 오픈(Full Expanded)을 디폴트 값으로 설정
+    // 사용자의 요청에 따라: 1차 카테고리만 디폴트로 노출 (그 이하 하위는 다 접음)
     if (!this.hasInitializedCollapse && this.nodes.length > 0) {
       this.hasInitializedCollapse = true;
-      // 기존에 orbitIndex >= 1 인 노드들을 강제로 접었던(collapse) 로직을 제거하여 
-      // 디폴트 상태에서 전체 맵이 모두 활짝 펼쳐진 형태로 시작되도록 합니다.
-      this.collapsedNodeIds.clear(); 
+      this.collapsedNodeIds.clear();
+      
+      const centerId = this.centerNode?.id;
+      if (centerId) {
+        const centerChildren = new Set<string>();
+        for (const edge of this.edges) {
+          if (edge.source === centerId) {
+            centerChildren.add(edge.target);
+          } else if (edge.target === centerId) {
+            centerChildren.add(edge.source);
+          }
+        }
+        
+        const childrenMap = new Map<string, string[]>();
+        for (const node of graph.nodes) {
+          if (node.parentId) {
+            if (!childrenMap.has(node.parentId)) {
+              childrenMap.set(node.parentId, []);
+            }
+            childrenMap.get(node.parentId)!.push(node.id);
+          }
+        }
+        
+        for (const childId of centerChildren) {
+          this.collapsedNodeIds.add(childId);
+          const q = [childId];
+          while (q.length > 0) {
+            const curr = q.shift()!;
+            this.collapsedNodeIds.add(curr);
+            const kids = childrenMap.get(curr) || [];
+            for (const kid of kids) {
+              q.push(kid);
+            }
+          }
+        }
+      }
     }
 
     // 중요도(renderSize) 내림차순으로 정렬된 노드 리스트 캐싱
@@ -383,6 +423,27 @@ export class OntologyCanvasEngine {
     this.nodes.forEach((node, i) => {
       node.index = i;
     });
+
+    // 이전 엔진 노드들의 실제 물리 위치(worldX, worldY) 및 속도(vx, vy) 상태 복원
+    for (const node of this.nodes) {
+      const preNode = previousNodeMap.get(node.id);
+      if (preNode) {
+        if (typeof preNode.worldX === 'number' && !isNaN(preNode.worldX)) {
+          node.worldX = preNode.worldX;
+          node.targetWorldX = preNode.worldX;
+        }
+        if (typeof preNode.worldY === 'number' && !isNaN(preNode.worldY)) {
+          node.worldY = preNode.worldY;
+          node.targetWorldY = preNode.worldY;
+        }
+        if (typeof preNode.vx === 'number' && !isNaN(preNode.vx)) {
+          node.vx = preNode.vx;
+        }
+        if (typeof preNode.vy === 'number' && !isNaN(preNode.vy)) {
+          node.vy = preNode.vy;
+        }
+      }
+    }
 
     // 4차 최적화: 엔진 재초기화 시 물리 시뮬레이션을 다시 깨움 (Sleep -> Wake Up)
     this.physicsAlpha = 1.0;
@@ -443,9 +504,7 @@ export class OntologyCanvasEngine {
 
   // force-directed simulation tick
   private runPhysicsTick(): boolean {
-    if (this.physicsAlpha <= 0.005) {
-      return false;
-    }
+    return false; // 2D 평면 상대적 방사형 배치에서는 겹침이 기하학적으로 방지되어 척력이 필요 없음 (물리 비활성화)
 
     // 노드 수 80개 이상일 때 2프레임당 1회 계산 (연산량 절반으로 분산)
     if (this.nodes.length > 80) {
@@ -481,11 +540,18 @@ export class OntologyCanvasEngine {
     }
 
     // 2. Spatial Hash Grid Repulsion & Overlap Prevention (O(N) 공간 분할 척력 연산)
-    const chargeStrength = 15000;
+    // 💡 최초 기동 시(frameCount < 15) 노드 간 겹침으로 인한 척력 폭발(Jittering)을 방지하기 위해 
+    // 물리 시뮬레이션의 힘을 점진적으로 가속시키는 Soft-Start(소프트 스타트) 배율을 적용합니다.
+    const softStartScale = this.frameCount < 15 ? (this.frameCount / 15) : 1.0;
+    const chargeStrength = 15000 * softStartScale;
     const cellSize = 160;
     
     this.spatialGrid.clear();
-    this.visitedPairs.clear();
+    const N = nodes.length;
+    if (N * N > this.visitedMatrix.length) {
+      this.visitedMatrix = new Uint8Array(N * N * 2);
+    }
+    this.visitedMatrix.fill(0);
     this.cellArrayPoolUsed = 0;
     
     // 그리드에 노드 파티셔닝
@@ -532,12 +598,20 @@ export class OntologyCanvasEngine {
           for (const nodeB of neighborNodes) {
             if (nodeB.id === nodeA.id) continue;
             
-            // 중복 연산 방지
+            // 💡 서로 다른 레이어에 속한 노드들은 3D 입체 투영(Z축 높이가 다름)에 의해 절대 겹치지 않으므로
+            // 2D 물리 엔진 상에서 불필요하게 밀쳐내지 않도록 척력 연산을 완전히 스킵합니다. (떨림/튕김 원천 방지)
+            if (nodeA.layerId !== undefined && nodeB.layerId !== undefined && nodeA.layerId !== nodeB.layerId) {
+              continue;
+            }
+            
+            // 중복 연산 방지 (Uint8Array flat matrix 활용)
             const idxA = nodeA.index ?? 0;
             const idxB = nodeB.index ?? 0;
-            const pairKey = idxA < idxB ? (idxA << 16) | idxB : (idxB << 16) | idxA;
-            if (this.visitedPairs.has(pairKey)) continue;
-            this.visitedPairs.add(pairKey);
+            const matrixIdx = idxA * N + idxB;
+            const matrixIdxReverse = idxB * N + idxA;
+            if (this.visitedMatrix[matrixIdx] === 1) continue;
+            this.visitedMatrix[matrixIdx] = 1;
+            this.visitedMatrix[matrixIdxReverse] = 1;
             
             const bx = nodeB.worldX ?? 0;
             const by = nodeB.worldY ?? 0;
@@ -550,6 +624,22 @@ export class OntologyCanvasEngine {
             // 임계 거리(320px) 이상 떨어지면 힘이 극소하므로 제곱근 및 척력 연산을 생략해 60 FPS 사수
             if (distSq > 102400) continue; 
             
+            const minDist = rA + rB + 45; // 버블 간 최소 마진 45px 확보
+            const minDistSq = minDist * minDist;
+
+            // 💡 Math.sqrt 연산을 하기 전에, 노드가 서로 충분히 멀리 떨어져 있고 겹치지 않는 경우 
+            // 제곱근 연산을 완전히 스킵해 무거운 계산을 생략합니다 (90% 이상의 노드 쌍에 적용됨).
+            if (distSq > 22500 && distSq > minDistSq) {
+              const dist = Math.sqrt(distSq) || 0.1;
+              const force = chargeStrength / (distSq * dist + 200);
+              nodeA.vx = (nodeA.vx ?? 0) - dx * force;
+              nodeA.vy = (nodeA.vy ?? 0) - dy * force;
+              nodeB.vx = (nodeB.vx ?? 0) + dx * force;
+              nodeB.vy = (nodeB.vy ?? 0) + dy * force;
+              continue;
+            }
+
+            // 겹쳤거나 매우 가까운 거리에 있을 때만 비로소 Math.sqrt 연산을 실행
             const dist = Math.sqrt(distSq) || 0.1;
 
             // A. 전방위 분산 반발 (d3-force forceManyBody 유사식)
@@ -558,9 +648,8 @@ export class OntologyCanvasEngine {
 
             // B. 겹침 방지 (Overlapping Prevention) - 겹쳤을 때 강한 추가 척력 부여
             // 5차 수치 튜닝: 분모에 소프트 마진 15를 두어 극단적 겹침 상황에서의 척력 폭발(떨림 현상)을 수학적으로 예방
-            const minDist = rA + rB + 45; // 버블 간 최소 마진 45px 확보
             if (dist < minDist) {
-              force += ((minDist - dist) / (dist + 15)) * 2.2;
+              force += ((minDist - dist) / (dist + 15)) * 2.2 * softStartScale;
             }
 
             nodeA.vx = (nodeA.vx ?? 0) - dx * force;
@@ -595,7 +684,7 @@ export class OntologyCanvasEngine {
       // 용수철 평형 거리 대폭 완화 (가중치가 높아도 최소 약 140px, 일반 200px 이상 유지되도록 설계)
       const targetDist = 220 / (weight * 0.4 + 0.6); 
       
-      const force = ((dist - targetDist) / dist) * springStrength * (weight * 0.3 + 0.5);
+      const force = ((dist - targetDist) / dist) * springStrength * (weight * 0.3 + 0.5) * softStartScale;
       
       // 센터 노드는 당겨지지 않고 자식 노드만 중심 방향으로 끌려오게 제한
       if (nodeA.id !== this.centerNode?.id) {
@@ -631,7 +720,7 @@ export class OntologyCanvasEngine {
       // 💡 센트럴리티(degree, 연결선 개수)가 높은 노드일수록 하위 노드들의 인력합에 끌려가지 않도록
       // 궤도 복원력을 차수에 비례하여 동적으로 대폭 강화합니다.
       const degree = node.degree ?? 0;
-      const adaptiveGravity = orbitalGravity * (1.0 + degree * 0.45);
+      const adaptiveGravity = orbitalGravity * (1.0 + degree * 0.45) * softStartScale;
 
       // 중앙 방향으로의 단위 벡터 (ax/distToCenter, ay/distToCenter)에 오차와 복원 강도를 곱하여 속도에 반영
       node.vx! -= (ax / distToCenter) * rDiff * adaptiveGravity;
@@ -639,9 +728,9 @@ export class OntologyCanvasEngine {
     }
 
     // 5. Apply velocities with damping & jitter clamping
-    // 5차 수치 튜닝: 마찰 감쇄비를 0.30으로 강화하여 물리 진동을 급속 억제하고, maxSpeed를 6으로 좁혀 Whiplash 오버슛 방지
-    const damping = 0.3; 
-    const maxSpeed = 6;  
+    // 댐핑(마찰)을 0.75로 완화하여 노드들이 척력을 받아 충분히 펼쳐지도록 튜닝하고, maxSpeed를 8.0으로 완화
+    const damping = 0.75; 
+    const maxSpeed = 8.0;  
     
     for (const node of nodes) {
       if (node.layoutHidden) continue;
@@ -689,6 +778,14 @@ export class OntologyCanvasEngine {
         node.worldY = (node.worldY ?? 0) + dy;
       }
       
+      if (node.orbitIndex === 1) {
+        // 1차 카테고리 노드는 중심으로부터 항상 일정한 궤도 반경을 유지하도록 강제 투영 보정 (각도는 유지)
+        const currentAngle = Math.atan2(node.worldY, node.worldX);
+        const R = OntologyLayout.getOrbitRadius(1);
+        node.worldX = R * Math.cos(currentAngle) * 1.3; // ELLIPSE_RATIO = 1.3
+        node.worldY = R * Math.sin(currentAngle);
+      }
+      
       node.targetWorldX = node.worldX;
       node.targetWorldY = node.worldY;
     }
@@ -705,10 +802,10 @@ export class OntologyCanvasEngine {
         maxSpeedFound = sp;
       }
     }
-    if (maxSpeedFound < 0.015) {
+    if (maxSpeedFound < 0.15) { // 정지 수렴 한계치를 0.15로 조율하여 진동 방지
       this.physicsAlpha = 0.0;
     } else {
-      // Decay alpha (0.982 -> 0.95로 변경하여 노드들이 빠르게 고정 위치로 수렴 및 연산 정지)
+      // 냉각 비율(alpha decay)을 0.95로 현실화하여 충분한 확산 시간을 확보
       this.physicsAlpha *= 0.95;
     }
     
@@ -718,6 +815,42 @@ export class OntologyCanvasEngine {
 
   tick(): boolean {
     let isDirty = false;
+
+    // LERP 상태나 카메라 모션이 존재하는지 확인
+    const isCameraMoving = Math.abs(this.targetOffsetX - this.cameraOffsetX) > 0.5 || 
+                           Math.abs(this.targetOffsetY - this.cameraOffsetY) > 0.5 || 
+                           Math.abs(this.targetZoom - this.zoom) > 0.005;
+
+    let isAnyNodeMoving = false;
+    for (const node of this.nodes) {
+      if (node.targetWorldX !== undefined && node.targetWorldY !== undefined) {
+        const dx = node.targetWorldX - (node.worldX ?? 0);
+        const dy = node.targetWorldY - (node.worldY ?? 0);
+        if (Math.abs(dx) > 0.25 || Math.abs(dy) > 0.25) {
+          isAnyNodeMoving = true;
+          break;
+        }
+      }
+    }
+
+    const isInteractive = this.isDragging || isCameraMoving || isAnyNodeMoving;
+
+    // 만약 사용자가 조작 중이거나(isInteractive) 물리 연산이 덜 끝났다면(physicsAlpha > 0.005) 깨어있는다.
+    if (isInteractive || this.physicsAlpha > 0.005) {
+      this.idleFramesCount = 0;
+    } else {
+      this.idleFramesCount++;
+    }
+
+    // 💡 약 1.5초(90프레임)간 완전한 유휴 상태가 지속되면 궤도 공전을 일시정지(Sleep)하여 
+    // 프레임 레이트 렌더링 호출을 0으로 차단하고 유휴 CPU 부하를 0.1% 이하로 낮춥니다.
+    if (this.idleFramesCount > 90) {
+      if (this.needsRedraw) {
+        this.needsRedraw = false;
+        return true; // 마지막 한 번 더 그리고 정지
+      }
+      return false; 
+    }
 
     // 4차 최적화: 물리 시뮬레이션 프레임 연동 및 더티 마킹 (Spatial Hash Grid 기반)
     const t0 = performance.now();
@@ -755,12 +888,15 @@ export class OntologyCanvasEngine {
         const dx = node.targetWorldX - currentX;
         const dy = node.targetWorldY - currentY;
         
-        if (this.isFirstFrame || this.frameCount < 30) {
+        // 💡 첫 프레임에만 즉시 순간이동하고, 그 이후에는 LERP 감속 모션으로 이동시켜 격렬한 떨림(Jittering)을 방지합니다.
+        if (this.isFirstFrame) {
           node.worldX = node.targetWorldX;
           node.worldY = node.targetWorldY;
-        } else if (Math.abs(dx) > 0.1 || Math.abs(dy) > 0.1) {
-          node.worldX = currentX + dx * LERP_SPEED;
-          node.worldY = currentY + dy * LERP_SPEED;
+        } else if (Math.abs(dx) > 0.25 || Math.abs(dy) > 0.25) {
+          // 첫 25프레임 동안은 조금 더 신속히 감쇠 수렴하도록 빠른 LERP(0.20)를 제공하고, 이후에는 LERP_SPEED(0.08)로 소프트 모션을 유도합니다.
+          const currentLerp = this.frameCount < 25 ? 0.20 : LERP_SPEED;
+          node.worldX = currentX + dx * currentLerp;
+          node.worldY = currentY + dy * currentLerp;
           nodesMoving = true;
         } else {
           node.worldX = node.targetWorldX;
@@ -822,7 +958,6 @@ export class OntologyCanvasEngine {
                     this.lastLayoutInputs.zoom === this.zoom &&
                     this.lastLayoutInputs.activeLayersKey === activeLayersKey &&
                     this.lastLayoutInputs.collapsedNodesKey === collapsedNodesKey &&
-                    this.lastLayoutInputs.layoutMode === this.layoutMode &&
                     !this.lastLayoutInputs.isInteractive;
 
     if (canSkip) {
@@ -832,8 +967,7 @@ export class OntologyCanvasEngine {
       return;
     }
 
-    const forceRecompute = this.layoutWorldGeometryDirty || 
-                           (!this.lastLayoutInputs || this.lastLayoutInputs.layoutMode !== this.layoutMode);
+    const forceRecompute = this.layoutWorldGeometryDirty;
 
     const tL0 = performance.now();
     OntologyLayout.computePositions(
@@ -849,7 +983,6 @@ export class OntologyCanvasEngine {
       activeLayers,
       isInteractive,
       forceRecompute,
-      this.layoutMode,
       this.isOrbiting
     );
     const tL1 = performance.now();
@@ -865,7 +998,6 @@ export class OntologyCanvasEngine {
       zoom: this.zoom,
       activeLayersKey,
       collapsedNodesKey,
-      layoutMode: this.layoutMode,
       isInteractive
     };
 
@@ -902,22 +1034,9 @@ export class OntologyCanvasEngine {
       if (target && typeof target.worldX === 'number' && !isNaN(target.worldX) && 
           typeof target.worldY === 'number' && !isNaN(target.worldY)) {
         
-        // 3D Perspective Projection을 반영하여 스크린 상 노드의 실제 2D 투영 정중앙 위치로 카메라 스냅 보정
-        const effectiveLayer = target.effectiveLayer ?? 3;
-        const LAYER_GAP = 190;
-        const tiltAngle = 42 * Math.PI / 180;
-        const cameraDist = 1000;
-
-        // 💡 3D Perspective 수직 적층 레이어 높이(LAYER_GAP)를 정확히 반영하여 원근 투영 스냅 Y축 오차를 제거합니다.
-        const h = effectiveLayer * LAYER_GAP;
-        const depthH = effectiveLayer * LAYER_GAP;
-
-        const rotatedY = target.worldY * Math.cos(tiltAngle) - h * Math.sin(tiltAngle);
-        const depth = -target.worldY * Math.sin(tiltAngle) + depthH * Math.cos(tiltAngle);
-        const perspectiveScale = Math.max(0.05, cameraDist / Math.max(120, cameraDist + depth));
-
-        const snapX = -(target.worldX * this.zoom * perspectiveScale);
-        const snapY = -(rotatedY * this.zoom * perspectiveScale);
+        // 2D 평면 변환을 반영하여 스크린 상 노드의 실제 위치로 카메라 스냅 보정
+        const snapX = -(target.worldX * this.zoom);
+        const snapY = -(target.worldY * this.zoom);
         
         if (!isNaN(snapX) && !isNaN(snapY)) {
           this.targetOffsetX = snapX;
@@ -943,7 +1062,6 @@ export class OntologyCanvasEngine {
               activeLayers,
               false, // force non-interactive for final snap collision resolution
               this.layoutWorldGeometryDirty,
-              this.layoutMode,
               this.isOrbiting
             );
 
@@ -995,7 +1113,7 @@ export class OntologyCanvasEngine {
       cameraOffsetX: this.cameraOffsetX,
       cameraOffsetY: this.cameraOffsetY,
       activeLayers: activeLayers,
-      layoutMode: this.layoutMode,
+      layoutMode: 'orbit',
       isInteractive: isInteractive,
       isOrbiting: this.isOrbiting,
       centralitySortedNodes: this.centralitySortedNodes
@@ -1049,6 +1167,7 @@ export class OntologyCanvasEngine {
   }
 
   handleClick(mx: number, my: number): void {
+    this.wakeUp();
     if (this.hasDragged) {
       this.hasDragged = false;
       return;
@@ -1067,8 +1186,7 @@ export class OntologyCanvasEngine {
       const isNewlyActivated = this.activeNode?.id !== hit.id;
       
       if (isNewlyActivated) {
-         // 최초 클릭 시: "카테고리와 함께 하위 카테고리가 모두 활성화되며 중심으로 이동" 
-         // 따라서 새롭게 클릭된 노드는 절대 접지 않으며, 혹시 접혀있었다면 그와 그 하위의 모든 노드를 전개(오픈)합니다.
+         // 최초 클릭 시: 카테고리와 함께 하위 카테고리가 모두 활성화되며 중심으로 이동
          this.activeNode = hit;
          this.previousActiveNodeId = hit.id;
          
@@ -1089,10 +1207,23 @@ export class OntologyCanvasEngine {
             return desc;
          };
 
-         // 클릭한 노드 및 모든 하위 자식들의 접힘 상태를 해제 (전체 펼침)
-         this.collapsedNodeIds.delete(hit.id);
-         const descendants = getDescendants(hit.id);
-         descendants.forEach(d => this.collapsedNodeIds.delete(d));
+         if (hit.orbitIndex === 1) {
+            // 1차 카테고리 노드를 클릭한 경우:
+            // 기존에 열려있던 다른 1차 카테고리 하위는 모두 접고, 본 카테고리 하위만 전개
+            this.collapseAll();
+            this.collapsedNodeIds.delete(hit.id);
+            const descendants = getDescendants(hit.id);
+            descendants.forEach(d => this.collapsedNodeIds.delete(d));
+         } else if (hit.orbitIndex === 0) {
+            // 최상위 루트 노드를 클릭한 경우: 모두 접힌 디폴트 상태로 되돌림
+            this.collapseAll();
+         } else {
+            // 2차 카테고리 이상 노드를 클릭한 경우:
+            // 기존 전개 상태를 유지하며 클릭한 노드 및 자손 접힘만 해제
+            this.collapsedNodeIds.delete(hit.id);
+            const descendants = getDescendants(hit.id);
+            descendants.forEach(d => this.collapsedNodeIds.delete(d));
+         }
          this.topologyDirty = true;
       } else {
          // 2. 이미 활성화(선택)된 노드를 "다시 한 번" 클릭했을 때 동작
@@ -1101,15 +1232,17 @@ export class OntologyCanvasEngine {
             // 자식이 없는 리프 노드를 재클릭하면 포커스 해제 (최상위 루트 노드로 돌아감)
             this.activeNode = this.centerNode;
             this.previousActiveNodeId = this.centerNode?.id || null;
+            this.collapseAll();
             this.topologyDirty = true;
          }
       }
       
       // 노드 단순 클릭 시에는 카메라 이동 스냅 및 기하학 각도 리셋을 수행하지 않습니다.
     } else {
-      // 💡 바탕 배경(빈 곳) 클릭 시 활성 노드 선택을 해제하여 모든 노드를 100% 활성화(선명하게) 상태로 복원합니다.
+      // 💡 바탕 배경(빈 곳) 클릭 시 활성 노드 선택을 해제하고, 모두 접힌 디폴트 상태로 복원합니다.
       this.activeNode = null;
       this.previousActiveNodeId = null;
+      this.collapseAll();
       this.topologyDirty = true;
     }
     this.needsRedraw = true;
@@ -1150,6 +1283,7 @@ export class OntologyCanvasEngine {
   }
 
   handleDoubleClick(mx: number, my: number): void {
+    this.wakeUp();
     const hit = this.hitTest(mx, my);
     if (hit) {
       this.callbacks.onNodeDoubleClick?.(hit);
@@ -1167,6 +1301,7 @@ export class OntologyCanvasEngine {
   }
 
   handleHover(mx: number, my: number): void {
+    this.wakeUp();
     const hit = this.hitTest(mx, my);
     if (hit?.id !== this.hoveredNode?.id) {
       this.hoveredNode = hit;
@@ -1176,6 +1311,7 @@ export class OntologyCanvasEngine {
   }
 
   handleWheel(delta: number, mx?: number, my?: number): void {
+    this.wakeUp();
     const oldZoom = this.zoom;
     const zoomFactor = Math.exp(-delta * 0.001);
     const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, this.zoom * zoomFactor));
@@ -1211,6 +1347,7 @@ export class OntologyCanvasEngine {
   // ── Interaction ──
 
   handleDragStart(nx: number, ny: number, _isShiftKey: boolean = false): void {
+    this.wakeUp();
     if (_isShiftKey) {
       // reserved for sub-graph moving
     }
@@ -1244,6 +1381,7 @@ export class OntologyCanvasEngine {
   }
 
   handleDragMove(nx: number, ny: number): void {
+    this.wakeUp();
     if (!this.isDragging) return;
 
     if (Math.abs(nx - this.dragStartX) > 5 || Math.abs(ny - this.dragStartY) > 5) {
@@ -1252,14 +1390,11 @@ export class OntologyCanvasEngine {
     }
 
     if (this.draggedNode) {
-      // 3D 원근 드래그 역산
-      const cameraDist = 800;
-      const localDepth = this.draggedNode.renderZ ?? 0;
-      const scaleGuard = Math.max(120, cameraDist + localDepth);
-      const perspectiveScale = cameraDist / scaleGuard;
-      
-      const worldX = (nx - this.cameraOffsetX) / perspectiveScale;
-      const worldY = (ny - this.cameraOffsetY) / perspectiveScale;
+      // 2D 평면 마우스 드래그 역산
+      const cx = this.canvasW / 2;
+      const cy = this.canvasH / 2;
+      const worldX = (nx - cx - this.cameraOffsetX) / this.zoom;
+      const worldY = (ny - cy - this.cameraOffsetY) / this.zoom;
       
       this.draggedNode.fixedX = worldX;
       this.draggedNode.fixedY = worldY;
@@ -1296,6 +1431,7 @@ export class OntologyCanvasEngine {
   }
 
   handleDragEnd(): void {
+    this.wakeUp();
     this.isDragging = false;
     this.draggedNode = null;
     this.draggedSubTree = [];

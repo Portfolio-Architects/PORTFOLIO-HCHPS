@@ -1,10 +1,107 @@
 {
-  "timestamp": "2026-06-23T07:47:57.392Z",
-  "lintWarnings": [],
+  "timestamp": "2026-06-24T08:52:51.201Z",
+  "lintWarnings": [
+    {
+      "file": "src/components/mindmap/ui/MindMapHUD.tsx",
+      "line": 7,
+      "column": 10,
+      "ruleId": "@typescript-eslint/no-unused-vars",
+      "message": "'OntologyLayout' is defined but never used.",
+      "severity": "warning"
+    },
+    {
+      "file": "src/components/mindmap/ui/MindMapHUD.tsx",
+      "line": 37,
+      "column": 3,
+      "ruleId": "@typescript-eslint/no-unused-vars",
+      "message": "'engineRef' is defined but never used.",
+      "severity": "warning"
+    },
+    {
+      "file": "src/components/mindmap/ui/MindMapHUD.tsx",
+      "line": 38,
+      "column": 3,
+      "ruleId": "@typescript-eslint/no-unused-vars",
+      "message": "'onRefresh' is defined but never used.",
+      "severity": "warning"
+    },
+    {
+      "file": "src/lib/engine/OntologyLayout.ts",
+      "line": 355,
+      "column": 9,
+      "ruleId": "@typescript-eslint/no-unused-vars",
+      "message": "'parentArcWidth' is defined but never used.",
+      "severity": "warning"
+    },
+    {
+      "file": "src/lib/engine/OntologyRenderer.ts",
+      "line": 275,
+      "column": 5,
+      "ruleId": "@typescript-eslint/no-unused-vars",
+      "message": "'ctx' is defined but never used.",
+      "severity": "warning"
+    },
+    {
+      "file": "src/lib/engine/OntologyRenderer.ts",
+      "line": 276,
+      "column": 5,
+      "ruleId": "@typescript-eslint/no-unused-vars",
+      "message": "'canvasW' is defined but never used.",
+      "severity": "warning"
+    },
+    {
+      "file": "src/lib/engine/OntologyRenderer.ts",
+      "line": 277,
+      "column": 5,
+      "ruleId": "@typescript-eslint/no-unused-vars",
+      "message": "'canvasH' is defined but never used.",
+      "severity": "warning"
+    },
+    {
+      "file": "src/lib/engine/OntologyRenderer.ts",
+      "line": 278,
+      "column": 5,
+      "ruleId": "@typescript-eslint/no-unused-vars",
+      "message": "'cameraOffsetX' is defined but never used.",
+      "severity": "warning"
+    },
+    {
+      "file": "src/lib/engine/OntologyRenderer.ts",
+      "line": 279,
+      "column": 5,
+      "ruleId": "@typescript-eslint/no-unused-vars",
+      "message": "'cameraOffsetY' is defined but never used.",
+      "severity": "warning"
+    },
+    {
+      "file": "src/lib/engine/OntologyRenderer.ts",
+      "line": 280,
+      "column": 5,
+      "ruleId": "@typescript-eslint/no-unused-vars",
+      "message": "'zoom' is defined but never used.",
+      "severity": "warning"
+    },
+    {
+      "file": "src/lib/engine/OntologyRenderer.ts",
+      "line": 281,
+      "column": 5,
+      "ruleId": "@typescript-eslint/no-unused-vars",
+      "message": "'activeLayers' is defined but never used.",
+      "severity": "warning"
+    },
+    {
+      "file": "src/lib/engine/OntologyRenderer.ts",
+      "line": 286,
+      "column": 35,
+      "ruleId": "@typescript-eslint/no-unused-vars",
+      "message": "'rc' is defined but never used.",
+      "severity": "warning"
+    }
+  ],
   "architecturalViolations": [],
   "performanceBottlenecks": [],
   "summary": {
-    "totalWarnings": 0,
+    "totalWarnings": 12,
     "totalViolations": 0,
     "totalBottlenecks": 0
   }

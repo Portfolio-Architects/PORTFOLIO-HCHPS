@@ -10,6 +10,7 @@ import { useTasks } from '@/hooks/useTasks';
 import { useBudget } from '@/hooks/useBudget';
 import { useFileRadar } from '@/hooks/useFileRadar';
 import { useReportGenerator } from '@/hooks/useReportGenerator';
+import { useAILinker } from '@/hooks/useAILinker';
 
 interface ForceGraphEngine {
   nodes: OrbitalNode[];
@@ -31,7 +32,7 @@ interface MindMapInspectorProps {
   removeCustomTombstone: (childId: string, parentId: string) => void;
   renameNodeId?: (oldId: string, newId: string) => void;
   deleteCustomNode: (id: string) => void;
-  addCustomEdge: (src: string, tgt: string) => void;
+  addCustomEdge: (src: string, tgt: string, type?: string) => void;
   deleteCustomEdge: (src: string, tgt: string) => void;
   parentModeSource: string | null;
   setParentModeSource: (id: string | null) => void;
@@ -42,7 +43,7 @@ interface MindMapInspectorProps {
   wikiBlocks?: any[];
 }
 
-export function MindMapInspector(props: MindMapInspectorProps) {
+export const MindMapInspector = React.memo(function MindMapInspector(props: MindMapInspectorProps) {
   const {
     activeNode, engineRef, overrides, setNodeOverride, setActiveNode,
     onRenameCategory, onDeleteCategory, updateCustomNodeText, removeCustomTombstone, renameNodeId,
@@ -66,12 +67,15 @@ export function MindMapInspector(props: MindMapInspectorProps) {
   const [recordSuccess, setRecordSuccess] = React.useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = React.useState(false);
   const [copiedReport, setCopiedReport] = React.useState(false);
-
+  const [aiTargetId, setAiTargetId] = React.useState<string>('');
+  const aiLinkMut = useAILinker();
+ 
   // Clear success feedback and reset report when activeNode changes
   React.useEffect(() => {
     setRecordSuccess(false);
     setIsRecording(false);
     setCopiedReport(false);
+    setAiTargetId(''); // reset AI target selection
     resetReport();
   }, [activeNode, resetReport]);
 
@@ -115,8 +119,8 @@ export function MindMapInspector(props: MindMapInspectorProps) {
         rate: Math.round(catStats.usageRate)
       } : undefined,
       tasks: matchedTasks.map(t => ({
-        title: t.title || t.text,
-        isCompleted: t.status === '완료' || (t as any).isCompleted || false
+        title: t.title || (t as any).text || '',
+        isCompleted: (t.status as any) === '완료' || (t.status as any) === 'DONE' || (t.status as any) === 'done' || (t as any).isCompleted || false
       })),
       files: (radarData?.files || []).map(f => ({
         displayName: f.displayName,
@@ -608,8 +612,8 @@ export function MindMapInspector(props: MindMapInspectorProps) {
                             <div className="flex flex-col gap-1 border-t border-slate-200/20 pt-1.5">
                               {matchedTasks.slice(0, 2).map((t, idx) => (
                                 <div key={idx} className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-500">
-                                  <span className={`w-1.5 h-1.5 rounded-full ${t.isCompleted || (t as any).status === '완료' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-                                  <span className="truncate flex-1">{t.title || t.text}</span>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${(t as any).isCompleted || (t as any).status === '완료' || (t.status as any) === 'DONE' || (t.status as any) === 'done' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                                  <span className="truncate flex-1">{t.title || (t as any).text || ''}</span>
                                 </div>
                               ))}
                             </div>
@@ -726,6 +730,66 @@ export function MindMapInspector(props: MindMapInspectorProps) {
                       <div className="flex flex-col gap-3">
                         <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center px-1 gap-1.5">
                           <Waypoints size={13} className="text-slate-400" /> 관계 및 위계 설정
+                        </div>
+
+                        {/* 🤖 AI 관계 추론 및 자동 연결 */}
+                        <div className="flex flex-col gap-1.5 bg-gradient-to-br from-slate-500/5 to-indigo-500/5 border border-indigo-500/10 p-3.5 rounded-2xl shadow-2xs">
+                          <label className="text-[10px] font-black text-indigo-700 uppercase tracking-wider flex items-center gap-1">
+                            <Bot size={13} className="animate-pulse text-indigo-500" /> 🤖 AI 관계 추론 및 자동 연결
+                          </label>
+                          <p className="text-[9px] text-slate-500 font-bold leading-tight mb-1.5">
+                            현재 노드와 관계를 지을 타겟 노드를 선택하면, AI가 데이터 구조를 분석해 관계 유형을 판별하고 연결합니다.
+                          </p>
+                          <div className="flex flex-col gap-2 w-full">
+                            <select
+                              value={aiTargetId}
+                              onChange={(e) => setAiTargetId(e.target.value)}
+                              className="w-full min-w-0 text-[10.5px] px-2.5 py-1.5 bg-white border border-indigo-200 rounded-xl outline-none focus:border-indigo-500 font-medium cursor-pointer"
+                            >
+                              <option value="">-- 연결할 대상 노드 선택 --</option>
+                              {engineNodes
+                                .filter(n => n.id !== activeNode.id && n.id !== 'root-HCHPS' && !n.layoutHidden)
+                                .sort((a, b) => a.label.localeCompare(b.label))
+                                .map(n => (
+                                  <option key={n.id} value={n.id}>
+                                    {n.label}
+                                  </option>
+                                ))
+                              }
+                            </select>
+                            <button
+                              disabled={!aiTargetId || aiLinkMut.isPending}
+                              onClick={() => {
+                                if (!aiTargetId) return;
+                                const targetNode = engineNodes.find(n => n.id === aiTargetId);
+                                if (!targetNode) return;
+
+                                aiLinkMut.mutate({
+                                  sourceId: activeNode.id,
+                                  sourceLabel: activeNode.label,
+                                  targetId: targetNode.id,
+                                  targetLabel: targetNode.label
+                                }, {
+                                  onSuccess: (res) => {
+                                    if (res.connected) {
+                                      props.addCustomEdge(activeNode.id, targetNode.id, res.type);
+                                      alert(`🤖 AI 관계 분석 성공!\n\n관계 유형: ${res.type}\n설명: ${res.summary}\n\n[결과] 간선이 자동 연결되어 Yjs/CRDT 캔버스 세션에 즉시 병합되었습니다.`);
+                                      setAiTargetId('');
+                                      setTimeout(() => initEngine(), 50);
+                                    } else {
+                                      alert(`🤖 AI 분석 결과, 두 노드 간의 뚜렷한 의미론적 관계성을 찾을 수 없어 연결을 생성하지 않았습니다.\n\n설명: ${res.summary}`);
+                                    }
+                                  },
+                                  onError: (err) => {
+                                    alert(`AI 관계 추론 실패: ${err.message}`);
+                                  }
+                                });
+                              }}
+                              className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold rounded-xl text-[10.5px] cursor-pointer transition-all shadow-3xs flex items-center justify-center gap-1"
+                            >
+                              {aiLinkMut.isPending ? '추론 중..' : '추론 및 연결'}
+                            </button>
+                          </div>
                         </div>
                         <div className="flex flex-col gap-2">
                           {/* 1. 카테고리 위계 선택 */}
@@ -973,6 +1037,9 @@ export function MindMapInspector(props: MindMapInspectorProps) {
                                   console.error('Tombstone saving error:', e);
                                 }
 
+                                const parentId = activeNode.parentId;
+                                let parentNode: OrbitalNode | null = null;
+
                                 for (const targetNode of deleteList) {
                                   const isDeepDelete = targetNode.id.startsWith('custom-') || targetNode.orbitIndex === 1;
                                   
@@ -992,10 +1059,21 @@ export function MindMapInspector(props: MindMapInspectorProps) {
                                   const deleteIdSet = new Set(deleteIds);
                                   engineRef.current.nodes = engineRef.current.nodes.filter((n: OrbitalNode) => !deleteIdSet.has(n.id));
                                   engineRef.current.edges = engineRef.current.edges.filter((e: OntologyEdge) => !deleteIdSet.has(e.source) && !deleteIdSet.has(e.target));
+                                  
+                                  if (parentId && !deleteIdSet.has(parentId)) {
+                                    parentNode = (engineRef.current.nodes as OrbitalNode[]).find((n: OrbitalNode) => n.id === parentId) || null;
+                                  }
+                                  
+                                  if (parentNode) {
+                                    engineRef.current.activeNode = parentNode;
+                                    (engineRef.current as any).pendingCameraTargetId = parentNode.id;
+                                  } else {
+                                    engineRef.current.activeNode = null;
+                                  }
                                   engineRef.current.needsRedraw = true;
                                 }
                                 
-                                setActiveNode(null);
+                                setActiveNode(parentNode);
                               }}
                               className="flex-1 flex justify-center items-center gap-1.5 py-2.5 bg-rose-500/10 border border-rose-500/15 rounded-xl text-xs font-bold text-rose-700 hover:bg-rose-500 hover:text-white transition-all shadow-2xs cursor-pointer"
                             >
@@ -1173,4 +1251,4 @@ export function MindMapInspector(props: MindMapInspectorProps) {
       )}
     </>
   );
-}
+});

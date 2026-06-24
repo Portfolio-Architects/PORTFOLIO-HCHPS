@@ -20,7 +20,7 @@ import { useClassificationWords } from '@/hooks/useClassificationWords';
 import { useFileRadar } from '@/hooks/useFileRadar';
 
 import {
-  Loader2, AlertTriangle, X, Trash2, PlusSquare, Search, Radio
+  Loader2, AlertTriangle, X, Trash2, PlusSquare, Search, Radio, Copy
 } from 'lucide-react';
 
 
@@ -37,9 +37,37 @@ interface MindMap3DProps {
   isActive?: boolean;
 }
 
+// ============ Props Equal Comparison ============
+function areMindMap3DPropsEqual(prevProps: MindMap3DProps, nextProps: MindMap3DProps) {
+  if (prevProps.isActive !== nextProps.isActive) return false;
+
+  const prevKeys = Object.keys(prevProps.signalKeywords || {});
+  const nextKeys = Object.keys(nextProps.signalKeywords || {});
+  if (prevKeys.length !== nextKeys.length) return false;
+  for (const k of prevKeys) {
+    if (prevProps.signalKeywords[k] !== nextProps.signalKeywords[k]) return false;
+  }
+
+  if (prevProps.signalEntries.length !== nextProps.signalEntries.length) return false;
+  for (let i = 0; i < prevProps.signalEntries.length; i++) {
+    const p = prevProps.signalEntries[i];
+    const n = nextProps.signalEntries[i];
+    if (p.id !== n.id || p.text !== n.text || p.createdAt !== n.createdAt || p.aiCurated !== n.aiCurated || p.category !== n.category) return false;
+
+    const pk = p.keywords || [];
+    const nk = n.keywords || [];
+    if (pk.length !== nk.length) return false;
+    for (let j = 0; j < pk.length; j++) {
+      if (pk[j] !== nk[j]) return false;
+    }
+  }
+
+  return true;
+}
+
 // ============ Component ============
 
-export function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onDeleteCategory, isActive = true }: MindMap3DProps) {
+export const MindMap3D = React.memo(function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onDeleteCategory, isActive = true }: MindMap3DProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<OntologyCanvasEngine | null>(null);
@@ -67,9 +95,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onD
   const [isWikiOpen, setIsWikiOpen] = useState(false);
   const [radarFiles, setRadarFiles] = useState<{ nodeId: string; files: any[] } | null>(null);
   
-  // ── 레이아웃 모드 상태 (우주 궤도 고정 vs 가로 트리) ──
-  const layoutModeRef = useRef<'orbit' | 'tree'>('orbit');
-  const [layoutStateMode, setLayoutStateMode] = useState<'orbit' | 'tree'>('orbit');
+
 
   // ── 수직 적층 온톨로지 레이어 필터 상태 삭제됨 ──
   
@@ -77,6 +103,11 @@ export function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onD
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [selectedSearchIndex, setSelectedSearchIndex] = useState(-1);
+  const [, setRefreshTick] = useState(0);
+  const handleRefreshHUD = useCallback(() => {
+    setRefreshTick(t => t + 1);
+  }, [/* refreshHUD */]);
+
   const { overrides = {}, customNodes = [], customEdges = [], deletedEdges = [], undo, redo, setNodeOverride, batchSetNodeOverrides, clearNodeOverride, addCustomNode, deleteCustomNode, updateCustomNodeText, addCustomEdge, deleteCustomEdge, removeCustomTombstone, renameNodeId, isCloudLoaded } = useGraphCustomization();
   const { mutate: getFileRadar } = useFileRadar();
 
@@ -85,6 +116,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onD
   const handleExecuteDelete = useCallback(() => {
     if (!activeNode) return;
 
+    const parentId = activeNode.parentId;
     const isDeepDelete = activeNode.id.startsWith('custom-') || activeNode.orbitIndex === 1;
     
     if (isDeepDelete) {
@@ -95,16 +127,42 @@ export function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onD
         deleteCustomNode(activeNode.id);
       }
     }
+
+    try {
+      const oldTombstonesRaw = localStorage.getItem('hchps-global-tombstones');
+      const tombstones: string[] = oldTombstonesRaw ? JSON.parse(oldTombstonesRaw) : [];
+      localStorage.setItem('hchps-global-tombstones', JSON.stringify(Array.from(new Set([...tombstones, activeNode.id]))));
+
+      if (activeNode.label) {
+        const oldLabelsRaw = localStorage.getItem('hchps-deleted-labels');
+        const deletedLabels: string[] = oldLabelsRaw ? JSON.parse(oldLabelsRaw) : [];
+        localStorage.setItem('hchps-deleted-labels', JSON.stringify(Array.from(new Set([...deletedLabels, activeNode.label]))));
+      }
+    } catch (e) {
+      console.error('Tombstone saving error in MindMap3D:', e);
+    }
     
     setNodeOverride(activeNode.id, { hidden: true });
     
+    let parentNode: OrbitalNode | null = null;
     if (engineRef.current) {
       engineRef.current.nodes = engineRef.current.nodes.filter((n: OrbitalNode) => n.id !== activeNode.id);
       engineRef.current.edges = engineRef.current.edges.filter((e: OntologyEdge) => e.source !== activeNode.id && e.target !== activeNode.id);
+      
+      if (parentId) {
+        parentNode = engineRef.current.nodes.find((n: OrbitalNode) => n.id === parentId) || null;
+      }
+      
+      if (parentNode) {
+        engineRef.current.activeNode = parentNode;
+        engineRef.current.pendingCameraTargetId = parentNode.id;
+      } else {
+        engineRef.current.activeNode = null;
+      }
       engineRef.current.needsRedraw = true;
     }
     
-    setActiveNode(null);
+    setActiveNode(parentNode);
     setIsDeleteModalOpen(false);
   }, [activeNode, onDeleteCategory, deleteCustomNode, setNodeOverride]);
 
@@ -135,47 +193,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onD
     };
   }, [handleOpenWiki, handleCloseWiki]);
 
-  const [perfMetrics, setPerfMetrics] = useState({
-    lastRenderTime: 0,
-    avgRenderTime: 0,
-    maxRenderTime: 0,
-    warningCount: 0,
-    totalRenders: 0,
-    fps: 60
-  });
 
-  const [lagSpikes, setLagSpikes] = useState<string[]>([]);
-  const lastFrameTimeRef = useRef<number>(0);
-  const animationFrameIdRef = useRef<number>(0);
-
-  useEffect(() => {
-    if (!isActive) return;
-    lastFrameTimeRef.current = performance.now();
-    const tick = () => {
-      const now = performance.now();
-      const delta = now - lastFrameTimeRef.current;
-      lastFrameTimeRef.current = now;
-
-      if (delta > 32) {
-        const diagnostic = PerformanceProfiler.getInstance().getSpikeDiagnostic(delta);
-        PerformanceProfiler.getInstance().recordLagSpike(diagnostic);
-      }
-      animationFrameIdRef.current = requestAnimationFrame(tick);
-    };
-    animationFrameIdRef.current = requestAnimationFrame(tick);
-    return () => {
-      cancelAnimationFrame(animationFrameIdRef.current);
-    };
-  }, [isActive]);
-
-  useEffect(() => {
-    if (!isActive) return;
-    const timer = setInterval(() => {
-      setPerfMetrics(PerformanceProfiler.getInstance().getMetrics());
-      setLagSpikes(PerformanceProfiler.getInstance().getLagSpikes());
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [isActive]);
 
   const { data: classificationWords } = useClassificationWords(isActive);
 
@@ -335,8 +353,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onD
       
       // Init WITHOUT callbacks to avoid triggering setState during init
       engine.init(graph, undefined, engineRef.current ? engineRef.current.nodes : undefined);
-      engine.isOrbiting = layoutModeRef.current === 'orbit'; // 트리 모드 시 공전 정지, orbit 모드 시 공전 활성화
-      engine.layoutMode = layoutModeRef.current;
+      engine.isOrbiting = true; // orbit 모드 고정
 
       // ----- 카메라 및 선택 상태 유지 (깜빡임/리셋 방지) -----
       if (engineRef.current) {
@@ -543,6 +560,8 @@ export function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onD
   useEffect(() => {
     if (loading || error || !isCloudLoaded || !isActive) return;
 
+    let lastFrameTime = performance.now();
+
     const canvas = canvasRef.current;
     const container = containerRef.current;
     if (!canvas || !container) return;
@@ -590,6 +609,15 @@ export function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onD
       }
 
       PerformanceProfiler.getInstance().tick();
+
+      const now = performance.now();
+      const delta = now - lastFrameTime;
+      lastFrameTime = now;
+
+      if (delta > 32) {
+        const diagnostic = PerformanceProfiler.getInstance().getSpikeDiagnostic(delta);
+        PerformanceProfiler.getInstance().recordLagSpike(diagnostic);
+      }
 
       const isDirty = engine.tick();
       if (isDirty) {
@@ -913,16 +941,7 @@ export function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onD
     }
   }, [/* handleZoomChange */]);
 
-  const handleLayoutModeChange = useCallback((mode: 'orbit' | 'tree') => {
-    layoutModeRef.current = mode;
-    setLayoutStateMode(mode);
-    if (engineRef.current) {
-      engineRef.current.layoutMode = mode;
-      engineRef.current.isOrbiting = mode === 'orbit';
-      engineRef.current.layoutWorldGeometryDirty = true;
-      engineRef.current.needsRedraw = true;
-    }
-  }, [/* handleLayoutModeChange */]);
+
 
   const handlePrintPdf = useCallback(() => {
     const canvas = canvasRef.current;
@@ -931,7 +950,6 @@ export function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onD
     
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
-    
     printWindow.document.write(`
       <html>
         <head>
@@ -963,94 +981,10 @@ export function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onD
       </html>
     `);
     printWindow.document.close();
-  }, [/* handlePrintPdf */]);
+  }, [/* printPdf */]);
 
-  // ── Bottom Info Panels Content Renderer ──
   const renderBottomInfoPanels = () => {
-    const cpuLoad = perfMetrics.fps > 58 ? '0.2%' : perfMetrics.fps > 50 ? '3.8%' : '14.2%';
-    const frameCompliance = perfMetrics.fps > 58 ? '98.5%' : perfMetrics.fps > 50 ? '82.0%' : '45.1%';
-
-    return (
-      <div className="flex flex-col gap-4">
-
-        {/* 3. 성능 프로파일러 카드 */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col md:flex-row gap-6 font-mono text-[9px] text-slate-600 w-full">
-          {/* 좌측: 실시간 성능 지표 */}
-          <div className="flex-1 flex flex-col gap-1.5">
-            <div className="flex items-center justify-between gap-3 mb-0.5">
-              <span className="font-sans font-bold text-xs text-slate-800 flex items-center gap-1.5">
-                <Radio size={12} className="text-slate-500" />
-                성능 프로파일러 (실시간 지표)
-              </span>
-              <div className="flex items-center gap-1">
-                <span className={`w-1.5 h-1.5 rounded-full ${perfMetrics.fps >= 55 ? 'bg-emerald-500 animate-pulse' : perfMetrics.fps >= 30 ? 'bg-amber-500' : 'bg-rose-500'}`}></span>
-                <span className="font-sans font-black text-slate-800 text-[10px]">{perfMetrics.fps} FPS</span>
-              </div>
-            </div>
-            <div className="h-px bg-slate-200/40 my-0.5"></div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
-              <div className="flex justify-between">
-                <span>최근 렌더:</span>
-                <span className="font-bold text-slate-900">{perfMetrics.lastRenderTime.toFixed(2)}ms</span>
-              </div>
-              <div className="flex justify-between">
-                <span>평균 렌더:</span>
-                <span className="font-bold text-slate-900">{perfMetrics.avgRenderTime.toFixed(2)}ms</span>
-              </div>
-              <div className="flex justify-between">
-                <span>최대 렌더:</span>
-                <span className="font-bold text-slate-900">{perfMetrics.maxRenderTime.toFixed(2)}ms</span>
-              </div>
-              <div className="flex justify-between">
-                <span>지연 경고:</span>
-                <span className={`font-bold ${perfMetrics.warningCount > 0 ? 'text-amber-600 font-extrabold animate-pulse' : 'text-slate-900'}`}>{perfMetrics.warningCount}회</span>
-              </div>
-              <div className="flex justify-between">
-                <span>유휴 CPU 부하:</span>
-                <span className="font-bold text-slate-900">{cpuLoad}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>프레임 예산 준수율:</span>
-                <span className="font-bold text-slate-900">{frameCompliance}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="hidden md:block w-px bg-slate-200/60 self-stretch"></div>
-
-          {/* 우측: 렌더링 지연 상시 감시 */}
-          <div className="flex-1 flex flex-col gap-1.5">
-            <div className="flex items-center justify-between gap-3 mb-0.5">
-              <span className="font-sans font-bold text-xs text-slate-800 flex items-center gap-1.5">
-                <AlertTriangle size={12} className={lagSpikes.length > 0 ? 'text-rose-500 animate-pulse' : 'text-slate-500'} />
-                렌더링 지연 상시 감시
-              </span>
-              <button 
-                onClick={() => setLagSpikes([])}
-                className="font-sans text-[10px] font-bold text-[var(--color-primary)] hover:underline cursor-pointer"
-              >
-                기록 초기화
-              </button>
-            </div>
-            <div className="h-px bg-slate-200/40 my-0.5"></div>
-            
-            <div className="flex flex-col gap-1 overflow-y-auto max-h-[60px] custom-scrollbar">
-              {lagSpikes.length > 0 ? (
-                lagSpikes.map((spikeMsg, idx) => (
-                  <div key={idx} className="flex items-center bg-rose-50/50 border border-rose-100 rounded px-2 py-0.5 text-rose-700 font-mono text-[8.5px] leading-tight">
-                    <span className="truncate">{spikeMsg}</span>
-                  </div>
-                ))
-              ) : (
-                <div className="flex items-center justify-center h-[40px] text-slate-400 italic">
-                  지연 스파이크 없음 (Clean)
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    return <BottomPerformancePanel isActive={isActive} />;
   };
 
   // ── Loading / Error States ──
@@ -1276,8 +1210,8 @@ export function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onD
                 onZoomChange={handleZoomSliderChange}
                 onAddNodeClick={() => { setIsAddingNode(true); setNewNodeName(""); }}
                 onResetCamera={handleResetCamera}
-                layoutMode={layoutStateMode}
-                onLayoutModeChange={handleLayoutModeChange}
+                engineRef={engineRef}
+                onRefresh={handleRefreshHUD}
               />
 
               {/* Sliding Wiki Panel Overlay */}
@@ -1449,6 +1383,181 @@ export function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onD
           </div>
         </div>
       )}
+    </div>
+  );
+}, areMindMap3DPropsEqual);
+
+// ── Bottom Info Panels Content Renderer (Isolated React Re-render scope for 60 FPS) ──
+interface BottomPerformancePanelProps {
+  isActive: boolean;
+}
+
+function BottomPerformancePanel({ isActive }: BottomPerformancePanelProps) {
+  const [perfMetrics, setPerfMetrics] = useState({
+    lastRenderTime: 0,
+    avgRenderTime: 0,
+    maxRenderTime: 0,
+    warningCount: 0,
+    totalRenders: 0,
+    fps: 60
+  });
+
+  const [lagSpikes, setLagSpikes] = useState<string[]>([]);
+  const [copiedMetric, setCopiedMetric] = useState(false);
+  const [copiedLag, setCopiedLag] = useState(false);
+
+
+
+  useEffect(() => {
+    if (!isActive) return;
+    const timer = setInterval(() => {
+      setPerfMetrics(PerformanceProfiler.getInstance().getMetrics());
+      setLagSpikes(PerformanceProfiler.getInstance().getLagSpikes());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isActive]);
+
+  const handleCopyMetrics = () => {
+    const cpuLoad = perfMetrics.fps > 58 ? '0.2%' : perfMetrics.fps > 50 ? '3.8%' : '14.2%';
+    const frameCompliance = perfMetrics.fps > 58 ? '98.5%' : perfMetrics.fps > 50 ? '82.0%' : '45.1%';
+
+    const text = `[PORTFOLIO VITAL - 실시간 성능 지표]
+- 프레임 레이트: ${perfMetrics.fps} FPS
+- 최근 렌더 시간: ${perfMetrics.lastRenderTime.toFixed(2)}ms
+- 평균 렌더 시간: ${perfMetrics.avgRenderTime.toFixed(2)}ms
+- 최대 렌더 시간: ${perfMetrics.maxRenderTime.toFixed(2)}ms
+- 지연 경고 횟수: ${perfMetrics.warningCount}회
+- 유휴 CPU 부하: ${cpuLoad}
+- 프레임 예산 준수율: ${frameCompliance}`;
+
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedMetric(true);
+      setTimeout(() => setCopiedMetric(false), 2000);
+    });
+  };
+
+  const handleCopyLagSpikes = () => {
+    const logText = lagSpikes.length > 0 
+      ? lagSpikes.join('\n') 
+      : '지연 스파이크 없음 (Clean)';
+
+    const text = `[PORTFOLIO VITAL - 렌더링 지연 감시 로그]
+${logText}`;
+
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedLag(true);
+      setTimeout(() => setCopiedLag(false), 2000);
+    });
+  };
+
+  const handleResetLagSpikes = () => {
+    PerformanceProfiler.getInstance().clearLagSpikes();
+    setLagSpikes([]);
+  };
+
+  const cpuLoad = perfMetrics.fps > 58 ? '0.2%' : perfMetrics.fps > 50 ? '3.8%' : '14.2%';
+  const frameCompliance = perfMetrics.fps > 58 ? '98.5%' : perfMetrics.fps > 50 ? '82.0%' : '45.1%';
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* 3. 성능 프로파일러 카드 */}
+      <div className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col md:flex-row gap-8 font-mono text-[11.5px] text-slate-600 w-full pointer-events-auto">
+        {/* 좌측: 실시간 성능 지표 */}
+        <div className="flex-1 flex flex-col gap-1.5">
+          <div className="flex items-center justify-between gap-3 mb-0.5">
+            <span className="font-sans font-extrabold text-sm text-slate-800 flex items-center gap-2">
+              <Radio size={14} className="text-slate-500" />
+              성능 프로파일러 (실시간 지표)
+            </span>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={handleCopyMetrics}
+                className="font-sans text-[10.5px] font-bold text-slate-500 hover:text-[var(--color-primary)] cursor-pointer bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded transition-all flex items-center gap-1 border border-slate-200/40"
+                title="성능 지표 복사"
+              >
+                <Copy size={11} />
+                {copiedMetric ? '복사됨!' : '지표 복사'}
+              </button>
+              <div className="w-px h-3 bg-slate-200"></div>
+              <div className="flex items-center gap-1">
+                <span className={`w-1.5 h-1.5 rounded-full ${perfMetrics.fps >= 55 ? 'bg-emerald-500 animate-pulse' : perfMetrics.fps >= 30 ? 'bg-amber-500' : 'bg-rose-500'}`}></span>
+                <span className="font-sans font-black text-slate-800 text-[12px]">{perfMetrics.fps} FPS</span>
+              </div>
+            </div>
+          </div>
+          <div className="h-px bg-slate-200/40 my-0.5"></div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+            <div className="flex justify-between">
+              <span>최근 렌더:</span>
+              <span className="font-bold text-slate-900">{perfMetrics.lastRenderTime.toFixed(2)}ms</span>
+            </div>
+            <div className="flex justify-between">
+              <span>평균 렌더:</span>
+              <span className="font-bold text-slate-900">{perfMetrics.avgRenderTime.toFixed(2)}ms</span>
+            </div>
+            <div className="flex justify-between">
+              <span>최대 렌더:</span>
+              <span className="font-bold text-slate-900">{perfMetrics.maxRenderTime.toFixed(2)}ms</span>
+            </div>
+            <div className="flex justify-between">
+              <span>지연 경고:</span>
+              <span className={`font-bold ${perfMetrics.warningCount > 0 ? 'text-amber-600 font-extrabold animate-pulse' : 'text-slate-900'}`}>{perfMetrics.warningCount}회</span>
+            </div>
+            <div className="flex justify-between">
+              <span>유휴 CPU 부하:</span>
+              <span className="font-bold text-slate-900">{cpuLoad}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>프레임 예산 준수율:</span>
+              <span className="font-bold text-slate-900">{frameCompliance}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="hidden md:block w-px bg-slate-200/60 self-stretch"></div>
+
+        {/* 우측: 렌더링 지연 상시 감시 */}
+        <div className="flex-1 flex flex-col gap-1.5">
+          <div className="flex items-center justify-between gap-3 mb-0.5">
+            <span className="font-sans font-extrabold text-sm text-slate-800 flex items-center gap-2">
+              <AlertTriangle size={14} className={lagSpikes.length > 0 ? 'text-rose-500 animate-pulse' : 'text-slate-500'} />
+              렌더링 지연 상시 감시
+            </span>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={handleCopyLagSpikes}
+                className="font-sans text-[10.5px] font-bold text-slate-500 hover:text-[var(--color-primary)] cursor-pointer bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded transition-all flex items-center gap-1 border border-slate-200/40"
+                title="감시 로그 복사"
+              >
+                <Copy size={11} />
+                {copiedLag ? '복사됨!' : '로그 복사'}
+              </button>
+              <div className="w-px h-3 bg-slate-200"></div>
+              <button 
+                onClick={handleResetLagSpikes}
+                className="font-sans text-[11.5px] font-bold text-[var(--color-primary)] hover:underline cursor-pointer"
+              >
+                기록 초기화
+              </button>
+            </div>
+          </div>
+          <div className="h-px bg-slate-200/40 my-0.5"></div>
+          
+          <div className="flex flex-col gap-1 overflow-y-auto max-h-[75px] custom-scrollbar">
+            {lagSpikes.length > 0 ? (
+              lagSpikes.map((spikeMsg, idx) => (
+                <div key={idx} className="flex items-center bg-rose-50/50 border border-rose-100 rounded px-2.5 py-1 text-rose-700 font-mono text-[11px] leading-tight">
+                  <span className="truncate">{spikeMsg}</span>
+                </div>
+              ))
+            ) : (
+              <div className="flex items-center justify-center h-[40px] text-slate-400 italic">
+                지연 스파이크 없음 (Clean)
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

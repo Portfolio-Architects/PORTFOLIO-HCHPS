@@ -7,7 +7,7 @@ export const ELLIPSE_RATIO = 1.3;
 export const MIN_NODE_R = 3;
 export const MAX_NODE_R = 24;
 export const ORBIT_SPEED_BASE = 0.0006; 
-export const LERP_SPEED = 0.12;  
+export const LERP_SPEED = 0.08;  
 export const MIN_ZOOM = 0.3;
 export const MAX_ZOOM = 3.0;
 export const MIN_TILT = 0.3;
@@ -17,6 +17,11 @@ export const CULL_MARGIN = 80;
 // Layout parameters - defined inside computePositions
 
 export class OntologyLayout {
+  public static LAYER_GAP = 190;
+  public static tiltAngle = 42 * Math.PI / 180;
+  public static filterLayers = new Set<number>([0, 1, 2, 3]);
+  public static filterGroups = new Set<string>();
+  public static filterRiskOnly = false;
   public static lastTreeChildrenMap = new Map<string, string[]>();
   public static lastSpanningTreeEdgeSet = new Set<string>();
   public static dynamicRules: { agents: string[], resources: string[], executions: string[] } | null = null;
@@ -178,14 +183,13 @@ export class OntologyLayout {
     activeLayers?: Set<number>,
     isInteractive: boolean = false,
     recomputeWorldPositions: boolean = true,
-    layoutMode: 'orbit' | 'tree' = 'orbit',
     isOrbiting: boolean = false
   ): void {
     if (nodes.length === 0) return;
     OntologyLayout.totalNodesCount = nodes.length;
 
     // Silence unused parameter warnings when maxIterations === 0
-    if (isInteractive || layoutMode) {
+    if (isInteractive) {
       // noop
     }
 
@@ -327,230 +331,158 @@ export class OntologyLayout {
       // 3. Layout Execution
       const visibleNodes = new Set<string>();
 
-      if (layoutMode === 'tree') {
-        // Horizontal Tidy Tree Layout: 왼쪽 -> 오른쪽 방향으로 계층 구조 전개
-        const HORIZONTAL_SPACING = 300;
-        const VERTICAL_SPACING = 80;
+      // Concentric Orbit Layout: 모든 노드를 중앙(0,0) 중심의 동심 궤도에 배치
+      const getNodeDepth = (nodeId: string): number => {
+        let depth = 0;
+        const visited = new Set<string>();
+        let curr = nodeMap.get(nodeId);
+        while (curr && curr.parentId) {
+          if (visited.has(curr.id)) {
+            console.error(`[OntologyLayout] Circular parentId reference detected at node: ${curr.id}. Breaking loop to prevent infinite loop hang.`);
+            break;
+          }
+          visited.add(curr.id);
+          depth++;
+          curr = nodeMap.get(curr.parentId);
+        }
+        return depth;
+      };
 
-        let nextLeafY = 0;
+      const layoutOrbitNode = (
+        nodeId: string,
+        parentNode: OrbitalNode | null,
+        assignedAngle: number,
+        parentArcWidth: number
+      ) => {
+        const node = nodeMap.get(nodeId);
+        if (!node) return;
 
-        const layoutTreeNode = (nodeId: string, depth: number) => {
-          const node = nodeMap.get(nodeId);
-          if (!node) return;
+        visibleNodes.add(nodeId);
 
-          visibleNodes.add(nodeId);
-          node.orbitIndex = depth; // 깊이 정보를 orbitIndex에 저장해 레이어 호환 유지
+        let depth = getNodeDepth(nodeId);
+        if (depth === 0 && nodeId !== mainRoot.id) {
+          depth = 1;
+        }
 
+        let defaultOrbit: number;
+        if (parentNode) {
+          if (parentNode.orbitIndex === 0) {
+            defaultOrbit = 2;
+          } else {
+            defaultOrbit = parentNode.orbitIndex + 1;
+          }
+        } else {
+          defaultOrbit = Math.max(2, depth);
+        }
+        node.orbitIndex = node.customOrbitIndex ?? defaultOrbit;
+        node.orbitAngle = assignedAngle;
+
+        let staticOffset = 0;
+        if (depth > 0 && parentNode) {
+          const siblings = treeChildrenMap.get(parentNode.id) || [];
+          const sibIdx = siblings.indexOf(nodeId);
+          if (sibIdx !== -1) {
+            staticOffset = sibIdx % 2 === 0 ? -12 : 12; // 2D 평면에서는 정적 지그재그 오프셋 폭을 12px로 축소
+          }
+        }
+        (node as any).radialOffset = staticOffset;
+
+        if (depth === 0) {
+          node.targetWorldX = 0;
+          node.targetWorldY = 0;
+        } else {
           if (!isOrbiting && node.fixedX !== undefined && node.fixedX !== null && node.fixedY !== undefined && node.fixedY !== null) {
             node.targetWorldX = node.fixedX;
             node.targetWorldY = node.fixedY;
+            node.worldX = node.fixedX;
+            node.worldY = node.fixedY;
           } else {
-            node.targetWorldX = depth * HORIZONTAL_SPACING;
-          }
-
-          if (!collapsedNodeIds.has(nodeId)) {
-            const children = treeChildrenMap.get(nodeId) || [];
-            const N = children.length;
-            if (N > 0) {
-              // 하위 노드 재귀 배치
-              children.forEach(childId => {
-                  layoutTreeNode(childId, depth + 1);
-              });
-
-              // 부모 노드를 자식들의 Y축 중간에 정렬
-              if (!isOrbiting && node.fixedX !== undefined && node.fixedX !== null && node.fixedY !== undefined && node.fixedY !== null) {
-                // 수동 고정 상태
-              } else {
-                const firstChild = nodeMap.get(children[0]);
-                const lastChild = nodeMap.get(children[N - 1]);
-                if (firstChild && lastChild) {
-                  const firstY = firstChild.targetWorldY ?? 0;
-                  const lastY = lastChild.targetWorldY ?? 0;
-                  node.targetWorldY = (firstY + lastY) / 2;
-                }
-              }
+            if (depth === 1) {
+              // 1차 카테고리: 절대 반경 145px
+              const R = OntologyLayout.getOrbitRadius(1);
+              node.targetWorldX = R * Math.cos(assignedAngle) * ELLIPSE_RATIO;
+              node.targetWorldY = R * Math.sin(assignedAngle);
+            } else if (depth === 2 && parentNode) {
+              // 2차 카테고리: 부모 1차 노드 기점 상대 반경 135px + 지그재그 오프셋
+              const r = 135 + staticOffset;
+              node.targetWorldX = parentNode.targetWorldX + r * Math.cos(assignedAngle) * ELLIPSE_RATIO;
+              node.targetWorldY = parentNode.targetWorldY + r * Math.sin(assignedAngle);
+            } else if (depth === 3 && parentNode) {
+              // 3차 카테고리: 부모 2차 노드 기점 상대 반경 110px + 지그재그 오프셋
+              const r = 110 + staticOffset;
+              node.targetWorldX = parentNode.targetWorldX + r * Math.cos(assignedAngle) * ELLIPSE_RATIO;
+              node.targetWorldY = parentNode.targetWorldY + r * Math.sin(assignedAngle);
             } else {
-              // 리프(Leaf) 노드 배치 및 수직 간격 누적
-              if (!isOrbiting && node.fixedX !== undefined && node.fixedX !== null && node.fixedY !== undefined && node.fixedY !== null) {
-                // 수동 고정 상태
-              } else {
-                node.targetWorldY = nextLeafY;
-                nextLeafY += VERTICAL_SPACING;
-              }
-            }
-          } else {
-            // 접힌(Collapsed) 노드는 리프처럼 작동
-            if (!isOrbiting && node.fixedX !== undefined && node.fixedX !== null && node.fixedY !== undefined && node.fixedY !== null) {
-              // 수동 고정 상태
-            } else {
-              node.targetWorldY = nextLeafY;
-              nextLeafY += VERTICAL_SPACING;
-            }
-          }
-        };
-
-        // 메인 루트 노드부터 배치 시작
-        if (mainRoot) {
-          layoutTreeNode(mainRoot.id, 0);
-
-          // 전체 트리를 루트 노드 Y = 0 기준으로 수직 평행이동 보정
-          const rootYOffset = mainRoot.targetWorldY ?? 0;
-          nodes.forEach(n => {
-            if (visibleNodes.has(n.id)) {
-              if (!(!isOrbiting && n.fixedX !== undefined && n.fixedX !== null && n.fixedY !== undefined && n.fixedY !== null)) {
-                n.targetWorldY = (n.targetWorldY ?? 0) - rootYOffset;
-              }
-            }
-          });
-        }
-
-        // 고아 루트(orphan roots) 배치
-        const orphanRoots = roots.slice(1);
-        orphanRoots.forEach(root => {
-          layoutTreeNode(root.id, 0);
-        });
-
-      } else {
-        // Concentric Orbit Layout: 모든 노드를 중앙(0,0) 중심의 동심 궤도에 배치
-        const getNodeDepth = (nodeId: string): number => {
-          let depth = 0;
-          const visited = new Set<string>();
-          let curr = nodeMap.get(nodeId);
-          while (curr && curr.parentId) {
-            if (visited.has(curr.id)) {
-              console.error(`[OntologyLayout] Circular parentId reference detected at node: ${curr.id}. Breaking loop to prevent infinite loop hang.`);
-              break;
-            }
-            visited.add(curr.id);
-            depth++;
-            curr = nodeMap.get(curr.parentId);
-          }
-          return depth;
-        };
-
-        const layoutOrbitNode = (
-          nodeId: string,
-          parentNode: OrbitalNode | null,
-          assignedAngle: number,
-          arcWidth: number
-        ) => {
-          const node = nodeMap.get(nodeId);
-          if (!node) return;
-
-          visibleNodes.add(nodeId);
-
-          let depth = getNodeDepth(nodeId);
-          // 중앙 노드(mainRoot)가 아니면서 depth가 0인 고아 노드들은 강제로 1차 궤도에 안착시킵니다.
-          if (depth === 0 && nodeId !== mainRoot.id) {
-            depth = 1;
-          }
-
-          let defaultOrbit: number;
-          if (parentNode) {
-            if (parentNode.orbitIndex === 0) {
-              defaultOrbit = 2; // 부모가 중앙 루트인 경우 수동 지정이 없으면 2차 궤도 이상으로 밀어냄
-            } else {
-              defaultOrbit = parentNode.orbitIndex + 1;
-            }
-          } else {
-            defaultOrbit = Math.max(2, depth); // 고아 노드 또한 수동 지정이 없으면 2차 궤도 이상으로 제한
-          }
-          node.orbitIndex = node.customOrbitIndex ?? defaultOrbit;
-          node.orbitAngle = assignedAngle;
-
-          // 💡 런타임 충돌 피직스를 완전히 꺼두는 대신, 정적 지그재그 반경 오프셋(Static Radial Offset)을 
-          // 형제 노드들의 인덱스에 따라 안팎으로 +-40px씩 엇갈리게 교차 배치하여 겹침을 정적으로 해결합니다.
-          let staticOffset = 0;
-          if (depth > 0 && parentNode) {
-            const siblings = treeChildrenMap.get(parentNode.id) || [];
-            const sibIdx = siblings.indexOf(nodeId);
-            if (sibIdx !== -1) {
-              staticOffset = sibIdx % 2 === 0 ? -40 : 40;
-            }
-          }
-          (node as any).radialOffset = staticOffset;
-
-          // 허용 각도 쐐기 범위 계산 및 부여 (경계 간 겹침 방지 버퍼 0.02 적용)
-          const buffer = 0.02;
-          const halfArc = arcWidth / 2;
-          (node as any).minAngle = assignedAngle - halfArc + buffer;
-          (node as any).maxAngle = assignedAngle + halfArc - buffer;
-
-          if (depth === 0) {
-            node.targetWorldX = 0;
-            node.targetWorldY = 0;
-            (node as any).minAngle = -Infinity;
-            (node as any).maxAngle = Infinity;
-          } else {
-            if (!isOrbiting && node.fixedX !== undefined && node.fixedX !== null && node.fixedY !== undefined && node.fixedY !== null) {
-              node.targetWorldX = node.fixedX;
-              node.targetWorldY = node.fixedY;
-              node.worldX = node.fixedX;
-              node.worldY = node.fixedY;
-            } else {
-              // 비선형 궤도 반경과 radialOffset(지그재그)을 합산합니다.
-              const rOffset = (node as any).radialOffset ?? 0;
-              const R = OntologyLayout.getOrbitRadius(node.orbitIndex) + rOffset;
+              // 폴백 (고아 노드 등)
+              const R = OntologyLayout.getOrbitRadius(node.orbitIndex);
               node.targetWorldX = R * Math.cos(assignedAngle) * ELLIPSE_RATIO;
               node.targetWorldY = R * Math.sin(assignedAngle);
             }
           }
+        }
 
-          if (!collapsedNodeIds.has(nodeId)) {
-            const children = treeChildrenMap.get(nodeId) || [];
-            const N = children.length;
-            if (N > 0) {
-              const childArcWidth = Math.min(Math.PI * 1.5, arcWidth * 0.75);
-              const angleStep = N === 1 ? 0 : childArcWidth / (N - 1);
-              const startAngle = assignedAngle - childArcWidth / 2;
-
-              children.forEach((childId, idx) => {
-                const childNode = nodeMap.get(childId);
-                if (childNode) {
-                  const childAngle = N === 1 ? assignedAngle : startAngle + idx * angleStep;
-                  layoutOrbitNode(childId, node, childAngle, childArcWidth);
-                }
-              });
-            }
-          }
-        };
-
-        if (mainRoot) {
-          mainRoot.orbitIndex = 0;
-          mainRoot.orbitAngle = 0;
-          mainRoot.targetWorldX = 0;
-          mainRoot.targetWorldY = 0;
-          mainRoot.worldX = 0;
-          mainRoot.worldY = 0;
-          visibleNodes.add(mainRoot.id);
-
-          const children = treeChildrenMap.get(mainRoot.id) || [];
+        if (!collapsedNodeIds.has(nodeId)) {
+          const children = treeChildrenMap.get(nodeId) || [];
           const N = children.length;
           if (N > 0) {
-            const angleStep = (Math.PI * 2) / N;
-            const orbitRotationOffset = 0.2; // 약간 경사진 느낌을 주기 위한 오프셋
+            let span = Math.PI * 0.75;
+            if (depth === 1) {
+              // 1차 카테고리의 자식들은 바깥 방향 240도(Math.PI * 1.33) 대역으로 쫙 펼침 (중심 루트 회피)
+              span = Math.PI * 1.33;
+            } else if (depth === 2) {
+              // 2차 카테고리의 자식들은 바깥 방향 160도(Math.PI * 0.88) 대역으로 고르게 분산
+              span = Math.PI * 0.88;
+            }
+
+            const angleStep = N === 1 ? 0 : span / (N - 1);
+            const startAngle = assignedAngle - span / 2;
+
             children.forEach((childId, idx) => {
               const childNode = nodeMap.get(childId);
               if (childNode) {
-                const childAngle = (idx * angleStep) + orbitRotationOffset;
-                layoutOrbitNode(childId, mainRoot, childAngle, angleStep);
+                const childAngle = N === 1 ? assignedAngle : startAngle + idx * angleStep;
+                layoutOrbitNode(childId, node, childAngle, span);
               }
             });
           }
         }
+      };
 
-        const orphanRoots = roots.slice(1);
-        const orphanCount = orphanRoots.length;
-        if (orphanCount > 0) {
-          const angleStep = (Math.PI * 2) / orphanCount;
-          orphanRoots.forEach((root, idx) => {
-            const rootNode = nodeMap.get(root.id);
-            if (rootNode) {
-              const assignedAngle = idx * angleStep;
-              layoutOrbitNode(root.id, null, assignedAngle, angleStep);
+      if (mainRoot) {
+        mainRoot.orbitIndex = 0;
+        mainRoot.orbitAngle = 0;
+        mainRoot.targetWorldX = 0;
+        mainRoot.targetWorldY = 0;
+        mainRoot.worldX = 0;
+        mainRoot.worldY = 0;
+        visibleNodes.add(mainRoot.id);
+
+        const children = treeChildrenMap.get(mainRoot.id) || [];
+        const N = children.length;
+        if (N > 0) {
+          const angleStep = (Math.PI * 2) / N;
+          const orbitRotationOffset = 0.2; // 약간 경사진 느낌을 주기 위한 오프셋
+          children.forEach((childId, idx) => {
+            const childNode = nodeMap.get(childId);
+            if (childNode) {
+              const childAngle = (idx * angleStep) + orbitRotationOffset;
+              layoutOrbitNode(childId, mainRoot, childAngle, angleStep);
             }
           });
         }
+      }
+
+      const orphanRoots = roots.slice(1);
+      const orphanCount = orphanRoots.length;
+      if (orphanCount > 0) {
+        const angleStep = (Math.PI * 2) / orphanCount;
+        orphanRoots.forEach((root, idx) => {
+          const rootNode = nodeMap.get(root.id);
+          if (rootNode) {
+            const assignedAngle = idx * angleStep;
+            layoutOrbitNode(root.id, null, assignedAngle, angleStep);
+          }
+        });
       }
 
       // Build spanning tree edge set for fast O(1) rendering lookups
@@ -578,7 +510,7 @@ export class OntologyLayout {
           node.targetWorldY = node.fixedY;
           node.worldX = node.fixedX;
           node.worldY = node.fixedY;
-        } else if (layoutMode === 'orbit' && node.orbitIndex !== undefined && node.orbitAngle !== undefined) {
+        } else if (node.orbitIndex !== undefined && node.orbitAngle !== undefined) {
           const cosS = (node as any).cosSpeed ?? Math.cos(node.orbitSpeed ?? 0);
           const sinS = (node as any).sinSpeed ?? Math.sin(node.orbitSpeed ?? 0);
           
@@ -603,20 +535,27 @@ export class OntologyLayout {
       }
     }
 
-    // 6. Camera 변환 (World -> Screen - 3D Vertical Stacked Projection)
+    // 6. Camera 변환 (World -> Screen - Pure 2D Flat Radial Projection)
     const cx = canvasW / 2 + cameraOffsetX;
     const cy = canvasH / 2 + cameraOffsetY;
 
-    const tiltAngle = 42 * Math.PI / 180; // 42도 경사각
-    const cosTilt = Math.cos(tiltAngle);
-    const sinTilt = Math.sin(tiltAngle);
-    const cameraDist = 1000;              // 카메라 거리
-    const LAYER_GAP = 190;                // 레이어 간 수직 적층 격차 (가독성 최적값)
-
     for (const node of nodes) {
       const effectiveLayer = node.effectiveLayer ?? 3;
-      // 수직 레이어 필터 기능을 완전히 비활성화(삭제)하여 항상 보이도록 강제
-      const isFiltered = false;
+      const risk = (node as any).riskFactor ?? 0;
+      const isRiskOrigin = node.group === 'SYSTEM_RISK';
+      const isRiskAffected = risk > 0.3;
+      const isRiskHigh = isRiskOrigin || isRiskAffected;
+
+      let isFiltered = false;
+      if (OntologyLayout.filterLayers && !OntologyLayout.filterLayers.has(effectiveLayer)) {
+        isFiltered = true;
+      }
+      if (OntologyLayout.filterGroups && OntologyLayout.filterGroups.size > 0 && !OntologyLayout.filterGroups.has(node.group)) {
+        isFiltered = true;
+      }
+      if (OntologyLayout.filterRiskOnly && !isRiskHigh) {
+        isFiltered = true;
+      }
 
       // 레이어 필터 또는 계층 접힘에 의해 최종적으로 숨김 여부 설정
       node.layoutHidden = node.topoHidden || isFiltered;
@@ -640,21 +579,12 @@ export class OntologyLayout {
       const worldX = node.worldX ?? 0;
       const worldY = node.worldY ?? 0;
       
-      // 💡 Z축(수직 적층 레이어 높이)을 추가로 설정하여 4단 아크릴 판 위에 입체적으로 안착시킵니다.
-      const h = effectiveLayer * LAYER_GAP;
-      const depthH = effectiveLayer * LAYER_GAP;
-
-      // 3D X축 회전 변환 공식 적용 (depthH를 활용해 원근 배율 조정)
-      const rotatedY = worldY * cosTilt - h * sinTilt;
-      const depth = -worldY * sinTilt + depthH * cosTilt;
+      // 3D 효과를 완전히 걷어내고 순수 2D 좌표로 변환
+      node.renderX = cx + worldX * zoom;
+      node.renderY = cy + worldY * zoom;
       
-      const perspectiveScale = Math.max(0.05, cameraDist / Math.max(120, cameraDist + depth));
-
-      node.renderX = cx + worldX * zoom * perspectiveScale;
-      node.renderY = cy + rotatedY * zoom * perspectiveScale;
-      
-      node.renderZ = depth;
-      (node as any).perspectiveScale = perspectiveScale;
+      node.renderZ = 0;
+      (node as any).perspectiveScale = 1.0;
       node.nodeRadius = 24; 
     }
 

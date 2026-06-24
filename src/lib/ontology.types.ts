@@ -132,6 +132,11 @@ export interface OrbitalNode extends OntologyNode {
   topoHidden?: boolean;        // true if hidden topologically by parent collapse
   degree?: number;             // 💡 연결된 엣지의 총 개수 (센트럴리티 비례 동적 중력 제어용)
   index?: number;              // 정수 기반 키 해싱 및 가비지 프리 물리 계산용 인덱스
+  _cachedWords?: string[];
+  _cachedLines?: string[];
+  _cachedInteractiveText?: string;
+  _cachedLinesMaxWidth500?: number;
+  _cachedLinesMaxWidth600?: number;
 }
 
 // ============ Edge ============
