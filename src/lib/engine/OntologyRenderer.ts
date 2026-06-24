@@ -393,13 +393,12 @@ export class OntologyRenderer {
           alpha = 0.18; // 활성 트리에 속한 엣지도 은은하게
           lineWidth = 0.6 * rc.zoom * avgScale;
       } else if (activeNodeId) {
-          // 포커스 블렌딩: 활성 노드가 지정되었으나 이웃이나 트리에 포함되지 않은 외부 엣지는 흐리게 은폐
-          alpha = 0.02;
-          lineWidth = 0.2 * rc.zoom * avgScale;
+          // 외부 엣지도 최소 0.08 이상의 alpha를 부여하여 외곽 노드 간 결속 관계 파악이 가능하게 보정
+          alpha = 0.08;
+          lineWidth = 0.3 * rc.zoom * avgScale;
       } else if (isCrossEdge) {
-          // [네트워크 토폴로지] 교차 간선은 성능 향상을 위해 실선화하고 투명도/두께를 극소화하여 거미줄로 배치
-          alpha = 0.015; 
-          lineWidth = 0.2 * rc.zoom * avgScale;
+          alpha = 0.06; 
+          lineWidth = 0.3 * rc.zoom * avgScale;
       }
       
       const finalAlpha = alpha * Math.max(0.3, avgScale);
@@ -735,67 +734,37 @@ export class OntologyRenderer {
       return sizeB - sizeA;
     });
 
-    const isExtremeZoomOut = rc.zoom < 0.5;
-
-    if (isExtremeZoomOut) {
-      // 극단적 줌 아웃 시에는 활성 노드, 호버 노드, 그리고 활성 트리 노드에 예외적으로 텍스트를 허용하여 렉을 방지
-      for (const node of centralitySorted) {
-        if (node.layoutHidden) continue;
-        if (!activeNodeId && node.orbitIndex !== undefined && node.orbitIndex > 3) {
-          continue;
-        }
-        const isTreeActive = activeNodeId && activeTreeSet.has(node.id);
-        const isTreeActiveCategory = !!(isTreeActive && node.orbitIndex !== undefined && node.orbitIndex <= 3);
-        const isDirectChild = !!(activeNodeId && node.parentId === activeNodeId);
-        if (node.id === activeNodeId || node.id === hoveredNodeId || isDirectChild || isTreeActiveCategory) {
-          OntologyRenderer.textAllowedSet.add(node.id);
-        }
-      }
-    } else if (isFastPath) {
+    if (isFastPath) {
       // 상호작용(드래그, 줌, 패닝, 공전 등) 중일 때는 오버헤드가 큰 겹침 검사를 전면 생략하고
-      // 오직 루트 노드, 활성 노드, 호버 노드, 중요도 0.85를 초과하는 핵심 노드, 그리고 활성 노드의 이웃 노드 및 활성 트리 노드에 텍스트 드로잉 허용
+      // 오직 루트 노드, 활성 노드, 호버 노드, 핵심 노드, 그리고 활성 노드의 이웃 노드 및 활성 트리 노드에 텍스트 드로잉 허용
       for (const node of centralitySorted) {
         if (node.layoutHidden) continue;
-        if (!activeNodeId && node.orbitIndex !== undefined && node.orbitIndex > 3) {
-          continue;
-        }
         const isActive = node.id === activeNodeId;
         const isHovered = node.id === hoveredNodeId;
         const isCenter = node.orbitIndex === 0;
         const isHighlyCentral = (node.renderSize ?? 0.5) > 0.85;
         const isNeighbor = activeNodeId && neighborsSet.has(node.id);
         const isTreeActive = activeNodeId && activeTreeSet.has(node.id);
-
-        const isTreeActiveCategory = !!(isTreeActive && node.orbitIndex !== undefined && node.orbitIndex <= 3);
-        const isNeighborCategory = !!(isNeighbor && node.orbitIndex !== undefined && node.orbitIndex <= 3);
         const isDirectChild = !!(activeNodeId && node.parentId === activeNodeId);
 
-        if (isCenter || isActive || isHovered || isHighlyCentral || isDirectChild || isNeighborCategory || isTreeActiveCategory) {
+        if (isCenter || isActive || isHovered || isHighlyCentral || isDirectChild || isNeighbor || isTreeActive) {
           OntologyRenderer.textAllowedSet.add(node.id);
         }
       }
     } else {
       for (const node of centralitySorted) {
         if (node.layoutHidden) continue;
-        if (!activeNodeId && node.orbitIndex !== undefined && node.orbitIndex > 3) {
-          continue;
-        }
         
         const isActive = node.id === activeNodeId;
         const isHovered = node.id === hoveredNodeId;
         const isTreeActive = activeNodeId && activeTreeSet.has(node.id);
         const isNeighbor = !!(activeNodeId && neighborsSet.has(node.id));
-        const isNeighborAllowed = isNeighbor && neighborsSet.size <= 15;
-        
-        // 활성 트리 노드와 이웃 노드는 3차 카테고리 이하(orbitIndex <= 3)일 때만 무조건 텍스트 허용.
-        // 단, 활성 노드의 직속 자식 노드는 겹침과 무관하게 무조건 텍스트 표시 허용!
-        const isTreeActiveCategory = !!(isTreeActive && node.orbitIndex !== undefined && node.orbitIndex <= 3);
-        const isNeighborAllowedCategory = !!(isNeighborAllowed && node.orbitIndex !== undefined && node.orbitIndex <= 3);
+        const isNeighborAllowed = isNeighbor && neighborsSet.size <= 30;
         const isDirectChild = !!(activeNodeId && node.parentId === activeNodeId);
         
-        // 최상위 루트 노드, 1차 카테고리 노드, 활성 노드, 호버 노드, 직속 자식 노드는 무조건 텍스트 표시 허용 (자손 노드는 겹침 검사 유도)
+        // 최상위 루트 노드, 1차 카테고리 노드, 활성 노드, 호버 노드, 직속 자식 노드는 무조건 텍스트 표시 허용
         const isCategory1 = node.orbitIndex === 1;
-        if (node.orbitIndex === 0 || isCategory1 || isActive || isHovered || isDirectChild || isTreeActiveCategory || isNeighborAllowedCategory) {
+        if (node.orbitIndex === 0 || isCategory1 || isActive || isHovered || isDirectChild || isTreeActive || isNeighborAllowed) {
           OntologyRenderer.textAllowedSet.add(node.id);
           
           // 예상 바운딩 박스 계산 및 등록
@@ -804,7 +773,6 @@ export class OntologyRenderer {
           const localZoom = zoom * nodeScale * sizeFactor;
           const dotRadius = Math.max(0.1, (4 + 6 * sizeFactor) * localZoom * (isActive || isHovered ? 1.15 : 1.0));
           const textOffsetX = dotRadius + 6 * localZoom;
-          // 3차 최적화: 폰트 크기를 2px 단위로 양자화하여 캐시 히트율을 올림
           const fontSize = Math.round((12 * localZoom) / 2) * 2;
           
           let textWidth = (node.label || '').length * 7.5;
@@ -830,14 +798,8 @@ export class OntologyRenderer {
           continue;
         }
 
-        // 활성 포커스 집중 모드일 때 관계망 바깥의 비활성 노드는 텍스트 허용 차단 (중앙 노드 root-HCHPS는 예외)
-        const isInactiveOutsideFocus = activeNodeId && !isActive && !isTreeActive && !isNeighbor && node.id !== 'root-HCHPS';
-        if (isInactiveOutsideFocus) {
-          continue;
-        }
-
-        // 3차 최적화: 이미 텍스트 라벨이 55개 이상 등록되었으면 추가 일반 노드는 계산을 스킵하여 겹침 검사 부하 소거
-        if (this.drawnTextBoxesList.length >= 55) {
+        // 텍스트 라벨 최대 220개 등록 한계로 대폭 완화
+        if (this.drawnTextBoxesList.length >= 220) {
           continue;
         }
 
@@ -895,25 +857,8 @@ export class OntologyRenderer {
       const isHovered = node.id === hoveredNodeId;
       const isNeighbor = activeNodeId && neighborsSet.has(node.id);
       
-      // 활성 노드 유무에 따른 노드 불투명도(Opacity) 동적 제어
-      let opacity = 0.4;
-      if (node.id === 'root-HCHPS') {
-        opacity = 1;
-      } else if (activeNodeId) {
-        const isDirectChild = node.parentId === activeNodeId;
-        const isDescendant = descendantsSet.has(node.id);
-        if (isActive || isHovered || isDirectChild || isDescendant) {
-          opacity = 1.0; // 하위 자손 노드는 1.0으로 진하게 활성화!
-        } else if (isTreeActive || isNeighbor) {
-          // 활성 트리에 연결되었더라도 4차 이하 하위 노드는 opacity = 0.75로 다소 흐리게 격리
-          opacity = (node.orbitIndex !== undefined && node.orbitIndex <= 3) ? 1.0 : 0.75;
-        } else {
-          opacity = 0.4; // 관련 없는 외곽 노드는 적당히 흐리게(0.4) 처리하여 구조 가시성 유지
-        }
-      } else {
-        // 활성 노드가 없을 때 (페이지 첫 진입 시): 3차 카테고리(orbitIndex <= 3)까지만 1.0 활성화하고 나머지는 0.5로 흐리게 처리
-        opacity = (node.orbitIndex !== undefined && node.orbitIndex <= 3) ? 1.0 : 0.5;
-      }
+      // 외곽 노드를 포함한 모든 노드는 항상 투명도 1.0으로 진하게 활성화
+      const opacity = 1.0;
       const isInactiveOutsideFocus = !!(activeNodeId && !isActive && !isTreeActive && !isNeighbor && node.id !== 'root-HCHPS');
 
       const nodeScale = (node as any).perspectiveScale ?? 1.0;
