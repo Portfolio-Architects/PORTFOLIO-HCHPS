@@ -17,7 +17,7 @@ export const CULL_MARGIN = 80;
 // Layout parameters - defined inside computePositions
 
 export class OntologyLayout {
-  public static LAYER_GAP = 110;
+  public static LAYER_GAP = 50;
   public static tiltAngle = 42 * Math.PI / 180;
   public static filterLayers = new Set<number>([0, 1, 2, 3]);
   public static filterGroups = new Set<string>();
@@ -37,14 +37,21 @@ export class OntologyLayout {
     
     const totalCount = OntologyLayout.totalNodesCount;
     const expansionFactor = totalCount > 100
-      ? Math.min(1.25, 1.0 + (totalCount - 100) * 0.001)
+      ? Math.min(1.15, 1.0 + (totalCount - 100) * 0.0005)
       : 1.0;
 
-    const baseRadius1 = 95 * expansionFactor;
-    const baseGap = 110 * expansionFactor;
+    const baseRadius1 = 65 * expansionFactor;
+    const baseGap = 50 * expansionFactor;
 
     if (orbitIndex === 1) return baseRadius1;
-    return baseRadius1 + (orbitIndex - 1) * baseGap;
+
+    let radius = baseRadius1;
+    let currentGap = baseGap;
+    for (let i = 1; i < orbitIndex; i++) {
+      radius += currentGap;
+      currentGap = Math.max(25, currentGap * 0.75);
+    }
+    return radius;
   }
 
   /**
@@ -402,13 +409,13 @@ export class OntologyLayout {
               node.targetWorldX = R * Math.cos(assignedAngle) * ELLIPSE_RATIO;
               node.targetWorldY = R * Math.sin(assignedAngle);
             } else if (depth === 2 && parentNode) {
-              // 2차 카테고리: 부모 1차 노드 기점 상대 반경 85px + 지그재그 오프셋
-              const r = 85 + staticOffset;
+              // 2차 카테고리: 부모 1차 노드 기점 상대 반경 50px + 지그재그 오프셋
+              const r = 50 + staticOffset;
               node.targetWorldX = parentNode.targetWorldX + r * Math.cos(assignedAngle) * ELLIPSE_RATIO;
               node.targetWorldY = parentNode.targetWorldY + r * Math.sin(assignedAngle);
             } else if (depth === 3 && parentNode) {
-              // 3차 카테고리: 부모 2차 노드 기점 상대 반경 70px + 지그재그 오프셋
-              const r = 70 + staticOffset;
+              // 3차 카테고리: 부모 2차 노드 기점 상대 반경 40px + 지그재그 오프셋
+              const r = 40 + staticOffset;
               node.targetWorldX = parentNode.targetWorldX + r * Math.cos(assignedAngle) * ELLIPSE_RATIO;
               node.targetWorldY = parentNode.targetWorldY + r * Math.sin(assignedAngle);
             } else {

@@ -993,7 +993,7 @@ export class OntologyRenderer {
 
       // NotebookLM 스타일: 콤팩트한 노드 사이즈
       // 3차 최적화: 폰트 크기를 2px 단위로 양자화하여 캐시 히트율을 올림
-      const fontSize = Math.round((12 * localZoom) / 2) * 2;
+      const fontSize = Math.max(9.5, Math.round((12 * localZoom) / 2) * 2);
       this.setFont(ctx, `${weightStyle} ${fontSize}px 'Pretendard', sans-serif`);
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -1141,7 +1141,7 @@ export class OntologyRenderer {
     if (isInteractive) {
       // 상호작용(줌, 패닝, 드래그) 중일 때는 measureText를 절대 부르지 않는 최속(Fast-path) 렌더링
       const rawFontSize = Math.max(7.5 * localZoom, 10 * localZoom * (isActive ? 1.12 : 1.0));
-      const fontSize = Math.round(rawFontSize / 2) * 2;
+      const fontSize = Math.max(9.5, Math.round(rawFontSize / 2) * 2);
       this.setFont(ctx, `bold ${fontSize}px 'Pretendard', sans-serif`);
       ctx.fillStyle = '#FFFFFF';
       ctx.textAlign = 'center';
@@ -1180,7 +1180,7 @@ export class OntologyRenderer {
     let fontSize = Math.max(8.0 * localZoom, 11 * localZoom * (isActive ? 1.12 : 1.0));
     
     // Fit text inside circle
-    const initialFontSize = Math.round(fontSize / 2) * 2;
+    const initialFontSize = Math.max(9.5, Math.round(fontSize / 2) * 2);
     const weightStyle = (isActive || isTreeActive) ? '600' : '500';
     
     let baseMaxWidth: number | undefined;
@@ -1223,7 +1223,7 @@ export class OntologyRenderer {
       fontSize = Math.max(7.2 * localZoom, fontSize * scaleFactor);
     }
 
-    const finalFontSize = Math.round(fontSize);
+    const finalFontSize = Math.max(9.5, Math.round(fontSize));
     this.setFont(ctx, `bold ${finalFontSize}px 'Pretendard', sans-serif`);
     ctx.fillStyle = '#FFFFFF';
     ctx.textAlign = 'center';
