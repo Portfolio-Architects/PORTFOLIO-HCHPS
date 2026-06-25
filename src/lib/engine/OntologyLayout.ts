@@ -17,7 +17,7 @@ export const CULL_MARGIN = 80;
 // Layout parameters - defined inside computePositions
 
 export class OntologyLayout {
-  public static LAYER_GAP = 50;
+  public static LAYER_GAP = 65;
   public static tiltAngle = 42 * Math.PI / 180;
   public static filterLayers = new Set<number>([0, 1, 2, 3]);
   public static filterGroups = new Set<string>();
@@ -40,8 +40,8 @@ export class OntologyLayout {
       ? Math.min(1.15, 1.0 + (totalCount - 100) * 0.0005)
       : 1.0;
 
-    const baseRadius1 = 65 * expansionFactor;
-    const baseGap = 50 * expansionFactor;
+    const baseRadius1 = 80 * expansionFactor;
+    const baseGap = 65 * expansionFactor;
 
     if (orbitIndex === 1) return baseRadius1;
 
@@ -409,13 +409,13 @@ export class OntologyLayout {
               node.targetWorldX = R * Math.cos(assignedAngle) * ELLIPSE_RATIO;
               node.targetWorldY = R * Math.sin(assignedAngle);
             } else if (depth === 2 && parentNode) {
-              // 2차 카테고리: 부모 1차 노드 기점 상대 반경 50px + 지그재그 오프셋
-              const r = 50 + staticOffset;
+              // 2차 카테고리: 부모 1차 노드 기점 상대 반경 65px + 지그재그 오프셋
+              const r = 65 + staticOffset;
               node.targetWorldX = parentNode.targetWorldX + r * Math.cos(assignedAngle) * ELLIPSE_RATIO;
               node.targetWorldY = parentNode.targetWorldY + r * Math.sin(assignedAngle);
             } else if (depth === 3 && parentNode) {
-              // 3차 카테고리: 부모 2차 노드 기점 상대 반경 40px + 지그재그 오프셋
-              const r = 40 + staticOffset;
+              // 3차 카테고리: 부모 2차 노드 기점 상대 반경 50px + 지그재그 오프셋
+              const r = 50 + staticOffset;
               node.targetWorldX = parentNode.targetWorldX + r * Math.cos(assignedAngle) * ELLIPSE_RATIO;
               node.targetWorldY = parentNode.targetWorldY + r * Math.sin(assignedAngle);
             } else {

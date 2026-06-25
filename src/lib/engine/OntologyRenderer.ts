@@ -838,14 +838,9 @@ export class OntologyRenderer {
         
         const isActive = node.id === activeNodeId;
         const isHovered = node.id === hoveredNodeId;
-        const isTreeActive = activeNodeId && activeTreeSet.has(node.id);
-        const isNeighbor = !!(activeNodeId && neighborsSet.has(node.id));
-        const isNeighborAllowed = isNeighbor && neighborsSet.size <= 30;
-        const isDirectChild = !!(activeNodeId && node.parentId === activeNodeId);
-        
-        // 최상위 루트 노드, 1차 카테고리 노드, 활성 노드, 호버 노드, 직속 자식 노드는 무조건 텍스트 표시 허용
-        const isCategory1 = node.orbitIndex === 1;
-        if (node.orbitIndex === 0 || isCategory1 || isActive || isHovered || isDirectChild || isTreeActive || isNeighborAllowed) {
+
+        // 최상위 루트 노드, 활성 노드, 호버 노드는 무조건 텍스트 표시 허용 (자식/이웃 노드는 겹침 검사 단계로 이양)
+        if (node.orbitIndex === 0 || isActive || isHovered) {
           OntologyRenderer.textAllowedSet.add(node.id);
           
           // 예상 바운딩 박스 계산 및 등록
