@@ -351,8 +351,7 @@ export class OntologyLayout {
       const layoutOrbitNode = (
         nodeId: string,
         parentNode: OrbitalNode | null,
-        assignedAngle: number,
-        parentArcWidth: number
+        assignedAngle: number
       ) => {
         const node = nodeMap.get(nodeId);
         if (!node) return;
@@ -441,7 +440,7 @@ export class OntologyLayout {
               const childNode = nodeMap.get(childId);
               if (childNode) {
                 const childAngle = N === 1 ? assignedAngle : startAngle + idx * angleStep;
-                layoutOrbitNode(childId, node, childAngle, span);
+                layoutOrbitNode(childId, node, childAngle);
               }
             });
           }
@@ -466,7 +465,7 @@ export class OntologyLayout {
             const childNode = nodeMap.get(childId);
             if (childNode) {
               const childAngle = (idx * angleStep) + orbitRotationOffset;
-              layoutOrbitNode(childId, mainRoot, childAngle, angleStep);
+              layoutOrbitNode(childId, mainRoot, childAngle);
             }
           });
         }
@@ -480,7 +479,7 @@ export class OntologyLayout {
           const rootNode = nodeMap.get(root.id);
           if (rootNode) {
             const assignedAngle = idx * angleStep;
-            layoutOrbitNode(root.id, null, assignedAngle, angleStep);
+            layoutOrbitNode(root.id, null, assignedAngle);
           }
         });
       }

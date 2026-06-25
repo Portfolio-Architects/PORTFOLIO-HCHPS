@@ -103,10 +103,7 @@ export const MindMap3D = React.memo(function MindMap3D({ signalKeywords, signalE
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [selectedSearchIndex, setSelectedSearchIndex] = useState(-1);
-  const [, setRefreshTick] = useState(0);
-  const handleRefreshHUD = useCallback(() => {
-    setRefreshTick(t => t + 1);
-  }, [/* refreshHUD */]);
+
 
   const { overrides = {}, customNodes = [], customEdges = [], deletedEdges = [], undo, redo, setNodeOverride, batchSetNodeOverrides, clearNodeOverride, addCustomNode, deleteCustomNode, updateCustomNodeText, addCustomEdge, deleteCustomEdge, removeCustomTombstone, renameNodeId, isCloudLoaded } = useGraphCustomization();
   const { mutate: getFileRadar } = useFileRadar();
@@ -1210,8 +1207,6 @@ export const MindMap3D = React.memo(function MindMap3D({ signalKeywords, signalE
                 onZoomChange={handleZoomSliderChange}
                 onAddNodeClick={() => { setIsAddingNode(true); setNewNodeName(""); }}
                 onResetCamera={handleResetCamera}
-                engineRef={engineRef}
-                onRefresh={handleRefreshHUD}
               />
 
               {/* Sliding Wiki Panel Overlay */}

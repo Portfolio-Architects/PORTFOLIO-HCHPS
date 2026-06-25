@@ -59,6 +59,21 @@ export class OntologyRenderer {
   }
   private static edgePool: BatchedEdge[] = [];
   private static edgePoolUsed = 0;
+  private static flowParticlesPool: Array<{
+    x: number;
+    y: number;
+    color: string;
+    size: number;
+    alpha: number;
+  }> = [];
+  private static flowParticlesPoolUsed = 0;
+  private static flowParticlesList: Array<{
+    x: number;
+    y: number;
+    color: string;
+    size: number;
+    alpha: number;
+  }> = [];
   private static textAllowedSet = new Set<string>();
   private static fontParseCache = new Map<string, { weight: string; size: number }>();
   private static labelsToDrawPool: Array<{
@@ -234,7 +249,7 @@ export class OntologyRenderer {
     this.currentFillStyle = '';
     this.currentStrokeStyle = '';
     this.currentLineWidth = -1;
-    const { ctx, canvasW, canvasH, nodes, centerNode, cameraOffsetX = 0, cameraOffsetY = 0, zoom, activeLayers, nodeMap, layoutMode = 'mindmap' } = context;
+    const { ctx, canvasW, canvasH, nodes, centerNode, nodeMap, layoutMode = 'mindmap' } = context;
 
     this.assignThemes(nodes, centerNode, nodeMap);
 
@@ -242,11 +257,11 @@ export class OntologyRenderer {
     this.renderBackground(ctx, canvasW, canvasH);
     
     if (layoutMode === 'orbit') {
-      this.renderOrbitRings(context);
+      this.renderOrbitRings();
     } else if (layoutMode === 'cluster') {
       // 포도송이(Cluster) 뷰: 수직 적층 플레이트 그리기를 건너뛰어 시각적 겹침 방지
     } else {
-      this.renderBackgroundLayers(ctx, canvasW, canvasH, cameraOffsetX, cameraOffsetY, zoom, activeLayers);
+      this.renderBackgroundLayers();
     }
     const tBg1 = performance.now();
     PerformanceProfiler.getInstance().recordBackground(tBg1 - tBg0);
@@ -271,19 +286,11 @@ export class OntologyRenderer {
     ctx.clearRect(0, 0, width, height);
   }
 
-  private static renderBackgroundLayers(
-    ctx: CanvasRenderingContext2D,
-    canvasW: number,
-    canvasH: number,
-    cameraOffsetX: number,
-    cameraOffsetY: number,
-    zoom: number,
-    activeLayers?: Set<number>
-  ): void {
+  private static renderBackgroundLayers(): void {
     // 3D 수직 적층 판 플레이트 및 corner line, hologram grid는 2D 평면 뷰에서 완전히 소거
   }
 
-  private static renderOrbitRings(rc: RenderContext): void {
+  private static renderOrbitRings(): void {
     // 2D 평면 뷰에서는 동심원 궤도 선을 그리지 않음
   }
 
@@ -295,6 +302,8 @@ export class OntologyRenderer {
     const spanningTreeEdgeSet = OntologyLayout.lastSpanningTreeEdgeSet;
 
     OntologyRenderer.edgePoolUsed = 0;
+    OntologyRenderer.flowParticlesList.length = 0;
+    OntologyRenderer.flowParticlesPoolUsed = 0;
     for (const [, b] of OntologyRenderer.edgeBatches) {
       b.edgesList.length = 0;
     }
@@ -479,6 +488,63 @@ export class OntologyRenderer {
 
       batch.edgesList.push(batchedEdge);
 
+      // 펄스/흐름 파티클 효과 추가
+      // 활성화된 노드와 연결되어 있거나 트리 구조 내에 속한 엣지에 대해서 시각적 흐름(Pulse)을 추가하여 동적인 관계성을 연출
+      const isFlowActive = isDirectlyConnectedToActive || isConnectedToTree;
+      if (isFlowActive) {
+        const time = performance.now();
+        const flows = [
+          (time / 2000) % 1.0,
+          ((time / 2000) + 0.5) % 1.0
+        ];
+        const isLinear = layoutMode === 'orbit' || (rc.zoom < 0.5);
+        const isCluster = layoutMode === 'cluster';
+        
+        for (const flowT of flows) {
+          let px = 0;
+          let py = 0;
+          
+          if (isLinear || isCluster) {
+            // 직선 보간
+            px = batchedEdge.x1 + (batchedEdge.x2 - batchedEdge.x1) * flowT;
+            py = batchedEdge.y1 + (batchedEdge.y2 - batchedEdge.y1) * flowT;
+          } else {
+            // 3차 베지어 곡선 보간
+            const cp1x = batchedEdge.x1 + cpDist;
+            const cp1y = leftNode.renderY;
+            const cp2x = batchedEdge.x2 - cpDist;
+            const cp2y = rightNode.renderY;
+            
+            const mt = 1 - flowT;
+            const mt2 = mt * mt;
+            const mt3 = mt2 * mt;
+            const t2 = flowT * flowT;
+            const t3 = t2 * flowT;
+            
+            px = mt3 * batchedEdge.x1 + 3 * mt2 * flowT * cp1x + 3 * mt * t2 * cp2x + t3 * batchedEdge.x2;
+            py = mt3 * batchedEdge.y1 + 3 * mt2 * flowT * cp1y + 3 * mt * t2 * cp2y + t3 * rightNode.renderY;
+          }
+          
+          let particle;
+          if (OntologyRenderer.flowParticlesPoolUsed < OntologyRenderer.flowParticlesPool.length) {
+            particle = OntologyRenderer.flowParticlesPool[OntologyRenderer.flowParticlesPoolUsed++];
+          } else {
+            particle = { x: 0, y: 0, color: '', size: 0, alpha: 0 };
+            OntologyRenderer.flowParticlesPool.push(particle);
+            OntologyRenderer.flowParticlesPoolUsed++;
+          }
+          
+          particle.x = px;
+          particle.y = py;
+          particle.color = themeColor;
+          particle.size = 2.0 * rc.zoom * Math.max(0.4, avgScale);
+          const edgeAlpha = Math.sin(flowT * Math.PI) * 0.85; 
+          particle.alpha = edgeAlpha * roundedAlpha;
+          
+          OntologyRenderer.flowParticlesList.push(particle);
+        }
+      }
+
       const isDirectlyConnectedToHover = rc.hoveredNodeId && (rc.hoveredNodeId === src.id || rc.hoveredNodeId === tgt.id);
 
       // 4. 활성화된 노드나 마우스가 올라간 노드에 연결된 엣지 중, 불필요한 노이즈를 방지하기 위해 
@@ -582,6 +648,21 @@ export class OntologyRenderer {
           }
         }
       }
+    }
+
+    // flowParticlesList 에 쌓인 펄스 파티클들을 렌더링
+    if (OntologyRenderer.flowParticlesList.length > 0) {
+      ctx.save();
+      for (const p of OntologyRenderer.flowParticlesList) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = p.alpha;
+        ctx.shadowColor = p.color;
+        ctx.shadowBlur = 6 * rc.zoom;
+        ctx.fill();
+      }
+      ctx.restore();
     }
 
     // 엣지 텍스트 라벨 일괄 드로잉

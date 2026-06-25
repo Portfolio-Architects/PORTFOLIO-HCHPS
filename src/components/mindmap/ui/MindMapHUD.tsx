@@ -3,8 +3,6 @@
 import React from 'react';
 import { Printer, Maximize2, Minimize2, PlusSquare, RotateCcw } from 'lucide-react';
 import { OrbitalNode, GROUP_COLORS, OntologyGroup } from '@/lib/ontology.types';
-import { OntologyCanvasEngine } from '@/lib/OntologyCanvasEngine';
-import { OntologyLayout } from '@/lib/engine/OntologyLayout';
 
 interface MindMapHUDProps {
   containerWidth: number;
@@ -18,8 +16,6 @@ interface MindMapHUDProps {
   zoomSliderRef: React.RefObject<HTMLInputElement | null>;
   zoomLabelRef: React.RefObject<HTMLSpanElement | null>;
   onZoomChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  engineRef: React.RefObject<OntologyCanvasEngine | null>;
-  onRefresh: () => void;
 }
 
 export const MindMapHUD = React.memo(function MindMapHUD({
@@ -33,9 +29,7 @@ export const MindMapHUD = React.memo(function MindMapHUD({
   onResetCamera,
   zoomSliderRef,
   zoomLabelRef,
-  onZoomChange,
-  engineRef,
-  onRefresh
+  onZoomChange
 }: MindMapHUDProps) {
 
 
