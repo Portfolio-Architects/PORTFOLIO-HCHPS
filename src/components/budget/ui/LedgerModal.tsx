@@ -19,6 +19,20 @@ interface LedgerModalProps {
 
 function formatN(n: number) { return n.toLocaleString('ko-KR'); }
 
+function renderPurpose(purpose: string) {
+  if (!purpose) return '';
+  if (purpose.includes('(일상경비 교부)')) {
+    const parts = purpose.split('(일상경비 교부)');
+    return (
+      <>
+        <span className="text-red-500 font-extrabold">(일상경비 교부)</span>
+        {parts.slice(1).join('(일상경비 교부)')}
+      </>
+    );
+  }
+  return purpose;
+}
+
 export function LedgerModal({ isOpen, onClose, categories, entries, getCategoryStats, onSettle }: LedgerModalProps) {
   const [settlingId, setSettlingId] = React.useState<string | null>(null);
   const [settleAmount, setSettleAmount] = React.useState<string>('');
@@ -120,7 +134,7 @@ export function LedgerModal({ isOpen, onClose, categories, entries, getCategoryS
                               </div>
                               <div className="flex items-center mt-1">
                                 {getSubItemName(data.cat, e.linkedSubItemId) && <span className="text-[11px] px-1.5 py-0.5 rounded font-bold bg-teal-100 text-teal-800 border border-teal-200 mr-1.5 shrink-0 flex items-center gap-0.5">↳ {getSubItemName(data.cat, e.linkedSubItemId)}</span>}
-                                <span className="font-bold text-gray-800 truncate" title={e.purpose}>{e.purpose}</span>
+                                <span className="font-bold text-gray-800 truncate" title={e.purpose}>{renderPurpose(e.purpose)}</span>
                               </div>
                             </div>
                             
@@ -177,7 +191,7 @@ export function LedgerModal({ isOpen, onClose, categories, entries, getCategoryS
                                 </div>
                                 <div className="flex items-center mt-1">
                                   {getSubItemName(data.cat, e.linkedSubItemId) && <span className="text-[11px] px-1.5 py-0.5 rounded font-bold bg-teal-100 text-teal-800 border border-teal-200 mr-1.5 shrink-0 flex items-center gap-0.5">↳ {getSubItemName(data.cat, e.linkedSubItemId)}</span>}
-                                  <span className="font-bold text-gray-800 truncate" title={e.purpose}>{e.purpose}</span>
+                                  <span className="font-bold text-gray-800 truncate" title={e.purpose}>{renderPurpose(e.purpose)}</span>
                                 </div>
                               </div>
                               <span className="font-bold text-teal-700 shrink-0 text-[14px]">{formatN(e.amount)}</span>

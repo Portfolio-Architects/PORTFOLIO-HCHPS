@@ -4,6 +4,20 @@ import { ChevronDown, ChevronUp, Pencil, Trash2, FileCheck, FilePlus2, ArrowUp, 
 
 function formatN(n: number) { return n.toLocaleString('ko-KR'); }
 
+export function renderPurpose(purpose: string) {
+  if (!purpose) return '';
+  if (purpose.includes('(일상경비 교부)')) {
+    const parts = purpose.split('(일상경비 교부)');
+    return (
+      <>
+        <span className="text-red-500 font-extrabold">(일상경비 교부)</span>
+        {parts.slice(1).join('(일상경비 교부)')}
+      </>
+    );
+  }
+  return purpose;
+}
+
 export const ACTION_TYPE_CONFIG: Record<BudgetActionType, { label: string; badge: string; badgeBg: string; icon: React.ElementType }> = {
   general: { label: '일반 지출', badge: '일반', badgeBg: 'bg-blue-100 text-blue-700', icon: FileCheck },
   issuance: { label: '일상경비 교부', badge: '교부', badgeBg: 'bg-amber-100 text-amber-700', icon: FilePlus2 },
@@ -209,6 +223,16 @@ export const PolicyGroupCard = React.memo(({
                 </div>
                 <div className={`flex items-center gap-2 font-semibold text-gray-800 flex-wrap ${hidePolicyHeader ? 'text-xl tracking-tight' : 'text-[17px]'}`}>
                   {detailGroup.detailName}
+                  {detailGroup.cats[0]?.unitProject && (
+                    <span className={`font-bold rounded-lg border bg-slate-50 text-slate-600 border-slate-200 shadow-3xs ${hidePolicyHeader ? 'text-xs px-2 py-0.5' : 'text-[11px] px-1.5 py-0.5'}`}>
+                      단위: {detailGroup.cats[0].unitProject}
+                    </span>
+                  )}
+                  {policyName && (
+                    <span className={`font-bold rounded-lg border bg-indigo-50/80 text-indigo-700 border-indigo-200/60 shadow-3xs ${hidePolicyHeader ? 'text-xs px-2 py-0.5' : 'text-[11px] px-1.5 py-0.5'}`}>
+                      정책: {policyName}
+                    </span>
+                  )}
                   {detailTypes.map(t => (
                     <span key={t} className={`font-semibold rounded-lg border shadow-3xs ${hidePolicyHeader ? 'text-xs px-2 py-0.5' : 'text-[11px] px-1.5 py-0.5'} ${t === '간주예산' ? 'bg-purple-50/80 text-purple-700 border-purple-200/60' : 'bg-rose-50/80 text-rose-700 border-rose-200/60'}`}>{t}</span>
                   ))}
@@ -430,7 +454,7 @@ export const PolicyGroupCard = React.memo(({
                                              </span>
 
                                              <span className="text-blue-700/70 font-medium tracking-tight shrink-0 bg-white border border-blue-100 px-1 rounded-sm">{e.date.replace(/-/g, '.')}</span>
-                                             <span className="text-blue-900 font-semibold truncate">{e.purpose}</span>
+                                             <span className="text-blue-900 font-semibold truncate">{renderPurpose(e.purpose)}</span>
                                           </div>
                                           <span className="font-bold text-blue-900 tabular-nums shrink-0 font-mono">{formatN(e.amount)}원</span>
                                        </div>
@@ -464,7 +488,7 @@ export const PolicyGroupCard = React.memo(({
                                                 {e.actionType === 'issuance' ? '교부' : '지출'}
                                              </span>
                                              <span className="text-emerald-700/70 font-medium tracking-tight shrink-0 bg-white border border-emerald-100 px-1 rounded-sm">{e.date.replace(/-/g, '.')}</span>
-                                             <span className="text-emerald-900 font-semibold truncate">{e.purpose}</span>
+                                             <span className="text-emerald-900 font-semibold truncate">{renderPurpose(e.purpose)}</span>
                                           </div>
                                           <span className="font-bold text-emerald-900 tabular-nums shrink-0 font-mono">{formatN(e.amount)}원</span>
                                        </div>
@@ -543,7 +567,7 @@ export const PolicyGroupCard = React.memo(({
                         )}
                       </div>
                       <div className="flex-1 min-w-[150px] pr-2">
-                        <span className="text-gray-800 font-semibold tracking-tight line-clamp-1 text-[15px]" title={entry.purpose}>{entry.purpose}</span>
+                        <span className="text-gray-800 font-semibold tracking-tight line-clamp-1 text-[15px]" title={entry.purpose}>{renderPurpose(entry.purpose)}</span>
                       </div>
                       <div className="w-[130px] sm:w-[160px] flex items-center justify-end gap-3 flex-shrink-0">
                          <span className="font-semibold text-gray-800 tracking-tight tabular-nums whitespace-nowrap text-[15px]">{formatN(entry.amount)}원</span>
