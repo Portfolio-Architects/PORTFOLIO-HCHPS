@@ -138,14 +138,14 @@ export const PolicyGroupCard = React.memo(({
         </div>
         
         <div className="bg-slate-50/60 rounded-2xl p-4 flex flex-col gap-3 border border-slate-200/20">
-          <div className="flex justify-between text-xs items-end">
+          <div className="flex justify-between items-end">
             <div className="flex flex-col">
-               <span className="text-slate-500 font-semibold mb-0.5">총 예산 대비 사용액</span>
-               <span className="font-bold text-slate-800 font-mono tracking-tight">{formatN(spent + planned)} / {formatN(totalBudget)}</span>
+               <span className="text-slate-500 font-bold text-[14px] mb-1">총 예산 대비 사용액</span>
+               <span className="font-extrabold text-slate-800 font-mono tracking-tight text-[21px]">{formatN(spent + planned)} <span className="text-[14px] text-slate-400 font-medium mx-1">/</span> <span className="text-slate-600 font-bold text-[18px]">{formatN(totalBudget)}</span></span>
             </div>
             <div className="flex flex-col items-end">
-               <span className="text-slate-500 font-semibold mb-0.5">총 잔여액</span>
-               <span className="font-bold text-[var(--color-primary)] text-sm font-mono tracking-tight">{formatN(remaining)}원</span>
+               <span className="text-slate-500 font-bold text-[14px] mb-1">총 잔여액</span>
+               <span className="font-extrabold text-[var(--color-primary)] text-[25px] font-mono tracking-tight">{formatN(remaining)}<span className="text-[15px] font-bold ml-0.5">원</span></span>
             </div>
           </div>
           <div className="h-2 w-full bg-slate-200/40 rounded-full overflow-hidden border border-slate-100 relative">
