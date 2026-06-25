@@ -541,9 +541,12 @@ export class OntologyLayout {
       }
     }
 
-    // 6. Camera 변환 (World -> Screen - Pure 2D Flat Radial Projection)
+    // 6. Camera 변환 (World -> Screen - 3D Perspective Projection 복원)
     const cx = canvasW / 2 + cameraOffsetX;
     const cy = canvasH / 2 + cameraOffsetY;
+    const cosTilt = Math.cos(OntologyLayout.tiltAngle);
+    const sinTilt = Math.sin(OntologyLayout.tiltAngle);
+    const cameraDist = 800; // 3D 원근 기준 거리
 
     for (const node of nodes) {
       const effectiveLayer = node.effectiveLayer ?? 3;
@@ -585,19 +588,22 @@ export class OntologyLayout {
       const worldX = node.worldX ?? 0;
       const worldY = node.worldY ?? 0;
       
-      // 3D 효과를 완전히 걷어내고 순수 2D 좌표로 변환
-      node.renderX = cx + worldX * zoom;
-      node.renderY = cy + worldY * zoom;
+      // 3D 조감도 원근 변환 적용
+      const h = effectiveLayer * OntologyLayout.LAYER_GAP;
+      const rotatedY = worldY * cosTilt - h * sinTilt;
+      const depth = -worldY * sinTilt + h * cosTilt;
+      const perspectiveScale = Math.max(0.05, cameraDist / Math.max(120, cameraDist + depth));
       
-      node.renderZ = 0;
-      (node as any).perspectiveScale = 1.0;
-      node.nodeRadius = 24; 
+      node.renderX = cx + worldX * zoom * perspectiveScale;
+      node.renderY = cy + rotatedY * zoom * perspectiveScale;
+      node.renderZ = depth;
+      (node as any).perspectiveScale = perspectiveScale;
+      node.nodeRadius = 24 * perspectiveScale; 
     }
 
-    // 7. Screen-Space Collision Resolution (2D 화면 공간 충돌 방지 루프)
-    // 💡 노드들이 튕기고 흔들리는 물리적 요동(Jittering)을 박멸하고 CPU 병목을 근본적으로 차단하기 위해
-    // 런타임 2D 화면 공간 충돌 물리 연산은 완전히 꺼둡니다(maxIterations = 0).
-    const maxIterations = 0;
+    // 7. Screen-Space Collision Resolution (2D 화면 공간 충돌 방지 루프 복원)
+    // 💡 노드들이 튕기고 흔들리는 물리적 요동(Jittering)을 박멸하기 위해 공전 중이 아닐 때만 충돌 방지 루프를 가동합니다.
+    const maxIterations = isOrbiting ? 0 : 5;
     
     if (maxIterations > 0) {
       // 화면 영역(Frustum) 바깥의 노드는 충돌 물리 계산에서 제외하여 O(N^2) 루프의 연산 대상을 격감시킴

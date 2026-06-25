@@ -1,5 +1,5 @@
 import { OrbitalNode, OntologyEdge, EDGE_TYPE_LABELS, EdgeType } from '../ontology.types';
-import { CULL_MARGIN, OntologyLayout } from './OntologyLayout';
+import { CULL_MARGIN, OntologyLayout, ELLIPSE_RATIO } from './OntologyLayout';
 import { PerformanceProfiler } from './PerformanceProfiler';
 
 export interface RenderContext {
@@ -257,11 +257,11 @@ export class OntologyRenderer {
     this.renderBackground(ctx, canvasW, canvasH);
     
     if (layoutMode === 'orbit') {
-      this.renderOrbitRings();
+      this.renderOrbitRings(context);
     } else if (layoutMode === 'cluster') {
       // 포도송이(Cluster) 뷰: 수직 적층 플레이트 그리기를 건너뛰어 시각적 겹침 방지
     } else {
-      this.renderBackgroundLayers();
+      this.renderBackgroundLayers(context);
     }
     const tBg1 = performance.now();
     PerformanceProfiler.getInstance().recordBackground(tBg1 - tBg0);
@@ -286,12 +286,127 @@ export class OntologyRenderer {
     ctx.clearRect(0, 0, width, height);
   }
 
-  private static renderBackgroundLayers(): void {
-    // 3D 수직 적층 판 플레이트 및 corner line, hologram grid는 2D 평면 뷰에서 완전히 소거
+  private static renderBackgroundLayers(rc: RenderContext): void {
+    const { ctx, canvasW, canvasH, zoom, cameraOffsetX = 0, cameraOffsetY = 0 } = rc;
+    ctx.save();
+    
+    const cx = canvasW / 2 + cameraOffsetX;
+    const cy = canvasH / 2 + cameraOffsetY;
+    const cosTilt = Math.cos(OntologyLayout.tiltAngle);
+    const sinTilt = Math.sin(OntologyLayout.tiltAngle);
+    const cameraDist = 800;
+    
+    // 레이어 L0 ~ L3의 3D 아크릴 판 그리기 (뒤에서부터 조감도로 정렬되어 아래서부터 그림)
+    const layers = [3, 2, 1, 0];
+    const width = 350; // 아크릴 판 가로 반지름
+    const height = 280; // 아크릴 판 세로 반지름
+    
+    for (const layer of layers) {
+      if (OntologyLayout.filterLayers && !OntologyLayout.filterLayers.has(layer)) continue;
+      
+      const h = layer * OntologyLayout.LAYER_GAP;
+      
+      // 4개 모서리 좌표 투영
+      const corners = [
+        { wx: -width * ELLIPSE_RATIO, wy: -height },
+        { wx: width * ELLIPSE_RATIO, wy: -height },
+        { wx: width * ELLIPSE_RATIO, wy: height },
+        { wx: -width * ELLIPSE_RATIO, wy: height }
+      ];
+      
+      const projected = corners.map(c => {
+        const rotatedY = c.wy * cosTilt - h * sinTilt;
+        const depth = -c.wy * sinTilt + h * cosTilt;
+        const pScale = Math.max(0.05, cameraDist / Math.max(120, cameraDist + depth));
+        return {
+          x: cx + c.wx * zoom * pScale,
+          y: cy + rotatedY * zoom * pScale
+        };
+      });
+      
+      // 판 채우기 및 테두리선 그리기
+      const colors = [
+        { fill: 'rgba(59, 130, 246, 0.012)', stroke: 'rgba(59, 130, 246, 0.08)', label: 'L0 인물 (Agent)' },
+        { fill: 'rgba(16, 185, 129, 0.012)', stroke: 'rgba(16, 185, 129, 0.08)', label: 'L1 예산 (Resource)' },
+        { fill: 'rgba(245, 158, 11, 0.012)', stroke: 'rgba(245, 158, 11, 0.08)', label: 'L2 업무 (Execution)' },
+        { fill: 'rgba(139, 92, 246, 0.012)', stroke: 'rgba(139, 92, 246, 0.08)', label: 'L3 위키 (Knowledge)' }
+      ];
+      
+      const { fill, stroke, label } = colors[layer];
+      
+      ctx.fillStyle = fill;
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = 1.2;
+      
+      ctx.beginPath();
+      ctx.moveTo(projected[0].x, projected[0].y);
+      for (let i = 1; i < 4; i++) {
+        ctx.lineTo(projected[i].x, projected[i].y);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      
+      // 레이어 이름 텍스트 그리기
+      ctx.fillStyle = layer === 0 ? '#3B82F6' : layer === 1 ? '#10B981' : layer === 2 ? '#F59E0B' : '#8B5CF6';
+      ctx.font = "bold 9px 'Pretendard', sans-serif";
+      ctx.fillText(label, projected[0].x + 10, projected[0].y + 15);
+    }
+    
+    ctx.restore();
   }
 
-  private static renderOrbitRings(): void {
-    // 2D 평면 뷰에서는 동심원 궤도 선을 그리지 않음
+  private static renderOrbitRings(rc: RenderContext): void {
+    const { ctx, canvasW, canvasH, zoom, cameraOffsetX = 0, cameraOffsetY = 0 } = rc;
+    
+    ctx.save();
+    
+    const cx = canvasW / 2 + cameraOffsetX;
+    const cy = canvasH / 2 + cameraOffsetY;
+    const cosTilt = Math.cos(OntologyLayout.tiltAngle);
+    const sinTilt = Math.sin(OntologyLayout.tiltAngle);
+    const cameraDist = 800;
+    
+    // 각 레이어(L0 ~ L3)마다 기울어진 궤도 링을 그려 입체 레이어 스택을 시각화
+    const layers = Array.from(OntologyLayout.filterLayers).sort((a, b) => b - a);
+    
+    for (const layer of layers) {
+      const h = layer * OntologyLayout.LAYER_GAP;
+      const strokeColor = layer === 0 ? 'rgba(59, 130, 246, 0.12)' : layer === 1 ? 'rgba(16, 185, 129, 0.12)' : layer === 2 ? 'rgba(245, 158, 11, 0.12)' : 'rgba(139, 92, 246, 0.12)';
+      
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = 1;
+      
+      // 1 ~ 4차 궤도에 대한 링 그리기
+      for (let i = 1; i <= 4; i++) {
+        const R = OntologyLayout.getOrbitRadius(i);
+        if (R <= 0) continue;
+        
+        ctx.beginPath();
+        const segments = 64;
+        for (let j = 0; j <= segments; j++) {
+          const theta = (j / segments) * Math.PI * 2;
+          const wx = R * Math.cos(theta) * ELLIPSE_RATIO;
+          const wy = R * Math.sin(theta);
+          
+          const rotatedY = wy * cosTilt - h * sinTilt;
+          const depth = -wy * sinTilt + h * cosTilt;
+          const pScale = Math.max(0.05, cameraDist / Math.max(120, cameraDist + depth));
+          
+          const rx = cx + wx * zoom * pScale;
+          const ry = cy + rotatedY * zoom * pScale;
+          
+          if (j === 0) {
+            ctx.moveTo(rx, ry);
+          } else {
+            ctx.lineTo(rx, ry);
+          }
+        }
+        ctx.stroke();
+      }
+    }
+    
+    ctx.restore();
   }
 
   private static renderEdges(rc: RenderContext): void {
