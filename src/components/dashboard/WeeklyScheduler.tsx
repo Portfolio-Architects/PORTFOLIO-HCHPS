@@ -1,23 +1,31 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useSchedules } from '@/hooks/useSchedules';
 import { ScheduleType } from '@/types';
 import { Calendar, ChevronLeft, ChevronRight, Clock, Plus, Shield, Users, BookOpen, FileText, Trash2, AlertCircle } from 'lucide-react';
 
-export const WeeklyScheduler: React.FC = () => {
-  const { schedules, loading, addSchedule, deleteSchedule } = useSchedules();
-
-  // 기준 날짜 상태
-  const [currentDate, setCurrentDate] = useState<Date>(() => new Date());
-
-  // 일정 등록 폼 상태
+// ============ Schedule Registration Form (Locally Isolated to prevent main grid lag) ============
+const ScheduleForm = React.memo(({ 
+  date, 
+  setDate, 
+  isRange, 
+  setIsRange, 
+  endDate, 
+  setEndDate, 
+  addSchedule 
+}: {
+  date: string;
+  setDate: (date: string) => void;
+  isRange: boolean;
+  setIsRange: (val: boolean) => void;
+  endDate: string;
+  setEndDate: (date: string) => void;
+  addSchedule: (sched: any) => void;
+}) => {
   const [title, setTitle] = useState('보안');
   const [type, setType] = useState<ScheduleType>('security');
   const [person, setPerson] = useState('오창선');
-  const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [isRange, setIsRange] = useState(false);
-  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [startTime, setStartTime] = useState('11:00');
   const [endTime, setEndTime] = useState('13:00');
   const [notes, setNotes] = useState('');
@@ -30,21 +38,285 @@ export const WeeklyScheduler: React.FC = () => {
     }
   };
 
-  // 시간 및 분 선택 옵션 배열
   const hours = useMemo(() => Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')), []);
   const minutes = useMemo(() => ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'], []);
 
-  // 퀵 시간 프리셋 적용 핸들러
   const applyPreset = (start: string, end: string) => {
     setStartTime(start);
     setEndTime(end);
   };
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    if (!title.trim()) {
+      setError('일정 제목을 입력해주세요.');
+      return;
+    }
+    if (!person.trim()) {
+      setError('담당자/참석자를 입력해주세요.');
+      return;
+    }
+    if (startTime >= endTime) {
+      setError('종료 시간은 시작 시간보다 늦어야 합니다.');
+      return;
+    }
+    if (isRange && endDate && date > endDate) {
+      setError('종료 날짜는 시작 날짜보다 빠를 수 없습니다.');
+      return;
+    }
+
+    addSchedule({
+      title: title.trim(),
+      type,
+      person: person.trim(),
+      date,
+      endDate: isRange ? endDate : undefined,
+      startTime,
+      endTime,
+      notes: notes.trim()
+    });
+
+    setTitle('보안');
+    setPerson('오창선');
+    setNotes('');
+    setIsRange(false);
+    setEndDate(date);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="xl:col-span-3 flex flex-col gap-4 bg-slate-55/20 p-6 rounded-2xl border border-slate-200/40 backdrop-blur-xs max-h-[580px] overflow-y-auto">
+      <span className="text-sm font-bold text-slate-700 mb-1 flex items-center gap-2">
+        <Plus className="w-4 h-4 text-indigo-500" /> 새 일정 등록
+      </span>
+
+      {error && (
+        <div className="flex items-center gap-2 text-xs font-bold bg-rose-500/10 text-rose-600 p-3 rounded-xl border border-rose-500/20">
+          <AlertCircle className="w-4.5 h-4.5 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-1.5">
+        <label className="text-[11px] font-bold text-slate-500">일정 분류</label>
+        <div className="grid grid-cols-2 gap-1.5">
+          {(['security', 'meeting', 'education', 'other'] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setType(t)}
+              className={`py-1.5 px-2.5 rounded-lg border text-xs font-bold text-center transition-all cursor-pointer ${
+                type === t
+                  ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
+                  : 'bg-white border-slate-200 text-slate-650 hover:bg-slate-50'
+              }`}
+            >
+              {t === 'security' && '보안'}
+              {t === 'meeting' && '업무 회의'}
+              {t === 'education' && '직원 교육'}
+              {t === 'other' && '기타 일정'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <label className="text-[11px] font-bold text-slate-500">일정명 (제목)</label>
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="예: 4층 보안"
+          className="w-full px-4.5 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 bg-white/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-300 placeholder:font-semibold"
+          required
+        />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <label className="text-[11px] font-bold text-slate-500">담당자 / 참석자</label>
+        <input
+          type="text"
+          value={person}
+          onChange={(e) => setPerson(e.target.value)}
+          placeholder="담당 당번 혹은 회의 주최자"
+          className="w-full px-4.5 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 bg-white/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-300 placeholder:font-semibold"
+          required
+        />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <label className="text-[11px] font-bold text-slate-500">시작 날짜</label>
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => handleDateChange(e.target.value)}
+          className="w-full px-4.5 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 bg-white/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+          required
+        />
+      </div>
+
+      <div className="flex items-center gap-2 mb-1 select-none">
+        <input
+          type="checkbox"
+          id="isRangeCheck"
+          checked={isRange}
+          onChange={(e) => {
+            setIsRange(e.target.checked);
+            if (e.target.checked) {
+              setEndDate(date);
+            }
+          }}
+          className="w-4 h-4 rounded text-indigo-650 border-slate-300 focus:ring-indigo-500 cursor-pointer"
+        />
+        <label htmlFor="isRangeCheck" className="text-xs font-bold text-slate-600 cursor-pointer">
+          연속 일정으로 등록
+        </label>
+      </div>
+
+      {isRange && (
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[11px] font-bold text-slate-500">종료 날짜</label>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            min={date}
+            className="w-full px-4.5 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 bg-white/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+            required
+          />
+        </div>
+      )}
+
+      <div className="flex flex-col gap-1.5">
+        <label className="text-[11px] font-bold text-slate-500">퀵 시간 설정</label>
+        <div className="flex flex-wrap gap-1.5 mb-1">
+          <button
+            type="button"
+            onClick={() => applyPreset('11:30', '13:00')}
+            className={`px-2.5 py-1.5 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
+              startTime === '11:30' && endTime === '13:00'
+                ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
+                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            보안 (11:30~13:00)
+          </button>
+          <button
+            type="button"
+            onClick={() => applyPreset('10:00', '11:00')}
+            className={`px-2.5 py-1.5 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
+              startTime === '10:00' && endTime === '11:00'
+                ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm'
+                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            회의 (10:00~11:00)
+          </button>
+          <button
+            type="button"
+            onClick={() => applyPreset('14:00', '15:00')}
+            className={`px-2.5 py-1.5 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
+              startTime === '14:00' && endTime === '15:00'
+                ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm'
+                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            회의 (14:00~15:00)
+          </button>
+          <button
+            type="button"
+            onClick={() => applyPreset('09:00', '18:00')}
+            className={`px-2.5 py-1.5 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
+              startTime === '09:00' && endTime === '18:00'
+                ? 'bg-slate-600 border-slate-600 text-white shadow-sm'
+                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            종일 (09:00~18:00)
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3.5">
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[11px] font-bold text-slate-500">시작 시간</label>
+          <div className="flex gap-1.5">
+            <select
+              value={startTime.split(':')[0] || '11'}
+              onChange={(e) => setStartTime(`${e.target.value}:${startTime.split(':')[1] || '30'}`)}
+              className="w-1/2 px-3 py-2.5 rounded-xl border border-slate-200/60 text-xs font-semibold text-slate-700 bg-white/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
+            >
+              {hours.map(h => <option key={h} value={h}>{h}시</option>)}
+            </select>
+            <select
+              value={startTime.split(':')[1] || '30'}
+              onChange={(e) => setStartTime(`${startTime.split(':')[0] || '11'}:${e.target.value}`)}
+              className="w-1/2 px-3 py-2.5 rounded-xl border border-slate-200/60 text-xs font-semibold text-slate-700 bg-white/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
+            >
+              {minutes.map(m => <option key={m} value={m}>{m}분</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[11px] font-bold text-slate-500">종료 시간</label>
+          <div className="flex gap-1.5">
+            <select
+              value={endTime.split(':')[0] || '13'}
+              onChange={(e) => setEndTime(`${e.target.value}:${endTime.split(':')[1] || '00'}`)}
+              className="w-1/2 px-3 py-2.5 rounded-xl border border-slate-200/60 text-xs font-semibold text-slate-700 bg-white/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
+            >
+              {hours.map(h => <option key={h} value={h}>{h}시</option>)}
+            </select>
+            <select
+              value={endTime.split(':')[1] || '00'}
+              onChange={(e) => setEndTime(`${endTime.split(':')[0] || '13'}:${e.target.value}`)}
+              className="w-1/2 px-3 py-2.5 rounded-xl border border-slate-200/60 text-xs font-semibold text-slate-700 bg-white/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
+            >
+              {minutes.map(m => <option key={m} value={m}>{m}분</option>)}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <label className="text-[11px] font-bold text-slate-500">메모 / 특이사항</label>
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="상세 위치, 안건 및 기타 중요 특이사항을 적어주세요."
+          className="w-full px-4.5 py-2.5 rounded-xl border border-slate-200/60 text-sm font-semibold text-slate-700 bg-white/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-300 placeholder:font-semibold resize-none h-20"
+        />
+      </div>
+
+      <button
+        type="submit"
+        className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-bold py-3 px-4 rounded-xl transition-all duration-300 hover:shadow-lg hover:shadow-indigo-500/10 active:scale-[0.98]"
+      >
+        스케줄 등록
+      </button>
+    </form>
+  );
+});
+ScheduleForm.displayName = 'ScheduleForm';
+
+
+// ============ Main Weekly Scheduler Component ============
+export const WeeklyScheduler: React.FC = () => {
+  const { schedules, loading, addSchedule, deleteSchedule } = useSchedules();
+
+  // 기준 날짜 상태
+  const [currentDate, setCurrentDate] = useState<Date>(() => new Date());
+
+  // 일정 등록을 위한 공유 상태
+  const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [isRange, setIsRange] = useState(false);
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+
   // 선택한 주의 월~일 날짜 배열 구하기
   const weekDays = useMemo(() => {
     const tempDate = new Date(currentDate);
-    const day = tempDate.getDay(); // 0: 일, 1: 월, ..., 6: 토
-    // 월요일 기준으로 보정 (월요일을 0번째 인덱스로)
+    const day = tempDate.getDay(); 
     const diff = tempDate.getDate() - day + (day === 0 ? -6 : 1);
     const monday = new Date(tempDate.setDate(diff));
 
@@ -81,58 +353,28 @@ export const WeeklyScheduler: React.FC = () => {
     setCurrentDate(new Date());
   };
 
-  // 일정 등록 처리
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-
-    if (!title.trim()) {
-      setError('일정 제목을 입력해주세요.');
-      return;
+  // Pre-calculate/group schedules for each week day to avoid filtering inside the rendering loop
+  const schedulesByDayMap = useMemo(() => {
+    const map = new Map<string, typeof schedules>();
+    for (const day of weekDays) {
+      const dayStr = day.toISOString().split('T')[0];
+      const filtered = schedules
+        .filter((s) => {
+          const sDate = s.date;
+          const eDate = s.endDate || s.date;
+          return dayStr >= sDate && dayStr <= eDate;
+        })
+        .sort((a, b) => a.startTime.localeCompare(b.startTime));
+      map.set(dayStr, filtered);
     }
-    if (!person.trim()) {
-      setError('담당자/참석자를 입력해주세요.');
-      return;
-    }
-    if (startTime >= endTime) {
-      setError('종료 시간은 시작 시간보다 늦어야 합니다.');
-      return;
-    }
-    if (isRange && endDate && date > endDate) {
-      setError('종료 날짜는 시작 날짜보다 빠를 수 없습니다.');
-      return;
-    }
+    return map;
+  }, [schedules, weekDays]);
 
-    addSchedule({
-      title: title.trim(),
-      type,
-      person: person.trim(),
-      date,
-      endDate: isRange ? endDate : undefined,
-      startTime,
-      endTime,
-      notes: notes.trim()
-    });
-
-    // Reset fields to defaults
-    setTitle('보안');
-    setPerson('오창선');
-    setNotes('');
-    setIsRange(false);
-    setEndDate(date);
-  };
-
-  // 요일별 일정 필터링
-  const getSchedulesForDay = (dayDate: Date) => {
+  // 요일별 일정 필터링 (useMemo 맵에서 룩업하여 O(1) 수준으로 극적 향상)
+  const getSchedulesForDay = useCallback((dayDate: Date) => {
     const dayStr = dayDate.toISOString().split('T')[0];
-    return schedules
-      .filter((s) => {
-        const sDate = s.date;
-        const eDate = s.endDate || s.date;
-        return dayStr >= sDate && dayStr <= eDate;
-      })
-      .sort((a, b) => a.startTime.localeCompare(b.startTime));
-  };
+    return schedulesByDayMap.get(dayStr) || [];
+  }, [schedulesByDayMap]);
 
   // 유형별 스타일 & 아이콘 헬퍼
   const getTypeConfig = (schedType: ScheduleType) => {
@@ -210,217 +452,16 @@ export const WeeklyScheduler: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
-        {/* Form Container (left side / col-span-3) */}
-        <form onSubmit={handleSubmit} className="xl:col-span-3 flex flex-col gap-4 bg-slate-50/20 p-6 rounded-2xl border border-slate-200/40 backdrop-blur-xs max-h-[580px] overflow-y-auto">
-          <span className="text-sm font-bold text-slate-700 mb-1 flex items-center gap-2">
-            <Plus className="w-4 h-4 text-indigo-500" /> 새 일정 등록
-          </span>
-
-          {error && (
-            <div className="flex items-center gap-2 text-xs font-bold bg-rose-500/10 text-rose-600 p-3 rounded-xl border border-rose-500/20">
-              <AlertCircle className="w-4.5 h-4.5 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-bold text-slate-500">일정 분류</label>
-            <div className="grid grid-cols-2 gap-1.5">
-              {(['security', 'meeting', 'education', 'other'] as const).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setType(t)}
-                  className={`py-1.5 px-2.5 rounded-lg border text-xs font-bold text-center transition-all cursor-pointer ${
-                    type === t
-                      ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
-                      : 'bg-white border-slate-200 text-slate-650 hover:bg-slate-50'
-                  }`}
-                >
-                  {t === 'security' && '보안'}
-                  {t === 'meeting' && '업무 회의'}
-                  {t === 'education' && '직원 교육'}
-                  {t === 'other' && '기타 일정'}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-bold text-slate-500">일정명 (제목)</label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="예: 4층 보안"
-              className="w-full px-4.5 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 bg-white/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-300 placeholder:font-semibold"
-              required
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-bold text-slate-500">담당자 / 참석자</label>
-            <input
-              type="text"
-              value={person}
-              onChange={(e) => setPerson(e.target.value)}
-              placeholder="담당 당번 혹은 회의 주최자"
-              className="w-full px-4.5 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 bg-white/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-300 placeholder:font-semibold"
-              required
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-bold text-slate-500">시작 날짜</label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => handleDateChange(e.target.value)}
-              className="w-full px-4.5 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 bg-white/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-              required
-            />
-          </div>
-
-          <div className="flex items-center gap-2 mb-1 select-none">
-            <input
-              type="checkbox"
-              id="isRangeCheck"
-              checked={isRange}
-              onChange={(e) => {
-                setIsRange(e.target.checked);
-                if (e.target.checked) {
-                  setEndDate(date);
-                }
-              }}
-              className="w-4 h-4 rounded text-indigo-650 border-slate-300 focus:ring-indigo-500 cursor-pointer"
-            />
-            <label htmlFor="isRangeCheck" className="text-xs font-bold text-slate-600 cursor-pointer">
-              연속 일정으로 등록
-            </label>
-          </div>
-
-          {isRange && (
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-bold text-slate-500">종료 날짜</label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                min={date}
-                className="w-full px-4.5 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 bg-white/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                required
-              />
-            </div>
-          )}
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-bold text-slate-500">퀵 시간 설정</label>
-            <div className="flex flex-wrap gap-1.5 mb-1">
-              <button
-                type="button"
-                onClick={() => applyPreset('11:30', '13:00')}
-                className={`px-2.5 py-1.5 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
-                  startTime === '11:30' && endTime === '13:00'
-                    ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
-                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                보안 (11:30~13:00)
-              </button>
-              <button
-                type="button"
-                onClick={() => applyPreset('10:00', '11:00')}
-                className={`px-2.5 py-1.5 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
-                  startTime === '10:00' && endTime === '11:00'
-                    ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm'
-                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                회의(오전) (10:00~11:00)
-              </button>
-              <button
-                type="button"
-                onClick={() => applyPreset('14:00', '15:00')}
-                className={`px-2.5 py-1.5 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
-                  startTime === '14:00' && endTime === '15:00'
-                    ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm'
-                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                회의(오후) (14:00~15:00)
-              </button>
-              <button
-                type="button"
-                onClick={() => applyPreset('09:00', '18:00')}
-                className={`px-2.5 py-1.5 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
-                  startTime === '09:00' && endTime === '18:00'
-                    ? 'bg-slate-600 border-slate-600 text-white shadow-sm'
-                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                종일 (09:00~18:00)
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3.5">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-bold text-slate-500">시작 시간</label>
-              <div className="flex gap-1.5">
-                <select
-                  value={startTime.split(':')[0] || '11'}
-                  onChange={(e) => setStartTime(`${e.target.value}:${startTime.split(':')[1] || '30'}`)}
-                  className="w-1/2 px-3 py-2.5 rounded-xl border border-slate-200/60 text-xs font-semibold text-slate-700 bg-white/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
-                >
-                  {hours.map(h => <option key={h} value={h}>{h}시</option>)}
-                </select>
-                <select
-                  value={startTime.split(':')[1] || '30'}
-                  onChange={(e) => setStartTime(`${startTime.split(':')[0] || '11'}:${e.target.value}`)}
-                  className="w-1/2 px-3 py-2.5 rounded-xl border border-slate-200/60 text-xs font-semibold text-slate-700 bg-white/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
-                >
-                  {minutes.map(m => <option key={m} value={m}>{m}분</option>)}
-                </select>
-              </div>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-bold text-slate-500">종료 시간</label>
-              <div className="flex gap-1.5">
-                <select
-                  value={endTime.split(':')[0] || '13'}
-                  onChange={(e) => setEndTime(`${e.target.value}:${endTime.split(':')[1] || '00'}`)}
-                  className="w-1/2 px-3 py-2.5 rounded-xl border border-slate-200/60 text-xs font-semibold text-slate-700 bg-white/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
-                >
-                  {hours.map(h => <option key={h} value={h}>{h}시</option>)}
-                </select>
-                <select
-                  value={endTime.split(':')[1] || '00'}
-                  onChange={(e) => setEndTime(`${endTime.split(':')[0] || '13'}:${e.target.value}`)}
-                  className="w-1/2 px-3 py-2.5 rounded-xl border border-slate-200/60 text-xs font-semibold text-slate-700 bg-white/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
-                >
-                  {minutes.map(m => <option key={m} value={m}>{m}분</option>)}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-bold text-slate-500">메모 / 특이사항</label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="상세 위치, 안건 및 기타 중요 특이사항을 적어주세요."
-              className="w-full px-4.5 py-2.5 rounded-xl border border-slate-200/60 text-sm font-semibold text-slate-700 bg-white/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-300 placeholder:font-semibold resize-none h-20"
-            />
-          </div>
-
-          <button
-            type="submit"
-            className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-bold py-3 px-4 rounded-xl transition-all duration-300 hover:shadow-lg hover:shadow-indigo-500/10 active:scale-[0.98]"
-          >
-            스케줄 등록
-          </button>
-        </form>
+        {/* Form Container (Locally isolated ScheduleForm component to eliminate typing input latency) */}
+        <ScheduleForm 
+          date={date}
+          setDate={setDate}
+          isRange={isRange}
+          setIsRange={setIsRange}
+          endDate={endDate}
+          setEndDate={setEndDate}
+          addSchedule={addSchedule}
+        />
 
         {/* Weekly Grid View (right side / col-span-9) */}
         <div className="xl:col-span-9 flex flex-col min-w-0">

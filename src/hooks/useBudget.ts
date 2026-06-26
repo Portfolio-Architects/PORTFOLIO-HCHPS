@@ -194,60 +194,102 @@ export function useBudget() {
 
   // checkLimit and Entry mutations moved below getCategoryStats
 
-  // Derived Stats
-  const getCategoryStats = useCallback((categoryId: string, excludePlanned = false) => {
-    const cat = uniqueCategories.find(c => c.id === categoryId);
-    if (!cat) return null;
-    const catEntries = entries.filter(e => e.categoryId === categoryId);
-    const filteredCatEntries = excludePlanned ? catEntries.filter(e => !e.isPlanned) : catEntries;
-
-    const generalSpent = filteredCatEntries.filter(e => !e.isPlanned && (!e.actionType || e.actionType === 'general' || e.actionType === 'correction' || e.actionType === 'transfer')).reduce((sum, e) => {
-      if (e.actionType === 'transfer') {
-        if (e.transferDirection === 'out') return sum + e.amount;
-        return sum - e.amount;
+  // Pre-calculate statistics Map for all unique categories to avoid O(N * M) overhead
+  const categoryStatsMap = useMemo(() => {
+    // Group entries by categoryId first for O(M) grouping
+    const entriesMap = new Map<string, BudgetEntry[]>();
+    for (const e of entries) {
+      if (!entriesMap.has(e.categoryId)) {
+        entriesMap.set(e.categoryId, []);
       }
-      return sum + e.amount;
-    }, 0);
-    const dailyExpenseIssued = filteredCatEntries.filter(e => !e.isPlanned && e.actionType === 'issuance').reduce((sum, e) => sum + e.amount, 0);
-    const dailyExpenseSpent = filteredCatEntries.filter(e => !e.isPlanned && e.actionType === 'daily_expense').reduce((sum, e) => sum + e.amount, 0);
-    
-    // 원인행위 (가배정) 한도액 = 진행 중(isSettled==false)인 품의서 금액 총합
-    const planned = filteredCatEntries.filter(e => e.isPlanned && !e.isSettled).reduce((sum, e) => sum + e.amount, 0);
-    
-    const spent = generalSpent + dailyExpenseIssued;
-    // 예산 차단(사용 방지)된 세부 산출내역 금액 계산
-    let lockedAmount = 0;
-    if (cat.subItems) {
-      cat.subItems.forEach(sub => {
-         if (sub.isLocked) {
-           lockedAmount += sub.amount;
-         } else if (sub.calculations) {
-           sub.calculations.forEach(calc => {
-             if (calc.isLocked) lockedAmount += calc.amount;
-           });
-         }
+      entriesMap.get(e.categoryId)!.push(e);
+    }
+
+    const statsMap = new Map<string, {
+      totalBudget: number; spent: number; planned: number; locked: number; remaining: number; usageRate: number;
+      generalSpent: number; dailyExpenseIssued: number; dailyExpenseSpent: number; dailyExpenseRemaining: number;
+    }>();
+
+    for (const cat of uniqueCategories) {
+      const catEntries = entriesMap.get(cat.id) || [];
+      
+      let generalSpent = 0;
+      let dailyExpenseIssued = 0;
+      let dailyExpenseSpent = 0;
+      let planned = 0;
+
+      for (const e of catEntries) {
+        if (e.isPlanned) {
+          if (!e.isSettled) planned += e.amount;
+        } else {
+          if (!e.actionType || e.actionType === 'general' || e.actionType === 'correction' || e.actionType === 'transfer') {
+            if (e.actionType === 'transfer') {
+              if (e.transferDirection === 'out') generalSpent += e.amount;
+              else generalSpent -= e.amount;
+            } else {
+              generalSpent += e.amount;
+            }
+          } else if (e.actionType === 'issuance') {
+            dailyExpenseIssued += e.amount;
+          } else if (e.actionType === 'daily_expense') {
+            dailyExpenseSpent += e.amount;
+          }
+        }
+      }
+
+      const spent = generalSpent + dailyExpenseIssued;
+      
+      let lockedAmount = 0;
+      if (cat.subItems) {
+        for (const sub of cat.subItems) {
+          if (sub.isLocked) {
+            lockedAmount += sub.amount;
+          } else if (sub.calculations) {
+            for (const calc of sub.calculations) {
+              if (calc.isLocked) lockedAmount += calc.amount;
+            }
+          }
+        }
+      }
+
+      const remaining = cat.totalBudget - spent - planned - lockedAmount;
+      const dailyExpenseRemaining = dailyExpenseIssued - dailyExpenseSpent;
+      const usageRate = cat.totalBudget > 0 ? ((spent + planned) / cat.totalBudget) * 100 : 0;
+
+      statsMap.set(cat.id, {
+        totalBudget: cat.totalBudget,
+        spent,
+        planned,
+        locked: lockedAmount,
+        remaining,
+        usageRate,
+        generalSpent,
+        dailyExpenseIssued,
+        dailyExpenseSpent,
+        dailyExpenseRemaining
       });
     }
-    
-    // 남은 진짜 잔액 = 총예산 - 결제완료지출 - 묶인금액(가배정) - 사용불가/잠김 금액(lockedAmount)
-    const remaining = cat.totalBudget - spent - planned - lockedAmount; 
-    const dailyExpenseRemaining = dailyExpenseIssued - dailyExpenseSpent;
-    
-    const usageRate = cat.totalBudget > 0 ? ((spent + planned) / cat.totalBudget) * 100 : 0;
-    
-    return { 
-      totalBudget: cat.totalBudget, 
-      spent, 
-      planned, 
-      locked: lockedAmount,
-      remaining, 
-      usageRate,
-      generalSpent,
-      dailyExpenseIssued,
-      dailyExpenseSpent,
-      dailyExpenseRemaining
-    };
+
+    return statsMap;
   }, [uniqueCategories, entries]);
+
+  // Derived Stats
+  const getCategoryStats = useCallback((categoryId: string, excludePlanned = false) => {
+    const cached = categoryStatsMap.get(categoryId);
+    if (!cached) return null;
+    if (!excludePlanned) return cached;
+
+    const cat = uniqueCategories.find(c => c.id === categoryId);
+    if (!cat) return null;
+    const remaining = cat.totalBudget - cached.spent - cached.locked; 
+    const usageRate = cat.totalBudget > 0 ? (cached.spent / cat.totalBudget) * 100 : 0;
+    return {
+      ...cached,
+      planned: 0,
+      remaining,
+      usageRate
+    };
+  }, [categoryStatsMap, uniqueCategories]);
 
   const checkLimit = useCallback((categoryId: string, amount: number, actionType?: string, entryId?: string, transferDirection?: string) => {
     if (actionType === 'correction') return true;

@@ -1,21 +1,109 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { InventoryItem, StockChange } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Modal } from '@/components/ui/modal';
 import { Plus, Pencil, Trash2, ArrowUp, ArrowDown, Package, Search } from 'lucide-react';
 
-interface InventoryListProps {
+// ============ Locally Isolated Inventory Item Card (React.memo to bypass redundant VDOM reconciliation) ============
+const InventoryItemCard = React.memo(({
+  item,
+  history,
+  onEdit,
+  onDelete,
+  onAdjust
+}: {
+  item: InventoryItem;
+  history: StockChange[];
+  onEdit: (item: InventoryItem) => void;
+  onDelete: (id: string) => void;
+  onAdjust: (item: InventoryItem, defaultChange: string) => void;
+}) => {
+  const itemId = item.id || '';
+  const currentStock = item.currentStock || 0;
+  const itemUnit = item.unit || '개';
+  const isOut = currentStock === 0;
+  const isLow = currentStock > 0 && currentStock < 10;
+  const stockColor = isOut ? 'text-rose-500' : isLow ? 'text-amber-500' : 'text-emerald-500';
+  const stockBg = isOut ? 'bg-rose-500/10' : isLow ? 'bg-amber-500/10' : 'bg-emerald-500/10';
+  const statusLabel = isOut ? '품절' : isLow ? '소진임박' : '충분';
+
+  return (
+    <Card className="glass-panel rounded-[2rem] border border-slate-200/60 shadow-2xs hover:shadow-lg hover:shadow-indigo-500/5 hover:-translate-y-1 transition-all duration-300 group">
+      <CardContent className="p-5 flex flex-col h-full justify-between">
+        <div>
+          <div className="flex items-start justify-between mb-3">
+            <div>
+              <div className="font-bold text-base text-slate-800 line-clamp-1">{item.name || '이름 없음'}</div>
+              {item.category && <span className="inline-block mt-1 text-[11px] font-semibold text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-lg">{item.category}</span>}
+            </div>
+            <div className="flex gap-1 shrink-0">
+              <button onClick={() => onEdit(item)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 cursor-pointer transition-colors"><Pencil size={12} /></button>
+              <button onClick={() => onDelete(itemId)} className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 cursor-pointer transition-colors"><Trash2 size={12} /></button>
+            </div>
+          </div>
+          
+          {/* Stock Display & Signal LED */}
+          <div className="flex items-center justify-between bg-slate-50/50 rounded-2xl p-4 mb-4 border border-slate-100/50">
+            <div className="flex flex-col">
+              <span className="text-[12px] text-slate-500 font-semibold mb-0.5">현재 재고</span>
+              <div className="text-2xl font-bold text-slate-800 font-mono">
+                {currentStock} <span className="text-xs font-normal text-slate-400">{itemUnit}</span>
+              </div>
+            </div>
+            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl border ${stockColor} border-current/20 ${stockBg} text-[11px] font-bold shadow-3xs`}>
+              <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse shadow-sm"></span>
+              {statusLabel}
+            </div>
+          </div>
+        </div>
+
+        <div>
+          {/* Stock Adjust Buttons */}
+          <div className="flex gap-2">
+            <button onClick={() => onAdjust(item, '1')} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-emerald-55 hover:bg-emerald-100/80 text-emerald-700 text-xs font-bold border border-emerald-100 transition-colors cursor-pointer shadow-3xs">
+              <ArrowUp size={12} /> 입고
+            </button>
+            <button onClick={() => onAdjust(item, '-1')} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-rose-55 hover:bg-rose-100/80 text-rose-700 text-xs font-bold border border-rose-100 transition-colors cursor-pointer shadow-3xs">
+              <ArrowDown size={12} /> 출고
+            </button>
+          </div>
+
+          {/* Timeline History */}
+          {history.length > 0 && (
+            <div className="mt-4 pt-3 border-t border-slate-100 space-y-1.5">
+              <div className="text-[10px] text-slate-400 font-semibold tracking-wider uppercase mb-1">최근 변동 이력</div>
+              {history.map(h => (
+                <div key={h.id} className="flex justify-between items-center text-[11px] text-slate-500 hover:bg-slate-50 px-1.5 py-0.5 rounded transition-colors font-medium">
+                  <span className="flex items-center gap-1 truncate">
+                    <span className="text-slate-300 font-mono text-[9px] shrink-0">•</span>
+                    <span className="truncate">{h.reason}</span>
+                  </span>
+                  <span className={`font-semibold font-mono shrink-0 ${h.change > 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                    {h.change > 0 ? '+' : ''}{h.change}{itemUnit}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+});
+InventoryItemCard.displayName = 'InventoryItemCard';
+
+
+// ============ Main Inventory List Component ============
+export function InventoryList({ items, addItem, updateItem, deleteItem, adjustStock, getItemHistory }: {
   items: InventoryItem[];
   addItem: (item: Omit<InventoryItem, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateItem: (id: string, updates: Partial<InventoryItem>) => void;
   deleteItem: (id: string) => void;
   adjustStock: (itemId: string, change: number, reason: string) => void;
   getItemHistory: (itemId: string) => StockChange[];
-}
-
-export function InventoryList({ items, addItem, updateItem, deleteItem, adjustStock, getItemHistory }: InventoryListProps) {
+}) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAdjustModal, setShowAdjustModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
@@ -54,18 +142,23 @@ export function InventoryList({ items, addItem, updateItem, deleteItem, adjustSt
     setName(''); setCategory(''); setStock(''); setUnit('개'); setSelectedItem(null); setShowAddModal(false);
   };
 
-  const openEdit = (item: InventoryItem) => {
+  const openEdit = useCallback((item: InventoryItem) => {
     setSelectedItem(item);
     setName(item?.name || '');
     setCategory(item?.category || '');
     setUnit(item?.unit || '개');
     setShowAddModal(true);
-  };
+  }, []);
 
-  const openAdjust = (item: InventoryItem) => {
+  const openAdjust = useCallback((item: InventoryItem, defaultChange: string) => {
     setSelectedItem(item);
+    setAdjChange(defaultChange);
     setShowAdjustModal(true);
-  };
+  }, []);
+
+  const handleDeleteItem = useCallback((id: string) => {
+    deleteItem(id);
+  }, [deleteItem]);
 
   // Get unique categories for quick filter
   const uniqueCategories = useMemo(() => {
@@ -88,6 +181,16 @@ export function InventoryList({ items, addItem, updateItem, deleteItem, adjustSt
       return matchesSearch && matchesCategory;
     });
   }, [items, searchQuery, selectedCategory]);
+
+  // Pre-calculate history statistics Map to resolve nested O(N) loop call during render
+  const itemHistoryMap = useMemo(() => {
+    const map = new Map<string, StockChange[]>();
+    for (const item of items) {
+      const itemId = item.id || '';
+      map.set(itemId, (getItemHistory(itemId) || []).slice(0, 3));
+    }
+    return map;
+  }, [items, getItemHistory]);
 
   return (
     <div className="space-y-5">
@@ -161,76 +264,16 @@ export function InventoryList({ items, addItem, updateItem, deleteItem, adjustSt
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredItems.map(item => {
             const itemId = item.id || '';
-            const history = (getItemHistory(itemId) || []).slice(0, 3);
-            const currentStock = item.currentStock || 0;
-            const itemUnit = item.unit || '개';
-            const isOut = currentStock === 0;
-            const isLow = currentStock > 0 && currentStock < 10;
-            const stockColor = isOut ? 'text-rose-500' : isLow ? 'text-amber-500' : 'text-emerald-500';
-            const stockBg = isOut ? 'bg-rose-500/10' : isLow ? 'bg-amber-500/10' : 'bg-emerald-500/10';
-            const statusLabel = isOut ? '품절' : isLow ? '소진임박' : '충분';
-
+            const history = itemHistoryMap.get(itemId) || [];
             return (
-              <Card key={itemId} className="glass-panel rounded-[2rem] border border-slate-200/60 shadow-2xs hover:shadow-lg hover:shadow-indigo-500/5 hover:-translate-y-1 transition-all duration-300 group">
-                <CardContent className="p-5 flex flex-col h-full justify-between">
-                  <div>
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <div className="font-bold text-base text-slate-800 line-clamp-1">{item.name || '이름 없음'}</div>
-                        {item.category && <span className="inline-block mt-1 text-[11px] font-semibold text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-lg">{item.category}</span>}
-                      </div>
-                      <div className="flex gap-1 shrink-0">
-                        <button onClick={() => openEdit(item)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 cursor-pointer transition-colors"><Pencil size={12} /></button>
-                        <button onClick={() => deleteItem(itemId)} className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 cursor-pointer transition-colors"><Trash2 size={12} /></button>
-                      </div>
-                    </div>
-                    
-                    {/* Stock Display & Signal LED */}
-                    <div className="flex items-center justify-between bg-slate-50/50 rounded-2xl p-4 mb-4 border border-slate-100/50">
-                      <div className="flex flex-col">
-                        <span className="text-[12px] text-slate-500 font-semibold mb-0.5">현재 재고</span>
-                        <div className="text-2xl font-bold text-slate-800 font-mono">
-                          {currentStock} <span className="text-xs font-normal text-slate-400">{itemUnit}</span>
-                        </div>
-                      </div>
-                      <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl border ${stockColor} border-current/20 ${stockBg} text-[11px] font-bold shadow-3xs`}>
-                        <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse shadow-sm"></span>
-                        {statusLabel}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    {/* Stock Adjust Buttons */}
-                    <div className="flex gap-2">
-                      <button onClick={() => { openAdjust(item); setAdjChange('1'); }} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold border border-emerald-100 transition-colors cursor-pointer shadow-3xs">
-                        <ArrowUp size={12} /> 입고
-                      </button>
-                      <button onClick={() => { openAdjust(item); setAdjChange('-1'); }} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold border border-rose-100 transition-colors cursor-pointer shadow-3xs">
-                        <ArrowDown size={12} /> 출고
-                      </button>
-                    </div>
-
-                    {/* Timeline History */}
-                    {history.length > 0 && (
-                      <div className="mt-4 pt-3 border-t border-slate-100 space-y-1.5">
-                        <div className="text-[10px] text-slate-400 font-semibold tracking-wider uppercase mb-1">최근 변동 이력</div>
-                        {history.map(h => (
-                          <div key={h.id} className="flex justify-between items-center text-[11px] text-slate-500 hover:bg-slate-50 px-1.5 py-0.5 rounded transition-colors font-medium">
-                            <span className="flex items-center gap-1 truncate">
-                              <span className="text-slate-300 font-mono text-[9px] shrink-0">•</span>
-                              <span className="truncate">{h.reason}</span>
-                            </span>
-                            <span className={`font-semibold font-mono shrink-0 ${h.change > 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
-                              {h.change > 0 ? '+' : ''}{h.change}{itemUnit}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
+              <InventoryItemCard 
+                key={itemId}
+                item={item}
+                history={history}
+                onEdit={openEdit}
+                onDelete={handleDeleteItem}
+                onAdjust={openAdjust}
+              />
             );
           })}
         </div>

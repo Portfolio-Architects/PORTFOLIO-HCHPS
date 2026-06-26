@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { OntologyCanvasEngine } from '@/lib/OntologyCanvasEngine';
 import { PerformanceProfiler } from '@/lib/engine/PerformanceProfiler';
 import { OntologyLayout } from '@/lib/engine/OntologyLayout';
@@ -18,6 +18,8 @@ import { MindMapHUD } from './mindmap/ui/MindMapHUD';
 import { useWikiStorage } from '@/hooks/useWikiStorage';
 import { useClassificationWords } from '@/hooks/useClassificationWords';
 import { useFileRadar } from '@/hooks/useFileRadar';
+import { useTasks } from '@/hooks/useTasks';
+import { useBudget } from '@/hooks/useBudget';
 
 import {
   Loader2, AlertTriangle, X, Trash2, PlusSquare, Search, Radio, Copy
@@ -104,6 +106,24 @@ export const MindMap3D = React.memo(function MindMap3D({ signalKeywords, signalE
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [selectedSearchIndex, setSelectedSearchIndex] = useState(-1);
 
+  // Global hooks for MindMapInspector performance decoupling
+  const { tasks = [] } = useTasks();
+  const { categories = [], getCategoryStats } = useBudget();
+
+  const matchedCat = useMemo(() => {
+    if (!activeNode) return null;
+    return categories.find(c => c.name.includes(activeNode.label) || activeNode.label.includes(c.name));
+  }, [activeNode, categories]);
+
+  const catStats = useMemo(() => {
+    if (!matchedCat) return null;
+    return getCategoryStats(matchedCat.id);
+  }, [matchedCat, getCategoryStats]);
+
+  const matchedTasks = useMemo(() => {
+    if (!activeNode) return [];
+    return tasks.filter(t => t.title?.includes(activeNode.label) || t.category?.includes(activeNode.label));
+  }, [activeNode, tasks]);
 
   const { overrides = {}, customNodes = [], customEdges = [], deletedEdges = [], undo, redo, setNodeOverride, batchSetNodeOverrides, clearNodeOverride, addCustomNode, deleteCustomNode, updateCustomNodeText, addCustomEdge, deleteCustomEdge, removeCustomTombstone, renameNodeId, isCloudLoaded } = useGraphCustomization();
   const { mutate: getFileRadar } = useFileRadar();
@@ -1051,6 +1071,9 @@ export const MindMap3D = React.memo(function MindMap3D({ signalKeywords, signalE
               initEngine={initEngine} handleSwapNodeOrder={handleSwapNodeOrder} clearNodeOverride={clearNodeOverride}
               isOverlay={false}
               wikiBlocks={wikiBlocks ?? undefined}
+              matchedCat={matchedCat}
+              catStats={catStats}
+              matchedTasks={matchedTasks}
             />
           </div>
         </div>

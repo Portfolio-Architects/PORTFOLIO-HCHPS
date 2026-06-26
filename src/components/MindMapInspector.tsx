@@ -6,8 +6,6 @@ import { useLocalContacts } from '@/hooks/useLocalContacts';
 import { getCanonicalWikiId } from '@/hooks/useWikiStorage';
 import { readSheet } from '@/lib/sheets-api';
 import { extractRawTextFromBlocks, parseContacts } from '@/lib/contacts-parser';
-import { useTasks } from '@/hooks/useTasks';
-import { useBudget } from '@/hooks/useBudget';
 import { useFileRadar } from '@/hooks/useFileRadar';
 import { useReportGenerator } from '@/hooks/useReportGenerator';
 import { useAILinker } from '@/hooks/useAILinker';
@@ -43,6 +41,9 @@ interface MindMapInspectorProps {
   clearNodeOverride: (id: string) => void;
   isOverlay: boolean;
   wikiBlocks?: any[];
+  matchedCat: any;
+  catStats: any;
+  matchedTasks: any[];
 }
 
 export const MindMapInspector = React.memo(function MindMapInspector(props: MindMapInspectorProps) {
@@ -52,12 +53,13 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
     deleteCustomNode, deleteCustomEdge,
     parentModeSource, setParentModeSource,
     initEngine, clearNodeOverride, isOverlay,
-    wikiBlocks
+    wikiBlocks,
+    matchedCat,
+    catStats,
+    matchedTasks
   } = props;
 
   const { recordContactMutation, batchRecordContactsMutation } = useLocalContacts();
-  const { tasks = [] } = useTasks();
-  const { categories = [], getCategoryStats } = useBudget();
   const { mutate: getFileRadar, data: radarData } = useFileRadar();
   const reportMut = useReportGenerator();
   const { reset: resetReport } = reportMut;
@@ -109,21 +111,6 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
       getFileRadar({ nodeId: activeNode.id, nodeLabel: activeNode.label });
     }
   }, [activeNode, getFileRadar]);
-
-  const matchedCat = React.useMemo(() => {
-    if (!activeNode) return null;
-    return categories.find(c => c.name.includes(activeNode.label) || activeNode.label.includes(c.name));
-  }, [activeNode, categories]);
-
-  const catStats = React.useMemo(() => {
-    if (!matchedCat) return null;
-    return getCategoryStats(matchedCat.id);
-  }, [matchedCat, getCategoryStats]);
-
-  const matchedTasks = React.useMemo(() => {
-    if (!activeNode) return [];
-    return tasks.filter(t => t.title?.includes(activeNode.label) || t.category?.includes(activeNode.label));
-  }, [activeNode, tasks]);
 
   const rawWikiText = React.useMemo(() => {
     if (!wikiBlocks || wikiBlocks.length === 0) return '';
