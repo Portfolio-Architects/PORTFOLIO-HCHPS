@@ -291,6 +291,48 @@ sequenceDiagram
 
 ## 8. 최근 엔지니어링 마일스톤 (요약)
 
+### 앱 구동 안정성 향상 10대 아키텍처 업데이트 이행 및 0-0-0 무결성 검증 패치 (2026-06-26)
+* **10대 아키텍처 안정성 및 성능 업데이트 전면 이행**:
+  - **useYjsStore.ts**: IndexedDB 백업 Compaction(100회 트랜잭션마다 storeState 압축) 및 브라우저 탭 비활성 30초 후 WebSocket 연결 일시 해제(disconnect/connect)로 유휴 부하 차단.
+  - **route.ts (api/data)**: JSON 복호화 및 로딩 실패 시 backups 디렉토리 최신 백업본 자동 역추적 자가 치유(Self-Healing) 복구 가드 구축.
+  - **sheets-api.ts**: Zod validation safeParse 실패 노드 default/fallback 보정 샌드박싱 전파 및 툼스톤 데이터 `{ id, deletedAt }` 포맷 확장, 30일 경과 만료 툼스톤 GC 영구 소거 구현.
+  - **WorkspaceView.tsx**: Zod 에러 `'hchps-zod-error'` 발생 시 수동 백업본 복구 UI 배너 추가.
+  - **OntologyCanvasEngine.ts & OntologyLayout.ts**: 120프레임 이상 수렴 지속 시 척력/물리 연산을 Sleep 상태로 강제 냉각(`physicsAlpha = 0`), 마우스/드래그 시 wakeUp 및 `isOrbiting` 댐퍼 연동.
+  - **OntologyRenderer.ts**: 텍스트 겹침 방지 루프 내 120px * 120px 그리드 셀 기반 Spatial Partitioning 공간 분할 적용($O(N^2) \rightarrow O(N)$) 및 줌 비율 축소 시 동적 윈도잉 적용.
+  - **useAIChat.ts & route.ts (llm/chat)**: AbortController/Abort signal Gemini 통신 연동 및 대화 발송 전 메시지 6000자 초과 시 sliding window pruning 적용.
+  - **메모리 클린업 보완**: `OntologyRenderer` 소멸자(clearTextBoxPool) 및 `MindMap3D.tsx` 컴포넌트 언마운트 시 `engine.destroy()` 명시적 해제 연동.
+* **하네스 0-0-0 무결성 통과 및 빌드 검증**:
+  - `run-harness.js` 정적 분석 실행을 통해 Zod 스키마, ESLint 린트 경고, MVC 아키텍처 규칙 적합성(Warnings: 0, Violations: 0, Bottlenecks: 0)을 완벽하게 검합 완료했습니다.
+  - TypeScript strict 빌드 컴파일(`npm run build`) 성공을 확인했습니다.
+
+### 앱 구동 안정성 향상 10대 업데이트 제언서 수립 패치 (2026-06-26)
+* **프라이빗 아키텍처 안정성 고도화 제언 수립**:
+  - 로컬 E2EE 파일 시스템, PartyKit CRDT, IndexedDB 오프라인 동기화, 물리 척력 엔진, 메모리 가비지 컬렉션(GC) 누수 방지 등 10개 핵심 아키텍처 영역에 대한 구체적인 런타임 안정성 향상 제언서를 작성하고 인텔리전스 워크플로우에 통합했습니다.
+
+### 3D 마인드맵 및 예산 모듈 53차 강타입(Type-Safe) 2차 자율 리팩토링 패치 (2026-06-26)
+* **엔진 캐시 구조 개선 및 UI 컴포넌트 강타입화**:
+  - `OntologyCanvasEngine.ts` 내의 이전 공전 각도 복원용 `previousNodeMap`의 타입을 `Map<string, Partial<OrbitalNode>>`로 엄격화하여 `as any` 캐스팅을 안전하게 제거했습니다.
+  - `useGraphCustomization.ts`의 커스텀 간선 추가 함수 `addCustomEdge` 내 `type` 파라미터 타입을 `EdgeType` 유니온 타입으로 엄격하게 바인딩하여 Yjs 데이터 주입 시의 `as any` 강제 형 변환을 완전히 근절했습니다.
+  - `BatchEditModal.tsx` 내 `batchBudgetType` 상태 변수를 `BudgetCategory['budgetType']` 규격에 맞는 유니온 타입으로 타입 명시하여, 예산 일괄 수정 데이터 생성 시의 타입 불안정성을 전격 해소했습니다.
+  - `OntologyCanvasEngine.ts` 내 고정 노드 감지 로직의 `fixedX`, `fixedY` 판정 구문에서 불필요하게 남아있던 2건의 `as any` 캐스팅을 완벽히 제거했습니다.
+
+### 3D 마인드맵 및 인스펙터 강타입(Type-Safe) 확보 및 52차 자율 리팩토링 패치 (2026-06-26)
+* **임시 dynamic 속성에 대한 정식 타입 선언 및 any-casting 제거**:
+  - `OntologyNode` 및 `OrbitalNode` 인터페이스(`ontology.types.ts`) 내에 물리 연산과 원근 투영 렌더링에 사용되는 `minAngle`, `maxAngle`, `radialOffset`, `perspectiveScale`, `meta` 및 오프스크린 캔버스 캐시용 `_cachedTemplate`, `_cachedTemplateColor`, `_cachedTemplateCluster` 속성을 정식으로 추가했습니다.
+  - 이를 통해 `OntologyLayout.ts`, `OntologyRenderer.ts`, `MindMapInspector.tsx` 내부에서 dynamic 프로퍼티 접근을 위해 무수히 호출되던 30건 이상의 임시 `as any` 캐스팅 구문을 완전히 제거하여 TypeScript 본연의 컴파일 타임 안전성을 극대화했습니다.
+
+### 양재천 건강(걷자) 페스티벌 단독 분석 및 설명 보고서 반영 패치 (2026-06-26)
+* **양재천 건강 페스티벌 세부 추진 계획 분석**:
+  - `d:\Desktop\VITAL_Scan\양재천 건강 페스티벌 추진계획.pdf` 자료를 상세 분석하여, 행사 개요(영동3교~탄천합수부 약 6km 구간, 500명 이상 참여), 세부 보건소 및 민간 협력 부스(22개 부스), 안전대책 및 예산(72,250천원) 정보를 단독 정리하여 설명 체계를 수립했습니다.
+  - 2026년 하반기 추진 계획(10월 스포츠의 날 주간 내 영동3교~탄천합수부 약 6km 걷기 코스 및 건강체험 융합 페스티벌 개최)에 맞추어 단독 설명 제공을 완료했습니다.
+
+### 정적 분석 정합성 최적화 및 훅 의존성 보완 51차 자율 개선 패치 (2026-06-26)
+* **정적 분석 오탐(False Positive) 방지를 위한 `useEffect` 정규식 고도화**:
+  - `diagnose-targets.js` 내의 `useEffectMatches` 정규식이 `useCallback` 등 다른 훅의 닫는 빈 대괄호(`],`)까지 포함해 경계선을 넘겨 비대하게 오탐지(False Positive)하던 분석 결함을 수정했습니다.
+  - 정규식 내에 `(?:(?!useEffect|useCallback)[\s\S])*?` 패턴을 도입하여, 매치 타겟 영역 내에 타 훅의 정의가 침범할 경우 매칭을 무효화함으로써 정적 분석기의 오탐을 원천 박멸했습니다.
+* **`MindMapInspector.tsx` 훅 의존성 배열 보완**:
+  - `handleClickOutside` `useEffect` 내부에서 참조하는 상태 변경 함수 `setIsCatOpen`을 의존성 배열(`[setIsCatOpen]`)에 명시하여 React 훅 모범 사양을 준수하고 분석 경고를 해결했습니다.
+
 ### 3D 원근 투영 입체 궤도 레이어 복원 및 화면 공간 충돌 회피(Screen-Space Collision Resolution) 재가동 50차 패치 (2026-06-25)
 * **3D 조감도(Downward) 원근 투영 공식 및 레이어 수직 오프셋 복원**:
   - 43차 롤백 패치로 인해 밋밋해진 2D 평면 방사형 궤도를 개선하여, X축은 넓고 Y축은 압축된 형태의 기울여진 3D Isometric 입체 궤도를 복원했습니다.

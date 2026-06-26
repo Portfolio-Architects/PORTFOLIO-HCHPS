@@ -1,5 +1,5 @@
 import React from 'react';
-import { OrbitalNode, OntologyEdge, GROUP_COLORS, OntologyGroup } from '@/lib/ontology.types';
+import { OrbitalNode, OntologyEdge, GROUP_COLORS, OntologyGroup, EdgeType } from '@/lib/ontology.types';
 import { NodeOverride } from '@/hooks/useGraphCustomization';
 import { Edit2, Waypoints, Trash2, Link2, Radio, X, Crosshair, Activity, Bot, Unlink, Phone, FileText, DollarSign, CheckCircle2 } from 'lucide-react';
 import { useLocalContacts } from '@/hooks/useLocalContacts';
@@ -18,6 +18,8 @@ interface ForceGraphEngine {
   needsRedraw?: boolean;
   getConnectedEdges?: (nodeId: string) => Array<{ edge: OntologyEdge; otherNode: OrbitalNode }>;
   getNodeById?: (nodeId: string) => OrbitalNode | null | undefined;
+  activeNode?: OrbitalNode | null;
+  pendingCameraTargetId?: string | null;
 }
 
 interface MindMapInspectorProps {
@@ -32,7 +34,7 @@ interface MindMapInspectorProps {
   removeCustomTombstone: (childId: string, parentId: string) => void;
   renameNodeId?: (oldId: string, newId: string) => void;
   deleteCustomNode: (id: string) => void;
-  addCustomEdge: (src: string, tgt: string, type?: string) => void;
+  addCustomEdge: (src: string, tgt: string, type?: EdgeType) => void;
   deleteCustomEdge: (src: string, tgt: string) => void;
   parentModeSource: string | null;
   setParentModeSource: (id: string | null) => void;
@@ -69,6 +71,26 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
   const [copiedReport, setCopiedReport] = React.useState(false);
   const [aiTargetId, setAiTargetId] = React.useState<string>('');
   const aiLinkMut = useAILinker();
+
+  const [catSearch, setCatSearch] = React.useState('');
+  const [isCatOpen, setIsCatOpen] = React.useState(false);
+  const catDropdownRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    setCatSearch(parentLabel || '');
+  }, [parentLabel]);
+
+  React.useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (catDropdownRef.current && !catDropdownRef.current.contains(event.target as Node)) {
+        setIsCatOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [setIsCatOpen]);
  
   // Clear success feedback and reset report when activeNode changes
   React.useEffect(() => {
@@ -76,8 +98,10 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
     setIsRecording(false);
     setCopiedReport(false);
     setAiTargetId(''); // reset AI target selection
+    setCatSearch(parentLabel || '');
+    setIsCatOpen(false);
     resetReport();
-  }, [activeNode, resetReport]);
+  }, [activeNode, resetReport, parentLabel]);
 
   // Asynchronously trigger file radar when normal activeNode is selected
   React.useEffect(() => {
@@ -105,6 +129,106 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
     if (!wikiBlocks || wikiBlocks.length === 0) return '';
     return extractRawTextFromBlocks(wikiBlocks);
   }, [wikiBlocks]);
+
+  // 자카드 유사도 및 부분 일치 기반 노드 간 유사도 연산
+  const calculateNodeSimilarity = React.useCallback((labelA: string, labelB: string) => {
+    if (!labelA || !labelB) return 0;
+    const cleanA = labelA.toLowerCase().replace(/\s+/g, '');
+    const cleanB = labelB.toLowerCase().replace(/\s+/g, '');
+    if (cleanA === cleanB) return 100;
+    
+    if (cleanA.includes(cleanB) || cleanB.includes(cleanA)) {
+      return (Math.min(cleanA.length, cleanB.length) / Math.max(cleanA.length, cleanB.length)) * 80;
+    }
+    
+    const setA = new Set(cleanA.split(''));
+    const setB = new Set(cleanB.split(''));
+    const intersection = new Set([...setA].filter(x => setB.has(x)));
+    const union = new Set([...setA, ...setB]);
+    if (union.size === 0) return 0;
+    
+    return (intersection.size / union.size) * 50;
+  }, []);
+
+  // 스마트 카테고리 퀵 추천 칩 목록
+  const smartRecommendations = React.useMemo(() => {
+    if (!activeNode || engineNodes.length === 0) return [];
+    
+    const candidates = engineNodes.filter((n: OrbitalNode) => {
+      if (n.id === activeNode.id) return false;
+      if (n.id === activeNode.parentId) return false;
+      if (activeNode.id.startsWith('root-') || activeNode.orbitIndex === 0) return false;
+      // 순환 구조 방지: 본인보다 바깥 궤도인 노드나 본인의 직계 자식은 제외
+      return n.orbitIndex < (activeNode.orbitIndex ?? 1) || n.orbitIndex <= 2;
+    });
+
+    return candidates
+      .map(n => {
+        let score = calculateNodeSimilarity(activeNode.label, n.label);
+        // 에코 중심, 1차, 2차 궤도 상위 노드 보너스 점수
+        if (n.orbitIndex === 0) score += 20;
+        else if (n.orbitIndex === 1) score += 15;
+        else if (n.orbitIndex === 2) score += 8;
+        return { node: n, score };
+      })
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3)
+      .filter(item => item.score > 5)
+      .map(item => item.node);
+  }, [activeNode, engineNodes, calculateNodeSimilarity]);
+
+  // 검색어에 따른 자동완성 후보들
+  const filteredCategoryNodes = React.useMemo(() => {
+    const baseNodes = engineNodes.filter((n: OrbitalNode) => {
+      if (activeNode && n.id === activeNode.id) return false;
+      if (activeNode && (activeNode.id.startsWith('root-') || activeNode.orbitIndex === 0)) return false;
+      return true;
+    });
+    
+    const query = catSearch.trim().toLowerCase();
+    if (!query) {
+      return baseNodes.sort((a, b) => {
+        if (a.orbitIndex !== b.orbitIndex) return a.orbitIndex - b.orbitIndex;
+        return a.label.localeCompare(b.label);
+      });
+    }
+    
+    return baseNodes
+      .filter((n: OrbitalNode) => n.label.toLowerCase().includes(query))
+      .sort((a, b) => {
+        const indexA = a.label.toLowerCase().indexOf(query);
+        const indexB = b.label.toLowerCase().indexOf(query);
+        if (indexA !== indexB) return indexA - indexB;
+        if (a.orbitIndex !== b.orbitIndex) return a.orbitIndex - b.orbitIndex;
+        return a.label.localeCompare(b.label);
+      });
+  }, [engineNodes, activeNode, catSearch]);
+
+  // 부모 지정을 처리하는 핸들러
+  const handleSelectParent = React.useCallback((parentId: string) => {
+    if (!activeNode) return;
+    if (parentId === 'NONE') {
+      setNodeOverride(activeNode.id, { customParent: 'NONE', customOrbitIndex: undefined, fixedX: undefined, fixedY: undefined });
+      setTimeout(() => {
+        if (engineRef.current) {
+          setActiveNode(prev => prev ? { ...prev, parentId: undefined, customOrbitIndex: undefined } : null);
+          initEngine();
+        }
+      }, 50);
+    } else {
+      const parentNode = engineRef.current?.nodes.find((n: OrbitalNode) => n.id === parentId);
+      const newOrbit = parentNode ? parentNode.orbitIndex + 1 : undefined;
+      removeCustomTombstone(activeNode.id, parentId);
+      setNodeOverride(activeNode.id, { customParent: parentId, customOrbitIndex: newOrbit, fixedX: undefined, fixedY: undefined });
+      setTimeout(() => {
+        if (engineRef.current) {
+          setActiveNode(prev => prev ? { ...prev, parentId: parentId, customOrbitIndex: newOrbit, orbitIndex: newOrbit ?? prev.orbitIndex } : null);
+          initEngine();
+        }
+      }, 50);
+    }
+    setIsCatOpen(false);
+  }, [activeNode, setNodeOverride, setActiveNode, initEngine, removeCustomTombstone, engineRef]);
 
   const handleGenerateReport = () => {
     if (!activeNode) return;
@@ -296,7 +420,7 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
 
 
         // 2. Risk Factor (리스크 스코어)
-        const risk = (node as any).riskFactor ?? 0;
+        const risk = node.riskFactor ?? 0;
         const isRiskOrigin = node.group === 'SYSTEM_RISK';
         if (isRiskOrigin) {
           score += 45;
@@ -349,7 +473,7 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                   (() => {
                     const isRadarDoc = activeNode.id.startsWith('radar-doc-');
                     if (isRadarDoc) {
-                      const meta = (activeNode as any).meta;
+                      const meta = activeNode.meta;
                       const summary = meta?.summary || [];
                       const contacts = meta?.contacts || [];
                       const displayName = activeNode.label.replace('📄 ', '');
@@ -772,7 +896,7 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                                 }, {
                                   onSuccess: (res) => {
                                     if (res.connected) {
-                                      props.addCustomEdge(activeNode.id, targetNode.id, res.type);
+                                      props.addCustomEdge(activeNode.id, targetNode.id, res.type as EdgeType);
                                       alert(`🤖 AI 관계 분석 성공!\n\n관계 유형: ${res.type}\n설명: ${res.summary}\n\n[결과] 간선이 자동 연결되어 Yjs/CRDT 캔버스 세션에 즉시 병합되었습니다.`);
                                       setAiTargetId('');
                                       setTimeout(() => initEngine(), 50);
@@ -795,57 +919,53 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                           {/* 1. 카테고리 위계 선택 */}
                           <div className="flex flex-col gap-1.5 bg-slate-500/5 border border-slate-200/40 rounded-2xl p-3 shadow-2xs">
                             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">상위 카테고리 (그룹) 소속 지정</label>
-                            <div className="flex gap-2">
-                              <select
-                                disabled={activeNode.id.startsWith('root-') && (!activeNode.parentId || activeNode.parentId === 'root-HCHPS' || activeNode.parentId === 'NONE')}
-                                value={activeNode.parentId ? activeNode.parentId : 'NONE'}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  if (val === 'NONE') {
-                                    setNodeOverride(activeNode.id, { customParent: 'NONE', customOrbitIndex: undefined, fixedX: undefined, fixedY: undefined });
-                                    setTimeout(() => {
-                                      if (engineRef.current) {
-                                        setActiveNode(prev => prev ? { ...prev, parentId: undefined, customOrbitIndex: undefined } : null);
-                                        initEngine();
-                                      }
-                                    }, 50);
-                                  } else {
-                                    const parentNode = engineRef.current?.nodes.find((n: OrbitalNode) => n.id === val);
-                                    const newOrbit = parentNode ? parentNode.orbitIndex + 1 : undefined;
-                                    removeCustomTombstone(activeNode.id, val);
-                                    setNodeOverride(activeNode.id, { customParent: val, customOrbitIndex: newOrbit, fixedX: undefined, fixedY: undefined });
-                                    setTimeout(() => {
-                                      if (engineRef.current) {
-                                        setActiveNode(prev => prev ? { ...prev, parentId: val, customOrbitIndex: newOrbit, orbitIndex: newOrbit ?? prev.orbitIndex } : null);
-                                        initEngine();
-                                      }
-                                    }, 50);
-                                  }
-                                }}
-                                className={`flex-1 text-xs px-2.5 py-2 rounded-xl border min-w-0 font-medium ${(activeNode.id.startsWith('root-') && (!activeNode.parentId || activeNode.parentId === 'root-HCHPS' || activeNode.parentId === 'NONE')) ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200 focus:outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)]/40 cursor-pointer'}`}
-                              >
-                                <option value="NONE">❌ 연결 해제 (독립된 맵으로 고립)</option>
-                                 {(activeNode.parentId && activeNode.parentId !== 'root-HCHPS' && !engineNodes.some((n: OrbitalNode) => n.id === activeNode.parentId)) && (
-                                   <option value={activeNode.parentId}>
-                                     👻 현재 맵에 없는 이전 부모 ({activeNode.parentId.replace('tag-', '').replace('custom-', '')})
-                                   </option>
-                                 )}
-                                 {engineNodes
-                                   .filter((n: OrbitalNode) => {
-                                      if (n.id === activeNode.parentId) return true;
-                                      if (activeNode.id.startsWith('root-') || activeNode.orbitIndex === 0) return false;
-                                      return n.id !== activeNode.id;
-                                   })
-                                   .sort((a: OrbitalNode, b: OrbitalNode) => {
-                                     if (a.orbitIndex !== b.orbitIndex) return a.orbitIndex - b.orbitIndex;
-                                     return a.label.localeCompare(b.label);
-                                   })
-                                   .map((c: OrbitalNode) => {
-                                     const prefix = c.orbitIndex === 0 ? '🌟 중심(에코):' : c.orbitIndex === 1 ? '📁 1차:' : c.orbitIndex === 2 ? '📄 2차:' : `📄 ${c.orbitIndex}차:`;
-                                     return <option key={c.id} value={c.id}>{prefix} {c.label}</option>;
-                                   })
-                                }
-                              </select>
+                            
+                            {/* 스마트 카테고리 추천 영역 */}
+                            {smartRecommendations.length > 0 && (
+                              <div className="flex flex-col gap-1 mb-1 bg-indigo-500/5 border border-indigo-500/10 rounded-xl p-2 animate-fade-in">
+                                <span className="text-[9px] font-bold text-indigo-600 flex items-center gap-1">
+                                  <Bot size={10} className="animate-pulse" /> 🤖 퀵 추천 카테고리
+                                </span>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {smartRecommendations.map(rec => (
+                                    <button
+                                      key={rec.id}
+                                      onClick={() => handleSelectParent(rec.id)}
+                                      className="px-2 py-0.5 text-[9.5px] font-semibold bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-400 active:bg-indigo-100 rounded-lg cursor-pointer transition-all shadow-3xs text-left"
+                                    >
+                                      {rec.label}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            
+                            <div className="flex gap-2 relative" ref={catDropdownRef}>
+                              <div className="flex-1 relative flex items-center">
+                                <input
+                                  type="text"
+                                  disabled={activeNode.id.startsWith('root-') && (!activeNode.parentId || activeNode.parentId === 'root-HCHPS' || activeNode.parentId === 'NONE')}
+                                  placeholder={activeNode.parentId ? "부모 카테고리 변경..." : "상위 카테고리 검색 및 지정..."}
+                                  value={catSearch}
+                                  onChange={(e) => {
+                                    setCatSearch(e.target.value);
+                                    setIsCatOpen(true);
+                                  }}
+                                  onFocus={() => setIsCatOpen(true)}
+                                  className={`w-full text-xs pl-2.5 pr-8 py-2 rounded-xl border font-medium focus:outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)]/40 ${(activeNode.id.startsWith('root-') && (!activeNode.parentId || activeNode.parentId === 'root-HCHPS' || activeNode.parentId === 'NONE')) ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200 cursor-text'}`}
+                                />
+                                {catSearch && (
+                                  <button
+                                    onClick={() => {
+                                      setCatSearch('');
+                                      setIsCatOpen(true);
+                                    }}
+                                    className="absolute right-2.5 p-0.5 text-slate-400 hover:text-slate-600 cursor-pointer rounded-full hover:bg-slate-100"
+                                  >
+                                    <X size={12} />
+                                  </button>
+                                )}
+                              </div>
                               
                               <button
                                 onClick={() => setParentModeSource(parentModeSource === activeNode.id ? null : activeNode.id)}
@@ -858,6 +978,44 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                               >
                                 <Crosshair size={14} />
                               </button>
+
+                              {/* Autocomplete Dropdown List */}
+                              {isCatOpen && !((activeNode.id.startsWith('root-') && (!activeNode.parentId || activeNode.parentId === 'root-HCHPS' || activeNode.parentId === 'NONE'))) && (
+                                <div className="absolute top-[100%] left-0 right-0 mt-1 max-h-[220px] overflow-y-auto bg-white border border-slate-200 rounded-2xl shadow-lg z-50 py-1.5 custom-scrollbar">
+                                  {/* 연결 해제 상시 노출 */}
+                                  <div
+                                    onClick={() => handleSelectParent('NONE')}
+                                    className="px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 cursor-pointer transition-all border-b border-slate-100 flex items-center gap-1.5"
+                                  >
+                                    <Unlink size={12} /> ❌ 연결 해제 (독립된 맵으로 고립)
+                                  </div>
+                                  
+                                  {filteredCategoryNodes.length === 0 ? (
+                                    <div className="px-3 py-2.5 text-xs text-slate-400 text-center font-medium">
+                                      검색된 카테고리가 없습니다
+                                    </div>
+                                  ) : (
+                                    filteredCategoryNodes.map((c: OrbitalNode) => {
+                                      const prefix = c.orbitIndex === 0 ? '🌟' : c.orbitIndex === 1 ? '📁 1차:' : c.orbitIndex === 2 ? '📄 2차:' : `📄 ${c.orbitIndex}차:`;
+                                      const isSelected = activeNode.parentId === c.id;
+                                      return (
+                                        <div
+                                          key={c.id}
+                                          onClick={() => handleSelectParent(c.id)}
+                                          className={`px-3 py-2 text-xs cursor-pointer transition-all flex items-center justify-between font-medium ${
+                                            isSelected 
+                                              ? 'bg-indigo-50 text-indigo-700 font-bold' 
+                                              : 'text-slate-700 hover:bg-slate-50'
+                                          }`}
+                                        >
+                                          <span>{prefix} {c.label}</span>
+                                          {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-indigo-600" />}
+                                        </div>
+                                      );
+                                    })
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </div>
                           
@@ -1066,7 +1224,7 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                                   
                                   if (parentNode) {
                                     engineRef.current.activeNode = parentNode;
-                                    (engineRef.current as any).pendingCameraTargetId = parentNode.id;
+                                    engineRef.current.pendingCameraTargetId = parentNode.id;
                                   } else {
                                     engineRef.current.activeNode = null;
                                   }

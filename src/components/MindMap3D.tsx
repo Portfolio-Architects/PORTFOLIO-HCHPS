@@ -376,6 +376,11 @@ export const MindMap3D = React.memo(function MindMap3D({ signalKeywords, signalE
         }
       }
 
+      // ----- 이전 엔진 리소스 해제 -----
+      if (engineRef.current) {
+        engineRef.current.destroy();
+      }
+
       engineRef.current = engine;
 
       // Set state AFTER engine is fully initialized (no callbacks during init)
@@ -651,18 +656,22 @@ export const MindMap3D = React.memo(function MindMap3D({ signalKeywords, signalE
       
       // 💡 마인드맵 페이지를 이탈할 때 노드들의 현재 공전 각도를 sessionStorage에 캐싱하여 저장합니다.
       const engine = engineRef.current;
-      if (engine && engine.nodes) {
-        try {
-          const angles: Record<string, number> = {};
-          engine.nodes.forEach(n => {
-            if (typeof n.orbitAngle === 'number' && !isNaN(n.orbitAngle)) {
-              angles[n.id] = n.orbitAngle;
-            }
-          });
-          sessionStorage.setItem('hchps-mindmap-orbit-angles', JSON.stringify(angles));
-        } catch (e) {
-          console.warn('[SessionStorage] Failed to save orbit angles on cleanup:', e);
+      if (engine) {
+        if (engine.nodes) {
+          try {
+            const angles: Record<string, number> = {};
+            engine.nodes.forEach(n => {
+              if (typeof n.orbitAngle === 'number' && !isNaN(n.orbitAngle)) {
+                angles[n.id] = n.orbitAngle;
+              }
+            });
+            sessionStorage.setItem('hchps-mindmap-orbit-angles', JSON.stringify(angles));
+          } catch (e) {
+            console.warn('[SessionStorage] Failed to save orbit angles on cleanup:', e);
+          }
         }
+        engine.destroy();
+        engineRef.current = null;
       }
     };
   }, [loading, error, isCloudLoaded, isActive]);

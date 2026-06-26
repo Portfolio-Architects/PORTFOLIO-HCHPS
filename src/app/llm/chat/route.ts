@@ -214,9 +214,15 @@ export async function POST(req: Request) {
         let retries = 2;
         while (retries > 0) {
           try {
-            result = await chat.sendMessage(optimizedContent);
+            if (req.signal?.aborted) {
+              throw new DOMException('Aborted', 'AbortError');
+            }
+            result = await chat.sendMessage(optimizedContent, { signal: req.signal });
             break;
           } catch (err: any) {
+            if (err.name === 'AbortError' || req.signal?.aborted) {
+              throw err;
+            }
             retries--;
             if (retries === 0) throw err;
             console.warn(`[Chat API] ${modelName} call failed, retrying...`, err.message);
@@ -231,6 +237,9 @@ export async function POST(req: Request) {
       } catch (err: any) {
         console.error(`[Chat API] Model ${modelName} failed entirely:`, err.message || err);
         apiError = err;
+        if (err.name === 'AbortError' || req.signal?.aborted) {
+          break; // AbortError가 감지되면 즉시 다른 모델 시도 중단
+        }
       }
     }
 
@@ -240,6 +249,9 @@ export async function POST(req: Request) {
       responseText = cleanGemmaResponse(rawResponseText);
       console.log(`[Chat API] Successfully responded using model ${successfulModel}`);
     } else {
+      if (req.signal?.aborted || (apiError && apiError.name === 'AbortError')) {
+        return NextResponse.json({ error: 'Request aborted' }, { status: 499 });
+      }
       console.warn('[Chat API] All generative models exhausted or quota limit reached. Triggering Local RAG Database Fallback.', apiError);
       
       let localAnswer = `📢 [안내: Gemini API 일일 할당량 소진 또는 오프라인 상태로 인해 로컬 RAG 지식베이스 검색 결과로 대체합니다.]\n\n`;

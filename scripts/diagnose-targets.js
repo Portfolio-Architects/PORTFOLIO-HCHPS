@@ -123,7 +123,7 @@ try {
     
     // Check for empty dependency arrays in useEffect that might cause infinite rendering if states are mutated within them
     if (content.includes('useEffect') && content.includes('set')) {
-      const useEffectMatches = content.match(/useEffect\s*\(\s*\(\s*\)\s*=>\s*\{[\s\S]*?\}\s*,\s*\[\s*\]\s*\)/g);
+      const useEffectMatches = content.match(/useEffect\s*\(\s*\(\s*\)\s*=>\s*\{((?:(?!useEffect|useCallback)[\s\S])*?)\}\s*,\s*\[\s*\]\s*\)/g);
       if (useEffectMatches) {
         useEffectMatches.forEach(effectMatch => {
           // If we mutate local states within an empty dependency array effect without proper gating, it could loop or miss updates

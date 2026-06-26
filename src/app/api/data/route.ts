@@ -116,6 +116,25 @@ async function readData(sheet: string, retries = 5, delay = 50): Promise<any[]> 
       }
       // If parsing fails due to incomplete writes (SyntaxError) or empty file, wait and retry.
       if (attempt === retries) {
+        console.warn(`[API] Read parsed failed for ${sheet} after all attempts. Trying Self-Healing recovery from backups...`);
+        try {
+          const backupDir = path.join(process.cwd(), 'data', 'backups', sheet);
+          const files = await fs.readdir(backupDir);
+          const jsonFiles = files.filter(f => f.endsWith('.json') && !f.endsWith('.tmp')).sort();
+          if (jsonFiles.length > 0) {
+            const latestBackupFile = path.join(backupDir, jsonFiles[jsonFiles.length - 1]);
+            const backupData = await fs.readFile(latestBackupFile, 'utf-8');
+            const parsed = JSON.parse(backupData);
+            
+            // 깨진 원본 파일을 백업본으로 복원
+            await safeWriteFile(filePath, backupData);
+            console.info(`[API Self-Healing] Successfully recovered sheet ${sheet} from backup: ${jsonFiles[jsonFiles.length - 1]}`);
+            return parsed;
+          }
+        } catch (recoveryErr) {
+          console.error(`[API Self-Healing] Failed to recover sheet ${sheet} from backups:`, recoveryErr);
+        }
+
         console.error(`[API] Read parsed failed for ${sheet} after ${retries} attempts:`, err);
         throw err;
       }

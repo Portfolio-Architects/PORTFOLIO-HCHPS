@@ -87,6 +87,7 @@ export interface OntologyNode {
   baseValue: number;           // 0-100, user-input importance
   parentId?: string;           // Optional parent ID for radial branch alignment
   layerId?: OntologyLayerId;   // 0: 인물, 1: 예산/비품, 2: 업무/회의, 3: 위키/문서
+  meta?: Record<string, any>;  // Custom payload for specific nodes
   // === User Overrides ===
   fixedX?: number;             // User pinned X coordinate
   fixedY?: number;             // User pinned Y coordinate
@@ -132,11 +133,18 @@ export interface OrbitalNode extends OntologyNode {
   topoHidden?: boolean;        // true if hidden topologically by parent collapse
   degree?: number;             // 💡 연결된 엣지의 총 개수 (센트럴리티 비례 동적 중력 제어용)
   index?: number;              // 정수 기반 키 해싱 및 가비지 프리 물리 계산용 인덱스
+  minAngle?: number;           // radial boundary constraint
+  maxAngle?: number;           // radial boundary constraint
+  radialOffset?: number;       // radial spacing distance adjustment
+  perspectiveScale?: number;   // 3D Isometric depth perspective scaling factor
   _cachedWords?: string[];
   _cachedLines?: string[];
   _cachedInteractiveText?: string;
   _cachedLinesMaxWidth500?: number;
   _cachedLinesMaxWidth600?: number;
+  _cachedTemplate?: HTMLCanvasElement;
+  _cachedTemplateColor?: string;
+  _cachedTemplateCluster?: boolean;
 }
 
 // ============ Edge ============

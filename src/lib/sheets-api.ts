@@ -7,6 +7,8 @@
 
 import { encryptPayload, decryptPayload, getAuthToken } from '@/lib/crypto';
 import { getDomainSchema } from '@/lib/schemas';
+import { z } from 'zod';
+import * as Y from 'yjs';
 
 const API_BASE = '/api/data';
 
@@ -91,10 +93,7 @@ export async function readSheet<T>(sheetName: string): Promise<T[]> {
     const rawRows = await Promise.all(decryptedPromises);
     
     // Global Tombstone: Filter out deleted items to prevent Cloudflare KV eventual consistency zombie data
-    let deletedIds: string[] = [];
-    if (typeof window !== 'undefined') {
-      try { deletedIds = JSON.parse(localStorage.getItem('hchps-global-tombstones') || '[]'); } catch {}
-    }
+    const deletedIds = getTombstones().map(t => t.id);
     
     // Zod Runtimes Validation (Fail-Safe)
     const schema = getDomainSchema(sheetName);
@@ -113,6 +112,21 @@ export async function readSheet<T>(sheetName: string): Promise<T[]> {
           console.error(`Row ID: ${row.id || 'unknown'}`);
           console.error(`Errors:`, JSON.stringify(result.error.format(), null, 2));
           console.error(`======================================================\n`);
+
+          // 1. Zod 에러 이벤트를 발송하여 UI에 경고/복구 유도
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('hchps-zod-error', {
+              detail: { sheetName, rowId: row.id, errors: result.error.format() }
+            }));
+          }
+
+          // 2. Sandboxing: 깨진 필드만 기본값으로 자동 보정하여 화면 붕괴(다운타임) 방지
+          try {
+            const sanitized = sanitizeRowWithFallback(row, schema);
+            validRows.push(sanitized);
+          } catch (sanitizeErr) {
+            console.error('[API Sandboxing] Failed to sanitize row:', sanitizeErr);
+          }
         }
       } else {
         validRows.push(row);
@@ -203,11 +217,13 @@ export async function updateRow<T = Record<string, unknown>>(sheetName: string, 
 export async function deleteRow(sheetName: string, id: string): Promise<boolean> {
   if (typeof window !== 'undefined') {
     try {
-      const deletedIds = JSON.parse(localStorage.getItem('hchps-global-tombstones') || '[]');
-      if (!deletedIds.includes(id)) {
-        deletedIds.push(id);
-        localStorage.setItem('hchps-global-tombstones', JSON.stringify(deletedIds));
+      const tombstones = getTombstones();
+      if (!tombstones.some(t => t.id === id)) {
+        tombstones.push({ id, deletedAt: Date.now() });
+        localStorage.setItem('hchps-global-tombstones', JSON.stringify(tombstones));
       }
+      // 30일 만료된 툼스톤 정리 GC 구동
+      purgeExpiredTombstones();
     } catch {}
   }
   return writeData(sheetName, 'delete', undefined, id);
@@ -237,12 +253,111 @@ export function isGoogleSheetsConfigured(): boolean {
 export async function syncTombstones(): Promise<void> {
   if (typeof window === 'undefined') return;
   try {
-    const serverTombstones = await readSheet<string>('GLOBAL_TOMBSTONES');
+    const serverTombstones = await readSheet<{ id: string; deletedAt?: number } | string>('GLOBAL_TOMBSTONES');
     if (Array.isArray(serverTombstones)) {
-      localStorage.setItem('hchps-global-tombstones', JSON.stringify(serverTombstones));
-      console.info('[Tombstone Sync] 글로벌 톰스톤 목록 동기화 완료:', serverTombstones);
+      const parsedTombstones = serverTombstones.map(item => {
+        if (typeof item === 'string') {
+          return { id: item, deletedAt: Date.now() };
+        }
+        return { id: item.id, deletedAt: item.deletedAt || Date.now() };
+      });
+      localStorage.setItem('hchps-global-tombstones', JSON.stringify(parsedTombstones));
+      console.info('[Tombstone Sync] 글로벌 툼스톤 목록 동기화 완료:', parsedTombstones);
+      
+      // 동기화 시점에 GC 구동
+      purgeExpiredTombstones();
     }
   } catch (err) {
-    console.error('[Tombstone Sync] 글로벌 톰스톤 목록 동기화 실패:', err);
+    console.error('[Tombstone Sync] 글로벌 툼스톤 목록 동기화 실패:', err);
   }
+}
+
+// ============ Tombstone & Zod Sandbox Helpers ============
+
+/**
+ * 툼스톤 캐시 목록을 안전하게 파싱 및 마이그레이션하여 반환합니다.
+ */
+export function getTombstones(): Array<{ id: string; deletedAt: number }> {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem('hchps-global-tombstones') || '[]';
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed.map((item: any) => {
+        if (typeof item === 'string') {
+          return { id: item, deletedAt: Date.now() }; // 하위 호환 마이그레이션
+        }
+        return { id: item.id || 'unknown', deletedAt: item.deletedAt || Date.now() };
+      });
+    }
+  } catch {}
+  return [];
+}
+
+/**
+ * 30일이 경과한 노드/간선의 만료된 툼스톤을 영구히 GC 클린업합니다.
+ */
+export function purgeExpiredTombstones(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const tombstones = getTombstones();
+    const now = Date.now();
+    const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+    
+    const activeTombstones = tombstones.filter(t => (now - t.deletedAt) < thirtyDays);
+    const expiredTombstones = tombstones.filter(t => (now - t.deletedAt) >= thirtyDays);
+    
+    if (expiredTombstones.length > 0) {
+      localStorage.setItem('hchps-global-tombstones', JSON.stringify(activeTombstones));
+      console.info(`[Tombstone GC] Purged ${expiredTombstones.length} expired tombstones:`, expiredTombstones);
+      
+      // Yjs deletedEdgesMap 에서도 툼스톤 동시 삭제
+      const globalYProvider = (window as any).__globalYProvider;
+      if (globalYProvider && globalYProvider.doc) {
+        const ydoc = globalYProvider.doc as Y.Doc;
+        const deletedEdgesMap = ydoc.getMap('deletedEdgesMap');
+        
+        ydoc.transact(() => {
+          expiredTombstones.forEach(t => {
+            if (deletedEdgesMap.has(t.id)) {
+              deletedEdgesMap.delete(t.id);
+            }
+          });
+        });
+      }
+    }
+  } catch (err) {
+    console.error('[Tombstone GC] Failed to purge tombstones:', err);
+  }
+}
+
+/**
+ * Zod 검증이 실패한 Row 객체에 대해 스키마 기본 정의 폴백값으로 강제 정화(Sanitize)합니다.
+ */
+function sanitizeRowWithFallback(row: any, schema: any): any {
+  const clean = { ...row };
+  if (schema && schema.shape) {
+    for (const key of Object.keys(schema.shape)) {
+      const fieldSchema = schema.shape[key];
+      const fieldResult = fieldSchema.safeParse(clean[key]);
+      if (!fieldResult.success) {
+        // 1. safeParse(undefined)를 통해 catch() 매핑 기본값 추출 시도
+        const fallbackResult = fieldSchema.safeParse(undefined);
+        if (fallbackResult.success) {
+          clean[key] = fallbackResult.data;
+        } else {
+          // 2. 강제 깡통 디폴트값 주입
+          if (fieldSchema instanceof z.ZodString) clean[key] = '';
+          else if (fieldSchema instanceof z.ZodNumber) clean[key] = 0;
+          else if (fieldSchema instanceof z.ZodBoolean) clean[key] = false;
+          else if (fieldSchema instanceof z.ZodArray) clean[key] = [];
+          else if (fieldSchema instanceof z.ZodEnum) clean[key] = (fieldSchema as z.ZodEnum<any>).options[0];
+          else clean[key] = null;
+        }
+      } else {
+        clean[key] = fieldResult.data;
+      }
+    }
+  }
+  return clean;
 }

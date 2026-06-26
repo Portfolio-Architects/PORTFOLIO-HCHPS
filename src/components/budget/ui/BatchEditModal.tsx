@@ -13,7 +13,7 @@ interface BatchEditModalProps {
 }
 
 export function BatchEditModal({ isOpen, onClose, title, categories, onApply }: BatchEditModalProps) {
-  const [batchBudgetType, setBatchBudgetType] = useState('');
+  const [batchBudgetType, setBatchBudgetType] = useState<'본예산' | '간주예산' | '추경' | ''>('');
   const [batchFundingSplits, setBatchFundingSplits] = useState<{source: string, ratio: string}[]>([{source: '', ratio: ''}]);
 
   useEffect(() => {
@@ -37,7 +37,7 @@ export function BatchEditModal({ isOpen, onClose, title, categories, onApply }: 
 
     const updates: Partial<BudgetCategory> = {};
     if (batchBudgetType !== '') {
-      updates.budgetType = batchBudgetType as any;
+      updates.budgetType = batchBudgetType;
     }
 
     onApply(updates, hasBatchRatios ? batchFundingSplits : undefined);
@@ -55,7 +55,7 @@ export function BatchEditModal({ isOpen, onClose, title, categories, onApply }: 
 
         <div className="space-y-2">
           <label className="text-sm font-semibold text-gray-700 block">예산 구분 변경 (선택)</label>
-          <select value={batchBudgetType} onChange={e => setBatchBudgetType(e.target.value)} className={inputClass}>
+          <select value={batchBudgetType} onChange={e => setBatchBudgetType(e.target.value as "" | "본예산" | "간주예산" | "추경")} className={inputClass}>
             <option value="">변경 안함 (기존 유지)</option>
             <option value="본예산">본예산</option>
             <option value="간주예산">간주예산</option>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useMutation } from '@tanstack/react-query';
 
 export type MessageRole = 'user' | 'assistant' | 'system';
@@ -19,6 +19,7 @@ interface ChatMutationPayload {
 export function useAIChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isTyping, setIsTyping] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem('hchps_ai_chat');
@@ -53,13 +54,51 @@ export function useAIChat() {
     localStorage.removeItem('hchps_ai_chat');
   };
 
+  const cancelChat = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setIsTyping(false);
+    addMessage({
+      role: 'system',
+      content: '대화가 중단되었습니다.'
+    });
+  };
+
   const chatMutation = useMutation({
     mutationFn: async (payload: ChatMutationPayload) => {
+      // 6000자 초과 시 슬라이딩 윈도우 Pruning 적용 (토큰 절약 및 Context 유실 최소화)
+      const prunedMessages = [...payload.messages];
+      const getLength = (msgs: Array<{ role: string; content: string }>) => 
+        msgs.reduce((sum, m) => sum + m.content.length, 0);
+
+      while (prunedMessages.length > 0 && getLength(prunedMessages) > 6000) {
+        // 첫 번째 메시지가 system인 경우 컨텍스트 유지를 위해 보존하고 1번째 메시지(사용자 첫대화)를 제거
+        if (prunedMessages[0].role === 'system' && prunedMessages.length > 1) {
+          prunedMessages.splice(1, 1);
+        } else {
+          prunedMessages.shift();
+        }
+      }
+
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
       const res = await fetch('/llm/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          ...payload,
+          messages: prunedMessages
+        }),
+        signal: controller.signal
       });
+      
       if (!res.ok) {
         throw new Error('API request failed');
       }
@@ -71,7 +110,11 @@ export function useAIChat() {
     onSuccess: (data) => {
       addMessage({ role: 'assistant', content: data.content });
     },
-    onError: (err) => {
+    onError: (err: any) => {
+      if (err.name === 'AbortError') {
+        // Abort 에러는 별도로 system 메시지를 중복해서 뿌리지 않고 무시하거나 cancelChat에서 남김
+        return;
+      }
       console.error('Chat error:', err);
       addMessage({ 
         role: 'system', 
@@ -80,6 +123,7 @@ export function useAIChat() {
     },
     onSettled: () => {
       setIsTyping(false);
+      abortControllerRef.current = null;
     }
   });
 
@@ -87,6 +131,7 @@ export function useAIChat() {
     messages,
     addMessage,
     clearMessages,
+    cancelChat,
     isTyping,
     setIsTyping,
     chatMutation

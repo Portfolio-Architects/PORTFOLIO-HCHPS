@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useCallback, useMemo, useSyncExternalStore, useRef, useState } from 'react';
-import { OntologyNode, OntologyEdge } from '@/lib/ontology.types';
-import { useYjsStore } from './useYjsStore';
+import { OntologyNode, OntologyEdge, EdgeType } from '@/lib/ontology.types';
+import { useYjsStore, runSafeTransaction } from './useYjsStore';
 import * as Y from 'yjs';
 import { readSheet, replaceAll } from '@/lib/sheets-api';
 
@@ -259,7 +259,7 @@ export function useGraphCustomization() {
     });
   }, [ydoc]);
 
-  const addCustomEdge = useCallback((source: string, target: string, type: string = 'DEPENDENCY', weight: number = 1.0) => {
+  const addCustomEdge = useCallback((source: string, target: string, type: EdgeType = 'DEPENDENCY', weight: number = 1.0) => {
     const edgeId = `${source}|||${target}`;
     const reverseId = `${target}|||${source}`;
     
@@ -272,7 +272,7 @@ export function useGraphCustomization() {
       if (deletedMap.has(reverseId)) deletedMap.delete(reverseId);
 
       if (!map.has(edgeId) && !map.has(reverseId)) {
-        map.set(edgeId, { source, target, weight, type: type as any });
+        map.set(edgeId, { source, target, weight, type });
       }
     });
   }, [ydoc]);
@@ -480,7 +480,7 @@ export function useGraphCustomization() {
         if (rows && rows.length > 0 && rows[0].id === 'singleton' && active) {
           const dbData = rows[0];
           
-          ydoc.transact(() => {
+          await runSafeTransaction(ydoc, () => {
             const customNodesMap = ydoc.getMap('customNodesMap') as Y.Map<OntologyNode>;
             const customEdgesMap = ydoc.getMap('customEdgesMap') as Y.Map<OntologyEdge>;
             

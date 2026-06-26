@@ -60,6 +60,7 @@ export class OntologyCanvasEngine {
   public isInitialCameraSnap: boolean = true;
   public physicsAlpha = 1.0;
   private idleFramesCount = 0;
+  private physicsFrameCount = 0;
 
   // Physics / Interaction
   isOrbiting = false;
@@ -116,6 +117,8 @@ export class OntologyCanvasEngine {
 
 
   public wakeUp(): void {
+    this.physicsFrameCount = 0;
+    this.physicsAlpha = 1.0;
     this.idleFramesCount = 0;
     this.needsRedraw = true;
   }
@@ -196,7 +199,7 @@ export class OntologyCanvasEngine {
     });
 
     // 이전 엔진 상태(현재 공전 각도)를 백업해두어, 색상 변경 등으로 재초기화될 때 노드가 시작 좌표로 순간이동하는 현상(Whiplash)을 방지합니다.
-    const previousNodeMap = new Map<string, OrbitalNode>();
+    const previousNodeMap = new Map<string, Partial<OrbitalNode>>();
     if (prevNodes) {
       for (const n of prevNodes) {
         previousNodeMap.set(n.id, n);
@@ -209,7 +212,7 @@ export class OntologyCanvasEngine {
           if (cachedAnglesStr) {
             const cachedAngles = JSON.parse(cachedAnglesStr);
             Object.entries(cachedAngles).forEach(([id, angle]) => {
-              previousNodeMap.set(id, { id, orbitAngle: Number(angle) } as any);
+              previousNodeMap.set(id, { id, orbitAngle: Number(angle) });
             });
           }
         } catch (e) {
@@ -337,7 +340,7 @@ export class OntologyCanvasEngine {
       leaves.forEach(node => {
         let angle = Math.random() * Math.PI * 2;
         const preData = previousNodeMap.get(node.id);
-        if (preData) {
+        if (preData && typeof preData.orbitAngle === 'number' && !isNaN(preData.orbitAngle)) {
           angle = preData.orbitAngle;
         }
         
@@ -557,32 +560,32 @@ export class OntologyCanvasEngine {
     // 그리드에 노드 파티셔닝
     for (const node of nodes) {
       if (node.layoutHidden || node.id === this.centerNode?.id || node.id === 'root-HCHPS') continue;
-      if (node.worldX === undefined || node.worldY === undefined || isNaN(node.worldX) || isNaN(node.worldY)) continue;
-      const gx = Math.floor(node.worldX / cellSize);
-      const gy = Math.floor(node.worldY / cellSize);
+      if (node.worldX === undefined || node.worldY === undefined || isNaN(node.worldX!) || isNaN(node.worldY!)) continue;
+      const gx = Math.floor(node.worldX! / cellSize);
+      const gy = Math.floor(node.worldY! / cellSize);
       const cellKey = ((gx + 32768) << 16) | (gy + 32768);
       
       let cell = this.spatialGrid.get(cellKey);
       if (!cell) {
         if (this.cellArrayPoolUsed < this.cellArrayPool.length) {
           cell = this.cellArrayPool[this.cellArrayPoolUsed++];
-          cell.length = 0;
+          cell!.length = 0;
         } else {
           cell = [];
-          this.cellArrayPool.push(cell);
+          this.cellArrayPool.push(cell!);
           this.cellArrayPoolUsed++;
         }
-        this.spatialGrid.set(cellKey, cell);
+        this.spatialGrid.set(cellKey, cell!);
       }
-      cell.push(node);
+      cell!.push(node);
     }
     
     for (const nodeA of nodes) {
       if (nodeA.layoutHidden || nodeA.id === this.centerNode?.id || nodeA.id === 'root-HCHPS') continue;
-      if (nodeA.worldX === undefined || nodeA.worldY === undefined || isNaN(nodeA.worldX) || isNaN(nodeA.worldY)) continue;
+      if (nodeA.worldX === undefined || nodeA.worldY === undefined || isNaN(nodeA.worldX!) || isNaN(nodeA.worldY!)) continue;
       
-      const ax = nodeA.worldX;
-      const ay = nodeA.worldY;
+      const ax = nodeA.worldX!;
+      const ay = nodeA.worldY!;
       const rA = nodeA.nodeRadius;
       
       // Spatial Hash Grid 9셀 조회
@@ -595,7 +598,7 @@ export class OntologyCanvasEngine {
           const neighborNodes = this.spatialGrid.get(neighborKey);
           if (!neighborNodes) continue;
           
-          for (const nodeB of neighborNodes) {
+          for (const nodeB of neighborNodes!) {
             if (nodeB.id === nodeA.id) continue;
             
             // 💡 서로 다른 레이어에 속한 노드들은 3D 입체 투영(Z축 높이가 다름)에 의해 절대 겹치지 않으므로
@@ -745,8 +748,8 @@ export class OntologyCanvasEngine {
         continue;
       }
 
-      const isFixed = (node as any).fixedX !== undefined && (node as any).fixedX !== null && 
-                      (node as any).fixedY !== undefined && (node as any).fixedY !== null;
+      const isFixed = node.fixedX !== undefined && node.fixedX !== null && 
+                      node.fixedY !== undefined && node.fixedY !== null;
       const isDraggedNode = this.draggedNode?.id === node.id;
       
       if (isFixed || isDraggedNode) {
@@ -780,7 +783,7 @@ export class OntologyCanvasEngine {
       
       if (node.orbitIndex === 1) {
         // 1차 카테고리 노드는 중심으로부터 항상 일정한 궤도 반경을 유지하도록 강제 투영 보정 (각도는 유지)
-        const currentAngle = Math.atan2(node.worldY, node.worldX);
+        const currentAngle = Math.atan2(node.worldY!, node.worldX!);
         const R = OntologyLayout.getOrbitRadius(1);
         node.worldX = R * Math.cos(currentAngle) * 1.3; // ELLIPSE_RATIO = 1.3
         node.worldY = R * Math.sin(currentAngle);
@@ -794,8 +797,8 @@ export class OntologyCanvasEngine {
     let maxSpeedFound = 0;
     for (const node of nodes) {
       if (node.layoutHidden || node.id === this.centerNode?.id || node.id === 'root-HCHPS') continue;
-      const isFixed = (node as any).fixedX !== undefined && (node as any).fixedX !== null && 
-                      (node as any).fixedY !== undefined && (node as any).fixedY !== null;
+      const isFixed = node.fixedX !== undefined && node.fixedX !== null && 
+                      node.fixedY !== undefined && node.fixedY !== null;
       if (isFixed) continue;
       const sp = Math.sqrt((node.vx ?? 0) * (node.vx ?? 0) + (node.vy ?? 0) * (node.vy ?? 0));
       if (sp > maxSpeedFound) {
@@ -836,10 +839,16 @@ export class OntologyCanvasEngine {
     const isInteractive = this.isDragging || isCameraMoving || isAnyNodeMoving;
 
     // 만약 사용자가 조작 중이거나(isInteractive) 물리 연산이 덜 끝났다면(physicsAlpha > 0.005) 깨어있는다.
-    if (isInteractive || this.physicsAlpha > 0.005) {
+    if (isInteractive) {
       this.idleFramesCount = 0;
+      this.physicsFrameCount = 0;
+      this.physicsAlpha = 1.0;
     } else {
       this.idleFramesCount++;
+      this.physicsFrameCount++;
+      if (this.physicsFrameCount >= 120) {
+        this.physicsAlpha = 0;
+      }
     }
 
     // 💡 약 1.5초(90프레임)간 완전한 유휴 상태가 지속되면 궤도 공전을 일시정지(Sleep)하여 
@@ -876,10 +885,10 @@ export class OntologyCanvasEngine {
     let nodesMoving = false;
     for (const node of this.nodes) {
       if (node.targetWorldX !== undefined && node.targetWorldY !== undefined) {
-        if (node.worldX === undefined || isNaN(node.worldX)) {
+        if (node.worldX === undefined || isNaN(node.worldX!)) {
           node.worldX = node.targetWorldX;
         }
-        if (node.worldY === undefined || isNaN(node.worldY)) {
+        if (node.worldY === undefined || isNaN(node.worldY!)) {
           node.worldY = node.targetWorldY;
         }
 
@@ -940,7 +949,7 @@ export class OntologyCanvasEngine {
     const isCameraMoving = Math.abs(this.targetOffsetX - this.cameraOffsetX) > 0.5 || 
                            Math.abs(this.targetOffsetY - this.cameraOffsetY) > 0.5 ||
                            Math.abs(this.targetZoom - this.zoom) > 0.005;
-    const isInteractive = this.isDragging || isCameraMoving;
+    const isInteractive = this.isDragging || isCameraMoving || this.physicsFrameCount < 120;
 
     const activeLayersKey = activeLayers ? Array.from(activeLayers).sort().join(',') : '';
     const collapsedNodesKey = Array.from(this.collapsedNodeIds).sort().join(',');
@@ -950,6 +959,7 @@ export class OntologyCanvasEngine {
                     !this.isDragging &&
                     !this.hasNodeMoved &&
                     !this.isOrbiting && // 💡 공전 중일 때는 2D 투영 좌표 갱신 스킵을 차단하여 60 FPS 회전을 지속시킵니다.
+                    this.physicsFrameCount >= 120 && // 물리 수렴 중에는 스킵하지 않음
                     this.lastLayoutInputs &&
                     this.lastLayoutInputs.canvasW === canvasW &&
                     this.lastLayoutInputs.canvasH === canvasH &&
@@ -958,7 +968,7 @@ export class OntologyCanvasEngine {
                     this.lastLayoutInputs.zoom === this.zoom &&
                     this.lastLayoutInputs.activeLayersKey === activeLayersKey &&
                     this.lastLayoutInputs.collapsedNodesKey === collapsedNodesKey &&
-                    !this.lastLayoutInputs.isInteractive;
+                    this.lastLayoutInputs.isInteractive === isInteractive;
 
     if (canSkip) {
       // Viewport is stationary, world geometry is clean, and the last run was already non-interactive.
@@ -1479,5 +1489,39 @@ export class OntologyCanvasEngine {
     const lg = Math.round(g + (255 - g) * amount);
     const lb = Math.round(b + (255 - b) * amount);
     return `rgb(${lr},${lg},${lb})`;
+  }
+
+  destroy(): void {
+    // Release node HTMLCanvasElement template caches (GC)
+    for (const node of this.nodes) {
+      if (node._cachedTemplate) {
+        node._cachedTemplate.width = 0;
+        node._cachedTemplate.height = 0;
+        node._cachedTemplate = undefined;
+      }
+      node._cachedWords = undefined;
+      node._cachedLines = undefined;
+      node._cachedInteractiveText = undefined;
+    }
+
+    this.nodes = [];
+    this.edges = [];
+    this.centralitySortedNodes = [];
+    this.centerNode = null;
+    this.activeNode = null;
+    this.hoveredNode = null;
+    this.previousActiveNodeId = null;
+    this.pendingCameraTargetId = null;
+
+    this.nodeMap.clear();
+    this.connectionSet.clear();
+    this.spatialGrid.clear();
+    this.cellArrayPool.length = 0;
+    this.physicsEdges = [];
+    this.sortedNodes = [];
+    this.callbacks = {};
+
+    // Clear static renderer cache
+    OntologyRenderer.clearTextBoxPool();
   }
 }

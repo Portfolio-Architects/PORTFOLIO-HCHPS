@@ -466,8 +466,8 @@ export class OntologyRenderer {
 
       // Smooth step bezier variables (좌에서 우로)
       // 콤팩트해진 텍스트 박스 크기에 맞춰 선의 시작점을 안쪽으로 축소
-      const leftScale = (leftNode as any).perspectiveScale ?? 1.0;
-      const rightScale = (rightNode as any).perspectiveScale ?? 1.0;
+      const leftScale = leftNode.perspectiveScale ?? 1.0;
+      const rightScale = rightNode.perspectiveScale ?? 1.0;
       const avgScale = (leftScale + rightScale) / 2;
 
       // 도트 노드의 정중앙 좌표를 직선 시작/끝 영점으로 완벽 동조시킵니다 (기존 사각형 카드용 30px 오프셋 제거)
@@ -586,8 +586,8 @@ export class OntologyRenderer {
           const ux = dx / dist;
           const uy = dy / dist;
           
-          const srcR = src.nodeRadius * rc.zoom * ((src as any).perspectiveScale ?? 1.0);
-          const tgtR = tgt.nodeRadius * rc.zoom * ((tgt as any).perspectiveScale ?? 1.0);
+          const srcR = src.nodeRadius * rc.zoom * (src.perspectiveScale ?? 1.0);
+          const tgtR = tgt.nodeRadius * rc.zoom * (tgt.perspectiveScale ?? 1.0);
           
           batchedEdge.x1 = src.renderX + ux * srcR;
           batchedEdge.y1 = src.renderY + uy * srcR;
@@ -948,6 +948,49 @@ export class OntologyRenderer {
         }
       }
     } else {
+      const gridCellSize = 120;
+      const spatialGrid = new Map<string, Array<{x1: number, y1: number, x2: number, y2: number}>>();
+
+      const getGridKeys = (x1: number, y1: number, x2: number, y2: number) => {
+        const keys = new Set<string>();
+        const colStart = Math.floor(x1 / gridCellSize);
+        const colEnd = Math.floor(x2 / gridCellSize);
+        const rowStart = Math.floor(y1 / gridCellSize);
+        const rowEnd = Math.floor(y2 / gridCellSize);
+
+        for (let r = rowStart; r <= rowEnd; r++) {
+          for (let c = colStart; c <= colEnd; c++) {
+            keys.add(`${r},${c}`);
+          }
+        }
+        return keys;
+      };
+
+      const addBoxToGrid = (box: {x1: number, y1: number, x2: number, y2: number}) => {
+        const keys = getGridKeys(box.x1, box.y1, box.x2, box.y2);
+        for (const key of keys) {
+          if (!spatialGrid.has(key)) {
+            spatialGrid.set(key, []);
+          }
+          spatialGrid.get(key)!.push(box);
+        }
+      };
+
+      const checkOverlapWithGrid = (rect: {x1: number, y1: number, x2: number, y2: number}) => {
+        const keys = getGridKeys(rect.x1, rect.y1, rect.x2, rect.y2);
+        for (const key of keys) {
+          const boxes = spatialGrid.get(key);
+          if (boxes) {
+            for (const box of boxes) {
+              if (!(rect.x2 < box.x1 || rect.x1 > box.x2 || rect.y2 < box.y1 || rect.y1 > box.y2)) {
+                return true;
+              }
+            }
+          }
+        }
+        return false;
+      };
+
       for (const node of centralitySorted) {
         if (node.layoutHidden) continue;
         
@@ -959,7 +1002,7 @@ export class OntologyRenderer {
           OntologyRenderer.textAllowedSet.add(node.id);
           
           // 예상 바운딩 박스 계산 및 등록
-          const nodeScale = (node as any).perspectiveScale ?? 1.0;
+          const nodeScale = node.perspectiveScale ?? 1.0;
           const sizeFactor = 0.8 + 0.5 * (node.renderSize ?? 0.5);
           const localZoom = zoom * nodeScale * sizeFactor;
           const dotRadius = Math.max(0.1, (4 + 6 * sizeFactor) * localZoom * (isActive || isHovered ? 1.15 : 1.0));
@@ -967,8 +1010,8 @@ export class OntologyRenderer {
           const fontSize = Math.round((12 * localZoom) / 2) * 2;
           
           let textWidth = (node.label || '').length * 7.5;
-          if ((node as any)._cachedTextWidth) {
-            const cache = (node as any)._cachedTextWidth;
+          if (node._cachedTextWidth) {
+            const cache = node._cachedTextWidth;
             textWidth = cache['600'] || cache['500'] || textWidth;
           }
           
@@ -979,7 +1022,9 @@ export class OntologyRenderer {
           const x2 = x1 + textW + 12;
           const y2 = y1 + textH + 6;
           
-          this.drawnTextBoxesList.push(getTextBoxFromPool(x1, y1, x2, y2));
+          const box = getTextBoxFromPool(x1, y1, x2, y2);
+          this.drawnTextBoxesList.push(box);
+          addBoxToGrid(box);
           continue;
         }
 
@@ -989,13 +1034,14 @@ export class OntologyRenderer {
           continue;
         }
 
-        // 텍스트 라벨 최대 220개 등록 한계로 대폭 완화
-        if (this.drawnTextBoxesList.length >= 220) {
+        // 텍스트 라벨 최대 등록 한계 설정 (줌이 극도로 작을 때는 복잡도 방지를 위해 100개로 축소 제한)
+        const maxTextLimit = zoom < 0.5 ? 100 : 220;
+        if (this.drawnTextBoxesList.length >= maxTextLimit) {
           continue;
         }
 
         // 텍스트 바운딩 박스 계산
-        const nodeScale = (node as any).perspectiveScale ?? 1.0;
+        const nodeScale = node.perspectiveScale ?? 1.0;
         const sizeFactor = 0.8 + 0.5 * (node.renderSize ?? 0.5);
         const localZoom = zoom * nodeScale * sizeFactor;
         const dotRadius = Math.max(0.1, (4 + 6 * sizeFactor) * localZoom);
@@ -1004,34 +1050,32 @@ export class OntologyRenderer {
         const fontSize = Math.round((12 * localZoom) / 2) * 2;
         
         let textWidth = (node.label || '').length * 7.5;
-        if ((node as any)._cachedTextWidth) {
-          const cache = (node as any)._cachedTextWidth;
+        if (node._cachedTextWidth) {
+          const cache = node._cachedTextWidth;
           textWidth = cache['600'] || cache['500'] || textWidth;
         }
         
         const textH = fontSize + 4 * localZoom;
         const textW = textWidth + 8 * localZoom;
         
-        // 여유 마진 버퍼를 포함하여 겹침 검사
-        const x1 = node.renderX + textOffsetX - 4 * localZoom - 8;
-        const y1 = node.renderY - textH / 2 - 4;
-        const x2 = x1 + textW + 16;
-        const y2 = y1 + textH + 8;
+        // 여유 마진 버퍼를 포함하여 겹침 검사 (줌 배율이 작을 시 충돌 마진 대폭 축소)
+        const marginX = zoom < 0.5 ? 2 : 8;
+        const marginY = zoom < 0.5 ? 1 : 4;
+        const x1 = node.renderX + textOffsetX - 4 * localZoom - marginX;
+        const y1 = node.renderY - textH / 2 - marginY;
+        const x2 = x1 + textW + (marginX * 2);
+        const y2 = y1 + textH + (marginY * 2);
 
         const rect = { x1, y1, x2, y2 };
         
-        // 이미 그려진 텍스트 박스들과의 겹침 검사
-        let hasOverlap = false;
-        for (const box of this.drawnTextBoxesList) {
-          if (!(rect.x2 < box.x1 || rect.x1 > box.x2 || rect.y2 < box.y1 || rect.y1 > box.y2)) {
-            hasOverlap = true;
-            break;
-          }
-        }
+        // 이미 그려진 텍스트 박스들과의 겹침 검사 (공간 분할 테이블 조회)
+        const hasOverlap = checkOverlapWithGrid(rect);
 
         if (!hasOverlap) {
           OntologyRenderer.textAllowedSet.add(node.id);
-          this.drawnTextBoxesList.push(getTextBoxFromPool(x1, y1, x2, y2));
+          const box = getTextBoxFromPool(x1, y1, x2, y2);
+          this.drawnTextBoxesList.push(box);
+          addBoxToGrid(box);
         }
       }
     }
@@ -1052,7 +1096,7 @@ export class OntologyRenderer {
       const opacity = 1.0;
       const isInactiveOutsideFocus = !!(activeNodeId && !isActive && !isTreeActive && !isNeighbor && node.id !== 'root-HCHPS');
 
-      const nodeScale = (node as any).perspectiveScale ?? 1.0;
+      const nodeScale = node.perspectiveScale ?? 1.0;
       const weight = node.renderSize ?? 0.5;
       const sizeFactor = 0.8 + 0.5 * weight; // 0.8배 ~ 1.3배 가중치 비례 스케일링
       const localZoom = zoom * nodeScale * sizeFactor;
@@ -1112,7 +1156,7 @@ export class OntologyRenderer {
       const themeColor = node.themeColor || '#94A3B8';
 
       // 1) 리스크 노드 및 리스크 영향이 큰 노드 감지
-      const risk = (node as any).riskFactor ?? 0;
+      const risk = node.riskFactor ?? 0;
       const isRiskOrigin = node.group === 'SYSTEM_RISK';
       const isRiskAffected = risk > 0.3;
       const isRiskHigh = isRiskOrigin || isRiskAffected;
@@ -1163,12 +1207,12 @@ export class OntologyRenderer {
       } else {
         // 일반 상태나 타겟/호버 노드는 고화질 캐시 템플릿을 드로잉하여 입체감 보존 (save/restore 오버헤드 방지 및 static drawImage)
         if (typeof window !== 'undefined') {
-          let templateCanvas = (node as any)._cachedTemplate;
-          if (!templateCanvas || (node as any)._cachedTemplateColor !== themeColor || (node as any)._cachedTemplateCluster !== isCluster) {
+          let templateCanvas = node._cachedTemplate;
+          if (!templateCanvas || node._cachedTemplateColor !== themeColor || node._cachedTemplateCluster !== isCluster) {
             templateCanvas = this.getOrCreateNodeTemplate(themeColor, false, isCluster);
-            (node as any)._cachedTemplate = templateCanvas;
-            (node as any)._cachedTemplateColor = themeColor;
-            (node as any)._cachedTemplateCluster = isCluster;
+            node._cachedTemplate = templateCanvas;
+            node._cachedTemplateColor = themeColor;
+            node._cachedTemplateCluster = isCluster;
           }
           ctx.drawImage(
             templateCanvas,
@@ -1343,5 +1387,35 @@ export class OntologyRenderer {
     for (let i = 0; i < lines.length; i++) {
       ctx.fillText(lines[i], cx, startY + i * finalFontSize * 1.2);
     }
+  }
+
+  public static clearTextBoxPool(): void {
+    OntologyRenderer.textBoxPool.length = 0;
+    OntologyRenderer.drawnTextBoxesList.length = 0;
+    OntologyRenderer.textAllowedSet.clear();
+    OntologyRenderer.cachedNeighborsSet.clear();
+    OntologyRenderer.cachedDescendantsSet.clear();
+    
+    // Release HTMLCanvasElement template caches (GC)
+    OntologyRenderer.nodeCache.forEach((canvas) => {
+      canvas.width = 0;
+      canvas.height = 0;
+    });
+    OntologyRenderer.nodeCache.clear();
+    
+    OntologyRenderer.baseTextWidthCache.clear();
+    OntologyRenderer.fontParseCache.clear();
+    OntologyRenderer.colorMap.clear();
+    OntologyRenderer.colorCounter = 0;
+    OntologyRenderer.edgePool.length = 0;
+    OntologyRenderer.edgePoolUsed = 0;
+    OntologyRenderer.flowParticlesPool.length = 0;
+    OntologyRenderer.flowParticlesPoolUsed = 0;
+    OntologyRenderer.flowParticlesList.length = 0;
+    OntologyRenderer.labelsToDrawPool.length = 0;
+    OntologyRenderer.labelsToDrawPoolUsed = 0;
+    OntologyRenderer.labelsToDrawList.length = 0;
+    OntologyRenderer.lastActiveNodeId = null;
+    OntologyRenderer.lastActiveNodeIdForDescendants = null;
   }
 }
