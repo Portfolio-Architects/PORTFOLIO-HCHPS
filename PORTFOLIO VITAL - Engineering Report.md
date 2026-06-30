@@ -291,6 +291,27 @@ sequenceDiagram
 
 ## 8. 최근 엔지니어링 마일스톤 (요약)
 
+### 주소록 연락처 수정(수정 및 취소) 기능 구현 56차 패치 (2026-06-30)
+* **주소록 연락처 수정 UI 및 핸들러 추가**:
+  - `src/components/dashboard/ContactsBox.tsx` 컴포넌트 내에 `useContacts` 훅이 제공하는 `updateContact` 메소드를 연동했습니다.
+  - 연락처 카드에 "수정"(`Pencil` 아이콘) 버튼을 새로 도입하여, 클릭 시 해당 연락처의 이름, 전화번호, 이메일, 메모 데이터를 좌측 입력 폼에 즉시 바인딩하도록 구현했습니다.
+  - 수정 모드 진입 시 입력 폼의 타이틀이 "연락처 수정"으로 동적 변경되며, "연락처 수정 완료" 버튼 및 "수정 취소" 버튼을 노출하여 사용자 편의성을 높였습니다.
+  - 수정 제출 시 기존 E2EE 암호화 업로드 파이프라인(`updateContact`)을 거쳐 안전하게 데이터베이스와 Yjs 스토어에 동기화되도록 연계했습니다.
+* **정적 분석 및 빌드 안정성 통과**:
+  - `run-harness.js` 정적 분석 및 ESLint(Warnings: 0, Violations: 0) 상태를 확인하여 무결하게 병합을 완료했습니다.
+
+### 국가법령정보 및 자치법규 OpenAPI 실시간 연계 및 통합 조회 시스템 구축 55차 패치 (2026-06-30)
+* **국가법령 및 자치법규 OpenAPI 연동 라우트 생성**:
+  - `src/app/api/law/route.ts` API 라우트를 개설하여 공공데이터포털(`apis.data.go.kr`)의 법제처 OpenAPI 연계 중계 서버에 직접 바인딩했습니다.
+  - 현행 법령 목록/본문 조회(`lawSearchList.do` / `lawService.do`), 행정규칙 목록/본문 조회(`admrulSearchList.do` / `admrulSearch.do`), 자치법규(조례) 목록/본문 조회(`ordinSearchList.do` / `ordinSearch.do`) 오퍼레이션을 단일 라우트에서 분기 처리했습니다.
+  - XML 기반의 응답 포맷을 서버측에서 직접 파싱하여 totalCnt 및 아이템 목록(`id`, `title`, `date`, `agency`, `link`)을 정규식으로 고속 정형화하는 초경량 자체 XML Parser를 탑재하여 `package.json` 오염 및 의존성 비대화 없이 가벼운 JSON 인터페이스를 구현했습니다.
+* **React Query 기반 커스텀 훅 및 조회 패널 구현**:
+  - `src/hooks/useLawSearch.ts` 내에 `useLawSearch` 및 `useLawBody` TanStack Mutation 훅을 설계하여 API 통신 계층을 분리하고 캐싱/뮤테이션 라이프사이클을 최적화했습니다.
+  - `src/components/budget/ui/LawSearchPanel.tsx` 컴포넌트를 신설하여 3가지 법규 유형(행정규칙/자치법규조례/국가법령)을 탭 단위로 토글하며 키워드 검색을 수행하고, 클릭 시 Drawer 형식의 Backdrop 오버레이 내에서 법령 본문 HTML을 즉시 렌더링하도록 UI를 구현했습니다.
+  - `BudgetDashboard.tsx` 대시보드 하단(예산 과목 리스트 아래)에 이 검색 패널을 연동·배치하여, 대시보드 스크롤 시 하단에서 자연스럽게 세출예산 집행기준과 조례를 즉각 대조 조회할 수 있는 가독성 높은 통합 워크플로우를 완성했습니다.
+* **정적 분석 무결성 및 빌드 검증 성공**:
+  - `run-harness.js` 정적 분석 및 린트 검증(`Warnings: 0, Violations: 0, Bottlenecks: 0`)을 완벽하게 통과하고 strict 모드 빌드가 정상 구동함을 확인했습니다.
+
 ### 속도 저하 야기 컴포넌트 정밀 진단 및 성능 병목 요인 분석 보고서 수립 54차 패치 (2026-06-26)
 * **4대 핵심 성능 병목 컴포넌트 정밀 추적 및 보고서 작성**:
   - **예산 관리**: `useBudget.ts` 및 `PolicyGroupCard.tsx` 내부에서 예산 통계를 조회할 때 O(N * M)의 다중 루프가 반복 실행되어 프레임 드랍이 일어나는 문제를 분석하고, $O(N + M)$ 일괄 Map 캐싱 구조 전환을 제시했습니다.

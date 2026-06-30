@@ -12,6 +12,7 @@ import { CategoryEditModal } from './ui/CategoryEditModal';
 import { BatchEditModal } from './ui/BatchEditModal';
 import { ExpenseEntryModal } from './ui/ExpenseEntryModal';
 import { DailyExpenseStatModal } from './ui/DailyExpenseStatModal';
+import { LawSearchPanel } from './ui/LawSearchPanel';
 
 interface BudgetDashboardProps {
   categories: BudgetCategory[];
@@ -329,6 +330,9 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
           ))}
         </div>
       )}
+
+      {/* Law & Ordinance Search API Integration */}
+      <LawSearchPanel />
 
       {/* Category Modal */}
       <CategoryEditModal

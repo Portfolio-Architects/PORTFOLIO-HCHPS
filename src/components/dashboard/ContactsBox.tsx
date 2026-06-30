@@ -2,20 +2,40 @@
 
 import React, { useState, useMemo } from 'react';
 import { useContacts } from '@/hooks/useContacts';
-import { BookOpen, UserPlus, Search, Phone, Mail, FileText, Trash2, ShieldAlert } from 'lucide-react';
+import { BookOpen, UserPlus, Search, Phone, Mail, FileText, Trash2, ShieldAlert, Pencil } from 'lucide-react';
+import { Contact } from '@/types';
 
 export const ContactsBox: React.FC = () => {
-  const { contacts, loading, addContact, deleteContact } = useContacts();
+  const { contacts, loading, addContact, updateContact, deleteContact } = useContacts();
 
   // 검색 상태
   const [searchTerm, setSearchTerm] = useState('');
 
-  // 폼 등록 상태
+  // 폼 등록 및 수정 상태
+  const [editingContactId, setEditingContactId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  const startEdit = (contact: Contact) => {
+    setEditingContactId(contact.id);
+    setName(contact.name);
+    setPhone(contact.phone);
+    setEmail(contact.email || '');
+    setNotes(contact.notes || '');
+    setError(null);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingContactId(null);
+    setName('');
+    setPhone('');
+    setEmail('');
+    setNotes('');
+    setError(null);
+  };
 
   // 검색 필터링 적용 목록
   const filteredContacts = useMemo(() => {
@@ -42,12 +62,19 @@ export const ContactsBox: React.FC = () => {
       return;
     }
 
-    addContact({
+    const payload = {
       name: name.trim(),
       phone: phone.trim(),
       email: email.trim(),
       notes: notes.trim()
-    });
+    };
+
+    if (editingContactId) {
+      updateContact(editingContactId, payload);
+      setEditingContactId(null);
+    } else {
+      addContact(payload);
+    }
 
     // Reset fields
     setName('');
@@ -78,7 +105,15 @@ export const ContactsBox: React.FC = () => {
         {/* Form Container (left side) */}
         <form onSubmit={handleSubmit} className="lg:col-span-4 flex flex-col gap-4 bg-slate-55/20 p-6 rounded-2xl border border-slate-200/40 backdrop-blur-xs">
           <span className="text-sm font-bold text-slate-700 mb-1 flex items-center gap-2">
-            <UserPlus className="w-4 h-4 text-emerald-500" /> 신규 연락처 추가
+            {editingContactId ? (
+              <>
+                <Pencil className="w-4 h-4 text-emerald-500 animate-pulse" /> 연락처 수정
+              </>
+            ) : (
+              <>
+                <UserPlus className="w-4 h-4 text-emerald-500" /> 신규 연락처 추가
+              </>
+            )}
           </span>
 
           {error && (
@@ -134,12 +169,23 @@ export const ContactsBox: React.FC = () => {
             />
           </div>
 
-          <button
-            type="submit"
-            className="w-full mt-2 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white font-bold py-3 px-4 rounded-xl transition-all duration-300 hover:shadow-lg hover:shadow-emerald-500/10 active:scale-[0.98]"
-          >
-            연락처 저장
-          </button>
+          <div className="flex flex-col gap-2 mt-2">
+            <button
+              type="submit"
+              className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white font-bold py-3 px-4 rounded-xl transition-all duration-300 hover:shadow-lg hover:shadow-emerald-500/10 active:scale-[0.98] cursor-pointer"
+            >
+              {editingContactId ? '연락처 수정 완료' : '연락처 저장'}
+            </button>
+            {editingContactId && (
+              <button
+                type="button"
+                onClick={handleCancelEdit}
+                className="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-3 px-4 rounded-xl transition-all duration-300 cursor-pointer"
+              >
+                수정 취소
+              </button>
+            )}
+          </div>
         </form>
 
         {/* Contacts List (right side) */}
@@ -177,17 +223,26 @@ export const ContactsBox: React.FC = () => {
                     <span className="text-sm font-bold text-slate-800 tracking-tight truncate max-w-[170px]">
                       {contact.name}
                     </span>
-                    <button
-                      onClick={() => {
-                        if (confirm(`'${contact.name}' 연락처를 삭제하시겠습니까?`)) {
-                          deleteContact(contact.id);
-                        }
-                      }}
-                      className="p-1.5 text-slate-350 hover:text-rose-600 hover:bg-rose-50 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shrink-0"
-                      title="삭제"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => startEdit(contact)}
+                        className="p-1.5 text-slate-350 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg cursor-pointer shrink-0"
+                        title="수정"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm(`'${contact.name}' 연락처를 삭제하시겠습니까?`)) {
+                            deleteContact(contact.id);
+                          }
+                        }}
+                        className="p-1.5 text-slate-350 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer shrink-0"
+                        title="삭제"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
 
                   <div className="flex flex-col gap-1.5 mt-3 text-xs font-semibold text-slate-600">
