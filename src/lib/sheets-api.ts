@@ -34,8 +34,40 @@ function getAuthHeaders(): Record<string, string> {
  * 백엔드 단에서 평문으로 반환된 데이터 중 `_enc` 해시 필드가 있는 항목들은 `decryptPayload`를 통해 
  * 클라이언트 단에서 복호화됩니다. 세션 토큰(`sessionAuthToken`) 인증 헤더를 동반합니다.
  */
+interface CacheEntry {
+  mtime: number;
+  size: number;
+  data: any[];
+}
+
+const clientCache = new Map<string, CacheEntry>();
+
 export async function readSheet<T>(sheetName: string): Promise<T[]> {
   try {
+    let newMeta: { mtime: number; size: number } | null = null;
+    try {
+      const metaRes = await fetch(`${API_BASE}?sheet=${encodeURIComponent(sheetName)}&meta=true&_t=${Date.now()}`, {
+        headers: { 
+          ...getAuthHeaders(),
+          'Cache-Control': 'no-cache, no-store, must-revalidate'
+        },
+        cache: 'no-store'
+      });
+      if (metaRes.ok) {
+        const metaJson = await metaRes.json();
+        if (metaJson.success && metaJson.data) {
+          const { mtime, size } = metaJson.data;
+          const cached = clientCache.get(sheetName);
+          if (cached && cached.mtime === mtime && cached.size === size) {
+            return cached.data as T[];
+          }
+          newMeta = { mtime, size };
+        }
+      }
+    } catch (metaErr) {
+      console.warn(`[Cache] Failed to check metadata for ${sheetName}:`, metaErr);
+    }
+
     const res = await fetch(`${API_BASE}?sheet=${encodeURIComponent(sheetName)}&_t=${Date.now()}`, {
       headers: { 
         ...getAuthHeaders(),
@@ -132,7 +164,15 @@ export async function readSheet<T>(sheetName: string): Promise<T[]> {
         validRows.push(row);
       }
     }
-    return validRows as T[];
+    const finalData = validRows as T[];
+    if (newMeta) {
+      clientCache.set(sheetName, {
+        mtime: newMeta.mtime,
+        size: newMeta.size,
+        data: finalData
+      });
+    }
+    return finalData;
   } catch (err) {
     console.error(`데이터 읽기 실패: ${sheetName}`, err);
     throw err; // Propagate the error so callers (especially React Query or fallback logic) are aware
@@ -176,7 +216,19 @@ async function writeData(sheetName: string, action: string, data?: unknown, id?:
       throw new Error(`Cloudflare Data API returned ${res.status}`);
     }
     const json = await res.json();
-    return json.success === true;
+    if (json.success === true) {
+      if (action === 'replace' && Array.isArray(data) && json.mtime && json.size) {
+        clientCache.set(sheetName, {
+          mtime: json.mtime,
+          size: json.size,
+          data: data
+        });
+      } else {
+        clientCache.delete(sheetName);
+      }
+      return true;
+    }
+    return false;
   } catch (err) {
     console.error(`데이터 쓰기 실패 [${sheetName}/${action}]:`, err);
     return false;

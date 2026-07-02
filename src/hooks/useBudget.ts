@@ -5,6 +5,19 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { readSheet, addRow, updateRow, deleteRow, replaceAll } from '@/lib/sheets-api';
 import { BudgetCategory, BudgetEntry, generateId } from '@/types';
 
+export interface CategoryStats {
+  totalBudget: number;
+  spent: number;
+  planned: number;
+  locked: number;
+  remaining: number;
+  usageRate: number;
+  generalSpent: number;
+  dailyExpenseIssued: number;
+  dailyExpenseSpent: number;
+  dailyExpenseRemaining: number;
+}
+
 let kvWriteQueue = Promise.resolve<any>(null);
 
 function enqueueKvWrite<T>(fn: () => Promise<T>): Promise<T> {
@@ -205,10 +218,7 @@ export function useBudget() {
       entriesMap.get(e.categoryId)!.push(e);
     }
 
-    const statsMap = new Map<string, {
-      totalBudget: number; spent: number; planned: number; locked: number; remaining: number; usageRate: number;
-      generalSpent: number; dailyExpenseIssued: number; dailyExpenseSpent: number; dailyExpenseRemaining: number;
-    }>();
+    const statsMap = new Map<string, CategoryStats>();
 
     for (const cat of uniqueCategories) {
       const catEntries = entriesMap.get(cat.id) || [];
@@ -274,7 +284,7 @@ export function useBudget() {
   }, [uniqueCategories, entries]);
 
   // Derived Stats
-  const getCategoryStats = useCallback((categoryId: string, excludePlanned = false) => {
+  const getCategoryStats = useCallback((categoryId: string, excludePlanned = false): CategoryStats | null => {
     const cached = categoryStatsMap.get(categoryId);
     if (!cached) return null;
     if (!excludePlanned) return cached;
@@ -291,7 +301,7 @@ export function useBudget() {
     };
   }, [categoryStatsMap, uniqueCategories]);
 
-  const checkLimit = useCallback((categoryId: string, amount: number, actionType?: string, entryId?: string, transferDirection?: string) => {
+  const checkLimit = useCallback((categoryId: string, amount: number, actionType?: string, entryId?: string, transferDirection?: string, isPlanned?: boolean) => {
     if (actionType === 'correction') return true;
     if (actionType === 'transfer' && transferDirection !== 'out') return true;
     
@@ -314,8 +324,12 @@ export function useBudget() {
         return false;
       }
     } else {
-      if (delta > stats.remaining) {
-        alert(`[예산 한도 초과] 등록하려는 금액이 가용 예산 잔액(${stats.remaining.toLocaleString()}원)을 초과하여 등록을 차단합니다.`);
+      const limit = isPlanned
+        ? stats.remaining
+        : (stats.totalBudget - stats.spent - stats.locked);
+
+      if (delta > limit) {
+        alert(`[예산 한도 초과] 등록하려는 금액이 가용 예산 잔액(${limit.toLocaleString()}원)을 초과하여 등록을 차단합니다.`);
         return false;
       }
     }
@@ -323,7 +337,7 @@ export function useBudget() {
   }, [entries, getCategoryStats]);
 
   const addEntry = useCallback((entry: Omit<BudgetEntry, 'id'>) => {
-    if (!checkLimit(entry.categoryId, entry.amount, entry.actionType, undefined, entry.transferDirection)) {
+    if (!checkLimit(entry.categoryId, entry.amount, entry.actionType, undefined, entry.transferDirection, entry.isPlanned)) {
       return null;
     }
     const newEntry: BudgetEntry = { ...entry, id: generateId() };
@@ -338,8 +352,9 @@ export function useBudget() {
       const targetAmount = updates.amount !== undefined ? updates.amount : existing.amount;
       const targetActionType = updates.actionType || existing.actionType;
       const targetTransferDir = updates.transferDirection !== undefined ? updates.transferDirection : existing.transferDirection;
+      const targetIsPlanned = updates.isPlanned !== undefined ? updates.isPlanned : existing.isPlanned;
       
-      if (!checkLimit(targetCatId, targetAmount, targetActionType, id, targetTransferDir)) {
+      if (!checkLimit(targetCatId, targetAmount, targetActionType, id, targetTransferDir, targetIsPlanned)) {
         return;
       }
     }

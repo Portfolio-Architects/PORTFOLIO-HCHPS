@@ -2,9 +2,13 @@
 
 import { useEffect, useCallback, useMemo, useSyncExternalStore, useRef, useState } from 'react';
 import { OntologyNode, OntologyEdge, EdgeType } from '@/lib/ontology.types';
-import { useYjsStore, runSafeTransaction } from './useYjsStore';
+import { useYjsStore, runSafeTransaction, globalYDoc } from './useYjsStore';
 import * as Y from 'yjs';
 import { readSheet, replaceAll } from '@/lib/sheets-api';
+
+// Global variables for singleton polling loop
+let activePollInterval: ReturnType<typeof setInterval> | null = null;
+let activePollCount = 0;
 
 export interface NodeOverride {
   fixedX?: number | null;
@@ -467,64 +471,77 @@ export function useGraphCustomization() {
     return () => clearTimeout(timer);
   }, [data, syncToCloud]);
 
-  // 3초 간격 백엔드 로컬 DB 실시간 폴링 및 Yjs CRDT 실시간 병합
+  // 10초 간격 백엔드 로컬 DB 실시간 폴링 및 Yjs CRDT 실시간 병합 (Visibility Gating 적용 - Global Singleton Pattern)
   useEffect(() => {
     if (!isCloudLoaded) return;
-    let active = true;
 
-    const pollInterval = setInterval(async () => {
-      try {
-        const { readSheet } = await import('@/lib/sheets-api');
-        const rows = await readSheet<MapCustomizationData & { id: string }>('MAP_CUSTOMIZATION');
-        
-        if (rows && rows.length > 0 && rows[0].id === 'singleton' && active) {
-          const dbData = rows[0];
-          
-          await runSafeTransaction(ydoc, () => {
-            const customNodesMap = ydoc.getMap('customNodesMap') as Y.Map<OntologyNode>;
-            const customEdgesMap = ydoc.getMap('customEdgesMap') as Y.Map<OntologyEdge>;
-            
-            let changed = false;
-
-            // 1. 신규 노드 추가
-            if (dbData.customNodes) {
-              dbData.customNodes.forEach((n: OntologyNode) => {
-                if (!customNodesMap.has(n.id)) {
-                  customNodesMap.set(n.id, n);
-                  changed = true;
-                  console.info(`[Watcher Poll] AI 신규 노드 감지 및 화면 병합: ${n.label} (${n.id})`);
-                }
-              });
-            }
-            
-            // 2. 신규 엣지 추가
-            if (dbData.customEdges) {
-              dbData.customEdges.forEach((e: OntologyEdge) => {
-                const k = `${e.source}|||${e.target}`;
-                const r = `${e.target}|||${e.source}`;
-                if (!customEdgesMap.has(k) && !customEdgesMap.has(r)) {
-                  customEdgesMap.set(k, e);
-                  changed = true;
-                  console.info(`[Watcher Poll] AI 신규 관계 감지 및 화면 병합: ${e.source} -> ${e.target}`);
-                }
-              });
-            }
-
-            if (changed) {
-              console.log('[Watcher Poll] Yjs 데이터 실시간 동기화 완료.');
-            }
-          });
+    activePollCount++;
+    
+    if (!activePollInterval) {
+      console.info('[Watcher Poll] Starting global singleton polling loop.');
+      activePollInterval = setInterval(async () => {
+        // Visibility Gating: 브라우저 탭이 비활성 상태(background)인 경우 폴링 생략하여 CPU/IO 소모 극소화
+        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+          return;
         }
-      } catch (err) {
-        console.error('[Watcher Poll Error] Failed to auto-sync watcher DB:', err);
-      }
-    }, 3000);
+
+        try {
+          const { readSheet } = await import('@/lib/sheets-api');
+          const rows = await readSheet<MapCustomizationData & { id: string }>('MAP_CUSTOMIZATION');
+          
+          if (rows && rows.length > 0 && rows[0].id === 'singleton') {
+            const dbData = rows[0];
+            
+            await runSafeTransaction(globalYDoc, () => {
+              const customNodesMap = globalYDoc.getMap('customNodesMap') as Y.Map<OntologyNode>;
+              const customEdgesMap = globalYDoc.getMap('customEdgesMap') as Y.Map<OntologyEdge>;
+              
+              let changed = false;
+
+              // 1. 신규 노드 추가
+              if (dbData.customNodes) {
+                dbData.customNodes.forEach((n: OntologyNode) => {
+                  if (!customNodesMap.has(n.id)) {
+                    customNodesMap.set(n.id, n);
+                    changed = true;
+                    console.info(`[Watcher Poll] AI 신규 노드 감지 및 화면 병합: ${n.label} (${n.id})`);
+                  }
+                });
+              }
+              
+              // 2. 신규 엣지 추가
+              if (dbData.customEdges) {
+                dbData.customEdges.forEach((e: OntologyEdge) => {
+                  const k = `${e.source}|||${e.target}`;
+                  const r = `${e.target}|||${e.source}`;
+                  if (!customEdgesMap.has(k) && !customEdgesMap.has(r)) {
+                    customEdgesMap.set(k, e);
+                    changed = true;
+                    console.info(`[Watcher Poll] AI 신규 관계 감지 및 화면 병합: ${e.source} -> ${e.target}`);
+                  }
+                });
+              }
+
+              if (changed) {
+                console.log('[Watcher Poll] Yjs 데이터 실시간 동기화 완료.');
+              }
+            });
+          }
+        } catch (err) {
+          console.error('[Watcher Poll Error] Failed to auto-sync watcher DB:', err);
+        }
+      }, 10000);
+    }
 
     return () => {
-      active = false;
-      clearInterval(pollInterval);
+      activePollCount--;
+      if (activePollCount <= 0 && activePollInterval) {
+        console.info('[Watcher Poll] Stopping global singleton polling loop.');
+        clearInterval(activePollInterval);
+        activePollInterval = null;
+      }
     };
-  }, [ydoc, isCloudLoaded]);
+  }, [isCloudLoaded]);
 
   return {
     ...data,

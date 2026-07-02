@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { BudgetCategory, BudgetEntry, InventoryItem, StockChange } from '@/types';
 import { BudgetDashboard } from '@/components/budget/BudgetDashboard';
 
+import { CategoryStats } from '@/hooks/useBudget';
+
 interface WorkspaceViewProps {
   // Budget
   budgetCategories: BudgetCategory[];
@@ -15,10 +17,7 @@ interface WorkspaceViewProps {
   addEntry: (entry: Omit<BudgetEntry, 'id'>) => void;
   updateEntry: (id: string, updates: Partial<BudgetEntry>) => void;
   deleteEntry: (id: string) => void;
-  getCategoryStats: (id: string) => { 
-    totalBudget: number; spent: number; planned: number; remaining: number; usageRate: number;
-    generalSpent: number; dailyExpenseIssued: number; dailyExpenseSpent: number; dailyExpenseRemaining: number;
-  } | null;
+  getCategoryStats: (id: string) => CategoryStats | null;
   overallStats: { 
     totalBudget: number; totalSpent: number; totalPlanned: number; remaining: number;
     dailyExpenseIssued: number; dailyExpenseSpent: number; dailyExpenseRemaining: number;

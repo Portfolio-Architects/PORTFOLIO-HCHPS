@@ -119,6 +119,41 @@ function getDesktopPath(): string {
 
 const WATCH_DIR = path.join(getDesktopPath(), 'VITAL_Scan');
 const DB_FILE = path.join(process.cwd(), 'data', 'MAP_CUSTOMIZATION.json');
+const HISTORY_FILE = path.join(process.cwd(), 'data', 'WATCHER_HISTORY.json');
+
+async function loadHistory(): Promise<Record<string, { size: number, mtime: number }>> {
+  try {
+    const raw = await fs.readFile(HISTORY_FILE, 'utf-8');
+    const parsed = JSON.parse(raw);
+    if (parsed && parsed[0] && parsed[0]._enc) {
+      const decrypted = await decryptData(parsed[0]._enc);
+      return decrypted || {};
+    }
+  } catch (err: any) {
+    if (err.code !== 'ENOENT') {
+      console.error('[Watcher Daemon] WATCHER_HISTORY 복호화 실패, 초기화:', err);
+    }
+  }
+  return {};
+}
+
+async function saveHistory(history: Record<string, { size: number, mtime: number }>) {
+  try {
+    const encrypted = await encryptData(history);
+    const dbPayload = [
+      {
+        id: "watcher_history",
+        _enc: encrypted
+      }
+    ];
+    const tempPath = `${HISTORY_FILE}.tmp`;
+    await fs.writeFile(tempPath, JSON.stringify(dbPayload, null, 2), 'utf-8');
+    await fs.rename(tempPath, HISTORY_FILE);
+  } catch (err) {
+    console.error('[Watcher Daemon] WATCHER_HISTORY 저장 실패:', err);
+  }
+}
+
 const apiKey = process.env.GOOGLE_GEMINI_API_KEY || '';
 
 // Next.js 핫 리로딩으로 인한 중복 감시자 생성 및 유실 방지 (싱글톤)
@@ -354,10 +389,10 @@ const responseSchema: any = {
 /**
  * Gemini API를 다이렉트로 호출하여 텍스트로부터 노드 및 SPO 관계를 자동 추출
  */
-async function processAISemanticExtraction(text: string) {
+async function processAISemanticExtraction(text: string): Promise<boolean> {
   if (!apiKey) {
     console.warn('[Watcher Daemon] GOOGLE_GEMINI_API_KEY가 없습니다. AI 추출이 불가능합니다.');
-    return;
+    return false;
   }
 
   const genAI = new GoogleGenerativeAI(apiKey);
@@ -407,7 +442,7 @@ ${text}
       }
     }
 
-    if (!result) return;
+    if (!result) return false;
     let cleaned = result.response.text().trim();
     
     if (cleaned.startsWith('```') || cleaned.includes('```')) {
@@ -490,6 +525,7 @@ ${text}
         console.error('[Watcher Daemon] CLASSIFICATION_WORDS 병합 중 오류:', wordErr);
       }
     }
+    return true;
   } catch (err) {
     console.error('[Watcher Daemon] Gemini AI 세그먼트 관계 추출 오류:', err);
     try {
@@ -497,6 +533,7 @@ ${text}
         console.error('[Watcher Daemon] 실패한 원본 AI 응답:', result.response.text());
       }
     } catch {}
+    return false;
   }
 }
 
@@ -552,7 +589,21 @@ function processFile(filePath: string): Promise<void> {
             console.info(`[Watcher Daemon] 파일 파싱 성공 (크기: ${parsed.content.length}자).`);
             console.info(`[Watcher Daemon] [Self-Learning Pipeline] AI 자동 키워드 학습 루프 가동 중...`);
             // 최대 30000자까지 확장하여 대규모 텍스트 파일에서도 누락 없이 풍부한 온톨로지 지식 추출 및 분류 자가 학습 수행
-            await processAISemanticExtraction(parsed.content.substring(0, 30000));
+            const success = await processAISemanticExtraction(parsed.content.substring(0, 30000));
+            if (success) {
+              try {
+                const stat = await fs.stat(filePath);
+                const history = await loadHistory();
+                history[path.basename(filePath)] = {
+                  size: stat.size,
+                  mtime: stat.mtimeMs
+                };
+                await saveHistory(history);
+                console.info(`[Watcher Daemon] 파일 처리 히스토리 갱신 및 저장 완료: ${path.basename(filePath)}`);
+              } catch (histErr) {
+                console.error('[Watcher Daemon] 파일 히스토리 갱신 에러:', histErr);
+              }
+            }
           } else {
             console.error(`[Watcher Daemon] 파서 실패 응답: ${parsed.error}`);
           }
@@ -589,9 +640,9 @@ function queueFileEvent(filePath: string) {
         pendingFiles.push(filePath);
         processQueue().catch(err => console.error('[Watcher Daemon] 순차 큐 실행 에러:', err));
       } else {
-        // 크기가 여전히 커지는 중 -> 1초 뒤 재시도
+        // 크기가 여전히 커지는 중 -> 1.5초 뒤 재시도
         fileSizes.set(filePath, stat.size);
-        const timer = setTimeout(checkSize, 1000);
+        const timer = setTimeout(checkSize, 1500);
         activeJobs.set(filePath, timer);
       }
     } catch {
@@ -601,7 +652,7 @@ function queueFileEvent(filePath: string) {
     }
   };
 
-  const timer = setTimeout(checkSize, 1000);
+  const timer = setTimeout(checkSize, 1500);
   activeJobs.set(filePath, timer);
 }
 
@@ -620,6 +671,10 @@ export async function startWatcherDaemon() {
   await ensureWatchDirectory();
   await ensureClassificationWords();
 
+  // 히스토리 로드
+  const history = await loadHistory();
+  let skipCount = 0;
+
   // 기존에 이미 폴더에 있던 파일들을 읽어서 처리 (사용자가 미리 넣어둔 파일 대응)
   try {
     const existingFiles = await fs.readdir(WATCH_DIR);
@@ -629,10 +684,19 @@ export async function startWatcherDaemon() {
       if (stat.isFile()) {
         const ext = path.extname(file).toLowerCase();
         if (['.pdf', '.hwpx', '.txt', '.xlsx', '.xls', '.md', '.csv', '.json'].includes(ext)) {
-          console.info(`[Watcher Daemon] 기존 파일 감지: ${file}, 복사 상태 확인 시작`);
+          const key = path.basename(fullPath);
+          const record = history[key];
+          if (record && record.size === stat.size && record.mtime === stat.mtimeMs) {
+            skipCount++;
+            continue; // 이미 처리됨 -> 건너뜀
+          }
+          console.info(`[Watcher Daemon] 신규 또는 변경된 기존 파일 감지: ${file}, 복사 상태 확인 시작`);
           queueFileEvent(fullPath);
         }
       }
+    }
+    if (skipCount > 0) {
+      console.info(`[Watcher Daemon] 파일 처리 히스토리 대조에 의해 기존 파일 ${skipCount}개 분석 스킵 완료.`);
     }
   } catch (err) {
     console.error('[Watcher Daemon] 기존 파일 목록 로드 실패:', err);
@@ -654,7 +718,16 @@ export async function startWatcherDaemon() {
           queueFileEvent(fullPath);
         })
         .catch(() => {
-          // 파일이 삭제된 경우는 무시
+          // 파일이 삭제된 경우 히스토리에서 제거
+          loadHistory().then(history => {
+            const key = filename as string;
+            if (history[key]) {
+              delete history[key];
+              saveHistory(history).then(() => {
+                console.info(`[Watcher Daemon] 파일 삭제 감지 및 히스토리 제거: ${key}`);
+              });
+            }
+          });
         });
     }
   });

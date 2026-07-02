@@ -14,6 +14,8 @@ import { ExpenseEntryModal } from './ui/ExpenseEntryModal';
 import { DailyExpenseStatModal } from './ui/DailyExpenseStatModal';
 import { LawSearchPanel } from './ui/LawSearchPanel';
 
+import { CategoryStats } from '@/hooks/useBudget';
+
 interface BudgetDashboardProps {
   categories: BudgetCategory[];
   entries: BudgetEntry[];
@@ -24,10 +26,7 @@ interface BudgetDashboardProps {
   addEntry: (entry: Omit<BudgetEntry, 'id'>) => void;
   updateEntry: (id: string, updates: Partial<BudgetEntry>) => void;
   deleteEntry: (id: string) => void;
-  getCategoryStats: (id: string) => { 
-    totalBudget: number; spent: number; planned: number; remaining: number; usageRate: number;
-    generalSpent: number; dailyExpenseIssued: number; dailyExpenseSpent: number; dailyExpenseRemaining: number;
-  } | null;
+  getCategoryStats: (id: string) => CategoryStats | null;
   overallStats: { 
     totalBudget: number; totalSpent: number; totalPlanned: number; remaining: number;
     dailyExpenseIssued: number; dailyExpenseSpent: number; dailyExpenseRemaining: number;
@@ -86,6 +85,30 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
       setShowEntryModal(true);
       setReturnToEntryModal(false);
     }
+  };
+
+  const handleSettleEntry = (plannedEntryId: string, actualAmount: number) => {
+    const plannedEntry = entries.find(e => e.id === plannedEntryId);
+    if (!plannedEntry) return;
+
+    // 1. Update the planned entry to isSettled: true
+    updateEntry(plannedEntryId, { isSettled: true });
+
+    // 2. Add the actual spent entry
+    addEntry({
+      categoryId: plannedEntry.categoryId,
+      amount: actualAmount,
+      date: new Date().toISOString().split('T')[0], // today
+      purpose: `${plannedEntry.purpose} (정산)`,
+      memo: plannedEntry.memo,
+      isPlanned: false,
+      isSettled: false,
+      relatedPlanId: plannedEntryId,
+      actionType: plannedEntry.actionType || 'general',
+      linkedSubItemId: plannedEntry.linkedSubItemId,
+      docRegNum: plannedEntry.docRegNum,
+      fundingSource: plannedEntry.fundingSource
+    });
   };
 
   const handleAddCategory = () => {
@@ -379,6 +402,7 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
         categories={categories}
         entries={entries}
         getCategoryStats={getCategoryStats}
+        onSettle={handleSettleEntry}
       />
 
       {/* Daily Expense Stat Modal */}

@@ -5,15 +5,14 @@ import { Modal } from '@/components/ui/modal';
 import { BudgetCategory, BudgetEntry } from '@/types';
 import { ChevronDown } from 'lucide-react';
 
+import { CategoryStats } from '@/hooks/useBudget';
+
 interface LedgerModalProps {
   isOpen: boolean;
   onClose: () => void;
   categories: BudgetCategory[];
   entries: BudgetEntry[];
-  getCategoryStats: (id: string) => { 
-    totalBudget: number; spent: number; planned: number; remaining: number; usageRate: number;
-    generalSpent: number; dailyExpenseIssued: number; dailyExpenseSpent: number; dailyExpenseRemaining: number;
-  } | null;
+  getCategoryStats: (id: string) => CategoryStats | null;
   onSettle?: (plannedEntryId: string, actualAmount: number) => void;
 }
 

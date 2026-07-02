@@ -2,16 +2,14 @@
 import React, { useState, useEffect } from 'react';
 import { BudgetCategory, BudgetEntry, BudgetActionType, BudgetSubItem, BudgetCalculation } from '@/types';
 import { Modal } from '@/components/ui/modal';
+import { CategoryStats } from '@/hooks/useBudget';
 
 interface ExpenseEntryModalProps {
   isOpen: boolean;
   onClose: () => void;
   categories: BudgetCategory[];
   entries: BudgetEntry[];
-  getCategoryStats: (id: string) => { 
-    totalBudget: number; spent: number; planned: number; remaining: number; usageRate: number;
-    generalSpent: number; dailyExpenseIssued: number; dailyExpenseSpent: number; dailyExpenseRemaining: number;
-  } | null;
+  getCategoryStats: (id: string) => CategoryStats | null;
   initialData: Partial<BudgetEntry> | null;
   preselectedCategoryId?: string;
   onSave: (isEdit: boolean, id: string | null, data: Partial<BudgetEntry>) => void;
@@ -41,6 +39,7 @@ export function ExpenseEntryModal({
   const [entryLinkedSubItemId, setEntryLinkedSubItemId] = useState('');
   const [fundingSource, setFundingSource] = useState<string>('');
   const [transferDirection, setTransferDirection] = useState<'in' | 'out'>('in');
+  const [isPlanned, setIsPlanned] = useState<boolean>(false);
   const [entryError, setEntryError] = useState<string | null>(null);
 
   const isEdit = initialData && 'id' in initialData && !!initialData.id;
@@ -62,6 +61,7 @@ export function ExpenseEntryModal({
       setActionType(initialData.actionType || 'general');
       setFundingSource(initialData.fundingSource || '');
       setTransferDirection(initialData.transferDirection || 'in');
+      setIsPlanned(initialData.isPlanned || false);
       if (initialData.date) setEntryDate(initialData.date);
     } else {
       setSelectedCatId(preselectedCategoryId || '');
@@ -73,6 +73,7 @@ export function ExpenseEntryModal({
       setActionType('general');
       setFundingSource('');
       setTransferDirection('in');
+      setIsPlanned(false);
       setEntryDate(new Date().toISOString().split('T')[0]);
     }
   }, [isOpen, initialData, preselectedCategoryId]);
@@ -177,6 +178,8 @@ export function ExpenseEntryModal({
     if (actionType !== 'settle' && actionType !== 'daily_expense') {
       const stats = getCategoryStats(selectedCatId);
       const spent = stats ? stats.spent : 0;
+      const planned = stats ? stats.planned : 0;
+      const locked = stats ? stats.locked : 0;
       
       let adjustment = amt;
       if (actionType === 'transfer' && transferDirection === 'in') {
@@ -196,10 +199,15 @@ export function ExpenseEntryModal({
         }
       }
       
-      const newTotalSpent = spent + adjustment;
+      const totalUsage = isPlanned
+        ? spent + planned + locked + adjustment
+        : spent + locked + adjustment;
       
-      if (cat.totalBudget > 0 && newTotalSpent > cat.totalBudget) {
-        setEntryError(`[예산 한도 초과] 등록하려는 금액이 해당 예산 과목의 잔액(가용 예산: ${(cat.totalBudget - spent).toLocaleString()}원)을 초과하여 등록을 차단합니다. (누적 예정액: ${newTotalSpent.toLocaleString()}원 / 총예산: ${cat.totalBudget.toLocaleString()}원)`);
+      if (cat.totalBudget > 0 && totalUsage > cat.totalBudget) {
+        const availableBudget = isPlanned
+          ? cat.totalBudget - spent - planned - locked
+          : cat.totalBudget - spent - locked;
+        setEntryError(`[예산 한도 초과] 등록하려는 금액이 해당 예산 과목의 잔액(가용 예산: ${availableBudget.toLocaleString()}원)을 초과하여 등록을 차단합니다. (누적 예정액: ${totalUsage.toLocaleString()}원 / 총예산: ${cat.totalBudget.toLocaleString()}원)`);
         return;
       }
     }
@@ -214,6 +222,7 @@ export function ExpenseEntryModal({
       docRegNum: entryDocNum,
       linkedSubItemId: entryLinkedSubItemId || undefined,
       actionType,
+      isPlanned,
       fundingSource: fundingSource || undefined,
       transferDirection: actionType === 'transfer' ? transferDirection : undefined
     });
@@ -265,6 +274,37 @@ export function ExpenseEntryModal({
             </div>
           </div>
         )}
+
+        {/* 지출 성격 구분 (실지출 vs 품의) */}
+        <div className="bg-slate-50/50 p-4 rounded-xl border border-slate-150 mb-4">
+          <label className="block text-xs font-semibold text-slate-700 mb-2">지출 성격 구분</label>
+          <div className="flex gap-4">
+            <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer">
+              <input 
+                type="radio" 
+                name="isPlanned" 
+                checked={!isPlanned} 
+                onChange={() => setIsPlanned(false)} 
+                className="text-blue-600 focus:ring-blue-500 border-gray-300 w-4 h-4" 
+              />
+              <span className="flex items-center gap-1.5 text-xs">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span> 실제 지출 (결제 완료)
+              </span>
+            </label>
+            <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer">
+              <input 
+                type="radio" 
+                name="isPlanned" 
+                checked={isPlanned} 
+                onChange={() => setIsPlanned(true)} 
+                className="text-amber-600 focus:ring-amber-500 border-gray-300 w-4 h-4" 
+              />
+              <span className="flex items-center gap-1.5 text-xs">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span> 지출 품의 (가배정/계획)
+              </span>
+            </label>
+          </div>
+        </div>
 
         <div>
           <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">대상 예산 과목</label>

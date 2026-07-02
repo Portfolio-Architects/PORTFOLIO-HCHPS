@@ -5,14 +5,13 @@ import { Modal } from '@/components/ui/modal';
 import { BudgetCategory } from '@/types';
 import { BarChart3, Info } from 'lucide-react';
 
+import { CategoryStats } from '@/hooks/useBudget';
+
 interface DailyExpenseStatModalProps {
   isOpen: boolean;
   onClose: () => void;
   categories: BudgetCategory[];
-  getCategoryStats: (id: string) => {
-    totalBudget: number; spent: number; planned: number; remaining: number; usageRate: number;
-    generalSpent: number; dailyExpenseIssued: number; dailyExpenseSpent: number; dailyExpenseRemaining: number;
-  } | null;
+  getCategoryStats: (id: string) => CategoryStats | null;
 }
 
 function formatN(n: number) { return n.toLocaleString('ko-KR'); }

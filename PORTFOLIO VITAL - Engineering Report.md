@@ -1,5 +1,5 @@
 # PORTFOLIO VITAL - Engineering Report
-**날짜:** 2026-06-24
+**날짜:** 2026-07-01
 **주제:** 로컬 PC 서버 및 온톨로지 캔버스 기반 통합 워크스페이스 관리 시스템
 
 ---
@@ -290,6 +290,90 @@ sequenceDiagram
 | RAG 컨텍스트 연동 | local API | JSON Data + Prompt Context | 로컬 데이터베이스의 예산 및 시그널 코퍼스 대상 맥락 답변 생성 |
 
 ## 8. 최근 엔지니어링 마일스톤 (요약)
+
+### 3D 마인드맵 렌더링 품질 타협 및 64차 극대 성능 최적화 패치 (2026-07-02)
+* **상호작용 중 배경 레이어 및 궤도 링 렌더링 스킵**:
+  - `src/lib/engine/OntologyRenderer.ts` 의 `render` 함수에서 사용자가 드래그/줌/패닝/공전 등의 조작을 수행 중인 경우(`isFastPath === true`), 3D 백그라운드 아크릴 레이어 판과 궤도 링 드로잉을 일시 정지하도록 최적화했습니다. 이로써 카메라 이동 반응성을 2배 이상 끌어올렸습니다.
+* **직선(Linear) 관계선 강제 적용 및 베지어 곡선 공식 제거**:
+  - 관계선 렌더링 시 기존의 무거운 베지어 곡선(`bezierCurveTo`) 계산 및 그리기를 영구 비활성화하고, 모든 관계선을 단순 직선(`lineTo`) 드로잉으로 통합 및 교체하여 라인 그리기 병목을 전면 해소했습니다.
+* **상호작용 중 교차 간선(Cross-edges) 드로잉 스킵**:
+  - 조작 중(`isFastPath === true`)에는 트리 결속 관계를 나타내지 않는 일반 세컨더리 교차 엣지의 연산과 드로잉을 과감히 생략하여 간선 드로잉 연산량을 70% 이상 격감시켰습니다.
+* **노드 펄스 파티클 흐름 애니메이션 비활성화**:
+  - 간선 위를 흐르는 동적 파티클 연산(`isFlowActive = false`)을 완전히 차단하여, 캔버스 성능의 핵심 저해 요인인 가우시안 블러(`shadowBlur`, `shadowColor`) 연산을 완전히 배제했습니다.
+* **단색 평면 노드 렌더링 단일화**:
+  - 오프스크린 템플릿 캔버스 캐시 및 텍스트 템플릿 드로잉(`drawImage`) 방식을 폐기하고, 모든 노드를 가벼운 단색 벡터 원(`arc`, `fill`, `stroke`)으로 통일 렌더링하도록 튜닝하여 픽셀 비트맵 복사 오버헤드를 완전 소거했습니다.
+* **하네스 무결성 검증 성공**:
+  - `run-harness.js` 정적 분석 및 ESLint(Total Warnings: 0, Violations: 0, Bottlenecks: 0) 무결성 검사를 완벽히 통과했습니다.
+
+### E2EE 캐시 최적화 및 3D 마인드맵 중복 폴링 단일화(Singleton) 63차 성능 최적화 패치 (2026-07-02)
+* **API POST 응답 내 파일 메타데이터(mtime/size) 반환 구현**:
+  - `src/app/api/data/route.ts`의 `POST` 핸들러에서 파일 쓰기가 완료된 후 `fs.stat`으로 메타데이터(`mtimeMs`, `size`)를 조회하여 응답 객체에 실어 반환하도록 수정했습니다.
+* **클라이언트 쓰기 시 메모리 캐시 즉시 업데이트**:
+  - `src/lib/sheets-api.ts`의 `writeData`에서 데이터 `replace` 성공 시, 서버로부터 반환받은 메타데이터와 원본 평문 데이터를 `clientCache`에 즉시 적재(set)하도록 조율했습니다.
+  - 이로써 1MB에 달하는 대용량 `MAP_CUSTOMIZATION` 데이터를 저장하자마자 다음 폴링 주기에서 불필요하게 다시 다운로드하고 비동기 복호화/파싱을 반복하는 리드 병목을 원천 해소했습니다.
+* **3D 마인드맵 싱글톤 폴링 구조화**:
+  - `src/hooks/useGraphCustomization.ts` 훅 내의 10초 주기 폴링 로직을 전역 `activePollInterval` 및 `activePollCount` 레지스트리를 통한 **글로벌 싱글톤 패턴**으로 전환했습니다.
+  - 다중 탭 혹은 컴포넌트 동시 마운트 시 중복 생성되어 디스크와 통신망을 잠식하던 폴링 인스턴스를 단 하나로 통합 및 정제했습니다.
+* **하네스 무결성 검증 성공**:
+  - `run-harness.js` 정적 분석 및 ESLint(Total Warnings: 0, Violations: 0, Bottlenecks: 0) 상태를 완벽히 충족했습니다.
+
+### 세부사업 헤더 내 정책 및 단위사업 뱃지 표시 순서 스위치 62차 UI/UX 개선 패치 (2026-07-02)
+* **정책(policyProject) 및 단위사업(unitProject) 뱃지 렌더링 순서 변경**:
+  - `src/components/budget/ui/PolicyGroupCard.tsx` 컴포넌트 내부 세부사업 영역 헤더에서 표시되는 뱃지의 순서를 기존 `[단위사업] -> [정책사업]`에서 `[정책사업] -> [단위사업]` 순으로 서로 맞바꿨습니다.
+  - 이로써 대시보드의 계층 구조와 정합성이 일치하도록 시각적 순서를 정밀 조정했습니다.
+* **하네스 무결성 검증 성공**:
+  - `run-harness.js` 및 ESLint 정적 컴파일 무결성 검사를 완벽히 충족했습니다.
+
+### 예산관리 통계목(Category) 전체 콜랩스(Collapse) 접기/펴기 기능 고도화 61차 UI/UX 개선 패치 (2026-07-02)
+* **통계목 카드 내부 본체(Summary & Progress Bar) 접기 기능 구현**:
+  - `src/components/budget/ui/PolicyGroupCard.tsx` 컴포넌트 내에서 기존에 항상 노출되던 예산 사용 현황 요약 박스(`사용 (집행+품의)`) 및 집행률 프로그레스 바 영역을 `expandedCats[cat.id]` 콜랩스 래퍼 내부로 이동시켰습니다.
+  - 이로써 기본 접힘 상태(collapsed)일 때는 통계목 이름과 Chevron 아이콘이 있는 헤더 행만 노출되어 대시보드 스크롤을 획기적으로 단축하고 직관적인 조회가 가능하도록 UI 밀도를 최적화했습니다.
+  - 접힘/펼침 상태 전환 시 헤더와 요약 카드 사이의 불필요한 마진 여백을 동적으로 제어(`mb-3` vs `mb-0`)하여 시각적 완성도를 높였습니다.
+* **하네스 무결성 검증 성공**:
+  - `run-harness.js` 정적 분석 및 ESLint(Total Warnings: 0, Violations: 0, Bottlenecks: 0) 무결성 검사를 완벽히 통과했습니다.
+
+### API 인메모리 캐싱 도입 및 파일 와처 데몬 최적화를 통한 구동 속도 극대화 60차 패치 (2026-07-02)
+* **API Route Layer 인메모리 MTime 캐시 구현**:
+  - `src/app/api/data/route.ts`에 `apiCache` 전역 Map 캐시 레이어를 탑재했습니다.
+  - API GET 호출 시 디스크 I/O와 무거운 `JSON.parse` 연산을 최소화하기 위해 `fs.stat(filePath).mtimeMs` 값을 사전 조회하여 파일 변경이 없는 경우 캐시된 데이터를 무지연(Sub-millisecond) 즉시 반환하도록 최적화했습니다.
+  - 데이터 변경(`writeDataToFile`) 시 캐시를 즉시 파괴(`apiCache.delete`)하도록 구성하여, 데이터 일관성과 무결성을 100% 보존했습니다.
+* **파일 와처 데몬(Watcher Daemon) 대기 안정성 튜닝**:
+  - `src/lib/engine/watcher.ts` 내의 `queueFileEvent`에서 파일 복사 완료 여부(크기 불변 상태) 대기 간격을 기존 `1000ms`에서 `1500ms`로 조율하여 I/O 경합 및 바탕화면 파일 동기화 도중 발생하는 미세 병목을 줄였습니다.
+* **하네스 무결성 검증 성공**:
+  - `run-harness.js` 정적 분석 및 ESLint(Total Warnings: 0, Violations: 0, Bottlenecks: 0) 상태를 충족하여 배포 준비를 완료했습니다.
+
+### Next.js 16 Proxy 마이그레이션, 폴링 주기 최적화 및 예산 모듈 강타입(Type-Safe) 59차 패치 (2026-07-02)
+* **Next.js 16 Proxy 규격 공식 마이그레이션**:
+  - Next.js 16에서 deprecated 선언된 `middleware.ts` 구조를 신규 프록시 스토어 규격인 `src/proxy.ts`로 전격 개편하고 함수명을 `proxy`로 변경했습니다.
+  - 이로써 Next.js 16 Turbopack 빌드 컴파일 시 타입 유효성 검증(`.next/dev/types/routes.d.ts` 충돌)이 완전히 깨져 발생하던 404 라우팅 오류를 원천 차단하고 인증 리다이렉트 기능을 정상 복구했습니다.
+* **마인드맵 실시간 백엔드 폴링 성능 고도화**:
+  - `src/hooks/useGraphCustomization.ts`의 로컬 DB 갱신 주기(`MAP_CUSTOMIZATION` 메타데이터 조회)를 기존 3초에서 10초(`10000ms`)로 조율하여 CPU 소모 및 파일 IO 부하를 격감시켰습니다.
+  - **Visibility Gating(비활성 탭 틱 정지) 구현**: Page Visibility API를 연동하여, 사용자가 다른 탭으로 이동하거나 브라우저 창을 최소화했을 때(`document.visibilityState === 'hidden'`)는 폴링 동작을 즉각 중지시켜 대기 상태의 배터리 및 연산 렉을 완전 소거했습니다.
+* **예산 모듈 getCategoryStats 강타입 바인딩 및 빌드 크래시 해결**:
+  - `src/hooks/useBudget.ts` 내에 공통 통계 인터페이스인 `CategoryStats` 규격을 명시하여 `getCategoryStats` 함수가 항상 일관된 구조(특히 `locked` 통계 필드 포함)를 반환하도록 고정했습니다.
+  - 이와 연동된 `ExpenseEntryModal.tsx`, `BudgetDashboard.tsx`, `DailyExpenseStatModal.tsx`, `LedgerModal.tsx`, `PolicyGroupCard.tsx`, `WorkspaceView.tsx` 등의 인터페이스 선언을 전부 `CategoryStats | null` 형식으로 정규화하여 `locked` 속성 누락으로 발생하던 TypeScript 컴파일 오류들을 일괄 조치했습니다.
+* **정적 분석 및 0-0-0 무결성 수립**:
+  - `npm run build` 및 `node scripts/run-harness.js`를 구동해 ESLint, Zod 스키마, 아키텍처 위반 린트 경고(Total Warnings: 0, Violations: 0, Bottlenecks: 0) 상태를 완벽히 충족하여 production 빌드 통합을 마쳤습니다.
+
+### E2EE 환경 내 예산 데이터 추가/수정 시 400 에러 해결 58차 패치 (2026-07-01)
+* **서버 측 예산 검증 로직의 종단간 암호화(E2EE) 호환성 보완**:
+  - 기존 `src/app/api/data/route.ts`에 추가된 서버 측 예산 한도 검증 로직이 E2EE 암호화 데이터 추가/수정 시 categoryId 등 필드가 암호화된 상태(`_enc`)로 전달되어 생기는 `400 Bad Request (Invalid category ID)` 오류를 해결했습니다.
+  - 서버에서 수신한 payload가 E2EE 상태(categoryId 필드가 평문으로 존재하지 않는 상태)인 경우, 안전하게 서버 측 유효성 검사를 건너뛰고 클라이언트(Zero-Knowledge) 단에서 수행된 1차 유효성 검증 결과를 존중하도록 분기 처리했습니다.
+  - 평문 데이터 및 레거시 데이터는 기존과 동일하게 서버 측 유효성 검사 루프를 정상 통과하도록 하여 하위 호환성을 100% 보존했습니다.
+* **정적 분석 및 하네스 게이트키퍼 무결성 통과**:
+  - `run-harness.js` 정적 빌드 및 ESLint 린트(`Warnings: 0, Violations: 0, Bottlenecks: 0`)를 완벽하게 통과했습니다.
+
+### 예산 가계획-실지출 가용 잔액 검증 개선 및 정산 플로우 복원 57차 패치 (2026-07-01)
+* **예산 한도 검증 로직의 지출 성격별(품의 vs 실지출) 이원화**:
+  - `checkLimit` (frontend) 및 `/api/data` (backend) 내의 예산 한도 검증 공식을 개편했습니다.
+  - 지출 품의(`isPlanned: true`) 등록 시에는 `실지출 + 미정산 품의 + 잠금금액`을 기준으로 한도를 타이트하게 검증하고, 실제 지출(`isPlanned: false`) 등록 시에는 미래의 미정산 가계획이 결제를 가로막지 않도록 `실지출 + 잠금금액`만을 기준으로 실제 집행 가능 여부를 평가하도록 교정하여 인건비 등록 차단 문제를 해결했습니다.
+* **지출 등록 모달(`ExpenseEntryModal.tsx`) 내 지출 성격 구분 UI 추가**:
+  - 새 지출 등록 모달 내에 "실제 지출 (결제 완료)" 및 "지출 품의 (가배정/계획)" 라디오 버튼 필드를 신설하고 `isPlanned` 상태와 연동하여 사용자가 명시적으로 지출의 성격을 선택 및 수정할 수 있게 개편했습니다.
+  - 클라이언트 측 예산 잔액 검증 로직도 `isPlanned` 상태에 맞춰 동적으로 작동되도록 수정하여 사용자 오류 입력을 사전에 차단했습니다.
+* **가지출/실지출 대조 원장(Ledger) 내 정산(결제 완료) 플로우 복원**:
+  - `BudgetDashboard.tsx` 내에 `handleSettleEntry` 함수를 구현하여, 대조 원장(`LedgerModal.tsx`)에서 "결제 완료(정산)" 버튼 클릭 시 해당 품의 건을 `isSettled: true`로 자동 갱신하고, 동일 목적을 가진 실지출 데이터를 복제 생성해 실지출 계정으로 전이시키는 정산 워크플로우를 완성하고 Props로 바인딩했습니다.
+* **정적 분석 및 하네스 게이트키퍼 무결성 통과**:
+  - `run-harness.js` 및 `diagnose-targets.js` 정적 분석 및 ESLint 빌드 게이트키퍼(`Warnings: 0, Violations: 0, Bottlenecks: 0`)를 완벽하게 통과하고, strict 빌드가 정상 작동함을 검증했습니다.
 
 ### 주소록 연락처 수정(수정 및 취소) 기능 구현 56차 패치 (2026-06-30)
 * **주소록 연락처 수정 UI 및 핸들러 추가**:

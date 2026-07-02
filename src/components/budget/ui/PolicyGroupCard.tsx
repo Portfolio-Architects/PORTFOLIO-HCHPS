@@ -13,6 +13,8 @@ export const ACTION_TYPE_CONFIG: Record<BudgetActionType, { label: string; badge
   settle: { label: '정산(결산)', badge: '정산', badgeBg: 'bg-gray-100 text-gray-700', icon: CheckCircle2 }
 };
 
+import { CategoryStats } from '@/hooks/useBudget';
+
 export const PolicyGroupCard = React.memo(({
   group,
   entries,
@@ -28,7 +30,7 @@ export const PolicyGroupCard = React.memo(({
 }: {
   group: { policyName: string; cats: BudgetCategory[] };
   entries: BudgetEntry[];
-  getCategoryStats: (id: string) => { totalBudget: number; spent: number; planned: number; remaining: number; usageRate: number; generalSpent: number; dailyExpenseIssued: number; dailyExpenseSpent: number; dailyExpenseRemaining: number; } | null;
+  getCategoryStats: (id: string) => CategoryStats | null;
   deleteCategory: (id: string) => void;
   deleteEntry: (id: string) => void;
   openEditCat: (cat: BudgetCategory) => void;
@@ -209,14 +211,14 @@ export const PolicyGroupCard = React.memo(({
                 </div>
                 <div className={`flex items-center gap-2 font-semibold text-gray-800 flex-wrap ${hidePolicyHeader ? 'text-xl tracking-tight' : 'text-[17px]'}`}>
                   {detailGroup.detailName}
-                  {detailGroup.cats[0]?.unitProject && (
-                    <span className={`font-bold rounded-lg border bg-slate-50 text-slate-600 border-slate-200 shadow-3xs ${hidePolicyHeader ? 'text-xs px-2 py-0.5' : 'text-[11px] px-1.5 py-0.5'}`}>
-                      단위: {detailGroup.cats[0].unitProject}
-                    </span>
-                  )}
                   {policyName && (
                     <span className={`font-bold rounded-lg border bg-indigo-50/80 text-indigo-700 border-indigo-200/60 shadow-3xs ${hidePolicyHeader ? 'text-xs px-2 py-0.5' : 'text-[11px] px-1.5 py-0.5'}`}>
                       정책: {policyName}
+                    </span>
+                  )}
+                  {detailGroup.cats[0]?.unitProject && (
+                    <span className={`font-bold rounded-lg border bg-slate-50 text-slate-600 border-slate-200 shadow-3xs ${hidePolicyHeader ? 'text-xs px-2 py-0.5' : 'text-[11px] px-1.5 py-0.5'}`}>
+                      단위: {detailGroup.cats[0].unitProject}
                     </span>
                   )}
                   {detailTypes.map(t => (
@@ -282,7 +284,7 @@ export const PolicyGroupCard = React.memo(({
                   const dailyRemaining = totalIssuance - totalDailyExpense;
                   return (
                     <div key={cat.id} className="group/item relative bg-white border border-slate-200/80 rounded-2xl p-4 hover:bg-slate-50 hover:border-indigo-300/60 hover:shadow-3xs transition-all duration-200">
-                      <div className="flex items-center justify-between mb-3">
+                      <div className={`flex items-center justify-between ${expandedCats[cat.id] ? 'mb-3' : 'mb-0'}`}>
                         <div className="text-[15px] font-bold flex items-center gap-2.5 text-gray-800 cursor-pointer hover:text-[var(--color-primary)] transition-colors select-none" onClick={() => { setExpandedCats(prev => ({ ...prev, [cat.id]: !prev[cat.id] })) }}>
                           <div className="w-2.5 h-2.5 rounded-full flex-shrink-0 animate-pulse" style={{ backgroundColor: cat.color || '#4A6CF7' }}/>
                           <div className="line-clamp-1 flex items-center gap-1.5">
@@ -315,35 +317,34 @@ export const PolicyGroupCard = React.memo(({
                           <button onClick={() => deleteCategory(cat.id)} className="p-1 rounded hover:bg-red-50 text-gray-500 hover:text-red-500"><Trash2 size={13} /></button>
                         </div>
                       </div>
-                      <div className="flex items-center justify-between bg-slate-50/70 rounded-xl p-3 mb-3 border border-slate-100">
-                        <div className="flex flex-col">
-                           <span className="text-gray-500 font-bold mb-1 text-[13px]">사용 (집행+품의)</span>
-                           <span className="text-gray-800 font-semibold tracking-tight text-base font-mono tabular-nums">{formatN(stats.spent + stats.planned)} <span className="text-gray-400 font-medium mx-0.5">/</span> {formatN(stats.totalBudget)}</span>
-                        </div>
-                        <div className="flex flex-col items-end">
-                           <span className="text-gray-500 font-bold mb-1 text-[13px]">잔여금액</span>
-                           <span className="text-blue-600 font-bold tracking-tight text-[17px] font-mono tabular-nums">{formatN(stats.remaining)}원</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3 px-1 mb-1">
-                         <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden flex shadow-inner border border-slate-200/30 relative">
-                            <div 
-                              className={`h-full rounded-full transition-all duration-500 ease-out relative overflow-hidden ${(stats.usageRate || 0) >= 95 ? 'bg-gradient-to-r from-red-500 to-rose-500' : (stats.usageRate || 0) >= 80 ? 'bg-gradient-to-r from-amber-400 to-amber-500' : 'bg-gradient-to-r from-blue-500 to-indigo-500'}`} 
-                              style={{ width: `${Math.min(100, stats.usageRate || 0)}%` }} 
-                            >
-                              <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" style={{ backgroundSize: '200% 100%' }} />
-                            </div>
-                         </div>
-                         <span className="text-[12.5px] font-semibold text-slate-600 w-12 text-right tracking-tight font-mono tabular-nums">{(stats.usageRate || 0).toFixed(1)}%</span>
-                      </div>
-
                       <div 
                         className={`transition-all duration-500 ease-in-out overflow-hidden ${
                           expandedCats[cat.id]
-                            ? 'max-h-[8000px] opacity-100 mt-3 space-y-2'
+                            ? 'max-h-[8000px] opacity-100 mt-3 space-y-3'
                             : 'max-h-0 opacity-0 mt-0 pointer-events-none'
                         }`}
                       >
+                        <div className="flex items-center justify-between bg-slate-50/70 rounded-xl p-3 mb-3 border border-slate-100">
+                          <div className="flex flex-col">
+                             <span className="text-gray-500 font-bold mb-1 text-[13px]">사용 (집행+품의)</span>
+                             <span className="text-gray-800 font-semibold tracking-tight text-base font-mono tabular-nums">{formatN(stats.spent + stats.planned)} <span className="text-gray-400 font-medium mx-0.5">/</span> {formatN(stats.totalBudget)}</span>
+                          </div>
+                          <div className="flex flex-col items-end">
+                             <span className="text-gray-500 font-bold mb-1 text-[13px]">잔여금액</span>
+                             <span className="text-blue-600 font-bold tracking-tight text-[17px] font-mono tabular-nums">{formatN(stats.remaining)}원</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 px-1 mb-3">
+                           <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden flex shadow-inner border border-slate-200/30 relative">
+                              <div 
+                                className={`h-full rounded-full transition-all duration-500 ease-out relative overflow-hidden ${(stats.usageRate || 0) >= 95 ? 'bg-gradient-to-r from-red-500 to-rose-500' : (stats.usageRate || 0) >= 80 ? 'bg-gradient-to-r from-amber-400 to-amber-500' : 'bg-gradient-to-r from-blue-500 to-indigo-500'}`} 
+                                style={{ width: `${Math.min(100, stats.usageRate || 0)}%` }} 
+                              >
+                                <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" style={{ backgroundSize: '200% 100%' }} />
+                              </div>
+                           </div>
+                           <span className="text-[12.5px] font-semibold text-slate-600 w-12 text-right tracking-tight font-mono tabular-nums">{(stats.usageRate || 0).toFixed(1)}%</span>
+                        </div>
                            {cat.subItems && cat.subItems.length > 0 && (
                              <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-3xs">
                                <div className="text-[15px] font-bold text-slate-800 mb-2.5 flex items-center gap-1.5"><div className="w-1.5 h-1.5 bg-slate-400 rounded-full"/> 산출 기초 (세부 항목)</div>

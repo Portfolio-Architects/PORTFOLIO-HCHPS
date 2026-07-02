@@ -39,7 +39,7 @@ export async function runSafeTransaction(ydoc: Y.Doc, fn: () => void, retries = 
 }
 
 // 싱글톤 패턴: 앱 전역에서 Y.Doc을 하나만 씁니다 (HMR 환경에서 초기화되는 것 방지)
-const globalYDoc = (typeof window !== 'undefined' && window.__globalYDoc) 
+export const globalYDoc = (typeof window !== 'undefined' && window.__globalYDoc) 
   ? window.__globalYDoc 
   : new Y.Doc();
 

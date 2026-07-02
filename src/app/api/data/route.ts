@@ -95,8 +95,31 @@ async function safeReadFile(filePath: string, retries = 5, delay = 50): Promise<
   throw new Error(`[File System] Read failed for path ${filePath}`);
 }
 
+interface CacheEntry {
+  data: any[];
+  mtimeMs: number;
+}
+const apiCache = new Map<string, CacheEntry>();
+
 async function readData(sheet: string, retries = 5, delay = 50): Promise<any[]> {
   const filePath = getFilePath(sheet);
+  
+  let currentMtime = 0;
+  try {
+    const stats = await fs.stat(filePath);
+    currentMtime = stats.mtimeMs;
+  } catch (err: any) {
+    if (err.code === 'ENOENT') {
+      return [];
+    }
+  }
+
+  if (currentMtime > 0) {
+    const cached = apiCache.get(sheet);
+    if (cached && cached.mtimeMs === currentMtime) {
+      return cached.data;
+    }
+  }
   
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
@@ -108,6 +131,9 @@ async function readData(sheet: string, retries = 5, delay = 50): Promise<any[]> 
       const parsed = JSON.parse(data);
       if (sheet === 'BUDGET_CATEGORIES') {
         console.log(`[API] Returning ${parsed.length} categories for BUDGET_CATEGORIES!`);
+      }
+      if (currentMtime > 0) {
+        apiCache.set(sheet, { data: parsed, mtimeMs: currentMtime });
       }
       return parsed;
     } catch (err: any) {
@@ -129,6 +155,7 @@ async function readData(sheet: string, retries = 5, delay = 50): Promise<any[]> 
             // 깨진 원본 파일을 백업본으로 복원
             await safeWriteFile(filePath, backupData);
             console.info(`[API Self-Healing] Successfully recovered sheet ${sheet} from backup: ${jsonFiles[jsonFiles.length - 1]}`);
+            apiCache.delete(sheet);
             return parsed;
           }
         } catch (recoveryErr) {
@@ -143,6 +170,7 @@ async function readData(sheet: string, retries = 5, delay = 50): Promise<any[]> 
   }
   throw new Error(`[API] Read parsed failed for ${sheet}`);
 }
+
 
 // ISO 주차(Week Number) 구하기 함수
 function getWeekNumber(d: Date): number {
@@ -254,6 +282,9 @@ async function writeDataToFile(sheet: string, data: any[]): Promise<void> {
   // 2. 직접 안전 파일 쓰기 (재시도 및 지연 내장)
   await safeWriteFile(filePath, dataStr);
   
+  // 캐시 즉시 무효화
+  apiCache.delete(sheet);
+  
   // Trigger backup
   await backupDataFile(sheet, data);
 }
@@ -261,6 +292,7 @@ async function writeDataToFile(sheet: string, data: any[]): Promise<void> {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const sheet = searchParams.get('sheet');
+  const metaOnly = searchParams.get('meta') === 'true';
 
   if (!sheet) {
     return NextResponse.json({ success: false, error: 'Missing sheet parameter' }, { status: 400 });
@@ -271,6 +303,31 @@ export async function GET(request: Request) {
   }
 
   try {
+    if (metaOnly) {
+      const filePath = getFilePath(sheet);
+      try {
+        const stats = await fs.stat(filePath);
+        return NextResponse.json({
+          success: true,
+          data: {
+            mtime: stats.mtimeMs,
+            size: stats.size
+          }
+        });
+      } catch (err: any) {
+        if (err.code === 'ENOENT') {
+          return NextResponse.json({
+            success: true,
+            data: {
+              mtime: 0,
+              size: 0
+            }
+          });
+        }
+        throw err;
+      }
+    }
+
     const data = await readData(sheet);
     return NextResponse.json({ success: true, data });
   } catch (e) {
@@ -311,7 +368,8 @@ export async function POST(request: Request) {
       }
 
       const targetEntry = action === 'add' ? data : tempRows.find((r: any) => r.id === id);
-      if (targetEntry) {
+      // E2EE support: if the payload is encrypted (no categoryId in plaintext), skip server-side budget validation
+      if (targetEntry && targetEntry.categoryId) {
         const categoryId = targetEntry.categoryId;
         const cat = categories.find((c: any) => c.id === categoryId);
         
@@ -396,7 +454,11 @@ export async function POST(request: Request) {
             const spent = generalSpent + dailyExpenseIssued;
             const planned = catEntries.filter((e: any) => e.isPlanned && !e.isSettled).reduce((sum: number, e: any) => sum + e.amount, 0);
 
-            const totalUsage = spent + planned + lockedAmount;
+            const isEntryPlanned = targetEntry.isPlanned === true;
+            const totalUsage = isEntryPlanned 
+              ? spent + planned + lockedAmount 
+              : spent + lockedAmount;
+
             if (cat.totalBudget > 0 && totalUsage > cat.totalBudget) {
               return NextResponse.json({
                 success: false,
@@ -448,6 +510,16 @@ export async function POST(request: Request) {
 
     await writeDataToFile(sheet, rows);
 
+    let mtime = 0;
+    let size = 0;
+    try {
+      const stats = await fs.stat(getFilePath(sheet));
+      mtime = stats.mtimeMs;
+      size = stats.size;
+    } catch (statsErr) {
+      console.warn(`[API POST] Failed to fetch stats for ${sheet} after write:`, statsErr);
+    }
+
     // RAG 임베딩 자동 색인 트리거 (sheet가 WIKI_DOC_로 시작하는 경우)
     if (sheet.startsWith('WIKI_DOC_')) {
       const nodeId = sheet.replace('WIKI_DOC_', '');
@@ -480,7 +552,7 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, mtime, size });
 
   } catch (e) {
     console.error(e);

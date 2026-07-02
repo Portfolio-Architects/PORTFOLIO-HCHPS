@@ -256,12 +256,14 @@ export class OntologyRenderer {
     const tBg0 = performance.now();
     this.renderBackground(ctx, canvasW, canvasH);
     
+    const isFastPath = !!(context.isInteractive || context.isOrbiting);
+
     if (layoutMode === 'orbit') {
-      this.renderOrbitRings(context);
+      if (!isFastPath) this.renderOrbitRings(context);
     } else if (layoutMode === 'cluster') {
       // 포도송이(Cluster) 뷰: 수직 적층 플레이트 그리기를 건너뛰어 시각적 겹침 방지
     } else {
-      this.renderBackgroundLayers(context);
+      if (!isFastPath) this.renderBackgroundLayers(context);
     }
     const tBg1 = performance.now();
     PerformanceProfiler.getInstance().recordBackground(tBg1 - tBg0);
@@ -453,8 +455,8 @@ export class OntologyRenderer {
       }
 
       // LOD (Level of Detail) 및 상호작용(Interactive) 최적화: 
-      // 줌 레벨이 극도로 낮고(zoom < 0.38) 상호작용 중일 때, Spanning Tree에 소속되지 않은 일반 교차 엣지는 continue로 드로잉을 즉각 스킵합니다.
-      if (isCrossEdge && (rc.zoom < 0.38 || isFastPath)) {
+      // 상호작용(드래그, 줌, 회전 등) 중일 때는 모든 교차 간선 드로잉을 스킵하여 극도로 쾌적한 드래깅 확보
+      if (isCrossEdge && isFastPath) {
          continue;
       }
 
@@ -603,9 +605,7 @@ export class OntologyRenderer {
 
       batch.edgesList.push(batchedEdge);
 
-      // 펄스/흐름 파티클 효과 추가
-      // 활성화된 노드와 연결되어 있거나 트리 구조 내에 속한 엣지에 대해서 시각적 흐름(Pulse)을 추가하여 동적인 관계성을 연출
-      const isFlowActive = isDirectlyConnectedToActive || isConnectedToTree;
+      const isFlowActive = false;
       if (isFlowActive) {
         const time = performance.now();
         const flows = [
@@ -712,8 +712,7 @@ export class OntologyRenderer {
       else ctx.setLineDash([]);
 
       ctx.beginPath();
-      const isExtremeZoomOut = rc.zoom < 0.5;
-      const isLinear = layoutMode === 'orbit' || isExtremeZoomOut;
+      const isLinear = true;
       const isCluster = layoutMode === 'cluster';
 
       if (isLinear) {
@@ -1194,43 +1193,14 @@ export class OntologyRenderer {
       // ─── 젤리 모핑 및 Specular 실시간 연산 제거 (성능 최적화 및 렉 스파이크 제거) ───
       // 기존에 렉을 유발하던 Math.sqrt, Matrix 변형(rotate, scale) 및 createRadialGradient 실시간 계산을 완전히 소거하여 60 FPS를 사수합니다.
 
-      if (isFastPath && !isActive && !isHovered) {
-        // 성능 최적화: 드래그/공전 등의 상호작용 중이며 비활성/비호버 상태일 때는 
-        // 템플릿 드로잉 오버헤드마저 아끼기 위해 단순 단색 원으로 렌더링 (save/restore 오버헤드도 완전 배제)
-        ctx.beginPath();
-        ctx.arc(node.renderX, node.renderY, dotRadius, 0, Math.PI * 2);
-        ctx.fillStyle = themeColor;
-        ctx.fill();
-        ctx.strokeStyle = '#FFFFFF';
-        ctx.lineWidth = (isCluster ? 2.4 : 1.5) * localZoom;
-        ctx.stroke();
-      } else {
-        // 일반 상태나 타겟/호버 노드는 고화질 캐시 템플릿을 드로잉하여 입체감 보존 (save/restore 오버헤드 방지 및 static drawImage)
-        if (typeof window !== 'undefined') {
-          let templateCanvas = node._cachedTemplate;
-          if (!templateCanvas || node._cachedTemplateColor !== themeColor || node._cachedTemplateCluster !== isCluster) {
-            templateCanvas = this.getOrCreateNodeTemplate(themeColor, false, isCluster);
-            node._cachedTemplate = templateCanvas;
-            node._cachedTemplateColor = themeColor;
-            node._cachedTemplateCluster = isCluster;
-          }
-          ctx.drawImage(
-            templateCanvas,
-            node.renderX - dotRadius,
-            node.renderY - dotRadius,
-            dotRadius * 2,
-            dotRadius * 2
-          );
-        } else {
-          ctx.beginPath();
-          ctx.arc(node.renderX, node.renderY, dotRadius, 0, Math.PI * 2);
-          ctx.fillStyle = themeColor;
-          ctx.fill();
-          ctx.strokeStyle = '#FFFFFF';
-          ctx.lineWidth = (isCluster ? 2.4 : 1.5) * localZoom;
-          ctx.stroke();
-        }
-      }
+      // 성능 최적화: 템플릿 드로잉 및 drawImage 오버헤드를 배제하고 단순 단색 원으로 렌더링 (품질 대비 성능 극대화)
+      ctx.beginPath();
+      ctx.arc(node.renderX, node.renderY, dotRadius, 0, Math.PI * 2);
+      ctx.fillStyle = themeColor;
+      ctx.fill();
+      ctx.strokeStyle = (isActive || isHovered) ? '#FFFFFF' : 'rgba(255, 255, 255, 0.85)';
+      ctx.lineWidth = (isActive || isHovered ? 2.25 : (isCluster ? 2.0 : 1.25)) * localZoom;
+      ctx.stroke();
 
       ctx.shadowColor = 'transparent';
 
