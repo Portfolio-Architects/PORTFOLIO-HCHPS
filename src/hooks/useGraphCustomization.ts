@@ -45,8 +45,9 @@ export interface MapCustomizationData {
   deletedEdges?: string[];
 }
 
-export function useGraphCustomization() {
+export function useGraphCustomization(enabled = true) {
   const { ydoc } = useYjsStore();
+  const isSyncing = useRef(false);
 
   const undoManager = useMemo(() => {
     return new Y.UndoManager([
@@ -161,7 +162,11 @@ export function useGraphCustomization() {
     };
   }, [ydoc]);
 
-  const data = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+  // data 정의 전에 store가 존재하지 않는 특수한 상황(HMR 초기화 꼬임 등) 방어 코드
+  const safeSubscribe = store?.subscribe || (() => () => {});
+  const safeGetSnapshot = store?.getSnapshot || (() => ({ overrides: {}, customNodes: [], customEdges: [], deletedEdges: [] }));
+
+  const data = useSyncExternalStore(safeSubscribe, safeGetSnapshot, safeGetSnapshot);
 
   const undo = useCallback(() => undoManager.undo(), [undoManager]);
   const redo = useCallback(() => undoManager.redo(), [undoManager]);
@@ -417,6 +422,7 @@ export function useGraphCustomization() {
   const fetchFromCloud = useCallback(async (silent = false) => {
     if (!silent && !confirm('클라우드에서 최신 데이터를 불러오시겠습니까? (현재 로컬의 캔버스 내용은 모두 덮어씌워집니다)')) return;
     try {
+      isSyncing.current = true;
       const rows = await readSheet<MapCustomizationData & { id: string }>('MAP_CUSTOMIZATION');
       console.log('[DEBUG] fetchFromCloud rows:', rows);
       if (rows && rows.length > 0 && rows[0].id === 'singleton') {
@@ -440,6 +446,8 @@ export function useGraphCustomization() {
     } catch (e: unknown) {
       console.error(e);
       if (!silent) alert('불러오기 중 오류가 발생했습니다.');
+    } finally {
+      isSyncing.current = false;
     }
   }, [ydoc]);
 
@@ -449,7 +457,7 @@ export function useGraphCustomization() {
   const [isCloudLoaded, setIsCloudLoaded] = useState(false);
 
   useEffect(() => {
-    if (isInitialMount.current) {
+    if (enabled && isInitialMount.current) {
       isInitialMount.current = false;
       // 동기적 로딩 모델: 딜레이 없이 즉각 클라우드 호출
       fetchFromCloud(true).then(() => {
@@ -458,11 +466,11 @@ export function useGraphCustomization() {
          console.log('[Auto-Load] MindMap configuration fetched from cloud.');
       });
     }
-  }, [fetchFromCloud]);
+  }, [enabled, fetchFromCloud]);
 
   // 자동 클라우드 백업 (디바운스 2500ms)
   useEffect(() => {
-    if (!cloudFetched.current) return;
+    if (!cloudFetched.current || isSyncing.current) return;
     const timer = setTimeout(() => {
       syncToCloud(true).then(() => {
         console.log('[Auto-Save] MindMap configuration uploaded to cloud.');
@@ -473,7 +481,7 @@ export function useGraphCustomization() {
 
   // 10초 간격 백엔드 로컬 DB 실시간 폴링 및 Yjs CRDT 실시간 병합 (Visibility Gating 적용 - Global Singleton Pattern)
   useEffect(() => {
-    if (!isCloudLoaded) return;
+    if (!enabled || !isCloudLoaded) return;
 
     activePollCount++;
     
@@ -541,7 +549,7 @@ export function useGraphCustomization() {
         activePollInterval = null;
       }
     };
-  }, [isCloudLoaded]);
+  }, [enabled, isCloudLoaded]);
 
   return {
     ...data,

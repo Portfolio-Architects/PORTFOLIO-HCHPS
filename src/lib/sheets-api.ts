@@ -38,6 +38,7 @@ interface CacheEntry {
   mtime: number;
   size: number;
   data: any[];
+  lastMetaCheck: number;
 }
 
 const clientCache = new Map<string, CacheEntry>();
@@ -45,6 +46,14 @@ const clientCache = new Map<string, CacheEntry>();
 export async function readSheet<T>(sheetName: string): Promise<T[]> {
   try {
     let newMeta: { mtime: number; size: number } | null = null;
+    const cached = clientCache.get(sheetName);
+    const now = Date.now();
+
+    // 8초 캐시 가드: 메타체크를 수행한 지 8초 미만이고 캐시가 존재하면 즉각 반환하여 RTT 단축
+    if (cached && cached.lastMetaCheck && (now - cached.lastMetaCheck) < 8000) {
+      return cached.data as T[];
+    }
+
     try {
       const metaRes = await fetch(`${API_BASE}?sheet=${encodeURIComponent(sheetName)}&meta=true&_t=${Date.now()}`, {
         headers: { 
@@ -57,8 +66,9 @@ export async function readSheet<T>(sheetName: string): Promise<T[]> {
         const metaJson = await metaRes.json();
         if (metaJson.success && metaJson.data) {
           const { mtime, size } = metaJson.data;
-          const cached = clientCache.get(sheetName);
           if (cached && cached.mtime === mtime && cached.size === size) {
+            // 메타데이터가 일치하므로 검증 시점만 갱신하여 쿨다운 리셋
+            cached.lastMetaCheck = now;
             return cached.data as T[];
           }
           newMeta = { mtime, size };
@@ -169,7 +179,8 @@ export async function readSheet<T>(sheetName: string): Promise<T[]> {
       clientCache.set(sheetName, {
         mtime: newMeta.mtime,
         size: newMeta.size,
-        data: finalData
+        data: finalData,
+        lastMetaCheck: now
       });
     }
     return finalData;
@@ -221,7 +232,8 @@ async function writeData(sheetName: string, action: string, data?: unknown, id?:
         clientCache.set(sheetName, {
           mtime: json.mtime,
           size: json.size,
-          data: data
+          data: data,
+          lastMetaCheck: Date.now()
         });
       } else {
         clientCache.delete(sheetName);

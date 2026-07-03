@@ -291,6 +291,19 @@ sequenceDiagram
 
 ## 8. 최근 엔지니어링 마일스톤 (요약)
 
+### 로딩 성능 극대 최적화 및 65차 패치 (2026-07-03)
+* **sheets-api.ts 캐시 버퍼링(Time-Gating) 도입**:
+  - `readSheet`에 8초(`8000ms`) 메타데이터 캐시 만료 정책을 적용했습니다. 이로써 메인 대시보드 진입 시 병렬로 발생하는 8개 시트의 mtime/size API 검증 요청(meta=true)의 RTT를 원천적으로 격감하고 캐시에서 무지연으로 즉시 반환하도록 튜닝했습니다.
+* **page.tsx 프리마운트 비활성화 및 마인드맵 탭 Lazy Loading**:
+  - 기존에 3.5초 만에 백그라운드에서 강제 마운트되어 WebGL 리소스를 로드하고 렌더 루프를 돌리던 `preloadModulesOnIdle` 프리마운트 트리거를 비활성화했습니다.
+  - 3D 마인드맵 컴포넌트(`MindMap3D`)는 오직 사용자가 마인드맵 탭을 활성화하는 시점에만 Lazy 마운트되어 초기 로딩 및 대시보드 조작 프레임 드롭을 완벽히 방지했습니다.
+* **useGraphCustomization.ts 비활성 탭 페칭 게이팅, Save Lock 락 가드 구현 및 HMR 방어 코드 수립**:
+  - `useGraphCustomization` 훅이 `enabled` 파라미터를 입력받도록 변경하고, 활성화(`enabled === true`) 상태에서만 최초 클라우드 데이터 호출 및 10초 주기 실시간 폴링이 가동되도록 게이팅을 강화했습니다.
+  - `fetchFromCloud`로 동기 데이터 주입 시 `isSyncing` 플래그로 락을 걸어, Yjs 변경 이벤트에 의한 자동 디바운스 백업 `syncToCloud`가 중복 오작동하는 현상을 차단했습니다.
+  - Next.js Turbopack 핫 리로딩(HMR) 진행 시 리액트 Hook 평가가 일시적으로 깨져 store가 null로 반환될 수 있는 특수 상황에 대응하기 위해 `safeSubscribe` / `safeGetSnapshot` 방어 코드를 수립하여 화면 붕괴(크래시)를 예방했습니다.
+* **하네스 무결성 검증 성공**:
+  - `run-harness.js` 정적 분석 및 ESLint(Total Warnings: 0, Violations: 0, Bottlenecks: 0) 무결성을 충족하여 production 검증을 완료했습니다.
+
 ### 3D 마인드맵 렌더링 품질 타협 및 64차 극대 성능 최적화 패치 (2026-07-02)
 * **상호작용 중 배경 레이어 및 궤도 링 렌더링 스킵**:
   - `src/lib/engine/OntologyRenderer.ts` 의 `render` 함수에서 사용자가 드래그/줌/패닝/공전 등의 조작을 수행 중인 경우(`isFastPath === true`), 3D 백그라운드 아크릴 레이어 판과 궤도 링 드로잉을 일시 정지하도록 최적화했습니다. 이로써 카메라 이동 반응성을 2배 이상 끌어올렸습니다.

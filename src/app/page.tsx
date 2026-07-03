@@ -141,7 +141,7 @@ function ProtectedApp({ appMode, onModeChange }: ProtectedAppProps) {
 
   const { searchModalOpen, searchQuery, searchResults, closeSearchModal } = useGlobalSearch();
   const { mergedKeywordMap, mergedEntries } = useMergedSignals(signalEntries, keywordMap, tasks, projects, meetings, budgetEntries, inventoryItems);
-  const { customNodes, customEdges, deletedEdges, overrides } = useGraphCustomization();
+  const { customNodes, customEdges, deletedEdges, overrides } = useGraphCustomization(activeModule === 'mindmap');
 
 
 
@@ -153,26 +153,8 @@ function ProtectedApp({ appMode, onModeChange }: ProtectedAppProps) {
   }, []);
 
   const preloadModulesOnIdle = useCallback(() => {
-    // 최초 렌더링 시 대시보드 렌더링과 트랜지션이 완료될 수 있도록 requestIdleCallback을 통해
-    // 브라우저가 유휴 상태일 때(혹은 최대 3500ms 대기 후) 백그라운드에서 다른 모듈들을 조용히 프리마운트합니다.
-    const idleTimer = (typeof window !== 'undefined' && 'requestIdleCallback' in window)
-      ? window.requestIdleCallback(() => {
-          setVisitedModules(prev => ({
-            ...prev,
-            mindmap: true,
-            workspace: true,
-            inventory: true
-          }));
-        }, { timeout: 3500 })
-      : setTimeout(() => {
-          setVisitedModules(prev => ({
-            ...prev,
-            mindmap: true,
-            workspace: true,
-            inventory: true
-          }));
-        }, 3000);
-    return idleTimer;
+    // 프리마운트 비활성화: 사용자가 탭을 실제로 눌러 진입할 때만 마운트하도록 게이팅하여 CPU/3D 렌더링 랙 방지
+    return null;
   }, []);
 
   // Prevent hydration mismatch — hooks read localStorage data on client
@@ -185,10 +167,12 @@ function ProtectedApp({ appMode, onModeChange }: ProtectedAppProps) {
     const idleTimer = preloadModulesOnIdle();
 
     return () => {
-      if (typeof window !== 'undefined' && 'cancelIdleCallback' in window && typeof idleTimer === 'number') {
-        window.cancelIdleCallback(idleTimer);
-      } else {
-        clearTimeout(idleTimer as any);
+      if (idleTimer) {
+        if (typeof window !== 'undefined' && 'cancelIdleCallback' in window && typeof idleTimer === 'number') {
+          window.cancelIdleCallback(idleTimer);
+        } else {
+          clearTimeout(idleTimer as any);
+        }
       }
     };
   }, [preloadModulesOnIdle]);
