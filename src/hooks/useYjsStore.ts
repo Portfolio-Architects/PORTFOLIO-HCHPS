@@ -102,31 +102,9 @@ export function useYjsStore(roomId: string = 'hchps-global') {
       window.__globalYProvider = provider;
     }
 
-    // 3. 브라우저 탭 비활성화 감지 시 WebSocket 연결 차단 및 재연결 (배터리 및 지터 완화)
-    let visibilityTimeoutId: ReturnType<typeof setTimeout> | null = null;
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        // 30초 대기 후 disconnect
-        visibilityTimeoutId = setTimeout(() => {
-          console.info('[Yjs Provider] Tab hidden for 30s, disconnecting WebSocket provider...');
-          provider.disconnect();
-        }, 30000);
-      } else if (document.visibilityState === 'visible') {
-        if (visibilityTimeoutId) {
-          clearTimeout(visibilityTimeoutId);
-          visibilityTimeoutId = null;
-        }
-        console.info('[Yjs Provider] Tab visible, reconnecting WebSocket provider...');
-        provider.connect();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
     return () => {
       // 리소스 정리
       ydoc.off('update', handleYjsUpdate);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      if (visibilityTimeoutId) clearTimeout(visibilityTimeoutId);
       
       indexeddbProvider.destroy();
       provider.destroy();
