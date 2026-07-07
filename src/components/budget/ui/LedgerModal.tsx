@@ -22,6 +22,20 @@ export function LedgerModal({ isOpen, onClose, categories, entries, getCategoryS
   const [settlingId, setSettlingId] = React.useState<string | null>(null);
   const [settleAmount, setSettleAmount] = React.useState<string>('');
 
+  // Group entries by categoryId in O(E) time to eliminate O(C * E) complexity during render
+  const entriesByCatId = React.useMemo(() => {
+    const map: Record<string, BudgetEntry[]> = {};
+    categories.forEach(cat => {
+      map[cat.id] = [];
+    });
+    entries.forEach(e => {
+      if (map[e.categoryId]) {
+        map[e.categoryId].push(e);
+      }
+    });
+    return map;
+  }, [categories, entries]);
+
   const handleSettleSubmit = (id: string) => {
     if (onSettle && settleAmount) {
       onSettle(id, Number(settleAmount.replace(/,/g, '')));
@@ -55,7 +69,7 @@ export function LedgerModal({ isOpen, onClose, categories, entries, getCategoryS
           {categories
             .map(cat => {
               const stats = getCategoryStats(cat.id);
-              const catEntries = entries.filter(e => e.categoryId === cat.id);
+              const catEntries = entriesByCatId[cat.id] || [];
               
               // 왼쪽 (가배정/계획) = isPlanned:true & isSettled:false (현재 진행중) + 교부액
               const plannedTasks = catEntries.filter(e => e.isPlanned && !e.isSettled).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
