@@ -308,13 +308,25 @@ export function buildSignalGraph(
 
   // 3.5. Inject AI Curation Graph Connectivity (Phase 3)
   // entries 배열을 순환하며 LLM이 추천한 relatedKeywords가 그래프 상에 존재할 경우 횡적 엣지를 추가합니다.
+  const nodesByLabelMap = new Map<string, OntologyNode>();
+  nodes.forEach(n => nodesByLabelMap.set(n.label, n));
+
   entries.forEach(e => {
     if (e.aiCurated && e.curationData?.relatedKeywords) {
       // 이 Signal이 만들어낸 주된 리프 노드 ID를 역추적 (복잡하므로 카테고리에 할당)
       // 또는 Signal 전체를 대표하는 태그 노드를 찾습니다.
-      const sourceTags = e.tags?.filter(t => tagNodesMap.has(t)) || [];
-      if (sourceTags.length > 0) {
-        const sourceTagId = tagNodesMap.get(sourceTags[0]);
+      let firstSourceTag: string | undefined = undefined;
+      if (e.tags) {
+        for (let i = 0; i < e.tags.length; i++) {
+          const t = e.tags[i];
+          if (tagNodesMap.has(t)) {
+            firstSourceTag = t;
+            break;
+          }
+        }
+      }
+      if (firstSourceTag) {
+        const sourceTagId = tagNodesMap.get(firstSourceTag);
         if (sourceTagId) {
           e.curationData.relatedKeywords.forEach(rk => {
             // relatedKeyword가 기존 리프 노드 레이블이거나 태그 레이블인지 찾습니다.
@@ -329,7 +341,7 @@ export function buildSignalGraph(
                });
             } else {
                // 키워드 간의 횡적 연결을 시도 (매우 느슨한 네트워크)
-               const existingNode = nodes.find(n => n.label === rk);
+               const existingNode = nodesByLabelMap.get(rk);
                if (existingNode && existingNode.id !== sourceTagId) {
                  edges.push({
                    source: sourceTagId,
@@ -408,9 +420,12 @@ export function buildSignalGraph(
     });
 
     // 4.8. Self-heal inverted parent-child relationships (e.g. parent is longer and contains child label)
+    const currentNodesMap = new Map<string, OntologyNode>();
+    nodes.forEach(n => currentNodesMap.set(n.id, n));
+
     nodes.forEach(node => {
       if (node.parentId) {
-        const parentNode = nodes.find(n => n.id === node.parentId);
+        const parentNode = currentNodesMap.get(node.parentId);
         if (parentNode) {
           const labelX = node.label || '';
           const labelY = parentNode.label || '';
