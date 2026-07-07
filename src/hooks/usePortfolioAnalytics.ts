@@ -42,26 +42,45 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
   ], [executedBudget, remainingBudget]);
 
   const breakdownData = useMemo<{ name: string; total: number; executed: number; rate: number; formationItem?: string }[]>(() => {
+    // Pre-group categories by detailedProject in O(C)
+    const catsByDetailedProject: Record<string, BudgetCategory[]> = {};
+    detailedProjects.forEach(dp => {
+      catsByDetailedProject[dp] = [];
+    });
+    budgetCategories.forEach(c => {
+      if (c.detailedProject && catsByDetailedProject[c.detailedProject]) {
+        catsByDetailedProject[c.detailedProject].push(c);
+      }
+    });
+
+    // Aggregate executed amount by categoryId in O(E)
+    const executedByCatId: Record<string, number> = {};
+    budgetCategories.forEach(c => {
+      executedByCatId[c.id] = 0;
+    });
+    budgetEntries.forEach(e => {
+      if (!e.isPlanned && e.actionType !== 'settle' && executedByCatId[e.categoryId] !== undefined) {
+        if (e.actionType === 'transfer') {
+          executedByCatId[e.categoryId] -= e.amount;
+        } else {
+          executedByCatId[e.categoryId] += e.amount;
+        }
+      }
+    });
+
     if (selectedProject === 'ALL') {
       const projectsData = detailedProjects.map(dp => {
-        const cats = budgetCategories.filter(c => c.detailedProject === dp);
-        const catIds = new Set(cats.map(c => c.id));
+        const cats = catsByDetailedProject[dp] || [];
         const total = cats.reduce((s, c) => s + c.totalBudget, 0);
-        const executed = budgetEntries.filter(e => catIds.has(e.categoryId) && !e.isPlanned && e.actionType !== 'settle').reduce((s, e) => {
-          if (e.actionType === 'transfer') return s - e.amount;
-          return s + e.amount;
-        }, 0);
+        const executed = cats.reduce((s, c) => s + (executedByCatId[c.id] || 0), 0);
         const rate = total > 0 ? (executed / total) * 100 : 0;
         return { name: dp, total, executed, rate };
       });
       return projectsData.sort((a, b) => a.name.localeCompare(b.name));
     } else {
-      const cats = budgetCategories.filter(c => c.detailedProject === selectedProject);
+      const cats = catsByDetailedProject[selectedProject] || [];
       return cats.map(cat => {
-        const executed = budgetEntries.filter(e => e.categoryId === cat.id && !e.isPlanned && e.actionType !== 'settle').reduce((s, e) => {
-          if (e.actionType === 'transfer') return s - e.amount;
-          return s + e.amount;
-        }, 0);
+        const executed = executedByCatId[cat.id] || 0;
         const rate = cat.totalBudget > 0 ? (executed / cat.totalBudget) * 100 : 0;
         return { name: cat.name, formationItem: cat.formationItem, total: cat.totalBudget, executed, rate };
       }).sort((a, b) => a.name.localeCompare(b.name));
@@ -70,14 +89,56 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
 
   // 항상 모든 사업을 표시하기 위한 독립된 데이터 (아코디언용)
   const allBreakdownData = useMemo(() => {
+    // Pre-group categories by detailedProject in O(C)
+    const catsByDetailedProject: Record<string, BudgetCategory[]> = {};
+    detailedProjects.forEach(dp => {
+      catsByDetailedProject[dp] = [];
+    });
+    budgetCategories.forEach(c => {
+      if (c.detailedProject && catsByDetailedProject[c.detailedProject]) {
+        catsByDetailedProject[c.detailedProject].push(c);
+      }
+    });
+
+    // Aggregate entry sums by category ID in O(E)
+    const executedByCatId: Record<string, number> = {};
+    const executedNoIssuanceByCatId: Record<string, number> = {};
+    const plannedByCatId: Record<string, number> = {};
+    
+    budgetCategories.forEach(c => {
+      executedByCatId[c.id] = 0;
+      executedNoIssuanceByCatId[c.id] = 0;
+      plannedByCatId[c.id] = 0;
+    });
+
+    budgetEntries.forEach(e => {
+      if (executedByCatId[e.categoryId] !== undefined) {
+        if (!e.isPlanned && e.actionType !== 'settle') {
+          // total executed
+          if (e.actionType === 'transfer') {
+            executedByCatId[e.categoryId] -= e.amount;
+          } else {
+            executedByCatId[e.categoryId] += e.amount;
+          }
+          // executed excluding issuance
+          if (e.actionType !== 'issuance') {
+            if (e.actionType === 'transfer') {
+              executedNoIssuanceByCatId[e.categoryId] -= e.amount;
+            } else {
+              executedNoIssuanceByCatId[e.categoryId] += e.amount;
+            }
+          }
+        } else if (e.isPlanned) {
+          // planned
+          plannedByCatId[e.categoryId] += e.amount;
+        }
+      }
+    });
+
     const projectsData = detailedProjects.map(dp => {
-      const cats = budgetCategories.filter(c => c.detailedProject === dp);
-      const catIds = new Set(cats.map(c => c.id));
+      const cats = catsByDetailedProject[dp] || [];
       const total = cats.reduce((s, c) => s + c.totalBudget, 0);
-      const executed = budgetEntries.filter(e => catIds.has(e.categoryId) && !e.isPlanned && e.actionType !== 'settle').reduce((s, e) => {
-        if (e.actionType === 'transfer') return s - e.amount;
-        return s + e.amount;
-      }, 0);
+      const executed = cats.reduce((s, c) => s + (executedByCatId[c.id] || 0), 0);
       const rate = total > 0 ? (executed / total) * 100 : 0;
       
       const remaining = Math.max(0, total - executed);
@@ -85,11 +146,9 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
       const historicalMonthly = Math.round(executed / 5);
 
       // 이 세부사업의 가계획 총합
-      const plannedInProject = budgetEntries
-        .filter(e => e.isPlanned && catIds.has(e.categoryId))
-        .reduce((sum, e) => sum + e.amount, 0);
+      const plannedInProject = cats.reduce((s, c) => s + (plannedByCatId[c.id] || 0), 0);
 
-      // 이 세부사업의 가상 조정액 총합 (개별 카테고리(통계목) 단위로 실제 집행액을 하한선으로 보정)
+      // 이 세부사업의 가상 조정액 총합
       let virtualAdjustmentInProject = 0;
       cats.forEach(cat => {
         let catVirtualAdjustment = 0;
@@ -111,13 +170,7 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
         }
 
         // 개별 카테고리(통계목) 단위의 실제 집행액 계산 (단순 한도 배정인 issuance 교부 건은 제외)
-        const catExecuted = budgetEntries
-          .filter(e => e.categoryId === cat.id && !e.isPlanned && e.actionType !== 'settle' && e.actionType !== 'issuance')
-          .reduce((s, e) => {
-            if (e.actionType === 'transfer') return s - e.amount;
-            return s + e.amount;
-          }, 0);
-
+        const catExecuted = executedNoIssuanceByCatId[cat.id] || 0;
         virtualAdjustmentInProject += Math.max(catExecuted, catVirtualAdjustment);
       });
 

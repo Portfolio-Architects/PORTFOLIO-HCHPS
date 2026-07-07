@@ -49,34 +49,58 @@ export function useBudgetFilters(
 
   // Hierarchical Filter Calculation
   const uniquePolicies = useMemo(() => {
-    return Array.from(new Set(categories.map(c => c.policyProject).filter(Boolean))).map(policy => {
-      const sum = categories.filter(c => c.policyProject === policy).reduce((a, b) => a + b.totalBudget, 0);
-      return { value: policy as string, suffix: `${formatN(sum)}원` };
+    const sums: Record<string, number> = {};
+    categories.forEach(c => {
+      if (c.policyProject) {
+        sums[c.policyProject] = (sums[c.policyProject] || 0) + c.totalBudget;
+      }
     });
+    return Object.keys(sums).map(policy => ({
+      value: policy,
+      suffix: `${formatN(sums[policy])}원`
+    }));
   }, [categories]);
   
   const unitOptions = useMemo(() => {
     const list = categories.filter(c => filterPolicy.length === 0 || filterPolicy.includes(c.policyProject || ''));
-    return Array.from(new Set(list.map(c => c.unitProject).filter(Boolean))).map(unit => {
-      const sum = list.filter(c => c.unitProject === unit).reduce((a, b) => a + b.totalBudget, 0);
-      return { value: unit as string, suffix: `${formatN(sum)}원` };
+    const sums: Record<string, number> = {};
+    list.forEach(c => {
+      if (c.unitProject) {
+        sums[c.unitProject] = (sums[c.unitProject] || 0) + c.totalBudget;
+      }
     });
+    return Object.keys(sums).map(unit => ({
+      value: unit,
+      suffix: `${formatN(sums[unit])}원`
+    }));
   }, [categories, filterPolicy]);
   
   const detailOptions = useMemo(() => {
     const list = categories.filter(c => (filterPolicy.length === 0 || filterPolicy.includes(c.policyProject || '')) && (filterUnit.length === 0 || filterUnit.includes(c.unitProject || '')));
-    return Array.from(new Set(list.map(c => c.detailedProject).filter(Boolean))).map(detail => {
-      const sum = list.filter(c => c.detailedProject === detail).reduce((a, b) => a + b.totalBudget, 0);
-      return { value: detail as string, suffix: `${formatN(sum)}원` };
+    const sums: Record<string, number> = {};
+    list.forEach(c => {
+      if (c.detailedProject) {
+        sums[c.detailedProject] = (sums[c.detailedProject] || 0) + c.totalBudget;
+      }
     });
+    return Object.keys(sums).map(detail => ({
+      value: detail,
+      suffix: `${formatN(sums[detail])}원`
+    }));
   }, [categories, filterPolicy, filterUnit]);
   
   const statOptions = useMemo(() => {
     const list = categories.filter(c => (filterPolicy.length === 0 || filterPolicy.includes(c.policyProject || '')) && (filterUnit.length === 0 || filterUnit.includes(c.unitProject || '')) && (filterDetail.length === 0 || filterDetail.includes(c.detailedProject || '')));
-    return Array.from(new Set(list.map(c => c.statItem).filter(Boolean))).map(stat => {
-      const sum = list.filter(c => c.statItem === stat).reduce((a, b) => a + b.totalBudget, 0);
-      return { value: stat as string, suffix: `${formatN(sum)}원` };
+    const sums: Record<string, number> = {};
+    list.forEach(c => {
+      if (c.statItem) {
+        sums[c.statItem] = (sums[c.statItem] || 0) + c.totalBudget;
+      }
     });
+    return Object.keys(sums).map(stat => ({
+      value: stat,
+      suffix: `${formatN(sums[stat])}원`
+    }));
   }, [categories, filterPolicy, filterUnit, filterDetail]);
 
   const filteredCategoriesTree = useMemo(() => {
