@@ -59,7 +59,7 @@ export const PolicyGroupCard = React.memo(({
     });
   }, [updateCategory]);
 
-  const { totalBudget, spent, planned, remaining, usageRate, groupEntries, entriesByCatId, groupedByDetail, groupFunding, groupTypes } = useMemo(() => {
+  const { totalBudget, spent, planned, remaining, usageRate, groupEntries, entriesByCatId, groupedByDetail, groupFunding, groupTypes, catMap } = useMemo(() => {
     const tBudget = cats.reduce((s, c) => s + c.totalBudget, 0);
     let tSpent = 0; let tPlanned = 0; let tRemaining = 0;
     
@@ -86,17 +86,26 @@ export const PolicyGroupCard = React.memo(({
       }
     });
 
-    // Group by detailedProject
-    const groups: { detailName: string; cats: BudgetCategory[] }[] = [];
+    // Build category ID lookup map in O(C)
+    const categoryLookupMap: Record<string, BudgetCategory> = {};
+    cats.forEach(c => {
+      categoryLookupMap[c.id] = c;
+    });
+
+    // Group by detailedProject in O(C)
+    const groupsMap: Record<string, BudgetCategory[]> = {};
     cats.forEach(cat => {
       const detail = cat.detailedProject || '분류되지 않은 세부사업';
-      let g = groups.find(g => g.detailName === detail);
-      if (!g) {
-        g = { detailName: detail, cats: [] };
-        groups.push(g);
+      if (!groupsMap[detail]) {
+        groupsMap[detail] = [];
       }
-      g.cats.push(cat);
+      groupsMap[detail].push(cat);
     });
+    
+    const groups = Object.keys(groupsMap).map(detail => ({
+      detailName: detail,
+      cats: groupsMap[detail]
+    }));
     // Sort cats within each group by sortOrder
     groups.forEach(g => {
       g.cats.sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
@@ -115,7 +124,7 @@ export const PolicyGroupCard = React.memo(({
     const groupFunding = Array.from(groupFundingSet);
     const groupTypes = Array.from(new Set(cats.map(c => c.budgetType).filter(t => t && t !== '본예산')));
 
-    return { totalBudget: tBudget, spent: tSpent, planned: tPlanned, remaining: tRemaining, usageRate: rate, groupEntries: gEntries, entriesByCatId: entriesByCatMap, groupedByDetail: groups, groupFunding, groupTypes };
+    return { totalBudget: tBudget, spent: tSpent, planned: tPlanned, remaining: tRemaining, usageRate: rate, groupEntries: gEntries, entriesByCatId: entriesByCatMap, groupedByDetail: groups, groupFunding, groupTypes, catMap: categoryLookupMap };
   }, [cats, entries, getCategoryStats]);
 
   return (
@@ -545,7 +554,7 @@ export const PolicyGroupCard = React.memo(({
               <div className={`space-y-2 ${showAllEntries ? 'max-h-[600px] overflow-y-auto pr-1 scrollbar-hide' : ''}`}>
                 {(showAllEntries ? groupEntries : groupEntries.slice(0, 6)).map(entry => {
                   const cfg = ACTION_TYPE_CONFIG[entry.actionType || 'general'] || ACTION_TYPE_CONFIG['general'];
-                  const parentCat = cats.find(c => c.id === entry.categoryId);
+                   const parentCat = catMap[entry.categoryId];
                   return (
                     <div key={entry.id} className="flex items-center text-[15px] group bg-white py-2.5 px-3 rounded-lg border border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-colors relative">
                       <div className="w-[70px] flex-shrink-0">

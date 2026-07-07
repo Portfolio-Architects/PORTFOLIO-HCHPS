@@ -114,17 +114,18 @@ export function useBudgetFilters(
   }, [categories, filterPolicy, filterUnit, filterDetail, filterStat]);
 
   const groupedByPolicy = useMemo(() => {
-    const groups: { policyName: string; cats: BudgetCategory[] }[] = [];
+    const groupsMap: Record<string, BudgetCategory[]> = {};
     filteredCategoriesTree.forEach(cat => {
       const policy = cat.policyProject || '분류되지 않음';
-      let group = groups.find(g => g.policyName === policy);
-      if (!group) {
-        group = { policyName: policy, cats: [] };
-        groups.push(group);
+      if (!groupsMap[policy]) {
+        groupsMap[policy] = [];
       }
-      group.cats.push(cat);
+      groupsMap[policy].push(cat);
     });
-    return groups;
+    return Object.keys(groupsMap).map(policy => ({
+      policyName: policy,
+      cats: groupsMap[policy]
+    }));
   }, [filteredCategoriesTree]);
 
   // Dynamic stats based on selected filters

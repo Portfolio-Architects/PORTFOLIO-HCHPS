@@ -12,6 +12,8 @@ import { computeCentrality } from './ontology.service';
 export type PartialOntologyEdge = OntologyEdge & { isCustom?: boolean };
 export type PartialOntologyNode = OntologyNode & { isExplicitColor?: boolean };
 
+const warnedNodes = new Set<string>();
+
 
 
 export function buildSignalGraph(
@@ -236,6 +238,9 @@ export function buildSignalGraph(
   });
 
   // Create Leaf Nodes & Branched Edges
+  const nodesMap = new Map<string, OntologyNode>();
+  nodes.forEach(n => nodesMap.set(n.id, n));
+
   keywordFreqByTag.forEach((kwMap, tag) => {
     const tagNodeId = tagNodesMap.get(tag)!;
     const branchGroup = tagGroupMap.get(tag) || 'OTHER';
@@ -260,16 +265,18 @@ export function buildSignalGraph(
     sortedKw.forEach(([kw, freq]) => {
       const leafId = `leaf-${kw}`;
       
-      let existingNode = nodes.find(n => n.id === leafId);
+      let existingNode = nodesMap.get(leafId);
       if (!existingNode) {
-        nodes.push({
+        const newNode: OntologyNode = {
           id: leafId,
           label: kw,
           group: branchGroup, // Inherit category's color
           baseValue: Math.min(60, 30 + freq * 10),
           centralityScore: 100 + freq, // Orbit 2+
           parentId: tagNodeId,
-        });
+        };
+        nodes.push(newNode);
+        nodesMap.set(leafId, newNode);
       } else {
         existingNode.baseValue = Math.max(existingNode.baseValue || 0, Math.min(60, 30 + freq * 10));
         existingNode.centralityScore = Math.max(existingNode.centralityScore || 0, 100 + freq);
@@ -377,6 +384,13 @@ export function buildSignalGraph(
       if (n.parentId && mergedIdMap.has(n.parentId)) {
         n.parentId = mergedIdMap.get(n.parentId)!;
       }
+      if (n.parentId === n.id) {
+        if (!warnedNodes.has(n.id)) {
+          console.warn(`[Self-Healing] Detected self-parent reference during merge for node: ${n.id}. Breaking loop.`);
+          warnedNodes.add(n.id);
+        }
+        n.parentId = undefined;
+      }
     });
 
     // 4.8. Self-heal inverted parent-child relationships (e.g. parent is longer and contains child label)
@@ -453,9 +467,14 @@ export function buildSignalGraph(
       if (!finalNode) return;
 
       const override = customData.overrides[finalId];
-      const parentId = (override && override.customParent !== undefined)
+
+      let parentId = (override && override.customParent !== undefined)
         ? (override.customParent === 'NONE' ? undefined : override.customParent)
         : finalNode.parentId;
+
+      if (parentId === finalId) {
+        parentId = undefined;
+      }
 
       if (parentId && parentId !== 'NONE' && nodes.some(n => n.id === parentId)) {
         const hasEdge = edges.some(e =>
@@ -509,7 +528,11 @@ export function buildSignalGraph(
       }
     });
 
-    // 순환 참조(Cycle)를 검사하는 DFS 헬퍼
+    // nodes의 id 룩업 맵 빌드
+    const liveNodesMap = new Map<string, OntologyNode>();
+    nodes.forEach(n => liveNodesMap.set(n.id, n));
+
+    // 순환 참조(Cycle)를 검사하는 DFS 헬퍼 (Map 기반 O(1) 초고속/정밀 감지)
     const hasCycle = (startId: string, parentIdToSet: string): boolean => {
       const visited = new Set<string>();
       let curr = parentIdToSet;
@@ -517,7 +540,7 @@ export function buildSignalGraph(
         if (curr === startId) return true;
         if (visited.has(curr)) break;
         visited.add(curr);
-        const parentNode = nodes.find(n => n.id === curr);
+        const parentNode = liveNodesMap.get(curr);
         curr = parentNode?.parentId || '';
       }
       return false;
@@ -615,6 +638,7 @@ export function buildSignalGraph(
           }
 
           nodeX.parentId = bestCandidate.id;
+          liveNodesMap.set(nodeX.id, nodeX);
 
           // 새로운 부모-자식 연결 엣지 추가
           const hasEdge = edges.some(e => e.source === bestCandidate.id && e.target === nodeX.id);
@@ -911,6 +935,11 @@ export function buildSignalGraph(
 
   // ── 최종 빌드 결과물에 대한 순환 참조 사후 자가 치유 (Self-Healing Final Cycle Breaker) ──
   // finalNodes 내의 parentId 상속 고리가 순환을 이루지 않도록 DFS 탐색을 통해 순환 고리를 즉시 제거합니다.
+  const finalNodeMap = new Map<string, OntologyNode>();
+  finalNodes.forEach(n => finalNodeMap.set(n.id, n));
+
+  const edgesToRemove = new Set<string>();
+
   finalNodes.forEach(node => {
     const visited = new Set<string>();
     let curr: OntologyNode | undefined = node;
@@ -919,14 +948,17 @@ export function buildSignalGraph(
         console.warn(`[Self-Healing] Breaking circular parentId reference for node: ${curr.id} (parent: ${curr.parentId})`);
         const targetParentId = curr.parentId;
         curr.parentId = undefined;
-        // 관련 간선도 finalEdges에서 제거합니다.
-        finalEdges = finalEdges.filter(e => !(e.target === curr?.id && e.source === targetParentId));
+        edgesToRemove.add(`${targetParentId}::${curr.id}`);
         break;
       }
       visited.add(curr.id);
-      curr = finalNodes.find(n => n.id === curr?.parentId);
+      curr = finalNodeMap.get(curr.parentId);
     }
   });
+
+  if (edgesToRemove.size > 0) {
+    finalEdges = finalEdges.filter(e => !edgesToRemove.has(`${e.source}::${e.target}`));
+  }
 
   // ── 중앙 루트 노드 이름 강제 복원 ──
   const rootNode = finalNodes.find(n => n.id === 'root-HCHPS');

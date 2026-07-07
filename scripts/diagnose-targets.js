@@ -121,12 +121,11 @@ try {
     const content = fs.readFileSync(file, 'utf-8');
     const relativePath = path.relative(process.cwd(), file).replace(/\\/g, '/');
     
-    // Check for empty dependency arrays in useEffect that might cause infinite rendering if states are mutated within them
+    // 3-1. Check for empty dependency arrays in useEffect that might cause infinite rendering if states are mutated within them
     if (content.includes('useEffect') && content.includes('set')) {
       const useEffectMatches = content.match(/useEffect\s*\(\s*\(\s*\)\s*=>\s*\{((?:(?!useEffect|useCallback)[\s\S])*?)\}\s*,\s*\[\s*\]\s*\)/g);
       if (useEffectMatches) {
         useEffectMatches.forEach(effectMatch => {
-          // If we mutate local states within an empty dependency array effect without proper gating, it could loop or miss updates
           if (effectMatch.includes('setTasks') || effectMatch.includes('setBudget') || effectMatch.includes('set') && effectMatch.length > 500) {
             report.performanceBottlenecks.push({
               file: relativePath,
@@ -137,7 +136,48 @@ try {
       }
     }
 
-    // Check for large modules rendered directly without React.lazy/dynamic imports
+    // 3-2. Check for nested filtering loops inside rendering loops (O(N^2) complexity threat)
+    const loopKeywords = ['.map', '.forEach', '.filter', '.reduce'];
+    loopKeywords.forEach(kw => {
+      if (content.includes(kw) && (content.includes('.filter(') || content.includes('.find(') || content.includes('.some('))) {
+        let pos = 0;
+        while ((pos = content.indexOf(kw, pos)) !== -1) {
+          const windowText = content.substring(pos, pos + 800);
+          const mapMatch = windowText.match(/(?:\.map|\.forEach|\.filter|\.reduce)\s*\(\s*(?:\([^)]*\)|\w+)\s*=>\s*\{?([\s\S]*?)(?:\}\s*\)|,\s*|\)\s*;?)/);
+          if (mapMatch) {
+            const mapBody = mapMatch[1];
+            // Ensure we don't flag if it's already using pre-grouped entries map lookup O(1)
+            if ((mapBody.includes('.filter(') || mapBody.includes('.find(') || mapBody.includes('.some(')) && 
+                !mapBody.includes('entriesByCatId') && !mapBody.includes('liveNodesMap') && !mapBody.includes('executedNoIssuanceByCatId') && !mapBody.includes('entriesByCatMap')) {
+              const lineNo = content.substring(0, pos).split('\n').length;
+              report.performanceBottlenecks.push({
+                file: relativePath,
+                line: lineNo,
+                pattern: `${kw}( ... .filter/find/some )`,
+                message: `Detected nested filter/find/some lookup inside component ${kw}() loop. This leads to O(N^2) complexity. Extract mapping calculations using useMemo or pre-group data into O(1) maps.`
+              });
+            }
+          }
+          pos += kw.length;
+        }
+      }
+    });
+
+    // 3-3. Check for raw console spams inside components
+    if (relativePath.startsWith('src/components/') && (content.includes('console.warn') || content.includes('console.error'))) {
+      const lineNo = content.indexOf('console.warn') !== -1 ? content.substring(0, content.indexOf('console.warn')).split('\n').length : content.substring(0, content.indexOf('console.error')).split('\n').length;
+      // Exclude system logs or dev server warnings
+      if (!content.includes('// console.warn') && !content.includes('// console.error')) {
+        report.performanceBottlenecks.push({
+          file: relativePath,
+          line: lineNo,
+          pattern: 'console.warn/error',
+          message: 'Direct console logging inside component. This can spam the console and freeze the browser thread during high frequency renders.'
+        });
+      }
+    }
+
+    // 3-4. Check for large modules rendered directly without React.lazy/dynamic imports
     if (relativePath.includes('page.tsx') || relativePath.includes('dashboard')) {
       const importRegex = /import\s+\w+\s+from\s+['"].*(MindMap3D|WeeklyScheduler|InventoryList|BlockNote).*['"]/g;
       const matches = content.match(importRegex);
