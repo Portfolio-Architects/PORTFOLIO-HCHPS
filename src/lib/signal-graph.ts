@@ -216,11 +216,25 @@ export function buildSignalGraph(
   const keywordFreqByTag = new Map<string, Map<string, number>>();
 
   entries.forEach(e => {
-    let applicableTags = e.tags?.filter(t => tagNodesMap.has(t)) || [];
+    let applicableTags: string[] = [];
+    if (e.tags) {
+      for (let i = 0; i < e.tags.length; i++) {
+        const t = e.tags[i];
+        if (tagNodesMap.has(t)) {
+          applicableTags.push(t);
+        }
+      }
+    }
     
     // Pure signal routing: Does it match a category keyword?
     if (applicableTags.length === 0) {
-      const matched = e.keywords.filter(kw => tagNodesMap.has(kw));
+      const matched: string[] = [];
+      for (let i = 0; i < e.keywords.length; i++) {
+        const kw = e.keywords[i];
+        if (tagNodesMap.has(kw)) {
+          matched.push(kw);
+        }
+      }
       if (matched.length > 0) applicableTags = matched;
       else if (tagNodesMap.has('💭 미분류')) applicableTags = ['💭 미분류'];
     }

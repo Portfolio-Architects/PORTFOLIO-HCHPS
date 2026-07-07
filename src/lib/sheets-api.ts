@@ -108,8 +108,12 @@ export async function readSheet<T>(sheetName: string): Promise<T[]> {
                 const restoredSub = { ...decSub };
                 if (originalSub.calculations && Array.isArray(originalSub.calculations)) {
                   const decCalcs = Array.isArray(decSub.calculations) ? decSub.calculations : [];
+                  const decCalcsMap = new Map<string, any>();
+                  decCalcs.forEach((c: any) => {
+                    if (c && c.id) decCalcsMap.set(c.id, c);
+                  });
                   restoredSub.calculations = originalSub.calculations.map((origCalc: any) => {
-                    const decCalc = decCalcs.find((c: any) => c.id === origCalc.id) || {};
+                    const decCalc = decCalcsMap.get(origCalc.id) || {};
                     return {
                       ...origCalc,
                       isLocked: typeof decCalc.isLocked === 'boolean' ? decCalc.isLocked : (origCalc.isLocked || false)
