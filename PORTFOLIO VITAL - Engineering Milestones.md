@@ -2,6 +2,11 @@
 
 ## 8. 최근 엔지니어링 마일스톤 (요약)
 
+### 온톨로지 AI 추천 연결 및 부모-자식 관계 역전 자가치유 O(1) 최적화 83차 패치 (2026-07-07)
+* **시간 복잡도 2차 최적화 (Complexity Leap - O(N^2) ➔ O(N))**:
+  - `signal-graph.ts` 내에서 AI 큐레이션 추천 키워드의 상호 연결을 구성할 때, 매 전표(`entries`) 및 키워드(`relatedKeywords`) 루프마다 전체 노드를 순차 탐색하는 병목을 `nodesByLabelMap`을 도입하여 $O(1)$ 해시 테이블 룩업으로 전환했습니다.
+  - 또한, 커스텀 배치 중 부모-자식 관계 역전을 검출하여 자동 자가치유(Self-Healing)하는 로직 내의 `nodes.find` 탐색 역시 `currentNodesMap` 기반의 $O(1)$ 해시 룩업으로 대체함으로써 전체 그래프 로딩 시간을 획기적으로 개선했습니다.
+
 ### sheets-api 복구 루프 및 signal-graph 태그 필터 연산 O(1) 및 절차적 루프 최적화 82차 패치 (2026-07-07)
 * **시간 복잡도 및 GC 메모리 최적화 (Complexity & Zero-Allocation Leap)**:
   - `sheets-api.ts` 내부의 카테고리 자가 복구 루프 내에서 세부 예산 계산식(`calculations`)을 복원할 때 매번 중첩 `.find()`를 돌며 시간 복잡도가 악화되던 현상을 `decCalcsMap` 해시 테이블 룩업으로 전환하여 복잡도를 최적화했습니다.
