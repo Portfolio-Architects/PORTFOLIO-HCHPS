@@ -59,7 +59,7 @@ export const PolicyGroupCard = React.memo(({
     });
   }, [updateCategory]);
 
-  const { totalBudget, spent, planned, remaining, usageRate, groupEntries, groupedByDetail, groupFunding, groupTypes } = useMemo(() => {
+  const { totalBudget, spent, planned, remaining, usageRate, groupEntries, entriesByCatId, groupedByDetail, groupFunding, groupTypes } = useMemo(() => {
     const tBudget = cats.reduce((s, c) => s + c.totalBudget, 0);
     let tSpent = 0; let tPlanned = 0; let tRemaining = 0;
     
@@ -74,6 +74,17 @@ export const PolicyGroupCard = React.memo(({
     const gEntries = entries
       .filter(e => catIds.includes(e.categoryId))
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    // Group entries by categoryId in O(E) time to eliminate O(C * E) complexity in render
+    const entriesByCatMap: Record<string, BudgetEntry[]> = {};
+    cats.forEach(c => {
+      entriesByCatMap[c.id] = [];
+    });
+    gEntries.forEach(e => {
+      if (entriesByCatMap[e.categoryId]) {
+        entriesByCatMap[e.categoryId].push(e);
+      }
+    });
 
     // Group by detailedProject
     const groups: { detailName: string; cats: BudgetCategory[] }[] = [];
@@ -100,11 +111,11 @@ export const PolicyGroupCard = React.memo(({
              if (t && t !== '구비' && t !== '구비') groupFundingSet.add(t);
           });
        }
-    });
+     });
     const groupFunding = Array.from(groupFundingSet);
     const groupTypes = Array.from(new Set(cats.map(c => c.budgetType).filter(t => t && t !== '본예산')));
 
-    return { totalBudget: tBudget, spent: tSpent, planned: tPlanned, remaining: tRemaining, usageRate: rate, groupEntries: gEntries, groupedByDetail: groups, groupFunding, groupTypes };
+    return { totalBudget: tBudget, spent: tSpent, planned: tPlanned, remaining: tRemaining, usageRate: rate, groupEntries: gEntries, entriesByCatId: entriesByCatMap, groupedByDetail: groups, groupFunding, groupTypes };
   }, [cats, entries, getCategoryStats]);
 
   return (
@@ -272,7 +283,7 @@ export const PolicyGroupCard = React.memo(({
                   const isFirst = catIdx === 0;
                   const isLast = catIdx === detailGroup.cats.length - 1;
                   
-                  const catEntries = groupEntries.filter(e => e.categoryId === cat.id);
+                  const catEntries = entriesByCatId[cat.id] || [];
                   const generalEntries = catEntries.filter(e => {
                     const isIssuedOrDaily = e.actionType === 'issuance' || e.actionType === 'daily_expense';
                     return !isIssuedOrDaily;
