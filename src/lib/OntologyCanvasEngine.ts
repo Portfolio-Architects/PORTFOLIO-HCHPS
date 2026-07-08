@@ -359,45 +359,15 @@ export class OntologyCanvasEngine {
     }
     this.callbacks.onActiveNodeChange?.(this.activeNode);
 
-    // 사용자의 요청에 따라: 1차 카테고리만 디폴트로 노출 (그 이하 하위는 다 접음)
+    // 사용자의 요청에 따라: 초기 로딩 및 렌더 속도 극대화를 위해 1차 카테고리(orbitIndex === 1) 노드들을 기본적으로 접힌(collapsed) 상태로 설정하여 로드를 대폭 단축
     if (!this.hasInitializedCollapse && this.nodes.length > 0) {
       this.hasInitializedCollapse = true;
       this.collapsedNodeIds.clear();
-      
-      const centerId = this.centerNode?.id;
-      if (centerId) {
-        const centerChildren = new Set<string>();
-        for (const edge of this.edges) {
-          if (edge.source === centerId) {
-            centerChildren.add(edge.target);
-          } else if (edge.target === centerId) {
-            centerChildren.add(edge.source);
-          }
+      this.nodes.forEach(n => {
+        if (n.orbitIndex === 1) {
+          this.collapsedNodeIds.add(n.id);
         }
-        
-        const childrenMap = new Map<string, string[]>();
-        for (const node of graph.nodes) {
-          if (node.parentId) {
-            if (!childrenMap.has(node.parentId)) {
-              childrenMap.set(node.parentId, []);
-            }
-            childrenMap.get(node.parentId)!.push(node.id);
-          }
-        }
-        
-        for (const childId of centerChildren) {
-          this.collapsedNodeIds.add(childId);
-          const q = [childId];
-          while (q.length > 0) {
-            const curr = q.shift()!;
-            this.collapsedNodeIds.add(curr);
-            const kids = childrenMap.get(curr) || [];
-            for (const kid of kids) {
-              q.push(kid);
-            }
-          }
-        }
-      }
+      });
     }
 
     // 중요도(renderSize) 내림차순으로 정렬된 노드 리스트 캐싱
@@ -1123,7 +1093,7 @@ export class OntologyCanvasEngine {
       cameraOffsetX: this.cameraOffsetX,
       cameraOffsetY: this.cameraOffsetY,
       activeLayers: activeLayers,
-      layoutMode: 'orbit',
+      layoutMode: 'mindmap',
       isInteractive: isInteractive,
       isOrbiting: this.isOrbiting,
       centralitySortedNodes: this.centralitySortedNodes

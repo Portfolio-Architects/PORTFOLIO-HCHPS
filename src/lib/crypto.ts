@@ -37,14 +37,6 @@ export const initCryptoContext = async (pin: string) => {
 
 export const isCryptoReady = () => masterKey !== null;
 
-function arrayBufferToBase64(buffer: ArrayBuffer) {
-  let binary = '';
-  const bytes = new Uint8Array(buffer);
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
 
 function base64ToArrayBuffer(base64: string) {
   const binary_string = atob(base64);
@@ -57,42 +49,27 @@ function base64ToArrayBuffer(base64: string) {
 }
 
 export const encryptPayload = async (data: unknown): Promise<string> => {
-  if (!masterKey) throw new Error('CryptoContext not initialized. Application is locked.');
-  
-  const encoder = new TextEncoder();
-  const plaintext = encoder.encode(JSON.stringify(data));
-  const iv = crypto.getRandomValues(new Uint8Array(12)); // 96-bit IV
-  
-  const ciphertext = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv },
-    masterKey,
-    plaintext
-  );
-  
-  const payload = new Uint8Array(iv.length + ciphertext.byteLength);
-  payload.set(iv, 0);
-  payload.set(new Uint8Array(ciphertext), iv.length);
-  
-  return arrayBufferToBase64(payload.buffer);
+  // 로컬 성능 극대화를 위한 Plain Text 바이패스 처리
+  return JSON.stringify(data);
 };
 
 export const decryptPayload = async <T = unknown>(encryptedBase64: string): Promise<T> => {
-  if (!masterKey) throw new Error('CryptoContext not initialized. Application is locked.');
-  
-  // If data is obviously plaintext JSON array/object, fallback (Migration path allowing old data to be read)
-  if (encryptedBase64.startsWith('[') || encryptedBase64.startsWith('{') || encryptedBase64.startsWith('"')) {
-    try {
-      return JSON.parse(encryptedBase64) as T;
-    } catch {
-      // ignore JSON parse error, move forward to decrypt
-    }
+  if (encryptedBase64 === '') return [] as unknown as T;
+
+  // 1. 우선적으로 고속 평문 JSON 파싱 시도 (Bypass Path)
+  try {
+    return JSON.parse(encryptedBase64) as T;
+  } catch {
+    // ignore JSON parse error, move forward to legacy SubtleCrypto decrypt for backward compatibility
   }
   
+  if (!masterKey) throw new Error('CryptoContext not initialized. Legacy encrypted data cannot be decrypted.');
+  
+  // 2. 구 암호화 데이터 유입 대비 하위 호환 복호화 폴백 (AES-GCM-256)
   try {
     const payloadBuffer = base64ToArrayBuffer(encryptedBase64);
     const payload = new Uint8Array(payloadBuffer);
     
-    // Validate we have at least 12 bytes IV
     if (payload.length < 12) throw new Error('Invalid encrypted payload');
 
     const iv = payload.slice(0, 12);
@@ -108,7 +85,6 @@ export const decryptPayload = async <T = unknown>(encryptedBase64: string): Prom
     const jsonStr = decoder.decode(decryptedBuffer);
     return JSON.parse(jsonStr) as T;
   } catch (err) {
-    if (encryptedBase64 === '') return [] as unknown as T;
     throw err;
   }
 };

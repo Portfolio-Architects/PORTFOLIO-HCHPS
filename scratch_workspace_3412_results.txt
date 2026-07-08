@@ -1,0 +1,14 @@
+Found in d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\tsconfig.tsbuildinfo
+  Line 1: {"fileNames":["./node_modules/typescript/lib/lib.es5.d.ts","./node_modules/typescript/lib/lib.es2015.d.ts","./node_modules/typescript/lib/lib.es2016.d
+Found in d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\data\backups\CLASSIFICATION_WORDS\2026-06-12T01-14-51-343Z_CLASSIFICATION_WORDS.json
+  Line 4: "_enc": "1LlsAdTXjzmJYyISaGJzXzFojP/Ra3Lji8wy4LdMn44u3+VSIXXaCYFxK6Csd4oFKjxH12ExU1HjZtSo0Y2Ao/e15zrZs9vIzUuAW134CSy2+iSmGMm3XhkxN/47Fqr3z3hQy1gjpuyx3
+Found in d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\data\backups\CLASSIFICATION_WORDS\2026-06-16T07-38-51-545Z_CLASSIFICATION_WORDS.json
+  Line 4: "_enc": "SSOTwA/DUgBgJF9rXyJEpVJ8pR8DMa5FEXBopC61xf7CDhOS+6hhxWwu7lxj3cs1lgDZMDLMnro6KWwMp2y3jFaupNWYD//So38lTpXFbvFfGaj2JLGvUsnMuiWik6YRvhYIzg6GowIhO
+Found in d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\data\backups\CLASSIFICATION_WORDS\2026-06-30T07-47-53-012Z_CLASSIFICATION_WORDS.json
+  Line 4: "_enc": "LHZDtPto3+t7l+ZjPFXlF6rdyk0hM0tj8XQOd806/Y0cHFpOnOExf+86W+qxCquuUqt91h18A/e7ShHtpu/J4Vtjji7hHqUPpDHZ4aYw3ONzNRIZ4RerEq4VwvCu897H9bpDDQHnBmkrr
+Found in d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\data\backups\MAP_CUSTOMIZATION\2026-07-01T05-39-18-067Z_MAP_CUSTOMIZATION.json
+  Line 4: "_enc": "3403jVjY927GWd2E6P+XKpfZRmHSL0o1m2oyuEytkr8W4DvXbukPUh/Yb/6vWZ9hib8drpMmlraf0FrtfdmmtTVmI5TEa2VxH/wJ9uT5VxOEPN0PyVzl1ZXRHrHfBOYJD2VrcRJWsea22
+Found in d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\data\backups\MAP_CUSTOMIZATION\2026-07-01T05-40-17-782Z_MAP_CUSTOMIZATION.json
+  Line 4: "_enc": "JlsXvdOrz+8LWHS1USA4v8rOLdA/pW3jynsAZaD9XdRDOdULeiOVZ2X55kUnVZGfhydsiRGUGnri2vs3JZj/B0DSValhenSW+okSGVQPBoYSq/GkBmRZZPinm35WVEW3qpUk0sZX0tFsL
+Found in d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\scratch\extracted_contacts.json
+  Line 400: "phone": "02-3412-8551",

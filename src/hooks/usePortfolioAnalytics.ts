@@ -284,6 +284,21 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
       }
     });
 
+     // Aggregate category execution sums (excluding issuance) in O(E)
+    const executedNoIssuanceByCatId: Record<string, number> = {};
+    filteredCategories.forEach(c => {
+      executedNoIssuanceByCatId[c.id] = 0;
+    });
+    budgetEntries.forEach(e => {
+      if (!e.isPlanned && e.actionType !== 'settle' && e.actionType !== 'issuance' && executedNoIssuanceByCatId[e.categoryId] !== undefined) {
+        if (e.actionType === 'transfer') {
+          executedNoIssuanceByCatId[e.categoryId] -= e.amount;
+        } else {
+          executedNoIssuanceByCatId[e.categoryId] += e.amount;
+        }
+      }
+    });
+
     // 가상 조정액(Virtual Adjustment) 총합 계산 (개별 카테고리 단위로 실제 집행액을 하한선으로 보정)
     let totalVirtualAdjustment = 0;
     filteredCategories.forEach(cat => {
@@ -306,12 +321,7 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
       }
 
       // 개별 카테고리(통계목) 단위의 실제 집행액 계산 (단순 한도 배정인 issuance 교부 건은 제외)
-      const catExecuted = budgetEntries
-        .filter(e => e.categoryId === cat.id && !e.isPlanned && e.actionType !== 'settle' && e.actionType !== 'issuance')
-        .reduce((s, e) => {
-          if (e.actionType === 'transfer') return s - e.amount;
-          return s + e.amount;
-        }, 0);
+      const catExecuted = executedNoIssuanceByCatId[cat.id] || 0;
 
       totalVirtualAdjustment += Math.max(catExecuted, catVirtualAdjustment);
     });

@@ -119,7 +119,7 @@ interface ProtectedAppProps {
   onModeChange: (mode: 'HCHPS' | 'VITAL') => void;
 }
 
-function ProtectedApp({ appMode, onModeChange }: ProtectedAppProps) {
+function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: ProtectedAppProps & { isInitializingGlobal: boolean }) {
   const [activeModule, setActiveModule] = useState<ModuleType>('dashboard');
   const [visitedModules, setVisitedModules] = useState<Record<ModuleType, boolean>>({
     dashboard: true,
@@ -139,7 +139,7 @@ function ProtectedApp({ appMode, onModeChange }: ProtectedAppProps) {
   const scheduleAlerts = useScheduleAlerts(tasks, meetings);
   useNotificationAlerts(scheduleAlerts);
 
-  const { searchModalOpen, searchQuery, searchResults, closeSearchModal } = useGlobalSearch();
+  const { searchModalOpen, searchQuery, searchResults, closeSearchModal, handleGlobalSearch } = useGlobalSearch();
   const { mergedKeywordMap, mergedEntries } = useMergedSignals(signalEntries, keywordMap, tasks, projects, meetings, budgetEntries, inventoryItems);
   const { customNodes, customEdges, deletedEdges, overrides } = useGraphCustomization(activeModule === 'mindmap');
 
@@ -153,9 +153,38 @@ function ProtectedApp({ appMode, onModeChange }: ProtectedAppProps) {
   }, []);
 
   const preloadModulesOnIdle = useCallback(() => {
-    // 프리마운트 비활성화: 사용자가 탭을 실제로 눌러 진입할 때만 마운트하도록 게이팅하여 CPU/3D 렌더링 랙 방지
-    return null;
-  }, []);
+    if (typeof window === 'undefined' || isInitializingGlobal) return null;
+    
+    // Staggered Preloading: 전역 인트로가 완전히 걷힌 후 세 개의 무거운 모듈 마운트를 시간 차를 두고 조용히 쪼개서 기동
+    const timers: number[] = [];
+    const triggerPreload = (module: ModuleType) => {
+      setVisitedModules(prev => {
+        if (prev[module]) return prev;
+        return { ...prev, [module]: true };
+      });
+      console.log(`[Watcher Preload] Background caching initialized for: ${module}`);
+    };
+
+    const startStaggeredSequence = () => {
+      // 1.5초 후 마인드맵 로드
+      timers.push(window.setTimeout(() => triggerPreload('mindmap'), 1500));
+      // 3.5초 후 예산 대조보드 로드
+      timers.push(window.setTimeout(() => triggerPreload('workspace'), 3500));
+      // 5.5초 후 홍보자재 대장 로드
+      timers.push(window.setTimeout(() => triggerPreload('inventory'), 5500));
+    };
+
+    let idleCallbackId: number | null = null;
+    if ('requestIdleCallback' in window) {
+      idleCallbackId = window.requestIdleCallback(() => {
+        startStaggeredSequence();
+      });
+    } else {
+      startStaggeredSequence();
+    }
+
+    return { timers, idleCallbackId };
+  }, [isInitializingGlobal]);
 
   // Prevent hydration mismatch — hooks read localStorage data on client
   useEffect(() => {
@@ -168,10 +197,13 @@ function ProtectedApp({ appMode, onModeChange }: ProtectedAppProps) {
 
     return () => {
       if (idleTimer) {
-        if (typeof window !== 'undefined' && 'cancelIdleCallback' in window && typeof idleTimer === 'number') {
-          window.cancelIdleCallback(idleTimer);
-        } else {
-          clearTimeout(idleTimer as any);
+        if (typeof window !== 'undefined') {
+          if (idleTimer.idleCallbackId && 'cancelIdleCallback' in window && typeof idleTimer.idleCallbackId === 'number') {
+            window.cancelIdleCallback(idleTimer.idleCallbackId);
+          }
+          if (idleTimer.timers && Array.isArray(idleTimer.timers)) {
+            idleTimer.timers.forEach(t => clearTimeout(t));
+          }
         }
       }
     };
@@ -330,6 +362,7 @@ function ProtectedApp({ appMode, onModeChange }: ProtectedAppProps) {
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
+
       <Sidebar
         activeModule={activeModule}
         onModuleChange={handleModuleChange}
@@ -337,6 +370,7 @@ function ProtectedApp({ appMode, onModeChange }: ProtectedAppProps) {
         appMode={appMode}
         onModeChange={onModeChange}
         onPreloadModule={preloadModule}
+        onSearch={handleGlobalSearch}
       />
 
       <main id="main-scroll-container" className="flex-1 pb-32 sm:pb-8 overflow-y-auto custom-scrollbar">
@@ -510,9 +544,26 @@ export default function Home() {
   const { isLocked, hasSetupPIN, failCount, verifyPIN, setupPIN } = useSecurityLock();
   const [appMode, setAppMode] = useState<'HCHPS' | 'VITAL'>('VITAL');
 
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [showSplash, setShowSplash] = useState(true);
+
   useEffect(() => {
     document.title = 'PORTFOLIO - VITAL';
   }, [appMode]);
+
+  useEffect(() => {
+    // 클라이언트 마운트 및 PIN 락이 해제되어 활성화된 순간부터 1.8초 동안만 스플래시 가동
+    if (isClient && !isLocked) {
+      const timer = setTimeout(() => {
+        setIsInitializing(false);
+        const removeTimer = setTimeout(() => {
+          setShowSplash(false);
+        }, 700);
+        return () => clearTimeout(removeTimer);
+      }, 1800);
+      return () => clearTimeout(timer);
+    }
+  }, [isClient, isLocked]);
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleModeChange = (_mode: 'HCHPS' | 'VITAL') => {
@@ -557,5 +608,48 @@ export default function Home() {
     );
   }
 
-  return <ProtectedApp appMode={appMode} onModeChange={handleModeChange} />;
+  return (
+    <>
+      <ProtectedApp 
+        appMode={appMode} 
+        onModeChange={handleModeChange} 
+        isInitializingGlobal={isInitializing}
+      />
+      
+      {/* 프리미엄 전역 로딩 스플래시 화면 */}
+      {showSplash && (
+        <div 
+          className="fixed inset-0 z-[300] flex flex-col items-center justify-center bg-slate-950 transition-opacity duration-700 ease-out pointer-events-auto"
+          style={{ opacity: isInitializing ? 1 : 0 }}
+        >
+          <div className="flex flex-col items-center gap-6 max-w-md text-center px-6 animate-in fade-in zoom-in-95 duration-500">
+            {/* 시각적 브랜드 링 심볼 */}
+            <div className="relative flex items-center justify-center w-24 h-24">
+              {/* 바깥 회전 링 */}
+              <div className="absolute inset-0 rounded-full border-[3px] border-indigo-500/10 border-t-indigo-500 animate-spin duration-1000"></div>
+              {/* 안쪽 역회전 링 */}
+              <div className="absolute w-16 h-16 rounded-full border-[2.5px] border-emerald-500/10 border-b-emerald-500 animate-spin duration-700 reverse"></div>
+              {/* 중앙 로고 빛 */}
+              <div className="absolute w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 shadow-lg shadow-indigo-500/50 flex items-center justify-center animate-pulse">
+                <Sparkles size={14} className="text-white" />
+              </div>
+            </div>
+            
+            <div className="flex flex-col gap-2 mt-2">
+              <h1 className="text-xl font-black text-white tracking-wider uppercase">
+                VITAL Work & Wealth
+              </h1>
+              <p className="text-xs text-indigo-400 font-bold tracking-widest uppercase">
+                Architecture Initialization
+              </p>
+              <div className="h-px bg-slate-800 my-1 w-full max-w-[200px] mx-auto"></div>
+              <p className="text-[11px] text-slate-500 font-medium leading-relaxed max-w-[280px] mx-auto">
+                종단간 암호화(E2EE) 환경 내 예산 정산 및 시그널 노드 동기화를 가동하고 있습니다. 잠시만 기다려 주십시오.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
 }

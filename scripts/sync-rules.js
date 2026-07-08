@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const REPORT_PATH = path.join(__dirname, '..', 'PORTFOLIO VITAL - Engineering Report.md');
+const REPORT_PATH = path.join(__dirname, '..', 'PORTFOLIO VITAL - Engineering Milestones.md');
 const AGENTS_PATH = path.join(__dirname, '..', 'AGENTS.md');
 
 function extractMilestones(reportContent) {

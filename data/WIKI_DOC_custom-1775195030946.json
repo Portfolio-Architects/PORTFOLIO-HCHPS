@@ -1,6 +1,139 @@
 [
   {
     "id": "singleton",
-    "_enc": "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"
+    "blocks": [
+      {
+        "id": "f919faa5-ba7c-4721-a1e5-0e0ca9a37679",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "연구소 소속 담당 _ 전예진",
+            "styles": {
+              "bold": true
+            }
+          },
+          {
+            "type": "text",
+            "text": " ",
+            "styles": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "23b83f10-f497-499c-9fe5-15387829e6bf",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "주소 : 서울특별시 구로구 가마산로 209",
+            "styles": {
+              "bold": true
+            }
+          },
+          {
+            "type": "text",
+            "text": " ",
+            "styles": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "a9fa5997-a2d5-4276-b1e5-5358ca426637",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "이메일 : ",
+            "styles": {
+              "bold": true
+            }
+          },
+          {
+            "type": "link",
+            "href": "mailto:scoliosis1@daum.net",
+            "content": [
+              {
+                "type": "text",
+                "text": "scoliosis1@daum.net",
+                "styles": {
+                  "bold": true
+                }
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "text": " ",
+            "styles": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "eacd4142-ac2f-4785-a515-63c49a453ae2",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "연락처 : 02 ) 865 - 1541",
+            "styles": {
+              "bold": true
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "dfd21218-d020-4c5e-964f-e7a1e352d489",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "01079353095",
+            "styles": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "eb5648af-4158-41e1-8727-6319b2e4ac71",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [],
+        "children": []
+      }
+    ]
   }
 ]

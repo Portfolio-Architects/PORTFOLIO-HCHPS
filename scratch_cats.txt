@@ -1,0 +1,15 @@
+ID: mnrcir0v56b8pixdb | Name: 건강증진지원실 운영 - 사무관리비 | Budget: 19496000
+ID: mnrcir0v1twl22zuk | Name: 건강증진지원실 운영 - 공공운영비 | Budget: 456000
+ID: mnrcir0v0vx5ae1qd | Name: 건강증진지원실 운영 - 행사운영비 | Budget: 6300000
+ID: mnrcir0vaotz2abch | Name: 건강증진지원실 운영 - 국내여비 | Budget: 1440000
+ID: mnrcir0vn4jrzj682 | Name: 건강증진지원실 운영 - 시책추진업무 | Budget: 1800000
+ID: mnrcir0vpun1ops6x | Name: 건강증진지원실 운영 - 의료회복비 | Budget: 27000000
+ID: mnrcir0v5zjn4qxyg | Name: 강남체력인증 - 기간제보수 | Budget: 65549000
+ID: mnrcir0vl18vfnb68 | Name: 강남체력인증 - 사무관리비 | Budget: 35451000
+ID: mnrcir0v0gtfi55ks | Name: 강남체력인증 - 행사운영비 | Budget: 2000000
+ID: mnrcir0vwrr1z2yol | Name: 강남체력인증 - 시설비 | Budget: 55000000
+ID: mnrcir0vbxmmvztoq | Name: 강남체력인증 - 자산취득비 | Budget: 15000000
+ID: mnrcir0voap2bpm8z | Name: 건강생활실천사업(건강증진) - 사무관리비 | Budget: 20380000
+ID: mnrcir0vhyhg1xb87 | Name: 건강생활실천사업(건강증진) - 행사운영비 | Budget: 96100000
+ID: mnrcir0vwspp9jw51 | Name: 건강생활실천사업(건강증진) - 시책추진 | Budget: 1900000
+ID: mnrcir0vkiq1dafm3 | Name: 건강생활실천사업(건강증진) - 행사실비 | Budget: 3000000

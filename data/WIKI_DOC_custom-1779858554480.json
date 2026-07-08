@@ -1,6 +1,92 @@
 [
   {
     "id": "singleton",
-    "_enc": "FWQCtFJetAGFwQUaPPmH90TWmFmn+BFFD8DEf49V8D8wuM2+Yb0UzzfNSvna3pOHSVS63/hoOMJoKRCIJbegLtDUyFJ8G3qHwB6ufZWDucz131OjDv/MQr0BZhokCtgREv+p72oZD/08fEpZOrdSQVCyfLuSGGEQKhXFcj230WVCiakBOT5d7q5eDhj43pdXiIrP1xNpFJcAYVOmoL8wuXa/TjCetyotn1Cb4hjHuTlTnrxS78k6IXp1yZIXNfbBZwbTvqaEZlLePGP9fFIWWvHvVXZelhSmAb5bHZhSxCI9d5h34zHTe27m45hHfZYTWPrwZXR8V/wYxY3lcRJC+Xw+AJIlSIMrX09CCudZJjGGED3QSagkenzC8ijWUAzpulgBi/23uAtO5p7sDQ/WvTH2pN6iOtfHPA5bmQqcQ51kxeRrctYVns+XXcKLYdZrTbsPMLK+7V2xJlkh0vRwQZsDogvQIU9/OG+0/uFLVNyYtK3sKDlxo0Tyopk/f9wCq+3PsOuKTaqAcCj6gKqQ15lHGu4wcePKn9PaJckwzVydoHfOEbJGa261XKbwyu4N5ZtaIderrKqW1vDw6LITROILNalXlEliSN+g1HdkOmalLtvYgiXur+phmazyoCPixXTByxCQuuuqsefbeNXULOqFgNy78uRrQuYXweFSxzubttbANZFcsyuZJSwMSSuowOl9y/jqnv+cHFVjj9S8vE0Pu620PcDUjloYQD7Xc3fqa2zyH3RDE06WKhg7bCkq3k915Uw1DawX9sRelIBME6Gm3QpVMbMOU0p4OgX11Czr2oWFath69HcVaEv5TBTcJp0ilC+0wkbS93mrIZuOJkvMxxKTB4cLuosrVjvhYCHGGAw8VAo3KScoOrAhEIo2HR1NrQSEkaxACuX+kLyP0Mj31Pqiwmsv1x6vNf8iK+Kw1zWgZJtWxcA4zhcjvlIsVvukP31uyojHnJqpWJnNZFspUZVgK/2URN+nlqhPKJ0WfBNQSQcAfIs9pWFaoF1EqKEVz7LYH4SP44ZzBkOJDm30dB+fE58gR2/KcvBPrLMeiEN7uJIDsPb9Noy/tiEzWwr6St/1HVcROcVDP4C7mX/ZeuJRTK+w1x6cb2O4fX0Sbi2QydC0U5527f+ULaqRvY1gvhVHR0YueQj113G2wk/A1qcg1tJdlLT6YGfUwQcj4pk3USP7J36LX+x6GX5+5p2G93IcalJBBnCr5WMBS/qWh9GIbnKzlNtPDkCcf6jrsvYFw1FRiym7Gubbz6Jx6oeakSZUhS6mQoAXF4uGZ9O/o+z8PcXMmdG8i0vp3LGYk8wSg1TqinIQ2GBLXEfJg+FspjLLSHoEaEcuGzQHNkQnzWDFtsjVigDVV+zZNUJFOoqisP9R8mEacGkcIlVZ2Grz5rgQFBv1uRfTiusFrcKkY8WkViji+eYTyge2jOZjAr5ir6auMmvkw6UJOOZRyR5donfgeHsY6oXsRl1oNUSXucKGG5cYLONxMUb9i1R6CUsmkmU8Jw016j+d/blmAjUoWHPRd1eoLYfnmN4S418+4Iv891IyItmQ5m0="
+    "blocks": [
+      {
+        "id": "24f62b6a-e7de-4cb1-87eb-22c8830f4b0f",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "0221828966",
+            "styles": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "50ea6e7d-fd27-4936-a29e-28f9621f74ee",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "01091631743",
+            "styles": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "341a74d1-2642-4b90-999f-cd00cc2c4d18",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [
+          {
+            "type": "link",
+            "href": "mailto:mj87@inbody.com",
+            "content": [
+              {
+                "type": "text",
+                "text": "mj87@inbody.com",
+                "styles": {}
+              }
+            ]
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "8a9bdaba-7a7e-4d99-918a-74205ddfb226",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "사업성장팀/팀장",
+            "styles": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "43002d41-8363-40d8-9020-5d201621f2fe",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [],
+        "children": []
+      }
+    ]
   }
 ]

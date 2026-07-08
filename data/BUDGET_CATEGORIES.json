@@ -19,13 +19,15 @@
             "id": "id_6fd7af486205",
             "name": "지원실 안내 리플릿",
             "calculation": "1,500원*1,000부*2종=",
-            "amount": 3000000
+            "amount": 3000000,
+            "isLocked": false
           },
           {
             "id": "id_fec16506b737",
             "name": "교육자료제작",
             "calculation": "4,000원*1,000부*1종=",
-            "amount": 4000000
+            "amount": 4000000,
+            "isLocked": false
           }
         ]
       },
@@ -48,31 +50,36 @@
             "id": "id_ad1f69c85169",
             "name": "사무용 소모품",
             "calculation": "50,000원*4명*2회=",
-            "amount": 400000
+            "amount": 400000,
+            "isLocked": false
           },
           {
             "id": "id_6b07861cf37d",
             "name": "검진 결과지",
             "calculation": "460원*4,000명=",
-            "amount": 1840000
+            "amount": 1840000,
+            "isLocked": false
           },
           {
             "id": "id_7d23b2550e06",
             "name": "복합기 토너",
             "calculation": "400,000원*2세트=",
-            "amount": 800000
+            "amount": 800000,
+            "isLocked": false
           },
           {
             "id": "id_33f8c80e5141",
             "name": "프린터 토너",
             "calculation": "180,000원*2종*3세트=",
-            "amount": 1080000
+            "amount": 1080000,
+            "isLocked": false
           },
           {
             "id": "id_e64960e05e96",
             "name": "신체활동 소도구 구입",
             "calculation": "50,000원*5종*10회=",
-            "amount": 2500000
+            "amount": 2500000,
+            "isLocked": false
           }
         ]
       },
@@ -95,7 +102,8 @@
             "id": "id_ff2f7d7bd4e2",
             "name": "근무복",
             "calculation": "145,000원*4명*1착=",
-            "amount": 580000
+            "amount": 580000,
+            "isLocked": false
           }
         ]
       }
@@ -108,7 +116,7 @@
     ],
     "fundingSource": "구비 (100.00%)",
     "formationItem": "201 일반운영비",
-    "_enc": "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"
+    "color": "#3b82f6"
   },
   {
     "id": "mnrcir0v1twl22zuk",
@@ -157,13 +165,15 @@
             "id": "id_1bbfeace1daf",
             "name": "교육강사수당",
             "calculation": "250,000원*12회=",
-            "amount": 3000000
+            "amount": 3000000,
+            "isLocked": false
           },
           {
             "id": "id_cd91ca580ca5",
             "name": "교육홍보물",
             "calculation": "275,000원*12회=",
-            "amount": 3300000
+            "amount": 3300000,
+            "isLocked": false
           }
         ]
       }
@@ -176,7 +186,7 @@
     ],
     "fundingSource": "구비 (100.00%)",
     "formationItem": "201 일반운영비",
-    "_enc": "LPfAQC/0jwEsOUe2jOY/mAvZpguJ4670kJkxeqkGM9InV9heRxQBDFmJ77mo6M2EQO7gbxFJ6oRzqCGyjF9hYcCMhbiiWMp19et7FMgcQc5RF2BKS9fB7xFh4Ee+ToIq5CpToVwM17fbrZqVhH6I6PjIQ6bCJtQwjUl9nHosgZv5YzBqa+v3s+ZqZ+16obrPZP6DNMmM+BIDwkMc6mhvc3F3ZCisGCFYqUleKCzqxpFXatV7XJOv4eAUuJz9X5iH5UOl5gaCjd14/7+c6PB3NcxF/ke3mSFXmNj6N0Y7mNJqqgZW0SI7S+0moUSLn3hmragmdEQXJJROFo7lrRZqeuInU7v0iQnPkM06V2vyQ9jknQXYevo5W4RtnBB6EuhCcvHYcFGMZcGMepwnABJ1h2Gz/Jq/HrQ/Oq+MxgzvGvvOlwEysbtZOs4uwCdyT+3I4ORzFKFDwpVvVigvL0/B7RuE2llrvdO9oQPoe3zZoPHdIJGbcrx2hKRoSZ8C9MgU6B+z8KSB2/ZuVqr1B6eWoQd6DX4tJFVf5K4WIVk8V4AN0NjdE/kKppGjfTTnBdYO12m5s7kszqOZob1bwEGl6+ahqx0GTNgXQag/NzXxBfNaWpyNfV/8QcpMHvLKjY7rQ3a2yLsaLmPC/chg6HG28PY4fnrMpfdhznVfPlk/9don8UYT31RMlZUZIRsasti4aS9Jy0gg/DIIHlP+aPfhQesasupAvHm1dR8r10w47+uf1i7FQaIow341yUPXQKQplE521eVHFU5qa/c1IIdN36MBMKm4XvtU7TRR791QBwF0MFW085njIYfuyqZqx0C2NlCvc/few8lrdvEH81q/z8/sIkPECZL/Z6j+NRF/ZgJAwDLwAsikwhGn2NyyK+SMOsGfcXGeWnFohhZaycGu+wtVQiriJsravyCxS2qoWp1HhRHGFcYj2dmy5OqP6IJuH8WEFjtgHKE7I5smkQehGT0j0jZpTwlwyBG10wwHEyhEI4V77v2FVH+rgLQ+84k6ftR6Ealq8VdN0E4PPfGVUifvTAzn"
+    "color": "#3b82f6"
   },
   {
     "id": "mnrcir0vaotz2abch",
@@ -231,7 +241,7 @@
     ],
     "fundingSource": "구비 (100.00%)",
     "formationItem": "203 업무추진비",
-    "_enc": "PiFgp0nnU7JeZzyLXAQt8yTRWeX2PG8rQxQNe1ou/gmsnM4qSwDbntEofD8RcWntxalTbpas+UN/LOCM8QmqsO2C0+64+EZP3I6D3gHiAaPVJnzBuG5EHQRBW5tXin/9eUJDtSv2KlskeTwic5uFrScei7iJQm/XM+Ee0D+IwNrTST9NiDla/fq2k81chKqOxZhg5XgafRgLsrRGOUrgVOFO496oOmruR51NxY4ktYlSP2lI/B8PtRA4enEcmqmIgUkOtbUqRuPGJEiTSv7pt9y2dcnHxnbgrCz6cUNyk7Au2TH2GZ5tNOEnJImq6MijKmwshqt5njS2PN/SHsllev2Iqp/b4cA9bQ7dz/S1eib9FmSLPNQXtRu4RTWIPfKlb3354SS3Nq08vq1hb75HoWLJ4k1qx/iMraadU/ydV7qjQGAhakXiBEwKGu8pxzZh6CXS8lQ7Z7BnWexSd9D2g0KKxuU2EUNpuHWTDiC84wni7Ch9M2a7FjNsBo2ydndymPPJcpTLyq1s0tzVNhop9GLQLVwB1AiV42hNmCxwBJbcV2mjQ0yxpQ2hbVQCifQQsxq+ScK+xSXlZzH90gwqtzSVI5Z5of/NnG5dutRsPGJUIONMy4Rn1XmXf4yUOwZbccgR30m3JazUqv2v4n1MxbwA2OtZ41r3s2y6QAFVYEGWL4pjkYcHGMQMuQDxhb1Z6Yg0i5ErpmRTKFmpUSZdfgSjQB2n84JvKCjGrf97IgaVMp5TqD9+LfxJ+W2dXdkqMIruShL4NYYbrSw6e7ZCnP/fLHkUMJ0ySQ=="
+    "color": "#3b82f6"
   },
   {
     "id": "mnrcir0vpun1ops6x",
@@ -275,7 +285,7 @@
     ],
     "fundingSource": "구비 (100.00%)",
     "formationItem": "307 민간이전",
-    "_enc": "SpXNxkM+PYTrNljcpWSYwH5EXPXpb3KwryaOHUzKPlIdWGh0YahjxCFEn3V6DSroEpRn1/u0HX4iE3xRX8KTplcmLrSpvkv2spfiNghMVwmVrP9CQeaNgPM+++zndC0juETU/bJ9ozgJTBb4dggG+H7VPfZuuowwowQa3JvYIJYawbZBf+vnVf2NqN4Vb4xiDIshoQYGCxZX4RBkhyDVDtfsbCCtKefhhz4c1dSZ3Yx2vF/1ee5lgdkaNTwh0v7cPdXmU/XHVQOfdK5Fwd4M9bHxHso/ONX0vy8wylFNZ9lIU7v001/y2qw8pVmKqTwC6xpmSqqW3t0WcmIWR1felA3wAewThoWG+qhz4bwIUNYUS6UUn08qurV9VTWJh4beTDeacNUlF8RgMacdYoZ/fUs8T06piPCEwLCdyR+Ix8i7wGrm5U6ofZ9N+xnqmnsFNnumLJMtgS7kqgrRtHHv0xEW7OQI/dwvnPEp5j+dnT/rxmjCQVuiPSAOshe6JkLkwZWBM0SgzYsBO2wudd9/FhqRLLSGsUaK9sSsohDgq625luI8cWlJtZCssVQxZ+W+RjZVqF863u3oHeTxwFj9sMhVRpaeXoKsjuihZchoisoPDLu5FPPV9QDNk9JFg3Gt8jCep1r7Z+qpT5Rpkje53NU2mq8f5q2OlYp5aX5vk1BbGZyUkTrsSLGKYxbONjAK51Va1KCaYCae2/8yzn1guhw1PWi1J2DRxxattYmDiZ6gHD1M9zFG39U5mUMc31nTF1un82DXzFcLTg+daEiAsMdyQzw9UhiPZGiv1665JwCK8CT92CTUsscMfrcrGa37MsvARQZnCJTzXuLAxqilLEYsCG8ptDuUxx9LH7vYD2flx1z22hFEvHA7gDbfqpMj6XwIKTFsPAe7PAUXa9sZgv8iAHV3kByzju5H9l2xwqnaLcoLe+lNWehSUm7Yv7/syaA8wpIZyIWk/4Da48CbudjpzqObSd5bgehPTkLNQQGac/6gbVrFuJPCxEP857zSzpyc1+bL9kgbwCTyObudmU+OiR50aKGb/jTs0qgl4tFJhVIhKaqhbLa89i7vsJ2UrfVFpH7oWcUDzUJT69KNA/ly8Vp9Yuz4E0euNZ+bJmFJb/EyzoccVpqXQzLRvFzrK7/K/R98z2k="
+    "color": "#3b82f6"
   },
   {
     "id": "mnrcir0v5zjn4qxyg",
@@ -293,6 +303,7 @@
         "name": "기본급(건강운동관리사)",
         "calculation": "3,310,489원*2명*8월=",
         "amount": 52968000,
+        "isLocked": false,
         "calculations": []
       },
       {
@@ -330,31 +341,36 @@
             "id": "id_672884566243",
             "name": "국민연금보험료",
             "calculation": "6,620,978원*4.75%*8월=",
-            "amount": 2516000
+            "amount": 2516000,
+            "isLocked": false
           },
           {
             "id": "id_eb44735c1761",
             "name": "국민건강보험료",
             "calculation": "6,620,987원*3.6%*8월=",
-            "amount": 1907000
+            "amount": 1907000,
+            "isLocked": false
           },
           {
             "id": "id_c28436fd2ed7",
             "name": "장기요양보험료",
             "calculation": "1,906,844원*13.14%*8월=",
-            "amount": 2005000
+            "amount": 2005000,
+            "isLocked": false
           },
           {
             "id": "id_f28903d69fb8",
             "name": "고용보험료",
             "calculation": "6,620,978원*1.8%*8월=",
-            "amount": 954000
+            "amount": 954000,
+            "isLocked": false
           },
           {
             "id": "id_cb2fe5a250d4",
             "name": "산재보험료",
             "calculation": "6,620,978원*1.05%*8월=",
-            "amount": 557000
+            "amount": 557000,
+            "isLocked": false
           }
         ]
       },
@@ -382,8 +398,7 @@
       }
     ],
     "fundingSource": "특별교부세 (100.00%)",
-    "formationItem": "101 인건비",
-    "_enc": "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"
+    "formationItem": "101 인건비"
   },
   {
     "id": "mnrcir0vl18vfnb68",
@@ -435,8 +450,7 @@
       }
     ],
     "fundingSource": "특별교부세 (100.00%)",
-    "formationItem": "201 일반운영비",
-    "_enc": "glHKBvmKzBIFpyOyH+1DcgrFS0oEjzf+e4N5jgJ213OO59BgoWSss4YjmBxXZ9C4oofadSBC4zTNQMe8WwuFRiHhD4mW266ypbNviWCi0dxNIE1Zw79tR/mnXkmPMEW15sI3ZtOflDM+ZHNQJqBC/K25vubI3P2LHSVhrTJoTBDF/6EEJCrffe1fzxWk88gz2+cGCwdKkQb/MJ0INCc+8IgRf3YOztNzcqGr8PPrqoYixbS17mzYD6QiXTWpTA810PNwAmtd4w83SwAKllvMIC1wIItZA/XV1fqRBR9zYw7UtPVtJ3elLO+Uehucb+RykLwtGfk05d5MONMBAaOmtq/2gWJcA+TJA51qhnYPURe24GV1Iu66oSdQuvT7OI/39zFNf8qTGI6EklqhrOyLPSXCX8TWvwXWMQPuVhnUlFoZYRUxFRJxE6UAo212DguZPlMMrmZlKkClLKYc+08qROhfzHPstYJQVnN89e1oiB+0DxOgmwYvMZaau1NI8BUu3xVu31PT9f9ad9dBz6+Zn93N2Uw8KmskgtYZOByRFgqfJ7iFTmP1ojX6WT23D472hwH+F23/2s6ph6y1BUICONuMOS72dnys686BWEsGMrP7OYWwVULbeLA8S02/frs8Ru7Tj1DpbSlfHC7CMBMBTJNmSNwg0VwEc5zQcnVPkyixYigly76gvO9myg59VyTEErHZV5falxbIoLMd3wnIeqI+wY3JobyuqIR2j8ifxgjyA+VVc2arTNPV4FbgLsekpoh8R745nF4Osm+95Xfvkb+Y81Ww2LcQBkGrHRpk4UPs+cULso8/oxX94oM3GUUjtOSopXS50sagU+Luei9yq6nkIFuIgVoFyQ0iRIbFW6gPhYEeaW/X6dFqBhOVZFK17Cv8++TfIjGEKS36hVzOka6coIk2Mq1wXmJTkzcTmyk/Ed55tstgqh/N+8bkIT6BL+dZzx4jgkCrqEnxbJHJ60w78tVMFB93yCHEfN1o0NhvrzbT9pVX8eCupfJ4dMUfY614zYWBui9TCICzExcZ7shMA340clyRW2nm/Y4z8mDoUWkg02GAPVpYa9LdWU1rkoK/AVwqZ7lPv9p3oaCK8QyZMDhnlWpyN5gT9ZUntoaI8JywnkNkiqNFYcK7yFn4211cMPq3AlI3q8S7RUMhIwXZqR79e+7+fDBeR2/lUGHUPw2NK1gq3Iv5/rJNmFx+rn1emh5qMedsQrEBIi+HSmroIYahd9n/YStMLDERy5Gf4AU7Go2sFqM0jzSq4B6jo5m7VYJouKmSnpVoBdl6vEz8GgMNgDj11uhOfd7rMr7M6Xk64R6Ax/HTmzkq0xaLq7U1623AwVDsDHg6dQK2GDHPu0PXS2lhrGu7cVn+wAN7Ag=="
+    "formationItem": "201 일반운영비"
   },
   {
     "id": "mnrcir0v0gtfi55ks",
@@ -492,8 +506,7 @@
       }
     ],
     "fundingSource": "특별교부세 (100.00%)",
-    "formationItem": "401 시설비및부대비",
-    "_enc": "yHUniaJya0jZ/H6h2oq4uqPMK2fRQqVK1j/GtLr24b4mC/F2PrIhw1hiLb01sqOj4AoJiYB9xt/j2Wqq/z6O04/3yB8/wRThud+dcmqJNue8rATxbnt72Jr4u8nJV9JuLWibFYYQFZ6P1oPDlu6kPxY4SqfVn4fL6aOi3O4PyVQ1/DlGqQO5BzSUFYcvmYbXAU14KA/pysOdm7eqR8Xn9Q67juYu5SwQbzpsNojRmK1xGvlZvugMCum2cHcPVYL2APRnscoIP8gc4H+a+wPwAfEW76yreByJH/0vxND7dgWFr9Q1Ms3yyH0K5/fYJZ76hWODf1iBXOEBYLuwIekbn856AnkmBsIN1tLGJvDyqaH+S1hKPsnWBpZu7yCMhVit/MWgFlx5xQvLqXYL2ze8G2CvT2K9E5SgbJzb59MW61OMvxewiaJECC4JmZQZV1pSEf4jF09VMN3hT8p88vwF2ez6/4EQ9eIsj3oe89XZwaY/o194Q7udOqTVRcRPMpPqOoiocw7NBYJ8+uLSy0P1A4wYuPwSqFJIpryOmIX+/v1gqPvdlAY5GbCbhbKo1AFb3/mUo58YYDDnl84I5DkryFICcpXsKVqw3k+tnxjfH1kJ68TmZ2dzYEi9RQjM3HpSVzPTB+RlJzTqLeByRxvNqzFRkGlXs5jmjeroG82BvgGxYq0s6j6BT/P13HXMfDdH4M+N1lXCN2H+XRm4GzhVTWjTnGTdu5ZZ7r0gXlv2nOS8Mes7/RmSdS1ViG4EfY4FQlq2yI7t7xyheiOJAJbim1A="
+    "formationItem": "401 시설비및부대비"
   },
   {
     "id": "mnrcir0vbxmmvztoq",
@@ -521,12 +534,11 @@
       }
     ],
     "fundingSource": "특별교부세 (100.00%)",
-    "formationItem": "405 자산취득비",
-    "_enc": "kG/deXfN4zx5qlR6FaTx6v7xmg5I3rbnQRXxjOtObhAVi459FENLp661/Bt8kOzsXGOcev6oJ3NCR3eyH3AXH6TTihbTOaD7yN6L3WjDE+ikrajzAK69c9hAUyx5NYEW6XrG0p7H7WunZMMKGpQ2cyqTAg3yVvweCVttNu7lprZCKIDhHTiPAax9gL3ZOu6ypln1koZnU9w+DOnwpHqdUcUxfBq7xHNmbDk3U7A/58wVIAvVvH+vUKbBUpwCn0EmdxROagsvrl4Xs38XI4MnLFDF4RDcIg7yYEPrfTBUF0QOW7oRFc7kBEOYjvQEaZSKNVUjkUFNrhH73jNs+IqGqdbsY3gUwHrrLUvzaHZXTKxucz9+7+VzGhzmCOlQ++VeRuUKnf7r+p14gOfgITpFZ3bazFeUt0f3SVIerB9K3qBqQumZcsb75OHU1EagqUHR4r7FR8mrl0dxiNZaB+ei9CNQf57TROaF0vP1+ZHfD/N+7k46S+mMvv9g2wmd+dpwVQHMyXA2YV8Mmq3ESzZ9d0hDVPKrz1IgWiaeeJCyZ419NPeMtpPYhNRnENJ7eqgHYRURDX/fhKdCJZmokKp5UqnlCRx6Jt1TACaP/jZJnjOGRYmIeUeytzsbwxowzkBI4Xg/+yEh7rdfDYD1gPaVQKIqNLpqFRL2WCTzkEHth3IO6RtgSym8mmosq2s1nPGD08XXK10iWOclgro0yGHHCWYtcVQLBipOcxexNt5HIz+Bs45ICyYRtPvtRWEmOZjr9z0K+HaqjQ49bxfOl2eSW8DGoACbnKVit4ON9La7ag=="
+    "formationItem": "405 자산취득비"
   },
   {
     "id": "mnrcir0voap2bpm8z",
-    "name": "건강생활실천사업(건강증진) - 사무관리비",
+    "name": "201-01 사무관리비",
     "totalBudget": 20380000,
     "policyProject": "건강도시 조성",
     "unitProject": "건강증진사업관리",
@@ -539,7 +551,8 @@
         "name": "건강생활정보자료 제작",
         "calculation": "4,800,000원*1종=",
         "amount": 4800000,
-        "calculations": [],
+        "isCustomFunding": true,
+        "isLocked": false,
         "fundingSplits": [
           {
             "source": "기타",
@@ -554,14 +567,6 @@
             "amount": 2688000
           }
         ],
-        "isCustomFunding": true
-      },
-      {
-        "id": "id_35c456068209",
-        "prefix": "1)",
-        "name": "건강습관 로고조명 관리",
-        "calculation": "550,000원*2회=",
-        "amount": 1100000,
         "calculations": []
       },
       {
@@ -570,7 +575,8 @@
         "name": "홍보물 제작",
         "calculation": "5,000원*1,000개*3종=",
         "amount": 15000000,
-        "calculations": [],
+        "isCustomFunding": true,
+        "isLocked": false,
         "fundingSplits": [
           {
             "source": "기타",
@@ -585,7 +591,7 @@
             "amount": 8400000
           }
         ],
-        "isCustomFunding": true
+        "calculations": []
       },
       {
         "id": "id_1add5ddd78db",
@@ -593,7 +599,8 @@
         "name": "사업운영 소모품 구입",
         "calculation": "290,000원*2회=",
         "amount": 580000,
-        "calculations": [],
+        "isCustomFunding": true,
+        "isLocked": false,
         "fundingSplits": [
           {
             "source": "기타",
@@ -608,7 +615,7 @@
             "amount": 325000
           }
         ],
-        "isCustomFunding": true
+        "calculations": []
       }
     ],
     "formationItem": "201 일반운영비",
@@ -627,11 +634,12 @@
       }
     ],
     "fundingSource": "구비 (56.00%), 기타 (20.00%), 시비 (24.00%)",
-    "_enc": "Ru43Slm0UsGYdolW0y0qANEytf93zSMB6DO65bC8zNMP7BleQU+Cp4MQXw7hACsLDj78sOTaW+/b/Dx07cabM++SdjcV4I1qbT4h9V/e4MgiOHocxSeo5qU//8xnkNVrC7CRJPB1Svp/zLG3WwpZQKGBmcKFyJM+Vnfez1lSf2mIwTDZ7P8DPhT/kfco9ybCfCP0zAna7zOGKiGF/vgI6pr12SyAWxvTjVuST28RNDvBqEVPj/W9CZrjbZXlA6X0hXC/KEhq3kmqigcqOvYa4hDIbHM7CSRwFQPJN5GF8FZaSnnO/Xb2ftNaRXwsV8j7IzI57zaqslKELFDYmvhEsYGvyp247RUGKJCPegwKyGLnks2HXWVswSQuVoPckH5NZmampFsS6b3THS/JHDdxW3rEviJ5qSmcv1h0wdkqhbJGzVWV1b90TgujZHUdzjvfgNhIU/JzAb3Gczhkv5eztmp/c3zsrQyO6Pvwd0KtiLaYPTCgFz1SfhIp52jSWUIq8rf60zrZ+etDYXoZWpMajkyd9MSn7V/QP5XgSBztz2cR4xw/3M3UvW+qeOVE29BRs8slnCFK+gYPdRVoLZqTNEQDG7QU5uNb6TzGUKQ5VLpbplInKc2opKbU1OopPAupd9t3WO2atE/UYRGKk9E/PVztGLJG+4fVphe/64OsQ0i/lMSLOznExM5rnFiQ3SUDkL5t2kwi/DSv8xWuHlgKu6EHuYNNDP8rSGvx6s4ovZm3i0GilDswn5lX2uTRI/XWrSk2I2PFu3UEtVVaCXur4pJ9YnZE+gZEYkn4lAfebiQp39llk+ThxuxEdXtqa13OLxLWxLcCyqKo3PpFsikp6cvXuAKbh0C6IgUICo3z/0Dt7AGFubPz5OsbFTtmxGpI5UJZzT+gQulRSoEF/RDpHuALiMOVUqscxp2VlMX48en18DkCAiOzLdBwU9u6ftB7WdkaO8pSUB75L0FVA8Pr6kWB6CwOj0xYEBanAdzM6M62bSw2T4d9hRld5/5cUGyGN76UYOdujUVjKZSm26dm8OfIxojULSYP9GBxflhiWaLHD+Si4SeTs4HEtx7nl+ZH+Fa7OUSGznRSV9zPiiRyac0rpPjbq7bdh9L/TZKBBLWE7mk9eEi1w83I54FIYguAbOZ8BXaJAPV9DNQe8wAbGh7FuCmJIVPi/NddxBPTCm8W4XKtlaMLa8XuIG77Xz84R7XZ4TSnDpb01dPTO2Vzz4uy25/CzGwPGKGFkTlEPOeLOLBQwALmIOA2ptDSDFabd3nll73Q/G1uPlZN5HOeVCn1KNILcTNBDnTmJHUeajFRJlfhfGUHqdWsmmGtmvjsS6p4VcrKqodFjA3YDKlSHsLaaP3xAtUsmrrXIKydExygWIgjmBwuahilFlLlbZNCy24uGfbBo1QCXKyJQXUHCRGoyNv1pPQ1sM5l0rtubrx7mo3hX6vjBT2HQZJiQcdvDAdIieqXW6x+3AyNuV3cS9IgHRykyUG+gcV6BSPpLnWR76OB1qHLGoIg6Ew7PgsiwdzLWQ4lHEEiDJGliNKZK4TOKbf1jOdTrmbw2XWdjVJzV+IXkLS3lA4/btFRMowfzO3MDlyXiv//37hCy/p7E/xeiUecF+OqXRLPZ6P1zN1jryX5JlOoYAh1AAqqyjarM1oGyXDM318paLjm+XlMKoLvmZ/emg9k0EsSR2GOey1Y+NGhvtDsY1H31FuDTu74GHtfrS99J9jECo52KF2xLUKE7p9qm49P3qLQgaNRKtKm4PM6EGGMWFci9CzZwAiac3f3Wb+a9sPD3aV00ambqrMFTpW5clx35HCSxmOk5iGdWrIa2TeVGPJu0c85ZW18fF+xtd9yqWA2PHSj5BzRWhLE9C8rBjk8yrnGha8yknCWCu8PAmQsnARjbc1BONJjXUMARIiLCImUwpqqBvkN0QI/8nOXkYu53CKp3f/MmjdeXG4hOB4N1+G5tm/hDl5fKw=="
+    "color": "#3b82f6",
+    "budgetType": "본예산"
   },
   {
     "id": "mnrcir0vhyhg1xb87",
-    "name": "건강생활실천사업(건강증진) - 행사운영비",
+    "name": "201-03 행사운영비",
     "totalBudget": 96100000,
     "policyProject": "건강도시 조성",
     "unitProject": "건강증진사업관리",
@@ -642,8 +650,9 @@
         "id": "id_ccfd74c4b63a",
         "prefix": "1)",
         "name": "어린이신체활동증진",
-        "calculation": "",
         "amount": 13500000,
+        "isCustomFunding": false,
+        "isLocked": false,
         "calculations": [
           {
             "id": "id_215b51cbdb23",
@@ -664,7 +673,8 @@
                 "amount": 3360000
               }
             ],
-            "isCustomFunding": true
+            "isCustomFunding": true,
+            "isLocked": false
           },
           {
             "id": "id_110c9d9511d6",
@@ -685,7 +695,8 @@
                 "amount": 4200000
               }
             ],
-            "isCustomFunding": true
+            "isCustomFunding": true,
+            "isLocked": false
           }
         ]
       },
@@ -693,80 +704,99 @@
         "id": "id_c960812f990d",
         "prefix": "1)",
         "name": "건강체험교육행사",
-        "calculation": "",
         "amount": 51000000,
+        "isCustomFunding": true,
+        "isLocked": false,
+        "fundingSplits": [
+          {
+            "source": "구비",
+            "amount": 51000000
+          }
+        ],
         "calculations": [
           {
             "id": "id_95e7e961ce69",
             "name": "행사스탭인력",
             "calculation": "100,000원*30명=",
-            "amount": 3000000
+            "amount": 3000000,
+            "isLocked": false
           },
           {
             "id": "id_22bc906957fe",
             "name": "행사영상촬영편집",
             "calculation": "2,000,000원*1회=",
-            "amount": 2000000
+            "amount": 2000000,
+            "isLocked": false
           },
           {
             "id": "id_ebb725e55074",
             "name": "메인행사장 무대제작",
             "calculation": "7,000,000원*1회=",
-            "amount": 7000000
+            "amount": 7000000,
+            "isLocked": false
           },
           {
             "id": "id_6de613833f61",
             "name": "체험부스 설비렌탈료",
             "calculation": "630,000원*10개=",
-            "amount": 6300000
+            "amount": 6300000,
+            "isLocked": false
           },
           {
             "id": "id_e9473b52930a",
             "name": "교육스티커 제작",
             "calculation": "1,000원*500명*6종=",
-            "amount": 3000000
+            "amount": 3000000,
+            "isLocked": false
           },
           {
             "id": "id_8ca9750e4a97",
             "name": "체험교육참가증",
             "calculation": "2,000원*500명=",
-            "amount": 1000000
+            "amount": 1000000,
+            "isLocked": false
           },
           {
             "id": "id_95535d93b320",
             "name": "체험목표달성 인센티브",
             "calculation": "6,000원*500명*4종=",
-            "amount": 12000000
+            "amount": 12000000,
+            "isLocked": false
           },
           {
             "id": "id_e5a32fe26c8e",
             "name": "단체 예술공연",
             "calculation": "800,000원*2팀*2회=",
-            "amount": 3200000
+            "amount": 3200000,
+            "isLocked": false
           },
           {
             "id": "id_63f0988e6db9",
             "name": "체험부스 운영료",
             "calculation": "400,000원*10개=",
-            "amount": 4000000
+            "amount": 4000000,
+            "isLocked": false
           },
           {
             "id": "id_9b288bddea70",
             "name": "구급차(인력포함)",
             "calculation": "250,000원*2대=",
-            "amount": 500000
+            "amount": 500000,
+            "isLocked": false
           },
           {
             "id": "id_08fb1313037c",
             "name": "참가자이벤트 운영",
             "calculation": "500,000원*10종=",
-            "amount": 5000000
+            "amount": 5000000,
+            "isLocked": false
           },
           {
             "id": "id_dad93c25900a",
             "name": "행사 대민홍보비",
             "calculation": "2,000,000원*2회=",
-            "amount": 4000000
+            "amount": 4000000,
+            "isLocked": false
           }
         ]
       },
@@ -776,7 +806,8 @@
         "name": "아이뛰움인센티브",
         "calculation": "5,000원*40명*30개소=",
         "amount": 6000000,
-        "calculations": [],
+        "isCustomFunding": true,
+        "isLocked": false,
         "fundingSplits": [
           {
             "source": "기타",
@@ -791,7 +822,7 @@
             "amount": 3360000
           }
         ],
-        "isCustomFunding": true
+        "calculations": []
       },
       {
         "id": "id_9b4d2e311a75",
@@ -799,7 +830,8 @@
         "name": "건강 뜀 운영",
         "calculation": "300,000원*42회=",
         "amount": 12600000,
-        "calculations": [],
+        "isCustomFunding": true,
+        "isLocked": false,
         "fundingSplits": [
           {
             "source": "기타",
@@ -814,7 +846,7 @@
             "amount": 7056000
           }
         ],
-        "isCustomFunding": true
+        "calculations": []
       },
       {
         "id": "id_9c79cbf7cd00",
@@ -822,7 +854,8 @@
         "name": "건강생활실천 캠페인",
         "calculation": "1,000,000원*4회=",
         "amount": 4000000,
-        "calculations": [],
+        "isCustomFunding": true,
+        "isLocked": false,
         "fundingSplits": [
           {
             "source": "기타",
@@ -837,7 +870,7 @@
             "amount": 2240000
           }
         ],
-        "isCustomFunding": true
+        "calculations": []
       },
       {
         "id": "id_d79d0450bee3",
@@ -845,7 +878,8 @@
         "name": "과일바구니 교육 강사비",
         "calculation": "200,000원*10회=",
         "amount": 2000000,
-        "calculations": [],
+        "isCustomFunding": true,
+        "isLocked": false,
         "fundingSplits": [
           {
             "source": "기타",
@@ -860,7 +894,7 @@
             "amount": 1120000
           }
         ],
-        "isCustomFunding": true
+        "calculations": []
       },
       {
         "id": "id_35b4ea7298c1",
@@ -868,7 +902,8 @@
         "name": "과일바구니 교육 운영비",
         "calculation": "20,000원*100명=",
         "amount": 2000000,
-        "calculations": [],
+        "isCustomFunding": true,
+        "isLocked": false,
         "fundingSplits": [
           {
             "source": "기타",
@@ -883,7 +918,7 @@
             "amount": 1120000
           }
         ],
-        "isCustomFunding": true
+        "calculations": []
       },
       {
         "id": "id_a38d4637b15d",
@@ -891,7 +926,8 @@
         "name": "오미오감 식경험 프로그램",
         "calculation": "2,500,000원*2회=",
         "amount": 5000000,
-        "calculations": [],
+        "isCustomFunding": true,
+        "isLocked": false,
         "fundingSplits": [
           {
             "source": "기타",
@@ -906,7 +942,7 @@
             "amount": 2800000
           }
         ],
-        "isCustomFunding": true
+        "calculations": []
       }
     ],
     "formationItem": "201 일반운영비",
@@ -925,7 +961,8 @@
       }
     ],
     "fundingSource": "구비 (79.35%), 기타 (9.39%), 시비 (11.26%)",
-    "_enc": "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"
+    "color": "#3b82f6",
+    "budgetType": "본예산"
   },
   {
     "id": "mnrcir0vwspp9jw51",
@@ -953,7 +990,7 @@
     ],
     "fundingSource": "구비 (100.00%)",
     "formationItem": "203 업무추진비",
-    "_enc": "udkf8FUQiv3u/UEt2o3uXWcBejY4jmjhCEzbjZLWlkqXZhzPCQAR9XqP/wihxQpfw0qSiAFeUr7NP+hF+xDm3Ipnl3RO0f3axbe927duCt+s2kgI7kEJIxxZDWWX6zlM9zSWPa9fQAERjjCRMLRbbr8TXJ2/XOm8uvBolPRV63cnzfMdUKPC+88jf61xzgXNLqpB/Pz/ZNkxXZKxVH5MAQiBwoj8h6K6/jp4g404EReLgxcd5+7qDvpkIO2nUeaa/pZY1JXyjnUFtVzoh+AldclZKn+B5hSfwCofBE7AONy7sjZWVuNW/Cr8aQ0+3l5WXn2gQQdLHIc0cXcoAC4waJMRXTIwFQ5ELD1to/VDUX1atc7CuUyfk0arrQqk+15idFsaXW7isrfOA0kyK3pGF/Jgt1XqShdibLN43sR8A9NmrCFOdgnqeGeG/HpMhZ0ju0W+48+a06K3vek5gkO2KuXYb6ACAJUGAcDFUAE52hOfT7fMP6toyVpI9o31dINazknOZ3eAuyIqIKs8m3YYDMqaxYTNZ/o6E43zoJc8esT5JafE+rB4X1iP/bd+cy8BvpHVmc7bihYrAD9T1VVT+JLAfCU2S7401kM4K+t2xxRLClRlCqd28tLd+VTuLPFRi/Di5hLRUuCeiU5PV+l45XVEBAyrdo1QvqWwHxAVpRgX9TkHCixOWMC44Of8i0zmzMRm511xNOrIqn4PooZNN+YbqX5MuxNqAABvBso0UNFmsByrA8e4sJ83EDGlc4JI59VZ5Kvc58Xk6Ajznz+cG0nP+zuX"
+    "color": "#3b82f6"
   },
   {
     "id": "mnrcir0vkiq1dafm3",

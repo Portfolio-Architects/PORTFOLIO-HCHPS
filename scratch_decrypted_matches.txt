@@ -1,0 +1,21 @@
+Total entries: 47
+ID: mnsh755edgjw4hs24 | Category: 기타 (mnrcir0voap2bpm8z) | Amount: 1,700,000 | Purpose: 스포츠 테이핑 교육 전용 가위 구입 | Memo:  | Date: 2026-02-13
+ID: mnsi6g9mcmei3hy9a | Category: 강남체력인증 - 시설비 (mnrcir0vwrr1z2yol) | Amount: 19,718,000 | Purpose: 강남체력인증센터 조성 공사(전기) | Memo:  | Date: 2026-04-02
+ID: mnsi8ergfo1npajf5 | Category: 강남체력인증 - 시설비 (mnrcir0vwrr1z2yol) | Amount: 35,212,000 | Purpose: 강남체력인증센터 조성 공사(시설) | Memo:  | Date: 2026-04-02
+ID: mpgm7fi4g76ijebh1 | Category: 강남체력인증 - 사무관리비 (mnrcir0vl18vfnb68) | Amount: 150,000 | Purpose: 서울체력장 강남센터, 영상정보장치 설치비 지급 | Memo:  | Date: 2026-05-20
+ID: mpgmggdbzz5l3teun | Category: 기타 (mnrcir0v56b8pixdb) | Amount: 220,000 | Purpose: (일상경비)서울체력장 강남센터, 체성분 측정 결과지 구매비 지급 | Memo:  | Date: 2026-05-18
+ID: mpgmhlei34m5nrsm8 | Category: 기타 (mnrcir0v56b8pixdb) | Amount: 300,000 | Purpose: (일상경비)서울체력장(건강증진지원실) 사무용품 구매비 지출 | Memo:  | Date: 2026-05-15
+ID: mpgmlbz1egxwvsl4g | Category: 강남체력인증 - 사무관리비 (mnrcir0vl18vfnb68) | Amount: 880,000 | Purpose: 보건소 건강증진지원실 체형분석기 이전 배치 비용 지급 | Memo:  | Date: 2026-05-13
+ID: mpgmqjx3eyzamdmxn | Category: 강남체력인증 - 자산취득비 (mnrcir0vbxmmvztoq) | Amount: 4,021,600 | Purpose: (조달구매)서울체력장 강남센터 영상정보장치 구매비 지출 | Memo:  | Date: 2026-04-16
+ID: mpgmsyj1pgn1hvf9z | Category: 강남체력인증 - 사무관리비 (mnrcir0vl18vfnb68) | Amount: 3,124,000 | Purpose: 건강증진지원실 이전 및 재설치비 지급 | Memo:  | Date: 2026-05-13
+ID: mpnip9gm2xajhpsz6 | Category: 강남체력인증 - 기간제보수 (mnrcir0v5zjn4qxyg) | Amount: 7,500,000 | Purpose: 강남체력인증 - 기간제보수 11월 소진 가계획 | Memo:  | Date: 2026-06-15
+ID: mpniparq513du9l05 | Category: 강남체력인증 - 기간제보수 (mnrcir0v5zjn4qxyg) | Amount: 8,080,000 | Purpose: 강남체력인증 - 기간제보수 11월 소진 가계획 | Memo:  | Date: 2026-07-15
+ID: mpnipbnq00yk60bgx | Category: 강남체력인증 - 기간제보수 (mnrcir0v5zjn4qxyg) | Amount: 8,140,000 | Purpose: 강남체력인증 - 기간제보수 11월 소진 가계획 | Memo:  | Date: 2026-08-15
+ID: mpnipcdy7aecacnfd | Category: 강남체력인증 - 기간제보수 (mnrcir0v5zjn4qxyg) | Amount: 10,542,000 | Purpose: 강남체력인증 - 기간제보수 11월 소진 가계획 | Memo:  | Date: 2026-09-15
+ID: mpnipcytoq622xjzp | Category: 강남체력인증 - 기간제보수 (mnrcir0v5zjn4qxyg) | Amount: 7,500,000 | Purpose: 강남체력인증 - 기간제보수 11월 소진 가계획 | Memo:  | Date: 2026-10-15
+ID: mpnipey63vuky35as | Category: 강남체력인증 - 기간제보수 (mnrcir0v5zjn4qxyg) | Amount: 7,500,000 | Purpose: 강남체력인증 - 기간제보수 11월 소진 가계획 | Memo:  | Date: 2026-11-15
+ID: mpnj28ghq3ei8srak | Category: 강남체력인증 - 기간제보수 (mnrcir0v5zjn4qxyg) | Amount: 7,413,500 | Purpose: 강남체력인증 - 기간제보수 5월 가계획 | Memo:  | Date: 2026-05-15
+ID: mpnj2b691uc8729cj | Category: 강남체력인증 - 기간제보수 (mnrcir0v5zjn4qxyg) | Amount: 7,500,000 | Purpose: 강남체력인증 - 기간제보수 12월 가계획 | Memo:  | Date: 2026-12-15
+ID: mpw3meq4tjszoqbj8 | Category: 강남체력인증 - 기간제보수 (mnrcir0v5zjn4qxyg) | Amount: 7,413,500 | Purpose: 2026년 5월 서울체력장 강남센터 기간제근로자 인건비 지출 | Memo:  | Date: 2026-06-02
+ID: mpz3mjgh2l8pqtezz | Category: 기타 (mnrcir0v56b8pixdb) | Amount: 804,000 | Purpose: (일상경비)서울체력장 강남센터, 운영 물품(운동 용품) 구매 | Memo:  | Date: 2026-06-04
+ID: mr1mbj3m2kb02qp9a | Category: 강남체력인증 - 기간제보수 (mnrcir0v5zjn4qxyg) | Amount: 7,463,400 | Purpose: 2026년 6월 서울체력장 강남센터 기간제근로자 인건비 지출 | Memo:  | Date: 2026-06-25

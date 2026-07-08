@@ -539,14 +539,25 @@ export const MindMap3D = React.memo(function MindMap3D({ signalKeywords, signalE
     }
   }, [/* resetCamera */]);
 
-  // ── Animation Loop ──
-  useEffect(() => {
-    initEngine();
 
+
+  // ── 탭 복귀 시 엔진 재기동 보완 ──
+  useEffect(() => {
+    if (isActive && !engineRef.current) {
+      initEngine();
+    }
+  }, [isActive, initEngine]);
+
+  // ── 컴포넌트 완전 언마운트 시에만 엔진 리소스 해제 ──
+  useEffect(() => {
     return () => {
-      if (animationRef.current) cancelAnimationFrame(animationRef.current);
+      const engine = engineRef.current;
+      if (engine) {
+        engine.destroy();
+        engineRef.current = null;
+      }
     };
-  }, [initEngine]);
+  }, []);
 
   // ── Async Data Hydration ──
   // 최초 렌더링 시에는 Yjs 네트워크 지연으로 overrides가 빈 통({}) 상태입니다.
@@ -562,6 +573,8 @@ export const MindMap3D = React.memo(function MindMap3D({ signalKeywords, signalE
     .join('|');
 
   useEffect(() => {
+    if (!isActive) return; // 🚀 비활성화된 백그라운드 탭 상태에서는 절대 엔진을 기동/재시동하지 않음
+
     // 하나라도 복구된(존재하는) 데이터가 들어왔고, 방금 막 다운로드 받은 상태라면
     if (!didInitialAsyncLoad.current && (Object.keys(overrides).length > 0 || customNodes.length > 0 || customEdges.length > 0 || deletedEdges.length > 0)) {
       didInitialAsyncLoad.current = true;
@@ -577,10 +590,24 @@ export const MindMap3D = React.memo(function MindMap3D({ signalKeywords, signalE
         initEngine();
       }
     }
-  }, [overrides, customNodes.length, customEdges.length, deletedEdges.length, topologicOverridesHash, initEngine]);
+  }, [isActive, overrides, customNodes, customEdges, deletedEdges, topologicOverridesHash, initEngine]);
 
   useEffect(() => {
-    if (loading || error || !isCloudLoaded || !isActive) return;
+    // 💡 이펙트 진입 시 이전 애니메이션 프레임 루프를 100% 확실히 정지하여 중복 루프를 방지합니다.
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+      animationRef.current = 0;
+    }
+
+    if (loading || error || !isCloudLoaded || !isActive) {
+      // 조건 불만족으로 복귀하더라도 항상 정리할 수 있는 최소한의 리턴 함수를 제공합니다.
+      return () => {
+        if (animationRef.current) {
+          cancelAnimationFrame(animationRef.current);
+          animationRef.current = 0;
+        }
+      };
+    }
 
     let lastFrameTime = performance.now();
 
@@ -672,26 +699,25 @@ export const MindMap3D = React.memo(function MindMap3D({ signalKeywords, signalE
     return () => {
       ro.disconnect();
       canvas.removeEventListener('wheel', wheelHandler);
-      if (animationRef.current) cancelAnimationFrame(animationRef.current);
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+        animationRef.current = 0;
+      }
       
-      // 💡 마인드맵 페이지를 이탈할 때 노드들의 현재 공전 각도를 sessionStorage에 캐싱하여 저장합니다.
+      // 💡 탭 비활성화 시에는 엔진을 파괴하지 않고 루프만 정지시켜 캐싱 상태를 보존합니다.
       const engine = engineRef.current;
-      if (engine) {
-        if (engine.nodes) {
-          try {
-            const angles: Record<string, number> = {};
-            engine.nodes.forEach(n => {
-              if (typeof n.orbitAngle === 'number' && !isNaN(n.orbitAngle)) {
-                angles[n.id] = n.orbitAngle;
-              }
-            });
-            sessionStorage.setItem('hchps-mindmap-orbit-angles', JSON.stringify(angles));
-          } catch (e) {
-            console.warn('[SessionStorage] Failed to save orbit angles on cleanup:', e);
-          }
+      if (engine && engine.nodes) {
+        try {
+          const angles: Record<string, number> = {};
+          engine.nodes.forEach(n => {
+            if (typeof n.orbitAngle === 'number' && !isNaN(n.orbitAngle)) {
+              angles[n.id] = n.orbitAngle;
+            }
+          });
+          sessionStorage.setItem('hchps-mindmap-orbit-angles', JSON.stringify(angles));
+        } catch (e) {
+          console.warn('[SessionStorage] Failed to save orbit angles on cleanup:', e);
         }
-        engine.destroy();
-        engineRef.current = null;
       }
     };
   }, [loading, error, isCloudLoaded, isActive]);

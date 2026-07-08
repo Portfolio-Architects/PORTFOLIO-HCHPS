@@ -867,7 +867,7 @@ export class OntologyRenderer {
   // Legacy getColorPalette removed -> We use Flat Design and themeColor inheritance
 
   private static renderNodes(rc: RenderContext): void {
-    const { ctx, sortedNodesBuffer, activeNodeId, hoveredNodeId, activeTreeSet, canvasW, canvasH, zoom, layoutMode = 'mindmap' } = rc;
+    const { ctx, sortedNodesBuffer, activeNodeId, hoveredNodeId, activeTreeSet, canvasW, canvasH, zoom, layoutMode = 'mindmap', nodeMap } = rc;
     const isFastPath = !!(rc.isInteractive || rc.isOrbiting);
 
     // activeNodeId가 존재할 때 그의 이웃 노드들을 O(1) 조회용 Set으로 구성 (매 프레임 edges 순회 방지 캐싱)
@@ -1104,7 +1104,18 @@ export class OntologyRenderer {
 
       // ─── Semantic Zooming (LOD 2.0) 최적화 및 텍스트 겹침 방지 ───
       // 전역 겹침 사전 계산 결과에 의해 라벨이 허용되지 않은 노드는 100% 도트(Dot)로 렌더링
-      const isLODDot = !OntologyRenderer.textAllowedSet.has(node.id);
+      let isLODDot = !OntologyRenderer.textAllowedSet.has(node.id);
+
+      // 🚀 사용자 요구사항: 활성 노드가 지정된 경우, 활성 노드와 그 주변(직속 자식 및 부모)만 텍스트 노출하고 나머지는 도트(Dot) 처리
+      if (activeNodeId && nodeMap) {
+        const activeNode = nodeMap.get(activeNodeId);
+        const isActiveNode = node.id === activeNodeId;
+        const isParentNode = activeNode && node.id === activeNode.parentId;
+        const isDirectChildNode = node.parentId === activeNodeId;
+        if (!isActiveNode && !isParentNode && !isDirectChildNode) {
+          isLODDot = true; // 텍스트 생략
+        }
+      }
 
       if (isLODDot) {
         const themeColor = node.themeColor || '#94A3B8';

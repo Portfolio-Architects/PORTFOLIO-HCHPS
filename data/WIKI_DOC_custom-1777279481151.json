@@ -1,6 +1,141 @@
 [
   {
     "id": "singleton",
-    "_enc": "ILdunTU2BOUk1RIA8oL0m+Yca69RpneitZtn7JJcPKtrVBNMbnuOt8pWEf6YgoI4iP/uosVECzCjFeUPVrgI0iqYPJ0kXe6Zd7u2Ui7VIEsq1WVS8CzReS5QaPyPWVbbPrhN3tqO1hu60FXBkZWdkBo29PEh1Rs0axngCmWhmxnb06XP8V+j4gR4gfMNGjrw77g0nRCZ0sxIef0iEApvqodZFtaqriBBn4DHAo7h53vjMWG4xGFOmT/1n8YY3zaGqm8KLOXeiCSZPiGnCRt5iI7hIAOL24BiF9EM0iAkXO/fm8ltttkLvZt8/CgwYqPrkxlZkQBMEsRQ9WLZ6NwS3TWPWgNTMdmBihZ1ZbUP4c6LV0PP3Rgbb1kjN3Y6Wb9UXn++OuFYuraXLth8rdKO3WVvEK1O9sBiW875aJbRlr5O3OonSroJROWybP8o15Xb1F7o2iJQDMjg5ADuFjZgMmEQVhyk+epohgqaIL497f7fHfFqdOq/wz8J7tFUeG4VgnE+47Zk+iCVAgAMUZFmZGenDPYQYbyviHdo8VZIqhjIEJNvjEZzz2pOPHHT/hGmRHNxykh9HVRMZF/aq7kd+RCPcEhNsZEutCZwWwNdWRkWalhyHm3zu6JR0ssOxYTO/5JNg1um6UXCZq6F3/CSVxyNJfI9jbdQEGGeI8FNvRbAF7AnZ+9Qe2cXo5OL3xr0c/UXFOoeWwmmK1oFeC7SR2l1UAGtUy37YYKCqrhCtlaa/qAQ4nLHmiN06Mex77fRXPDsismgQa7yUFiEByGvi3IbFO9Wy2G7Dj0VqrzK8ZrqL4WJ1MRHslG+qYQS5avH+KOnYR9aVXf9QGfiROIgygZ6mK5odYmYKKBHT8BIVTfpljKDVj5Kp9r40kFw1VBXmZh2XqIOPH06SmVs8Av1IKt+fEK9TrmxBZ/bh+CJLjPGKgfr6swkgpffl+HqPH1jCbfDXZC3bSke5p57w6DGRrhvCBS/8J/BjrzfhqIg6TxRfBXnld5frc87lj3gk9x7E4LkMF2CKde2AtpMQr/KSTNZbAOrYHMer9/1sS7Pt8zqZZcQnzdCYzKyAAUEM7I1p9w9Beb+RRYv48d+gfBhy/wMb4h5RGH2kiGUuo5SoJIgN/EpXF1zGFtJ0cU94dvZ5Iqp5tz4fCgO3H02ua70xj+aJz7J5LRqOMpIeFjkqJ3uFHww40H51iTk08yIqXArPfF/5QhG8vrpLB6DniuHCHPBXaqva6nJk1ou/0CCscLJQHow83a99WpmvlvvoR8YYIrM9UJYDYqn5ZFXw+H5CmEhNXCGyM3a41LhAJFyKA7NH4YMvTemafiq3XoEJjzvA7OmnVQDTJ2jC4shUDV7I2HeGdDVhPmBVB/79sLhD0urbxRApTKkVKQv1kPDONmPHU2rnh6kaPRX9rrQFhKLsNw87BRNhts2t+yF+cu+3kG+7wHXmPIl+SKD2nx0zZtSnaojqZeg+YRNp2RbBYaYg9pg25RetxitevdLDBP7rcQfBg9YqETpEqNVCBkxUQxJexqIhAJ7iHpGlJTJ+YHqnkxz8roYdWvapfF4eIZFxMfSCtD7V7QQYweBv0z2TNdmmqiSjecfWdGvjim/JNed5DmWsnA/QJykBcWiH+LBFqkLkAH9Kg0rL80REjYl5uUUqeubIN4yTpRO2LN7iBFNQizAqp/sJXwVzXheuCKarCbvCtnX172S/WhNpNgI/UfXjDFatTpr4ZjhPnkLA7IGlz4lEZ1tkS1J460G7UyZWdHdnyNTmPXB5XHSxkFNF8rkJrdlULXOB74ahGeP4A+iE2kk2TOwvrJSaxiPMyOhZhH8wVP40ImmSJvEFyZOoNcTKfwDeGk1r4WyeidSUUjbvUjHt4qzVE17Jb0Jk2cUDVV5AUwnRCc="
+    "blocks": [
+      {
+        "id": "8a452000-43d2-4f32-b83e-c5040d9c4aa0",
+        "type": "table",
+        "props": {
+          "textColor": "default"
+        },
+        "content": {
+          "type": "tableContent",
+          "columnWidths": [
+            null
+          ],
+          "rows": [
+            {
+              "cells": [
+                {
+                  "type": "tableCell",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "한국테이핑협회",
+                      "styles": {}
+                    }
+                  ],
+                  "props": {
+                    "colspan": 1,
+                    "rowspan": 1,
+                    "backgroundColor": "default",
+                    "textColor": "default",
+                    "textAlignment": "left"
+                  }
+                }
+              ]
+            },
+            {
+              "cells": [
+                {
+                  "type": "tableCell",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "회장",
+                      "styles": {}
+                    }
+                  ],
+                  "props": {
+                    "colspan": 1,
+                    "rowspan": 1,
+                    "backgroundColor": "default",
+                    "textColor": "default",
+                    "textAlignment": "left"
+                  }
+                }
+              ]
+            },
+            {
+              "cells": [
+                {
+                  "type": "tableCell",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "010-5018-9443",
+                      "styles": {}
+                    }
+                  ],
+                  "props": {
+                    "colspan": 1,
+                    "rowspan": 1,
+                    "backgroundColor": "default",
+                    "textColor": "default",
+                    "textAlignment": "left"
+                  }
+                }
+              ]
+            },
+            {
+              "cells": [
+                {
+                  "type": "tableCell",
+                  "content": [],
+                  "props": {
+                    "colspan": 1,
+                    "rowspan": 1,
+                    "backgroundColor": "default",
+                    "textColor": "default",
+                    "textAlignment": "left"
+                  }
+                }
+              ]
+            },
+            {
+              "cells": [
+                {
+                  "type": "tableCell",
+                  "content": [
+                    {
+                      "type": "link",
+                      "href": "mailto:smt3617@naver.com",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "smt3617@naver.com",
+                          "styles": {
+                            "bold": true
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  "props": {
+                    "colspan": 1,
+                    "rowspan": 1,
+                    "backgroundColor": "default",
+                    "textColor": "default",
+                    "textAlignment": "left"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "children": []
+      },
+      {
+        "id": "0c1dfcf9-44e4-44e7-a2f0-9bd3b736cbf7",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [],
+        "children": []
+      }
+    ]
   }
 ]

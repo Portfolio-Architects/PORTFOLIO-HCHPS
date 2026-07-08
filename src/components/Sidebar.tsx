@@ -1,8 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { ModuleType } from '@/types';
-import { Archive, Zap, LayoutDashboard, Package } from 'lucide-react';
+import { Archive, Zap, LayoutDashboard, Package, Search } from 'lucide-react';
 
 interface TopNavProps {
   activeModule: ModuleType;
@@ -11,6 +11,7 @@ interface TopNavProps {
   appMode: 'HCHPS' | 'VITAL';
   onModeChange: (mode: 'HCHPS' | 'VITAL') => void;
   onPreloadModule?: (module: ModuleType) => void;
+  onSearch?: (query: string) => void;
 }
 
 const navItems: { id: ModuleType; label: string; icon: React.ElementType }[] = [
@@ -20,12 +21,20 @@ const navItems: { id: ModuleType; label: string; icon: React.ElementType }[] = [
   { id: 'inventory', label: '홍보물', icon: Package },
 ];
 
-export function Sidebar({ activeModule, onModuleChange, appMode, onPreloadModule }: TopNavProps) {
+export function Sidebar({ activeModule, onModuleChange, appMode, onPreloadModule, onSearch }: TopNavProps) {
+  const [searchVal, setSearchVal] = useState('');
   const activeLabel = navItems.find((i) => i.id === activeModule)?.label;
+
+  const handleSearchSubmit = () => {
+    if (searchVal.trim() && onSearch) {
+      onSearch(searchVal.trim());
+      setSearchVal(''); // 모달이 뜬 뒤 입력창을 초기화
+    }
+  };
 
   return (
     <>
-      <header className="sticky top-0 left-0 right-0 z-40 bg-[var(--color-card)]/70 backdrop-blur-md border-b border-white/20 shadow-xs transition-all duration-300">
+      <header className="sticky top-0 left-0 right-0 z-50 pointer-events-auto bg-[var(--color-card)]/70 backdrop-blur-md border-b border-white/20 shadow-xs transition-all duration-300">
         <div className="max-w-[1800px] mx-auto px-2 sm:px-3 lg:px-4">
           <div className="flex items-center justify-between h-14 gap-3">
             
@@ -63,6 +72,27 @@ export function Sidebar({ activeModule, onModuleChange, appMode, onPreloadModule
                   );
                 })}
               </nav>
+            </div>
+
+            {/* Right side: Global Search Input */}
+            <div className="flex items-center gap-2 max-w-[240px] w-full pr-1.5">
+              <div className="relative w-full">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+                  <Search size={13} />
+                </span>
+                <input
+                  type="text"
+                  placeholder="지식 & 파일 본문 검색..."
+                  value={searchVal}
+                  onChange={e => setSearchVal(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      handleSearchSubmit();
+                    }
+                  }}
+                  className="w-full pl-8.5 pr-3 py-1.5 bg-slate-500/5 hover:bg-slate-500/8 focus:bg-white border border-slate-200/40 focus:border-indigo-500/80 rounded-full text-[12px] font-semibold text-slate-800 placeholder:text-slate-400/80 outline-none transition-all focus:shadow-[0_0_12px_rgba(99,102,241,0.12)]"
+                />
+              </div>
             </div>
 
           </div>

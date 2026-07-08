@@ -1,6 +1,29 @@
 [
   {
     "id": "singleton",
-    "_enc": "ZLf62cSiemN8VGbZkONGdgQrOLXbM4DpzMbvbs7IwkhMIUyyh0VPa03/CVEB4HNNQtMnPJi6lbkpGUvbHL16aT3ESwDbFrDx3Aw4Xxgt1hWuqCx3JPnxlkBtpj2NUkVWMbUvttI2tz6+GxFHbSagGOA1jPQdqJBquqJAyPQPJF4bTjpy2X52U/LlxtnyuAkdhbvGgZ2nvst0aYup8TUaMasv9BKS5beLaA03+eiJ9YBf9rVG3JyIkzCOL6jyu6LCvb2NRWHrMkQfAbPmaAZeu+6eAwEmfglGMElvUSHxWQyUuicqSySBwnjM8fppcR+fZhh/wCi038cmrdv2SF/JdIuLfTpsDXVawoT+3ANCcK6S1m14jY96bxxKcMlyFQFXrtDcbLIxTXBnaMUNvFRBquldsjNcMY7T/a2s2EbpQyxeZHSjUGrnSYJ+najBFgYZRyWRwno/TBCCUs99J7MKVkiXKQZLCsm5rcM+rjmzI7jH3Vw0QncmSrPUSjRUW8YzXJdirtaw"
+    "blocks": [
+      {
+        "id": "284f3ecd-1ebd-44cc-a752-41effcad9d77",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [],
+        "children": []
+      },
+      {
+        "id": "59764ce8-e5ef-42f6-a2c0-ea5e9ef94e26",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [],
+        "children": []
+      }
+    ]
   }
 ]

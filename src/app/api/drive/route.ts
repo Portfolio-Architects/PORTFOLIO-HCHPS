@@ -3,15 +3,15 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
 import crypto from 'crypto';
-import { execFile } from 'child_process';
+import { driveCache } from '@/lib/driveCache';
 
 const ALLOWED_EXTENSIONS = new Set(['.pdf', '.txt', '.xlsx', '.xls', '.md', '.csv', '.json']);
 
-// 바탕화면 경로 리스트 (바탕화면 및 사용자 환경 기본 바탕화면)
+// 바탕화면 및 연도별 실무 아카이브 스캔 경로 리스트 (경로별 최적 탐색 깊이 설정)
 const scanPaths = [
-  'd:\\Desktop',
-  path.join(os.homedir(), 'Desktop'),
-  'f:\\' // F 드라이브 루트
+  { path: 'd:\\Desktop', maxDepth: 2 },
+  { path: path.join(os.homedir(), 'Desktop'), maxDepth: 2 },
+  { path: 'F:\\부엉이_정리됨', maxDepth: 4 }
 ];
 
 // 파일 고유 ID 생성 (경로 기반 MD5 해시)
@@ -67,12 +67,26 @@ async function scanDirectory(dirPath: string, currentDepth = 1, maxDepth = 2): P
   return results;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const query = searchParams.get('query') || '';
+
+    // 본문 내용 검색 모드 작동 (Node.js 인메모리 V8 캐시 룩업 적용 - 10ms 급 반응)
+    if (query.trim()) {
+      try {
+        const results = driveCache.searchCache(query);
+        return NextResponse.json({ success: true, isSearch: true, data: results });
+      } catch (searchErr: any) {
+        console.error('[Drive Cache Search Error]', searchErr);
+        return NextResponse.json({ success: false, error: searchErr.message }, { status: 500 });
+      }
+    }
+
     const allFilesMap = new Map<string, any>();
 
-    for (const targetPath of scanPaths) {
-      const files = await scanDirectory(targetPath, 1, 2);
+    for (const target of scanPaths) {
+      const files = await scanDirectory(target.path, 1, target.maxDepth);
       for (const file of files) {
         // 경로 기준 중복 제거
         allFilesMap.set(file.path, file);
@@ -80,7 +94,7 @@ export async function GET() {
     }
 
     const fileList = Array.from(allFilesMap.values());
-    return NextResponse.json({ success: true, data: fileList });
+    return NextResponse.json({ success: true, isSearch: false, data: fileList });
   } catch (e: any) {
     console.error('[Drive Scraper Error]', e);
     return NextResponse.json({ success: false, error: e.message || 'Internal server error' }, { status: 500 });

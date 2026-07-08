@@ -1,10 +1,9 @@
 import { promises as fs } from 'fs';
 import fsNonPromise from 'fs';
 import path from 'path';
-import { execFile, execSync } from 'child_process';
+import { execFile } from 'child_process';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { webcrypto } from 'crypto';
-import os from 'os';
 
 const PIN = '0509';
 const CRYPTO_SALT = new TextEncoder().encode('HCHPS-E2EE-SALT');
@@ -103,21 +102,31 @@ async function ensureClassificationWords() {
 }
 
 
-// 시스템의 정확한 Desktop 경로 획득 (특히 윈도우 환경)
-function getDesktopPath(): string {
-  try {
-    if (process.platform === 'win32') {
-      const stdout = execSync('powershell -Command "[Environment]::GetFolderPath(\'Desktop\')"', { encoding: 'utf-8' });
-      const pathStr = stdout.trim();
-      if (pathStr) return pathStr;
-    }
-  } catch (e) {
-    console.warn('[Watcher Daemon] PowerShell을 통한 Desktop 경로 획득 실패, 기본값 사용:', e);
-  }
-  return path.join(os.homedir(), 'Desktop');
-}
 
-const WATCH_DIR = path.join(getDesktopPath(), 'VITAL_Scan');
+
+const WATCH_DIR = 'F:\\부엉이_정리됨';
+let organizeTimer: NodeJS.Timeout | null = null;
+let isOrganizing = false;
+
+function triggerAutoOrganization() {
+  if (isOrganizing) return;
+  if (organizeTimer) clearTimeout(organizeTimer);
+  organizeTimer = setTimeout(() => {
+    isOrganizing = true;
+    console.info('[Watcher Daemon] 파일 변경 감지 ➡️ 백그라운드 자동 분류 및 정비 구동 시작...');
+    const pyScript = path.join(process.cwd(), 'scratch', 'organize-files.py');
+    execFile('python', [pyScript], (error, stdout, stderr) => {
+      if (error) {
+        console.error('[Watcher Daemon] 백그라운드 자동 분류 실패:', error, stderr);
+      } else {
+        console.info('[Watcher Daemon] 백그라운드 자동 분류 성공.');
+      }
+      setTimeout(() => {
+        isOrganizing = false;
+      }, 3000);
+    });
+  }, 500);
+}
 const DB_FILE = path.join(process.cwd(), 'data', 'MAP_CUSTOMIZATION.json');
 const HISTORY_FILE = path.join(process.cwd(), 'data', 'WATCHER_HISTORY.json');
 
@@ -175,17 +184,6 @@ const fileSizes = globalForWatcher.fileSizes;
 
 
 
-/**
- * 전용 폴더가 존재하지 않을 경우 자동 생성
- */
-async function ensureWatchDirectory() {
-  try {
-    await fs.mkdir(WATCH_DIR, { recursive: true });
-    console.info(`[Watcher Daemon] 감시 폴더 준비 완료: ${WATCH_DIR}`);
-  } catch (err) {
-    console.error(`[Watcher Daemon] 감시 폴더 생성 실패: ${WATCH_DIR}`, err);
-  }
-}
 
 /**
  * 3D 수직 적층 레이어 효과를 극대화하기 위해
@@ -668,7 +666,14 @@ export async function startWatcherDaemon() {
     } catch {}
   }
 
-  await ensureWatchDirectory();
+  // 폴더 자동 생성 대신 존재 여부만 체크하고, 폴더가 없다면 감시를 시작하지 않습니다.
+  try {
+    await fs.access(WATCH_DIR);
+  } catch {
+    console.info(`[Watcher Daemon] 감시 대상 폴더가 바탕화면에 존재하지 않으므로 파일 감시 데몬을 시작하지 않습니다: ${WATCH_DIR}`);
+    return;
+  }
+
   await ensureClassificationWords();
 
   // 히스토리 로드
@@ -707,8 +712,26 @@ export async function startWatcherDaemon() {
 
   // fs.watch로 폴더 실시간 감시
   // Windows에서는 recursive 옵션이 안정적으로 작동
-  const watcher = fsNonPromise.watch(WATCH_DIR, { recursive: false }, (eventType, filename) => {
+  const watcher = fsNonPromise.watch(WATCH_DIR, { recursive: true }, (eventType, filename) => {
     if (!filename) return;
+    const baseName = path.basename(filename as string);
+
+    if (
+      baseName.startsWith('.') ||
+      baseName.startsWith('~') ||
+      baseName.endsWith('.tmp') ||
+      baseName === 'desktop.ini' ||
+      baseName === CACHE_FILENAME ||
+      baseName === 'MAP_CUSTOMIZATION.json' ||
+      baseName === 'CLASSIFICATION_WORDS.json' ||
+      baseName === 'WATCHER_HISTORY.json'
+    ) {
+      return;
+    }
+
+    // 실시간 파일 이동 분류기 백그라운드 구동 트리거
+    triggerAutoOrganization();
+
     const fullPath = path.join(WATCH_DIR, filename as string);
 
     if (eventType === 'rename') {

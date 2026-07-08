@@ -1,6 +1,18 @@
 [
   {
     "id": "singleton",
-    "_enc": "6ad8UHCAIkQ0il+bQOd/NG2kkg/U6njMafwLbCxiT9Grr5ODmqwiIzS2pt1u7B1t/d5LQLuVvoJn1ksWqH6mSa6VPrqOGswS6MR6XejvOgBsm24+zB/bJ/sjcq7vdh1iumtBQgT1nxhfhxa4riDoFXHXx+QPRqDEkRoFUxiFY/aDUlfzG0r0AJYRlHSIkEVHdhD+YLYdpdqCqYtOF4lkTbT3FxC3fpwTsUWeNCNRgHpawl58RLEIvMBZ5iinFYsDGko0gKHl+ahDue170QnyNfttdTX7sDg="
+    "blocks": [
+      {
+        "id": "f286caad-2b26-4f6e-933e-c0a3b635e69a",
+        "type": "paragraph",
+        "props": {
+          "backgroundColor": "default",
+          "textColor": "default",
+          "textAlignment": "left"
+        },
+        "content": [],
+        "children": []
+      }
+    ]
   }
 ]

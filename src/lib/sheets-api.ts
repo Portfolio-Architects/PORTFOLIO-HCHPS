@@ -187,9 +187,49 @@ export async function readSheet<T>(sheetName: string): Promise<T[]> {
         lastMetaCheck: now
       });
     }
+    // localStorage 오프라인 캐시 저장 (휘발성/오프라인 복원용)
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(`hchps-fallback-${sheetName}`, JSON.stringify(finalData));
+      } catch (lsErr) {
+        console.warn(`[sheets-api] Failed to save offline fallback for ${sheetName}:`, lsErr);
+      }
+    }
     return finalData;
   } catch (err) {
-    console.error(`데이터 읽기 실패: ${sheetName}`, err);
+    console.warn(`[sheets-api] 데이터 읽기 실패: ${sheetName}, 캐시/로컬 복구 시도.`, err);
+    
+    // 1. 메모리 캐시 반환 시도
+    const cached = clientCache.get(sheetName);
+    if (cached) {
+      console.info(`[sheets-api] 메모리 캐시 데이터를 복구하여 반환합니다: ${sheetName}`);
+      return cached.data as T[];
+    }
+    
+    // 2. localStorage 오프라인 백업 반환 시도
+    if (typeof window !== 'undefined') {
+      try {
+        const localFallback = localStorage.getItem(`hchps-fallback-${sheetName}`);
+        if (localFallback) {
+          const parsed = JSON.parse(localFallback);
+          if (Array.isArray(parsed)) {
+            console.info(`[sheets-api] localStorage 오프라인 캐시 데이터를 복구하여 반환합니다: ${sheetName}`);
+            
+            // 메모리 캐시에 적재
+            clientCache.set(sheetName, {
+              mtime: Date.now(),
+              size: localFallback.length,
+              data: parsed,
+              lastMetaCheck: Date.now()
+            });
+            
+            return parsed as T[];
+          }
+        }
+      } catch (lsErr) {
+        console.error(`[sheets-api] localStorage fallback read failed for ${sheetName}:`, lsErr);
+      }
+    }
     throw err; // Propagate the error so callers (especially React Query or fallback logic) are aware
   }
 }

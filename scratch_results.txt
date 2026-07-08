@@ -1,0 +1,12 @@
+File: BUDGET_CATEGORIES.json matches keywords: ['장비', '구입', '사무관리비']
+BUDGET_CATEGORIES:
+  Category: 건강증진지원실 운영 - 사무관리비 | ID: mnrcir0v56b8pixdb | parent: None | code: None
+  Category: 건강증진지원실 운영 - 국내여비 | ID: mnrcir0vaotz2abch | parent: None | code: None
+  Category: 강남체력인증 - 기간제보수 | ID: mnrcir0v5zjn4qxyg | parent: None | code: None
+  Category: 강남체력인증 - 사무관리비 | ID: mnrcir0vl18vfnb68 | parent: None | code: None
+  Category: 강남체력인증 - 자산취득비 | ID: mnrcir0vbxmmvztoq | parent: None | code: None
+  Category: 건강생활실천사업(건강증진) - 사무관리비 | ID: mnrcir0voap2bpm8z | parent: None | code: None
+File: BUDGET_ENTRIES.json matches keywords: ['구입', '전용']
+BUDGET_ENTRIES:
+  Entry: 스포츠 테이핑 교육 전용 가위 구입 | amount: 1700000 | date: 2026-02-13 | id: mnsh755edgjw4hs24
+File: FILE_RADAR_CACHE.json matches keywords: ['장비', '특별조정교부금']
