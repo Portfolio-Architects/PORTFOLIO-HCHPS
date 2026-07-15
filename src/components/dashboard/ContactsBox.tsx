@@ -8,8 +8,16 @@ import { Contact } from '@/types';
 export const ContactsBox: React.FC = () => {
   const { contacts, loading, addContact, updateContact, deleteContact } = useContacts();
 
-  // 검색 상태
+  // 검색 상태 (한글 IME 조합 및 백스페이스 버그 방지를 위해 디바운스 적용)
   const [searchTerm, setSearchTerm] = useState('');
+  const [localSearchTerm, setLocalSearchTerm] = useState('');
+
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchTerm(localSearchTerm);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [localSearchTerm]);
 
   // 폼 등록 및 수정 상태
   const [editingContactId, setEditingContactId] = useState<string | null>(null);
@@ -195,8 +203,8 @@ export const ContactsBox: React.FC = () => {
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-400" />
             <input
               type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              value={localSearchTerm}
+              onChange={(e) => setLocalSearchTerm(e.target.value)}
               placeholder="이름, 전화번호, 비고 키워드로 주소록 검색..."
               className="w-full pl-11 pr-4.5 py-3 rounded-2xl border border-slate-200/60 text-sm font-semibold text-slate-700 bg-white/30 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder:text-slate-450"
             />

@@ -6,7 +6,13 @@ import { startWatcherDaemon } from '@/lib/engine/watcher';
 import { RAGEngine } from '@/lib/rag/rag-engine';
 
 // 백엔드 데몬 가동
-if (typeof window === 'undefined') {
+const isBuild = typeof process !== 'undefined' && (
+  process.env.NEXT_PHASE === 'phase-production-build' ||
+  process.env.NEXT_PHASE === 'phase-action-build' ||
+  process.env.NEXT_IS_BUILDING === 'true'
+);
+
+if (typeof window === 'undefined' && !isBuild) {
   startWatcherDaemon().catch(err => {
     console.error('[Watcher Daemon Initialization Error]', err);
   });
@@ -303,33 +309,38 @@ export async function GET(request: Request) {
   }
 
   try {
-    if (metaOnly) {
-      const filePath = getFilePath(sheet);
-      try {
-        const stats = await fs.stat(filePath);
-        return NextResponse.json({
-          success: true,
-          data: {
-            mtime: stats.mtimeMs,
-            size: stats.size
-          }
-        });
-      } catch (err: any) {
-        if (err.code === 'ENOENT') {
-          return NextResponse.json({
-            success: true,
-            data: {
-              mtime: 0,
-              size: 0
-            }
-          });
-        }
+    const filePath = getFilePath(sheet);
+    let stats: { mtimeMs: number; size: number };
+    try {
+      const fsStats = await fs.stat(filePath);
+      stats = { mtimeMs: fsStats.mtimeMs, size: fsStats.size };
+    } catch (err: any) {
+      if (err.code === 'ENOENT') {
+        stats = { mtimeMs: 0, size: 0 };
+      } else {
         throw err;
       }
     }
 
+    if (metaOnly) {
+      return NextResponse.json({
+        success: true,
+        data: {
+          mtime: stats.mtimeMs,
+          size: stats.size
+        }
+      });
+    }
+
+    const clientMtime = Number(searchParams.get('clientMtime') || '0');
+    const clientSize = Number(searchParams.get('clientSize') || '0');
+
+    if (clientMtime && clientSize && clientMtime === stats.mtimeMs && clientSize === stats.size) {
+      return NextResponse.json({ success: true, notModified: true, mtime: stats.mtimeMs, size: stats.size });
+    }
+
     const data = await readData(sheet);
-    return NextResponse.json({ success: true, data });
+    return NextResponse.json({ success: true, data, mtime: stats.mtimeMs, size: stats.size });
   } catch (e) {
     console.error(`[API GET Error] Failed to read data for sheet ${sheet}:`, e);
     return NextResponse.json({ success: false, error: 'Internal error' }, { status: 500 });

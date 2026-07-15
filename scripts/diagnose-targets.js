@@ -179,7 +179,7 @@ try {
 
     // 3-4. Check for large modules rendered directly without React.lazy/dynamic imports
     if (relativePath.includes('page.tsx') || relativePath.includes('dashboard')) {
-      const importRegex = /import\s+\w+\s+from\s+['"].*(MindMap3D|WeeklyScheduler|InventoryList|BlockNote).*['"]/g;
+      const importRegex = /import\s+\{?\s*\w+\s*\}?\s+from\s+['"].*(MindMap3D|WeeklyScheduler|InventoryList|BlockNote).*['"]/g;
       const matches = content.match(importRegex);
       if (matches) {
         matches.forEach(m => {

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback, useSyncExternalStore } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore } from 'react';
 import dynamic from 'next/dynamic';
 import { ModuleType } from '@/types';
 import { useTasks } from '@/hooks/useTasks';
@@ -63,7 +63,10 @@ const InventoryList = dynamic(() => import('@/components/inventory/InventoryList
 });
 import { AlertTriangle, RefreshCw, Sparkles, X } from 'lucide-react';
 import { useSecurityLock } from '@/hooks/useSecurityLock';
-import { SecurityLockScreen } from '@/components/SecurityLockScreen';
+const SecurityLockScreen = dynamic(() => import('@/components/SecurityLockScreen').then(mod => mod.SecurityLockScreen), {
+  ssr: false,
+  loading: () => null
+});
 import { useGlobalSearch } from '@/hooks/useGlobalSearch';
 
 const SearchResultModal = dynamic(() => import('@/components/SearchResultModal').then(mod => mod.SearchResultModal), {
@@ -143,6 +146,21 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
   const { mergedKeywordMap, mergedEntries } = useMergedSignals(signalEntries, keywordMap, tasks, projects, meetings, budgetEntries, inventoryItems);
   const { customNodes, customEdges, deletedEdges, overrides } = useGraphCustomization(activeModule === 'mindmap');
 
+  const actualBudgetEntries = useMemo(() => budgetEntries.filter(e => !e.isPlanned), [budgetEntries]);
+  const handleGetCategoryStats = useCallback((id: string) => getCategoryStats(id, true), [getCategoryStats]);
+  const handleCloseQuickInput = useCallback(() => setIsQuickInputOpen(false), []);
+  const handleToggleQuickInput = useCallback(() => setIsQuickInputOpen(prev => !prev), []);
+  const aiContextData = useMemo(() => ({
+    signals: mergedEntries,
+    budgetEntries: budgetEntries,
+    budgetCategories: budgetCategories,
+    customNodes,
+    customEdges,
+    deletedEdges,
+    overrides,
+    keywordMap: mergedKeywordMap
+  }), [mergedEntries, budgetEntries, budgetCategories, customNodes, customEdges, deletedEdges, overrides, mergedKeywordMap]);
+
 
 
   const preloadModule = useCallback((module: ModuleType) => {
@@ -158,10 +176,9 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
     // Staggered Preloading: 전역 인트로가 완전히 걷힌 후 세 개의 무거운 모듈 마운트를 시간 차를 두고 조용히 쪼개서 기동
     const timers: number[] = [];
     const triggerPreload = (module: ModuleType) => {
-      setVisitedModules(prev => {
-        if (prev[module]) return prev;
-        return { ...prev, [module]: true };
-      });
+      if (module === 'mindmap') import('@/components/MindMap3D');
+      else if (module === 'workspace') import('@/components/WorkspaceView');
+      else if (module === 'inventory') import('@/components/inventory/InventoryList');
       console.log(`[Watcher Preload] Background caching initialized for: ${module}`);
     };
 
@@ -262,14 +279,14 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
     };
   }, [activeModule]);
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     try {
       await fetch('/api/auth', { method: 'DELETE' });
       window.location.href = '/login';
     } catch (e) {
       console.error('Logout failed', e);
     }
-  };
+  }, []);
 
   // Swipe gesture state
   const touchStartX = useRef<number | null>(null);
@@ -277,10 +294,7 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
 
   const handleModuleChange = (module: ModuleType) => {
     setActiveModule(module);
-    setVisitedModules(prev => ({
-      ...prev,
-      [module]: true
-    }));
+    setVisitedModules(prev => prev[module] ? prev : { ...prev, [module]: true });
     localStorage.setItem('hchps_active_module', module);
   };
 
@@ -326,13 +340,14 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
     const handleOpenWiki = () => {
       if (activeModule !== 'mindmap') {
         setActiveModule('mindmap');
+        setVisitedModules(prev => prev['mindmap'] ? prev : { ...prev, mindmap: true });
       }
     };
     window.addEventListener('wiki:openNode', handleOpenWiki as EventListener);
     return () => window.removeEventListener('wiki:openNode', handleOpenWiki as EventListener);
   }, [activeModule]);
 
-  const handleRenameCategory = (oldName: string, newName: string) => {
+  const handleRenameCategory = useCallback((oldName: string, newName: string) => {
     const rawOld = oldName.startsWith('#') ? oldName.slice(1) : oldName;
     const rawNew = newName.startsWith('#') ? newName.slice(1) : newName;
     
@@ -342,16 +357,16 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
         updateTask(t.id, { tags: t.tags.map(tag => tag === rawOld ? rawNew : tag) });
       }
     });
-  };
+  }, [tasks, updateTask]);
 
-  const handleDeleteCategory = (name: string) => {
+  const handleDeleteCategory = useCallback((name: string) => {
     const rawName = name.startsWith('#') ? name.slice(1) : name;
     tasks.forEach(t => {
       if (t.tags.includes(rawName)) {
         updateTask(t.id, { tags: t.tags.filter(tag => tag !== rawName) });
       }
     });
-  };
+  }, [tasks, updateTask]);
 
 
 
@@ -444,7 +459,7 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
               <div className={activeModule === 'workspace' ? 'block' : 'hidden'}>
                 <WorkspaceView
                   budgetCategories={budgetCategories}
-                  budgetEntries={budgetEntries.filter(e => !e.isPlanned)}
+                  budgetEntries={actualBudgetEntries}
                   addCategory={addCategory}
                   updateCategory={updateCategory}
                   deleteCategory={deleteCategory}
@@ -452,7 +467,7 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
                   addEntry={addEntry}
                   updateEntry={updateEntry}
                   deleteEntry={deleteEntry}
-                  getCategoryStats={(id) => getCategoryStats(id, true)}
+                  getCategoryStats={handleGetCategoryStats}
                   overallStats={overallStatsActual}
                   inventoryItems={inventoryItems}
                   addItem={addItem}
@@ -509,21 +524,12 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
       >
         <AIAssistantModal 
           isOpen={isQuickInputOpen} 
-          onClose={() => setIsQuickInputOpen(false)}
-          contextData={{
-            signals: mergedEntries,
-            budgetEntries: budgetEntries,
-            budgetCategories: budgetCategories,
-            customNodes,
-            customEdges,
-            deletedEdges,
-            overrides,
-            keywordMap: mergedKeywordMap
-          }}
+          onClose={handleCloseQuickInput}
+          contextData={aiContextData}
           appMode={appMode}
         />
         <button
-          onClick={() => setIsQuickInputOpen(!isQuickInputOpen)}
+          onClick={handleToggleQuickInput}
           className={`p-4 rounded-full shadow-xl transition-all duration-300 hover:scale-105 active:scale-95 flex items-center justify-center ${
             isQuickInputOpen 
               ? 'bg-gray-800 text-white hover:bg-gray-700 shadow-lg' 
@@ -552,17 +558,23 @@ export default function Home() {
   }, [appMode]);
 
   useEffect(() => {
+    let timerId: NodeJS.Timeout | undefined;
+    let removeTimerId: NodeJS.Timeout | undefined;
+
     // 클라이언트 마운트 및 PIN 락이 해제되어 활성화된 순간부터 1.8초 동안만 스플래시 가동
     if (isClient && !isLocked) {
-      const timer = setTimeout(() => {
+      timerId = setTimeout(() => {
         setIsInitializing(false);
-        const removeTimer = setTimeout(() => {
+        removeTimerId = setTimeout(() => {
           setShowSplash(false);
         }, 700);
-        return () => clearTimeout(removeTimer);
       }, 1800);
-      return () => clearTimeout(timer);
     }
+
+    return () => {
+      if (timerId) clearTimeout(timerId);
+      if (removeTimerId) clearTimeout(removeTimerId);
+    };
   }, [isClient, isLocked]);
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars

@@ -1,5 +1,6 @@
 'use client';
 
+import '@/lib/bypass-unload';
 import { useEffect, useMemo } from 'react';
 import * as Y from 'yjs';
 import YPartyKitProvider from 'y-partykit/provider';

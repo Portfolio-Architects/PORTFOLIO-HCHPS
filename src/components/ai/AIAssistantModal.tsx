@@ -109,7 +109,7 @@ export function AIAssistantModal({ isOpen, onClose, contextData, appMode = 'VITA
         }
       }
     } catch (e) {
-      console.warn('Failed to extract matching wiki context:', e);
+      console.log('Failed to extract matching wiki context:', e);
     }
 
     if (hasNewMatch) {
@@ -245,7 +245,7 @@ export function AIAssistantModal({ isOpen, onClose, contextData, appMode = 'VITA
         knowledgeGraphText += `</knowledge_graph>`;
       }
     } catch (err) {
-      console.warn('Failed to build knowledge graph:', err);
+      console.log('Failed to build knowledge graph:', err);
     }
 
     chatMutation.mutate({

@@ -7,6 +7,19 @@ const nextConfig: NextConfig = {
   devIndicators: {
     position: 'top-right',
   },
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'Permissions-Policy',
+            value: 'unload=*',
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

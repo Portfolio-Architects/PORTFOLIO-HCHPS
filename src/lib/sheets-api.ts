@@ -66,19 +66,22 @@ export async function readSheet<T>(sheetName: string): Promise<T[]> {
         const metaJson = await metaRes.json();
         if (metaJson.success && metaJson.data) {
           const { mtime, size } = metaJson.data;
+          newMeta = { mtime, size };
           if (cached && cached.mtime === mtime && cached.size === size) {
-            // 메타데이터가 일치하므로 검증 시점만 갱신하여 쿨다운 리셋
-            cached.lastMetaCheck = now;
+            cached.lastMetaCheck = Date.now();
             return cached.data as T[];
           }
-          newMeta = { mtime, size };
         }
       }
-    } catch (metaErr) {
-      console.warn(`[Cache] Failed to check metadata for ${sheetName}:`, metaErr);
+    } catch (e) {
+      console.warn('[sheets-api] Meta check failed, falling back to full fetch:', e);
     }
 
-    const res = await fetch(`${API_BASE}?sheet=${encodeURIComponent(sheetName)}&_t=${Date.now()}`, {
+    let url = `${API_BASE}?sheet=${encodeURIComponent(sheetName)}&_t=${Date.now()}`;
+    if (cached && cached.mtime && cached.size) {
+      url += `&clientMtime=${cached.mtime}&clientSize=${cached.size}`;
+    }
+    const res = await fetch(url, {
       headers: { 
         ...getAuthHeaders(),
         'Cache-Control': 'no-cache, no-store, must-revalidate'
@@ -89,54 +92,110 @@ export async function readSheet<T>(sheetName: string): Promise<T[]> {
       throw new Error(`HTTP error ${res.status}`);
     }
     const json = await res.json();
+    if (json.success && json.notModified && cached) {
+      cached.lastMetaCheck = Date.now();
+      return cached.data as T[];
+    }
     if (!json.success || !Array.isArray(json.data)) {
       throw new Error(json.error || 'API returned success=false or invalid data');
     }
     
     // E2EE Decryption
-    const decryptedPromises = json.data.map(async (row: Record<string, unknown>) => {
-      if (row._enc) {
-        try {
-          const dec = await decryptPayload(row._enc as string) as Record<string, any>;
-          let finalDec = { ...dec };
-          
-          // Self-Healing: 복호화된 BUDGET_CATEGORIES의 calculations가 지출 내역 purpose로 오염되었을 경우 디스크 평문 백업 데이터로 복구
-          if (sheetName === 'BUDGET_CATEGORIES' && row.subItems && Array.isArray(row.subItems) && dec.subItems && Array.isArray(dec.subItems)) {
-            finalDec.subItems = dec.subItems.map((decSub: any) => {
-              const originalSub = (row.subItems as any[]).find((s: any) => s.id === decSub.id || s.name === decSub.name);
-              if (originalSub) {
-                const restoredSub = { ...decSub };
-                if (originalSub.calculations && Array.isArray(originalSub.calculations)) {
-                  const decCalcs = Array.isArray(decSub.calculations) ? decSub.calculations : [];
-                  const decCalcsMap = new Map<string, any>();
-                  decCalcs.forEach((c: any) => {
-                    if (c && c.id) decCalcsMap.set(c.id, c);
-                  });
-                  restoredSub.calculations = originalSub.calculations.map((origCalc: any) => {
-                    const decCalc = decCalcsMap.get(origCalc.id) || {};
-                    return {
-                      ...origCalc,
-                      isLocked: typeof decCalc.isLocked === 'boolean' ? decCalc.isLocked : (origCalc.isLocked || false)
-                    };
-                  });
-                } else {
-                  restoredSub.calculations = [];
-                }
-                return restoredSub;
-              }
-              return decSub;
-            });
-          }
-          
-          return { id: row.id, ...finalDec };
-        } catch (e) {
-          console.error('Decryption failed for row', row.id, e);
-          throw e; // Decryption failure must propagate to prevent silent empty overwrites!
-        }
-      }
-      return row; // Legacy plaintext fallback
+    let rawRows: any[];
+    const isE2EEBypass = json.data.length === 0 || json.data.every((row: Record<string, unknown>) => {
+      if (!row._enc) return true;
+      const encStr = (row._enc as string).trim();
+      return encStr.startsWith('{') || encStr.startsWith('[');
     });
-    const rawRows = await Promise.all(decryptedPromises);
+
+    if (isE2EEBypass) {
+      rawRows = json.data.map((row: Record<string, unknown>) => {
+        if (row._enc) {
+          try {
+            const dec = JSON.parse(row._enc as string) as Record<string, any>;
+            let finalDec = { ...dec };
+            
+            // Self-Healing: 복호화된 BUDGET_CATEGORIES의 calculations가 지출 내역 purpose로 오염되었을 경우 디스크 평문 백업 데이터로 복구
+            if (sheetName === 'BUDGET_CATEGORIES' && row.subItems && Array.isArray(row.subItems) && dec.subItems && Array.isArray(dec.subItems)) {
+              finalDec.subItems = dec.subItems.map((decSub: any) => {
+                const originalSub = (row.subItems as any[]).find((s: any) => s.id === decSub.id || s.name === decSub.name);
+                if (originalSub) {
+                  const restoredSub = { ...decSub };
+                  if (originalSub.calculations && Array.isArray(originalSub.calculations)) {
+                    const decCalcs = Array.isArray(decSub.calculations) ? decSub.calculations : [];
+                    const decCalcsMap = new Map<string, any>();
+                    decCalcs.forEach((c: any) => {
+                      if (c && c.id) decCalcsMap.set(c.id, c);
+                    });
+                    restoredSub.calculations = originalSub.calculations.map((origCalc: any) => {
+                      const decCalc = decCalcsMap.get(origCalc.id) || {};
+                      return {
+                        ...origCalc,
+                        isLocked: typeof decCalc.isLocked === 'boolean' ? decCalc.isLocked : (origCalc.isLocked || false)
+                      };
+                    });
+                  } else {
+                    restoredSub.calculations = [];
+                  }
+                  return restoredSub;
+                }
+                return decSub;
+              });
+            }
+            
+            return { id: row.id, ...finalDec };
+          } catch (e) {
+            console.error('Synchronous parsing failed for row', row.id, e);
+            throw e;
+          }
+        }
+        return row; // Legacy plaintext fallback
+      });
+    } else {
+      const decryptedPromises = json.data.map(async (row: Record<string, unknown>) => {
+        if (row._enc) {
+          try {
+            const dec = await decryptPayload(row._enc as string) as Record<string, any>;
+            let finalDec = { ...dec };
+            
+            // Self-Healing: 복호화된 BUDGET_CATEGORIES의 calculations가 지출 내역 purpose로 오염되었을 경우 디스크 평문 백업 데이터로 복구
+            if (sheetName === 'BUDGET_CATEGORIES' && row.subItems && Array.isArray(row.subItems) && dec.subItems && Array.isArray(dec.subItems)) {
+              finalDec.subItems = dec.subItems.map((decSub: any) => {
+                const originalSub = (row.subItems as any[]).find((s: any) => s.id === decSub.id || s.name === decSub.name);
+                if (originalSub) {
+                  const restoredSub = { ...decSub };
+                  if (originalSub.calculations && Array.isArray(originalSub.calculations)) {
+                    const decCalcs = Array.isArray(decSub.calculations) ? decSub.calculations : [];
+                    const decCalcsMap = new Map<string, any>();
+                    decCalcs.forEach((c: any) => {
+                      if (c && c.id) decCalcsMap.set(c.id, c);
+                    });
+                    restoredSub.calculations = originalSub.calculations.map((origCalc: any) => {
+                      const decCalc = decCalcsMap.get(origCalc.id) || {};
+                      return {
+                        ...origCalc,
+                        isLocked: typeof decCalc.isLocked === 'boolean' ? decCalc.isLocked : (origCalc.isLocked || false)
+                      };
+                    });
+                  } else {
+                    restoredSub.calculations = [];
+                  }
+                  return restoredSub;
+                }
+                return decSub;
+              });
+            }
+            
+            return { id: row.id, ...finalDec };
+          } catch (e) {
+            console.error('Decryption failed for row', row.id, e);
+            throw e; // Decryption failure must propagate to prevent silent empty overwrites!
+          }
+        }
+        return row; // Legacy plaintext fallback
+      });
+      rawRows = await Promise.all(decryptedPromises);
+    }
     
     // Global Tombstone: Filter out deleted items to prevent Cloudflare KV eventual consistency zombie data
     const deletedIds = getTombstones().map(t => t.id);
@@ -158,14 +217,14 @@ export async function readSheet<T>(sheetName: string): Promise<T[]> {
           console.error(`Row ID: ${row.id || 'unknown'}`);
           console.error(`Errors:`, JSON.stringify(result.error.format(), null, 2));
           console.error(`======================================================\n`);
-
+ 
           // 1. Zod 에러 이벤트를 발송하여 UI에 경고/복구 유도
           if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('hchps-zod-error', {
               detail: { sheetName, rowId: row.id, errors: result.error.format() }
             }));
           }
-
+ 
           // 2. Sandboxing: 깨진 필드만 기본값으로 자동 보정하여 화면 붕괴(다운타임) 방지
           try {
             const sanitized = sanitizeRowWithFallback(row, schema);
@@ -179,21 +238,23 @@ export async function readSheet<T>(sheetName: string): Promise<T[]> {
       }
     }
     const finalData = validRows as T[];
-    if (newMeta) {
-      clientCache.set(sheetName, {
-        mtime: newMeta.mtime,
-        size: newMeta.size,
-        data: finalData,
-        lastMetaCheck: now
-      });
-    }
+    const mtime = json.mtime || (newMeta ? newMeta.mtime : Date.now());
+    const size = json.size || (newMeta ? newMeta.size : 0);
+    clientCache.set(sheetName, {
+      mtime,
+      size,
+      data: finalData,
+      lastMetaCheck: now
+    });
     // localStorage 오프라인 캐시 저장 (휘발성/오프라인 복원용)
     if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem(`hchps-fallback-${sheetName}`, JSON.stringify(finalData));
-      } catch (lsErr) {
-        console.warn(`[sheets-api] Failed to save offline fallback for ${sheetName}:`, lsErr);
-      }
+      setTimeout(() => {
+        try {
+          localStorage.setItem(`hchps-fallback-${sheetName}`, JSON.stringify(finalData));
+        } catch (lsErr) {
+          console.warn(`[sheets-api] Failed to save offline fallback for ${sheetName}:`, lsErr);
+        }
+      }, 0);
     }
     return finalData;
   } catch (err) {
@@ -272,16 +333,30 @@ async function writeData(sheetName: string, action: string, data?: unknown, id?:
     }
     const json = await res.json();
     if (json.success === true) {
-      if (action === 'replace' && Array.isArray(data) && json.mtime && json.size) {
-        clientCache.set(sheetName, {
-          mtime: json.mtime,
-          size: json.size,
-          data: data,
-          lastMetaCheck: Date.now()
-        });
-      } else {
-        clientCache.delete(sheetName);
+      let cached = clientCache.get(sheetName);
+      if (!cached) {
+        cached = { mtime: 0, size: 0, data: [], lastMetaCheck: 0 };
       }
+      let updatedData = [...cached.data];
+      if (action === 'add') {
+        if (data) updatedData.push(data);
+      } else if (action === 'update') {
+        const idx = updatedData.findIndex((r: any) => r.id === id);
+        if (idx !== -1) {
+          updatedData[idx] = { ...updatedData[idx], ...(data as any) };
+        }
+      } else if (action === 'delete') {
+        updatedData = updatedData.filter((r: any) => r.id !== id);
+      } else if (action === 'replace') {
+        updatedData = Array.isArray(data) ? data : [];
+      }
+      
+      clientCache.set(sheetName, {
+        mtime: json.mtime || cached.mtime,
+        size: json.size || cached.size,
+        data: updatedData,
+        lastMetaCheck: Date.now()
+      });
       return true;
     }
     return false;

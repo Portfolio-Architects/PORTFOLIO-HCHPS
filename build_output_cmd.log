@@ -1,0 +1,54 @@
+▲ Next.js 16.2.10 (Turbopack)
+- Environments: .env.local
+
+  Creating an optimized production build ...
+Turbopack build encountered 2 warnings:
+./src/lib/engine/watcher.ts:687:24
+The file pattern ('F:/부엉이_정리됨/' <dynamic> | 'F:/부엉이_정리됨' <dynamic>) matches 26932 files in [project]/
+  [90m685 |[0m     [36mconst[0m existingFiles = [36mawait[0m fs.readdir([33mWATCH_DIR[0m);
+  [90m686 |[0m     [36mfor[0m ([36mconst[0m file [36mof[0m existingFiles) {
+[31m[1m>[0m [90m687 |[0m       [36mconst[0m fullPath = path.join([33mWATCH_DIR[0m, file);
+  [90m    |[0m                        [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m688 |[0m       [36mconst[0m stat = [36mawait[0m fs.stat(fullPath);
+  [90m689 |[0m       [36mif[0m (stat.isFile()) {
+  [90m690 |[0m         [36mconst[0m ext = path.extname(file).toLowerCase();
+
+Overly broad patterns can lead to build performance issues and over bundling.
+
+Import trace:
+  App Route:
+    ./src/lib/engine/watcher.ts
+    ./src/app/api/data/route.ts
+
+
+./src/lib/engine/watcher.ts:735:22
+The file pattern ('F:/부엉이_정리됨/' <dynamic> | 'F:/부엉이_정리됨' <dynamic>) matches 26932 files in [project]/
+  [90m733 |[0m     triggerAutoOrganization();
+  [90m734 |[0m
+[31m[1m>[0m [90m735 |[0m     [36mconst[0m fullPath = path.join([33mWATCH_DIR[0m, filename [36mas[0m string);
+  [90m    |[0m                      [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m736 |[0m
+  [90m737 |[0m     [36mif[0m (eventType === [32m'rename'[0m) {
+  [90m738 |[0m       [90m// 파일이 새로 생성되었거나 이름이 바뀐 경우[0m
+
+Overly broad patterns can lead to build performance issues and over bundling.
+
+Import trace:
+  App Route:
+    ./src/lib/engine/watcher.ts
+    ./src/app/api/data/route.ts
+
+
+✓ Compiled successfully in 22.6s
+  Running TypeScript ...
+  Finished TypeScript in 22.0s ...
+  Collecting page data using 3 workers ...
+
+> Build error occurred
+Error: ENOENT: no such file or directory, open 'D:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.next\server\pages-manifest.json'
+    at ignore-listed frames {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'D:\\Desktop\\PORTFOLIO\\PORTFOLIO - VITAL\\.next\\server\\pages-manifest.json'
+}

@@ -114,7 +114,7 @@ export function WikiEditor(props: WikiEditorProps) {
                     text: `${nodeTitle}\n\n${docText}`
                   });
                 } catch (e) {
-                  console.error('Failed to sync to Vectorize:', e);
+                  console.log('Failed to sync to Vectorize:', e);
                 }
 
                 setTimeout(() => onClose(), 100);

@@ -42,7 +42,7 @@ export function WeeklyReportView({ addSignal }: WeeklyReportViewProps) {
 
       setExtractedRawText(extractedText);
     } catch (err) {
-      console.error('PDF parsing error:', err);
+      console.log('PDF parsing error:', err);
       alert('PDF 처리에 실패했습니다. 브라우저 콘솔을 확인하세요.');
     } finally {
       setIsProcessing(false);

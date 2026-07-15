@@ -687,6 +687,20 @@ export async function startWatcherDaemon() {
       const fullPath = path.join(WATCH_DIR, file);
       const stat = await fs.stat(fullPath);
       if (stat.isFile()) {
+        const baseName = path.basename(file);
+        if (
+          baseName.startsWith('.') ||
+          baseName.startsWith('~') ||
+          baseName.endsWith('.tmp') ||
+          baseName === 'desktop.ini' ||
+          baseName === '.search_cache.json' ||
+          baseName === 'MAP_CUSTOMIZATION.json' ||
+          baseName === 'CLASSIFICATION_WORDS.json' ||
+          baseName === 'WATCHER_HISTORY.json'
+        ) {
+          continue;
+        }
+
         const ext = path.extname(file).toLowerCase();
         if (['.pdf', '.hwpx', '.txt', '.xlsx', '.xls', '.md', '.csv', '.json'].includes(ext)) {
           const key = path.basename(fullPath);
@@ -721,7 +735,7 @@ export async function startWatcherDaemon() {
       baseName.startsWith('~') ||
       baseName.endsWith('.tmp') ||
       baseName === 'desktop.ini' ||
-      baseName === CACHE_FILENAME ||
+      baseName === '.search_cache.json' ||
       baseName === 'MAP_CUSTOMIZATION.json' ||
       baseName === 'CLASSIFICATION_WORDS.json' ||
       baseName === 'WATCHER_HISTORY.json'

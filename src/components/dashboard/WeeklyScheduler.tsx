@@ -521,10 +521,14 @@ export const WeeklyScheduler: React.FC = () => {
                             <div
                               key={schedule.id}
                               className={`group relative flex flex-col p-2.5 border rounded-xl transition-all duration-200 hover:shadow-xs ${config.bg}`}
+                              title={`${schedule.title}\n담당/참석: ${schedule.person}${schedule.notes ? `\n메모: ${schedule.notes}` : ''}`}
                             >
                               {/* Title & Type Icon */}
                               <div className="flex items-start justify-between gap-1.5">
-                                <span className="text-xs font-bold text-slate-800 tracking-tight leading-tight line-clamp-2 pr-4">
+                                <span 
+                                  className="text-xs font-bold text-slate-800 tracking-tight leading-tight line-clamp-2 pr-4 cursor-help"
+                                  title={schedule.title}
+                                >
                                   {schedule.title}
                                 </span>
                                 <div className="shrink-0 text-slate-550">

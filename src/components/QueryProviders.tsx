@@ -1,5 +1,6 @@
 'use client';
 
+import '@/lib/bypass-unload';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/lib/query-client';
 

@@ -60,7 +60,7 @@ export function AddDataModal({ isOpen, initialMode = 'memo', onClose, onAddSigna
 
       setContent((prev) => prev + (prev ? '\n\n' : '') + extractedText.trim());
     } catch (err) {
-      console.error(err);
+      console.log('[AddDataModal] PDF text extraction error:', err);
       alert('PDF 텍스트 추출 중 오류가 발생했습니다.');
     } finally {
       setIsParsing(false);

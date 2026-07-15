@@ -3,6 +3,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
 import crypto from 'crypto';
+import { execFile } from 'child_process';
 import { driveCache } from '@/lib/driveCache';
 
 const ALLOWED_EXTENSIONS = new Set(['.pdf', '.txt', '.xlsx', '.xls', '.md', '.csv', '.json']);
@@ -120,7 +121,7 @@ export async function POST(request: Request) {
     const pythonScript = path.join(process.cwd(), 'scripts', 'fast_parser.py');
     
     return new Promise<Response>((resolve) => {
-      execFile('python', [pythonScript, filePath], { maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
+      execFile('python', [pythonScript, filePath], { maxBuffer: 1024 * 1024 * 10 }, (error: any, stdout: string, stderr: string) => {
         if (error) {
           console.error('[Fast Parser Process Error]', error, stderr);
           return resolve(NextResponse.json({ success: false, error: `Parser process error: ${error.message}` }, { status: 500 }));

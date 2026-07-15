@@ -1,54 +1,11 @@
 {
-  "timestamp": "2026-07-08T05:56:24.811Z",
+  "timestamp": "2026-07-15T09:33:42.448Z",
   "lintWarnings": [],
   "architecturalViolations": [],
-  "performanceBottlenecks": [
-    {
-      "file": "src/components/AddDataModal.tsx",
-      "line": 63,
-      "pattern": "console.warn/error",
-      "message": "Direct console logging inside component. This can spam the console and freeze the browser thread during high frequency renders."
-    },
-    {
-      "file": "src/components/ai/AIAssistantModal.tsx",
-      "line": 112,
-      "pattern": "console.warn/error",
-      "message": "Direct console logging inside component. This can spam the console and freeze the browser thread during high frequency renders."
-    },
-    {
-      "file": "src/components/MindMap3D.tsx",
-      "line": 719,
-      "pattern": "console.warn/error",
-      "message": "Direct console logging inside component. This can spam the console and freeze the browser thread during high frequency renders."
-    },
-    {
-      "file": "src/components/MindMapInspector.tsx",
-      "line": 335,
-      "pattern": "console.warn/error",
-      "message": "Direct console logging inside component. This can spam the console and freeze the browser thread during high frequency renders."
-    },
-    {
-      "file": "src/components/ui/ErrorBoundary.tsx",
-      "line": 29,
-      "pattern": "console.warn/error",
-      "message": "Direct console logging inside component. This can spam the console and freeze the browser thread during high frequency renders."
-    },
-    {
-      "file": "src/components/WeeklyReportView.tsx",
-      "line": 45,
-      "pattern": "console.warn/error",
-      "message": "Direct console logging inside component. This can spam the console and freeze the browser thread during high frequency renders."
-    },
-    {
-      "file": "src/components/WikiEditor.tsx",
-      "line": 117,
-      "pattern": "console.warn/error",
-      "message": "Direct console logging inside component. This can spam the console and freeze the browser thread during high frequency renders."
-    }
-  ],
+  "performanceBottlenecks": [],
   "summary": {
     "totalWarnings": 0,
     "totalViolations": 0,
-    "totalBottlenecks": 7
+    "totalBottlenecks": 0
   }
 }
