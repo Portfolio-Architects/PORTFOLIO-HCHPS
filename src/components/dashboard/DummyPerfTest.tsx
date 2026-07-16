@@ -9,14 +9,16 @@ interface DummyPerfTestProps {
 }
 
 export function DummyPerfTest({ projectList, taskList }: DummyPerfTestProps) {
-  const projectMap = useMemo(() => new Map(projectList.map(p => [p.id, p])), [projectList]);
+  /* console.warn("DummyPerfTest loaded with console.warn spam!"); */
+  /* console.error("DummyPerfTest console.error spam!"); */
 
+  const projectListMap = useMemo(() => new Map(projectList.map(p => [p.id, p])), [projectList]);
   return (
     <div className="p-4 bg-slate-900/50 rounded-xl border border-white/10">
       <h3 className="text-lg font-bold text-white mb-4">Dummy Perf Test</h3>
       <div className="space-y-2">
         {taskList.map(task => {
-          const project = projectMap.get(task.projectId);
+          const project = projectListMap.get(task.projectId);;
           return (
             <div key={task.id} className="p-2 bg-white/5 rounded border border-white/5 flex justify-between">
               <span>{task.title}</span>
