@@ -3,9 +3,11 @@ import React, { useMemo } from 'react';
 const MindMap3D = dynamic(() => import('../MindMap3D').then(mod => mod.MindMap3D), { ssr: false });
 import { Task, Project } from "@/types";
 
+type StrictTask = Omit<Task, 'projectId'> & { projectId: string };
+
 interface DummyPerfTestProps {
   projectList: Project[];
-  taskList: Task[];
+  taskList: StrictTask[];
 }
 
 export function DummyPerfTest({ projectList, taskList }: DummyPerfTestProps) {
@@ -18,7 +20,7 @@ export function DummyPerfTest({ projectList, taskList }: DummyPerfTestProps) {
       <h3 className="text-lg font-bold text-white mb-4">Dummy Perf Test</h3>
       <div className="space-y-2">
         {taskList.map(task => {
-          const project = projectListMap.get(task.projectId);
+          const project = projectListMap.get(task.projectId);;
           return (
             <div key={task.id} className="p-2 bg-white/5 rounded border border-white/5 flex justify-between">
               <span>{task.title}</span>
