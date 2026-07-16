@@ -1,29 +1,11 @@
 {
-  "timestamp": "2026-07-16T01:31:14.151Z",
+  "timestamp": "2026-07-16T01:34:33.192Z",
   "lintWarnings": [],
   "architecturalViolations": [],
-  "performanceBottlenecks": [
-    {
-      "file": "src/components/dashboard/DummyPerfTest.tsx",
-      "line": 19,
-      "pattern": ".map( ... .filter/find/some )",
-      "message": "Detected nested filter/find/some lookup inside component .map() loop. This leads to O(N^2) complexity. Extract mapping calculations using useMemo or pre-group data into O(1) maps."
-    },
-    {
-      "file": "src/components/dashboard/DummyPerfTest.tsx",
-      "line": 11,
-      "pattern": "console.warn/error",
-      "message": "Direct console logging inside component. This can spam the console and freeze the browser thread during high frequency renders."
-    },
-    {
-      "file": "src/components/dashboard/DummyPerfTest.tsx",
-      "pattern": "import { MindMap3D } from '../MindMap3D'",
-      "message": "Direct import of heavy visualization/editor module. Consider utilizing Next.js next/dynamic import to minimize bundle size and eliminate dashboard lag."
-    }
-  ],
+  "performanceBottlenecks": [],
   "summary": {
     "totalWarnings": 0,
     "totalViolations": 0,
-    "totalBottlenecks": 3
+    "totalBottlenecks": 0
   }
 }
