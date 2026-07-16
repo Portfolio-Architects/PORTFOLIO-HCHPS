@@ -311,6 +311,11 @@ sequenceDiagram
 
 ## 8. 최근 엔지니어링 마일스톤 (요약)
 
+- **[자율 개선] 성능 최적화 및 console spams 제거 패치 (2026-07-16)**:
+  - **O(N^2) Complexity Reduction**: Convert rendering/map nested loops to O(1) Map lookups using useMemo.
+  - **Console Spam Suppression**: Comment out console.warn/error spams in components.
+  - **Dynamic Import Migration**: Rewrite static imports of heavy components to Next.js dynamic imports.
+
 - **VITAL 앱 전방위 구동 속도 및 런타임 렌더링 성능 튜닝 패치 (2026-07-15)**:
   - **초기 로딩 속도 향상**: `SecurityLockScreen` dynamic import 전환 및 `preloadModulesOnIdle` 백그라운드 프리로드 개편을 통해 최초 접속 시 탭 전환 렉을 소거했습니다.
   - **3D 마인드맵 60 FPS 달성**: Three.js 텍스트 레이아웃 픽셀 연산을 `canvasMeasureCache`로 메모리 캐싱 처리하여 GC-Free화하고, Yjs 외부 상태 구독에 `useSyncExternalStore` 및 16ms 디바운스 배칭 가드를 적용하여 리렌더 루프를 통제했습니다.

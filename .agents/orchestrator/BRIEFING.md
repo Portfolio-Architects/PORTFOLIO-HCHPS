@@ -1,4 +1,4 @@
-# BRIEFING — 2026-07-15T18:20:00+09:00
+# BRIEFING — 2026-07-16T10:07:00+09:00
 
 ## Mission
 재귀적 자기개선 루프(RSI) 및 자율 치유 파이프라인 구축 및 검증
@@ -8,7 +8,7 @@
 - Roles: orchestrator, user_liaison, human_reporter, successor
 - Working directory: d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\orchestrator
 - Original parent: parent
-- Original parent conversation ID: fb041184-425b-4ccc-927d-60e94d1ca039
+- Original parent conversation ID: 37bd7307-e412-4e4f-ab55-2041b2ef8ebd
 
 ## 🔒 My Workflow
 - **Pattern**: Project Pattern (Orchestrator -> Explorer -> Worker -> Reviewer -> Challenger -> Auditor)
@@ -18,8 +18,8 @@
    - M2: `scripts/self-evolution.js` 핵심 로직 설계 및 구현 (Worker, Reviewer)
    - M3: 더미 테스트 컴포넌트(`DummyPerfTest.tsx`) 구현 및 모의 병목 주입 (Worker, Reviewer)
    - M4: 전체 자율 치유 및 리팩토링 검증 & 롤백 가드 테스트 (Challenger, Auditor)
-2. **Dispatch & Execute** (pick ONE):
-   - **Delegate (sub-orchestrator)**: 각 마일스톤에 대한 sub-orchestrator 위임 혹은 direct iteration loop 수행. 이번 마스크는 크기가 비교적 작고 결합되어 있으므로 top-level orchestrator 하에서 Explorer/Worker/Reviewer/Challenger/Auditor를 직접 dispatch한다.
+2. **Dispatch & Execute**:
+   - **Delegate (sub-orchestrator)**: 이번 태스크는 크기가 비교적 작고 결합되어 있으므로 top-level orchestrator 하에서 Explorer/Worker/Reviewer/Challenger/Auditor를 직접 dispatch한다.
 3. **On failure** (in this order):
    - Retry: nudge stuck agent or re-send task
    - Replace: spawn fresh agent with partial progress
@@ -44,8 +44,8 @@
 - Never reuse a subagent after it has delivered its handoff — always spawn fresh
 
 ## Current Parent
-- Conversation ID: fb041184-425b-4ccc-927d-60e94d1ca039
-- Updated: not yet
+- Conversation ID: 37bd7307-e412-4e4f-ab55-2041b2ef8ebd
+- Updated: yes (2026-07-16)
 
 ## Key Decisions Made
 - [TBD]
@@ -54,18 +54,18 @@
 | Agent | Type | Work Item | Status | Conv ID |
 |-------|------|-----------|--------|---------|
 | M1_Explorer | teamwork_preview_explorer | 프로젝트 환경 및 기존 스크립트 분석 | completed | a23b3674-5336-40bc-a800-29b6738153c1 |
-| M2_M3_Worker | teamwork_preview_worker | self-evolution.js & DummyPerfTest.tsx 구현 | in-progress | df0eeeaf-1316-41fc-9004-dd481a0ba39d |
+| RSI_Worker | teamwork_preview_worker | self-evolution 및 테스트 검증 | in-progress | 8ac1f08a-cf61-452c-808e-34534d76b786 |
 
 ## Succession Status
 - Succession required: no
-- Spawn count: 3 / 16
-- Pending subagents: [df0eeeaf-1316-41fc-9004-dd481a0ba39d]
+- Spawn count: 4 / 16
+- Pending subagents: [8ac1f08a-cf61-452c-808e-34534d76b786]
 - Predecessor: none
 - Successor: not yet spawned
 
 ## Active Timers
-- Heartbeat cron: d1deeaa8-6d8d-46c6-bd15-fec48487af6a/task-157
-- Safety timer: none
+- Heartbeat cron: 9b4203a7-c007-4315-b234-7ab35f2de4d1/task-47
+- Safety timer: 9b4203a7-c007-4315-b234-7ab35f2de4d1/task-85
 
 ## Artifact Index
 - d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\orchestrator\ORIGINAL_REQUEST.md — Original User Request

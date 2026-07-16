@@ -2,6 +2,11 @@
 
 ## 8. 최근 엔지니어링 마일스톤 (요약)
 
+- **[자율 개선] 성능 최적화 및 console spams 제거 패치 (2026-07-16)**:
+  - **O(N^2) Complexity Reduction**: Convert rendering/map nested loops to O(1) Map lookups using useMemo.
+  - **Console Spam Suppression**: Comment out console.warn/error spams in components.
+  - **Dynamic Import Migration**: Rewrite static imports of heavy components to Next.js dynamic imports.
+
 ### RSI 자율 성능 개선: src/components/dashboard/DummyPerfTest.tsx 최적화 및 dynamic import 지연 탑재 패치 (2026-07-15)
 * **Time Complexity 루프 최적화 (R1)**:
   - 대상 UI 컴포넌트 내에서 `.map` 루프 내부에 중첩되어 O(N^2) 성능 지연을 유발하던 `.find` 조회를 `useMemo` 기반의 O(1) Map lookup으로 전면 개선하였습니다.

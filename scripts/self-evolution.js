@@ -13,6 +13,24 @@ if (!fs.existsSync(reportDir)) {
   fs.mkdirSync(reportDir, { recursive: true });
 }
 
+// Robust file writer with retries for Windows file lock (EBUSY) issues
+function writeFileSyncWithRetry(filePath, content, encoding = 'utf8', retries = 5, delay = 200) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      fs.writeFileSync(filePath, content, encoding);
+      return;
+    } catch (err) {
+      if (err.code === 'EBUSY' && i < retries - 1) {
+        console.warn(`⚠️  File ${filePath} is busy/locked. Retrying in ${delay}ms... (${i + 1}/${retries})`);
+        const start = Date.now();
+        while (Date.now() - start < delay) {}
+      } else {
+        throw err;
+      }
+    }
+  }
+}
+
 // 1. Run codebase diagnostics to update data/diagnose_report.json
 try {
   console.log('  ↳ Running diagnose-targets.js to update report...');
@@ -279,7 +297,7 @@ filesToProcess.forEach(file => {
   }
   
   if (content !== originalContent) {
-    fs.writeFileSync(fullPath, content, 'utf8');
+    writeFileSyncWithRetry(fullPath, content, 'utf8');
     mutationsApplied = true;
     console.log(`🔧 Refactored ${file} successfully.`);
   }
@@ -324,7 +342,7 @@ function recordMilestoneInFile(filePath, milestoneText) {
       cursor++;
     }
     content = content.substring(0, cursor) + milestoneText + newlineChar + newlineChar + content.substring(cursor);
-    fs.writeFileSync(filePath, content, 'utf8');
+    writeFileSyncWithRetry(filePath, content, 'utf8');
     console.log(`  ↳ Recorded milestone in ${filePath}`);
   }
 }
@@ -342,7 +360,7 @@ if (validationPassed) {
   });
   
   // Save updated state
-  fs.writeFileSync(statePath, JSON.stringify(state, null, 2), 'utf8');
+  writeFileSyncWithRetry(statePath, JSON.stringify(state, null, 2), 'utf8');
   
   // Record milestone
   const today = new Date().toISOString().split('T')[0];
@@ -406,4 +424,8 @@ if (validationPassed) {
   });
   
   // Save updated state
-  fs
+  writeFileSyncWithRetry(statePath, JSON.stringify(state, null, 2), 'utf8');
+  console.log('Updated state failures:', state.consecutiveFailures);
+  
+  process.exit(1);
+}

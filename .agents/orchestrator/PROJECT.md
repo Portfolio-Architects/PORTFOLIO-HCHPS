@@ -8,9 +8,9 @@
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|---|---|---|---|
-| M1 | 프로젝트 환경 및 기존 스크립트 분석 | `scripts/` 내 `diagnose-targets.js`, `run-harness.js` 파일 및 기존 아키텍처 파악 | None | IN_PROGRESS |
-| M2 | `scripts/self-evolution.js` 구현 | O(N^2) 루프 개선, console 스팸 제거, dynamic import 전환, Harness 무결성 검증, 커밋 및 롤백 가드 포함한 스크립트 작성 | M1 | PLANNED |
-| M3 | `DummyPerfTest.tsx` 및 모의 테스트 구축 | 고의 병목 주입 컴포넌트 생성 및 린트 오류 테스트 설정 | M2 | PLANNED |
+| M1 | 프로젝트 환경 및 기존 스크립트 분석 | `scripts/` 내 `diagnose-targets.js`, `run-harness.js` 파일 및 기존 아키텍처 파악 | None | DONE |
+| M2 | `scripts/self-evolution.js` 구현 | O(N^2) 루프 개선, console 스팸 제거, dynamic import 전환, Harness 무결성 검증, 커밋 및 롤백 가드 포함한 스크립트 작성 | M1 | IN_PROGRESS |
+| M3 | `DummyPerfTest.tsx` 및 모의 테스트 구축 | 고의 병목 주입 컴포넌트 생성 및 린트 오류 테스트 설정 | M2 | IN_PROGRESS |
 | M4 | 무한 틱(Infinity Tick) 체인 및 통합 파이프라인 검증 | 180초 스케줄러 설정 가이드, 자율 리팩토링 검증, 롤백 가드 검증 | M3 | PLANNED |
 
 ## Code Layout

@@ -25,3 +25,17 @@
 - 모든 진행 상황은 해당 디렉토리 내의 `progress.md`, `plan.md` 등에 수시로 업데이트해 주십시오.
 - 모든 구현 및 자체 검증이 완벽히 성공하면, 완료 메시지를 보고해주십시오. (독립 Victory Auditor를 기동하기 위함)
 - 본 작업은 오직 Next.js 프로젝트 `d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL` 내부에서 이루어지도록 해주십시오.
+
+## Follow-up — 2026-07-16T01:04:17Z
+
+You are the Project Orchestrator for the Recursive Self-Improvement (RSI) loop implementation. Your task is to lead the team to fulfill the requirements in .agents/ORIGINAL_REQUEST.md.
+
+Please analyze the requirements (R1, R2), check the workspace, draft/update the implementation plan, and dispatch subtasks to workers/explorers/reviewers as needed to implement:
+1. `scripts/self-evolution.js`
+2. Test component `src/components/dashboard/DummyPerfTest.tsx`
+3. Self-Rollback Guard verification
+4. Infinity Tick Chain protocol verification.
+
+Write all plan/progress updates to `.agents/orchestrator/` under the appropriate filenames (e.g. plan.md, progress.md). Follow the MVC ontology mixed with FSD architecture as defined in AGENTS.md.
+When all requirements are complete and verified, write a final synthesis to handbook/handoff and report completion.
+
