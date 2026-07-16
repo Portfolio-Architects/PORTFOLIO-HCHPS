@@ -1,35 +1,46 @@
-# BRIEFING — 2026-07-15T11:15:00+09:00
+# BRIEFING — 2026-07-16T14:31:16+09:00
 
 ## Mission
-Perform exploration and diagnostics for the optimization requirements R1, R2, and R3.
+Analyze tab switching UI freeze prevention and rendering optimization for Milestone 3.
 
 ## 🔒 My Identity
-- Archetype: explorer
-- Roles: Teamwork explorer, diagnostics and analysis
+- Archetype: Explorer 2
+- Roles: Read-only investigator, codebase analyzer
 - Working directory: d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\explorer_opt_2
-- Original parent: 13e574f3-56ec-4380-adf2-b4c42e161458
-- Milestone: Performance Optimization Exploration
+- Original parent: b172898c-54c7-40c0-96c5-b1a42d694208
+- Milestone: Milestone 3
 
 ## 🔒 Key Constraints
 - Read-only investigation — do NOT implement
-- Follow FSD & MVC ontology conventions (no direct API calls in UI, data/ route as SSOT, React Query hooks in src/hooks/)
-- Perform only analysis, do not make code changes
+- Analyze active tab states, hidden tab rendering, React.memo, useCallback, useMemo, and expensive filters in ContactsBox.
 
 ## Current Parent
-- Conversation ID: 13e574f3-56ec-4380-adf2-b4c42e161458
-- Updated: 2026-07-15T11:15:00+09:00
+- Conversation ID: b172898c-54c7-40c5-b1a4-d694208 (Caller ID: b172898c-54c7-40c0-96c5-b1a42d694208)
+- Updated: 2026-07-16T14:53:00+09:00
 
 ## Investigation State
-- **Explored paths**: `src/app/page.tsx`, `src/components/Sidebar.tsx`, `src/components/MindMap3D.tsx`, `src/components/budget/BudgetDashboard.tsx`, `src/components/WorkspaceView.tsx`, `src/hooks/useBudget.ts`, `src/hooks/useBudgetFilters.ts`, `src/lib/sheets-api.ts`, `src/app/api/data/route.ts`
+- **Explored paths**:
+  - `src/app/page.tsx`
+  - `src/components/dashboard/PortfolioDashboardView.tsx`
+  - `src/components/WorkspaceView.tsx`
+  - `src/components/dashboard/ContactsBox.tsx`
+  - `src/hooks/usePortfolioAnalytics.ts`
+  - `src/hooks/useBudget.ts`
+  - `src/hooks/useInventory.ts`
+  - `src/hooks/useSignal.ts`
+  - `src/hooks/useContacts.ts`
 - **Key findings**:
-  - R1: Synchronous imports for `Sidebar` and `SecurityLockScreen`. Background component mounting blocks main thread during staggered preloading.
-  - R2: Double-fetch HTTP requests (meta validation + full data) on stale cache. Merging metadata and conditional parameters into GET endpoint can enable 304 caching.
-  - R3: Missing `areMindMap3DPropsEqual` comparator in `React.memo` for `MindMap3D`. High-frequency subscriptions at top-level. Inline filters/functions in `page.tsx` break caching. Un-cancelled idle requestAnimationFrame loop.
-- **Unexplored areas**: None.
+  - Hidden tabs are kept in the DOM with a `hidden` class. Any parent state change causes rendering of all hidden tabs.
+  - Adding `isActive` prop and using `React.memo` with a custom comparison function that returns `true` (skips render) if `!nextProps.isActive` prevents hidden tab overhead.
+  - `startEdit` in `ContactsBox.tsx` is recreated every render, rendering `React.memo(ContactCard)` useless and causing performance degradation during form edits.
+- **Unexplored areas**:
+  - Verification of actual performance improvements via profiling after implementation (to be completed by the implementer).
 
 ## Key Decisions Made
-- Completed exploration and diagnostic phase. All findings written to analysis.md and handoff.md.
+- Recommend wrapping `PortfolioDashboardView` and `WorkspaceView` in `React.memo` with a custom comparison function.
+- Recommend wrapping `startEdit` in `useCallback` in `ContactsBox.tsx`.
+- Keep existing debouncing in `ContactsBox.tsx` since the filter logic is already well-optimized.
 
 ## Artifact Index
-- d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\explorer_opt_2\analysis.md — Detailed exploration analysis
+- d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\explorer_opt_2\analysis.md — Detailed analysis report
 - d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\explorer_opt_2\handoff.md — Handoff report

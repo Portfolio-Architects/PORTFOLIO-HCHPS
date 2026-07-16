@@ -51,6 +51,7 @@ export class OntologyCanvasEngine {
   private activeTreeSetCache: Set<string> = new Set();
   private lastActiveNodeIdForTree: string | null = null;
   public topologyDirty = true;
+  public isTopologyDirty = true;
   cameraOffsetY = 0;
   targetOffsetX = 0;
   targetOffsetY = 0;
@@ -134,6 +135,7 @@ export class OntologyCanvasEngine {
       this.edgeCount = graph.edges.length;
       this.layoutWorldGeometryDirty = true;
       this.topologyDirty = true;
+      this.isTopologyDirty = true;
   
       // 메모리에 잔존하는 NaN 카메라 좌표를 초기화하여 복구 (Hot Reload 시 캔버스 백화현상 방지)
       if (isNaN(this.cameraOffsetX) || isNaN(this.cameraOffsetY) || 
@@ -415,6 +417,12 @@ export class OntologyCanvasEngine {
         if (typeof preNode.vy === 'number' && !isNaN(preNode.vy)) {
           node.vy = preNode.vy;
         }
+        if (typeof preNode.orbitCos === 'number' && !isNaN(preNode.orbitCos)) {
+          node.orbitCos = preNode.orbitCos;
+        }
+        if (typeof preNode.orbitSin === 'number' && !isNaN(preNode.orbitSin)) {
+          node.orbitSin = preNode.orbitSin;
+        }
       }
     }
 
@@ -455,6 +463,8 @@ export class OntologyCanvasEngine {
       ...node,
       orbitIndex,
       orbitAngle: angle,
+      orbitCos: Math.cos(angle),
+      orbitSin: Math.sin(angle),
       orbitSpeed: finalOrbitSpeed,
       cosSpeed: Math.cos(finalOrbitSpeed),
       sinSpeed: Math.sin(finalOrbitSpeed),
@@ -737,7 +747,7 @@ export class OntologyCanvasEngine {
 
       // 미세 진동 방지 데드존 (Dead-zone) 필터
       const speedSq = vx * vx + vy * vy;
-      if (speedSq < 0.008) {
+      if (speedSq < 0.012) {
         node.vx = 0;
         node.vy = 0;
       } else {
@@ -867,8 +877,8 @@ export class OntologyCanvasEngine {
         const dx = node.targetWorldX - currentX;
         const dy = node.targetWorldY - currentY;
         
-        // 💡 첫 프레임에만 즉시 순간이동하고, 그 이후에는 LERP 감속 모션으로 이동시켜 격렬한 떨림(Jittering)을 방지합니다.
-        if (this.isFirstFrame) {
+        // 💡 첫 프레임이나 공전 활성화 중에는 즉시 순간이동하고, 그 외에는 LERP 감속 모션으로 이동시킵니다.
+        if (this.isFirstFrame || this.isOrbiting) {
           node.worldX = node.targetWorldX;
           node.worldY = node.targetWorldY;
         } else if (Math.abs(dx) > 0.25 || Math.abs(dy) > 0.25) {
@@ -924,6 +934,10 @@ export class OntologyCanvasEngine {
     const activeLayersKey = activeLayers ? Array.from(activeLayers).sort().join(',') : '';
     const collapsedNodesKey = Array.from(this.collapsedNodeIds).sort().join(',');
 
+    if (this.lastLayoutInputs && this.lastLayoutInputs.activeLayersKey !== activeLayersKey) {
+      this.isTopologyDirty = true;
+    }
+
     const canSkip = !this.layoutWorldGeometryDirty &&
                     !isCameraMoving &&
                     !this.isDragging &&
@@ -947,7 +961,7 @@ export class OntologyCanvasEngine {
       return;
     }
 
-    const forceRecompute = this.layoutWorldGeometryDirty;
+    const forceRecompute = this.isTopologyDirty;
 
     const tL0 = performance.now();
     OntologyLayout.computePositions(
@@ -963,11 +977,13 @@ export class OntologyCanvasEngine {
       activeLayers,
       isInteractive,
       forceRecompute,
-      this.isOrbiting
+      this.isOrbiting,
+      this.isDragging
     );
     const tL1 = performance.now();
     PerformanceProfiler.getInstance().recordLayout(tL1 - tL0);
     this.layoutWorldGeometryDirty = false;
+    this.isTopologyDirty = false;
 
     // Cache layout inputs
     this.lastLayoutInputs = {
@@ -1042,7 +1058,8 @@ export class OntologyCanvasEngine {
               activeLayers,
               false, // force non-interactive for final snap collision resolution
               this.layoutWorldGeometryDirty,
-              this.isOrbiting
+              this.isOrbiting,
+              this.isDragging
             );
 
             // sortedNodes 재정렬도 강제 적용
@@ -1205,6 +1222,7 @@ export class OntologyCanvasEngine {
             descendants.forEach(d => this.collapsedNodeIds.delete(d));
          }
          this.topologyDirty = true;
+         this.isTopologyDirty = true;
       } else {
          // 2. 이미 활성화(선택)된 노드를 "다시 한 번" 클릭했을 때 동작
          // 수동 접기/펼치기 기능은 전면 삭제되었습니다.
@@ -1214,6 +1232,7 @@ export class OntologyCanvasEngine {
             this.previousActiveNodeId = this.centerNode?.id || null;
             this.collapseAll();
             this.topologyDirty = true;
+            this.isTopologyDirty = true;
          }
       }
       
@@ -1224,6 +1243,7 @@ export class OntologyCanvasEngine {
       this.previousActiveNodeId = null;
       this.collapseAll();
       this.topologyDirty = true;
+      this.isTopologyDirty = true;
     }
     this.needsRedraw = true;
     this.callbacks.onActiveNodeChange?.(this.activeNode);
@@ -1233,6 +1253,7 @@ export class OntologyCanvasEngine {
     this.collapsedNodeIds.clear();
     this.layoutWorldGeometryDirty = true;
     this.topologyDirty = true;
+    this.isTopologyDirty = true;
     this.needsRedraw = true;
   }
 
@@ -1259,6 +1280,7 @@ export class OntologyCanvasEngine {
     }
     this.layoutWorldGeometryDirty = true;
     this.topologyDirty = true;
+    this.isTopologyDirty = true;
     this.needsRedraw = true;
   }
 

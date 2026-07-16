@@ -1,98 +1,88 @@
-# Handoff Report: Optimization Diagnostics (R1, R2, R3)
+# Handoff Report: Tab Switching UI Freeze Prevention and Rendering Optimization (Milestone 3)
 
-This report details the diagnostics and recommendations for initial dashboard loading performance (R1), Data API response speed (R2), and tab transition responsiveness (R3).
+This report details the diagnostics and precise optimization proposals to address Milestone 3 performance issues in the PORTFOLIO - VITAL application.
 
 ---
 
 ## 1. Observation
 
-### R1: Initial Loading
-* **SecurityLockScreen Static Import:**
-  - File: `src/app/page.tsx:66`
-  - Quote: `import { SecurityLockScreen } from '@/components/SecurityLockScreen';`
-  - Context: Loaded statically despite being conditionally rendered (line 605) based on client-side state.
-* **Immediate Dashboard Mounting:**
-  - File: `src/app/page.tsx:125`
-  - Quote: `dashboard: true,` (within `visitedModules` initial state).
-  - Context: Mounts `PortfolioDashboardView` (with Recharts, WeeklyScheduler, and ContactsBox) immediately on initial page load, competing with the premium splash screen loading animation.
+### Tab Views Render Pattern
+- **File:** `src/app/page.tsx:713-771`
+- **Quote:**
+  ```tsx
+  {visitedModules.dashboard && (
+    <div className={activeModule === 'dashboard' ? 'block' : 'hidden'}>
+      <PortfolioDashboardView tasks={tasks} budgetCategories={budgetCategories} budgetEntries={budgetEntries} onLogout={handleLogout} appMode={appMode} />
+    </div>
+  )}
+  ```
+- **Context:** Once visited, tab modules remain mounted in the DOM. Switching tabs changes `className` between `block` and `hidden` based on `activeModule`.
 
-### R2: Data API Latency
-* **Double RTT Fetch Request:**
-  - File: `src/lib/sheets-api.ts:58-94`
-  - Quotes:
-    ```typescript
-    58:       const metaRes = await fetch(`${API_BASE}?sheet=${encodeURIComponent(sheetName)}&meta=true&_t=${Date.now()}`, { ... });
+### Lack of Memoization in Views
+- **File:** `src/components/dashboard/PortfolioDashboardView.tsx:123`
+- **Quote:**
+  ```typescript
+  export function PortfolioDashboardView({ budgetCategories, budgetEntries, appMode = 'VITAL' }: DashboardProps) {
+  ```
+  `PortfolioDashboardView` is not wrapped in `React.memo`, meaning it re-renders entirely when the parent re-renders, even when it is hidden.
+- **File:** `src/components/WorkspaceView.tsx:139`
+- **Quote:**
+  ```typescript
+  export const WorkspaceView = React.memo(WorkspaceViewComponent);
+  ```
+  `WorkspaceView` uses default `React.memo` (shallow equality check). Because the parent passes many callbacks, any change in parent render could break the shallow memoization.
+
+### ContactsBox Interaction Performance Bug
+- **File:** `src/components/dashboard/ContactsBox.tsx:97-104`
+- **Quote:**
+  ```typescript
+  const startEdit = (contact: Contact) => {
+    setEditingContactId(contact.id);
+    setName(contact.name);
     ...
-    81:     const res = await fetch(`${API_BASE}?sheet=${encodeURIComponent(sheetName)}&_t=${Date.now()}`, { ... });
-    ```
-  - Context: The client makes two consecutive requests for a single read sheet operation (one metadata check, followed by the actual data request).
-* **Destructive Cache Clears on Mutation:**
-  - File: `src/lib/sheets-api.ts:283`
-  - Quote: `clientCache.delete(sheetName);`
-  - Context: Modifying data (`add`, `update`, `delete`) invalidates the entire client cache, triggering full download RTTs on post-write refetches.
-* **Async Loop overhead in Plain Text Bypass Mode:**
-  - File: `src/lib/sheets-api.ts:97-100` and `src/lib/crypto.ts:56-65`
-  - Quote: `const decryptedPromises = json.data.map(async (row) => { ... await decryptPayload(...) })`
-  - Context: Each row creates an async microtask promise wrapper even though E2EE is bypassed and plain JSON is parsed synchronously.
-
-### R3: Tab Transitions
-* **MindMap3D React.memo Missing Comparator:**
-  - File: `src/components/MindMap3D.tsx:72`
-  - Quote: `export const MindMap3D = React.memo(function MindMap3D(...)`
-  - Context: The comparison function `areMindMap3DPropsEqual` (defined at line 43) is never passed as the second argument to `React.memo()`. Shallow reference checks fail on the recreated props `signalKeywords` and `signalEntries`, triggering redundant canvas re-renders on parent updates.
-* **Lack of Memoization in Budget Views:**
-  - Files: `src/components/WorkspaceView.tsx:36` and `src/components/budget/BudgetDashboard.tsx:38`
-  - Quote: `export function WorkspaceView(...)` and `export function BudgetDashboard(...)`
-  - Context: Neither component is wrapped in `React.memo`. Inline callback handlers inside `BudgetDashboard` are recreated on every render, invalidating the memoization of subcomponents like `PolicyGroupCard` and forcing full DOM reconstructions on tab transitions.
-* **Direct Background Hook Subscriptions:**
-  - File: `src/components/MindMap3D.tsx:110-111`
-  - Quote: `const { tasks = [] } = useTasks();`
-  - Context: Inactive components hidden by CSS remain subscribed to active data hooks, forcing them to re-render in the background.
+  };
+  ```
+  `startEdit` is not wrapped in `useCallback`. Since it is passed to `<ContactCard onStartEdit={startEdit} />` (which is wrapped in `React.memo`), any parent re-render of `ContactsBoxComponent` (e.g. typing in the form) causes a new reference of `startEdit` to be created. This breaks the child card memoization, forcing all contact cards to re-render on every keystroke.
 
 ---
 
 ## 2. Logic Chain
 
-### R1: Initial Loading
-1. **SecurityLockScreen Static Import:** The static import loads the bundle code immediately on the main thread, increasing the initial script footprint even when the app is unlocked.
-2. **Immediate Dashboard Mounting:** Because `visitedModules.dashboard` is `true`, `PortfolioDashboardView` starts mounting immediately on page load. The heavy script parsing (Recharts) and canvas initialization occur concurrently with the splash animation, causing CPU contention and drop frames.
-
-### R2: Data API Latency
-1. **Double RTT Fetch:** Checking metadata separately from data forces the browser to run two sequential HTTP requests. The local server is forced to run duplicate `fs.stat` queries on the disk, slowing down the read RTT.
-2. **Destructive Cache Clears:** Erasing the client cache on write mutations forces React Query to do a full download check. Since the API returns the updated file metadata anyway, invalidating the cache is redundant.
-3. **Async Loop Overhead:** Mapping `Promise.all` over hundreds of bypassed rows queues hundreds of useless microtask promises, adding execution delay.
-
-### R3: Tab Transitions
-1. **Broken MindMap3D Memo:** Since `React.memo` defaults to shallow checks, and the parent `useMergedSignals` returns new object references when any global state changes, `MindMap3D` re-renders constantly.
-2. **Unmemoized Budget Views:** Tab switching toggles CSS classes (`block` / `hidden`) but still triggers a React reconciliation pass. Because `WorkspaceView` and `BudgetDashboard` are not memoized, they re-evaluate the full filter logic and lists. Recreated inline callback functions change references, forcing all memoized child `PolicyGroupCard`s to reconstruct their DOM, causing the freeze.
-3. **Background Subscriptions:** Background query subscriptions force hidden components to evaluate updates in the background, consuming CPU resources.
+1. **Tab Rendering Cascade:** Because visited tab views stay mounted in the DOM and are not guarded by active-state aware memoization, any state change in `ProtectedApp` (e.g. adding budget entries or switching activeModule) triggers a full virtual DOM reconciliation and rendering of all visited views (even the hidden ones).
+2. **Expensive Hooks Execution:** `PortfolioDashboardView` runs `usePortfolioAnalytics` (which processes categories and entries). When `activeModule` switches, calling this hook for hidden dashboards wastes CPU cycles and blocks the UI thread.
+3. **Memoization Custom Comparators:** By introducing an `isActive` prop (e.g., `activeModule === 'dashboard'`) and comparing it inside a custom `React.memo` comparator, we can return `true` early if both the previous and next states are inactive. This completely blocks updates to hidden tab views when they are out of sight.
+4. **Child Card Re-render Storm:** In `ContactsBox.tsx`, typing in form fields causes local state updates, triggering re-renders of `ContactsBoxComponent`. Because `startEdit` is an inline-style helper function recreated on every render, it invalidates the memoization of `<ContactCard>`, causing dozens of contact card DOM nodes to re-evaluate on every single keystroke.
+5. **Callback Stabilization:** Wrapping `startEdit` in `useCallback` keeps the callback reference stable, keeping `<ContactCard>` memoization intact during typing and restoring buttery-smooth typing interaction.
 
 ---
 
 ## 3. Caveats
 
-* **Static Analysis Scope:** Analysis was performed using static code investigation. Precise frame-rate (FPS) profiling and HTTP trace timings must be verified directly in the browser's developer tools under simulated CPU/network throttling.
-* **Legacy Encrypted Payload Compatibility:** When optimizing the async loop in `decryptPayload`, we must verify that backward compatibility with legacy AES-GCM encrypted data remains intact for users who have not migrated to the plain-text bypass route.
+- **No Active UI Thread Profiling:** Because this is a read-only investigation, the analysis relies on static structure analysis. Frame rate checks and browser CPU profiling should be performed once these changes are merged.
+- **State Deferral Limitation:** The `isActive` memoization pattern blocks hidden tabs from updating. When a tab becomes active, it runs a full render pass with the updated props. If the accumulated state changes are extremely large, that single transition render could still take several milliseconds, though it is vastly superior to continuous background rendering.
 
 ---
 
 ## 4. Conclusion
 
-The performance stutters in PORTFOLIO - VITAL stem from redundant script loading (R1), sequential client-server checks (R2), and React rendering cascades due to missing memoization and unstable props (R3). Implementing dynamic imports, single-RTT query parameter state validation, write-through cache persistence, and proper memoization gates will resolve these bottlenecks without changing the application's functionality.
+The tab transition freeze and form input lag are caused by:
+1. Re-rendering hidden views in the DOM due to the lack of active-tab check gates in `React.memo` custom comparators.
+2. Re-rendering all `ContactCard`s on every keystroke in `ContactsBox` due to unstable handler references (`startEdit`).
+
+Implementing the proposed `isActive` prop matching custom comparators in `React.memo` for `PortfolioDashboardView` and `WorkspaceView`, along with wrapping `startEdit` in `useCallback` in `ContactsBox`, will fully prevent background rendering and interaction lag.
 
 ---
 
 ## 5. Verification Method
 
-### Test Verification
-Run the TypeScript compiler and lint checks to ensure any proposed optimization complies with codebase standards:
-* **Linting Check:** Run `npm run lint` or `npx eslint src/`
-* **Type-Checking:** Run `npx tsc --noEmit`
-* **Test Suite:** Run `npm run test`
+To verify the proposed modifications:
 
-### Inspection Verification
-1. **R1 Bundle Inspection:** Check the generated chunks after a build (`npm run build`) to confirm that `SecurityLockScreen` is separated into a lazy-loaded chunk.
-2. **R2 Network Inspection:** In browser DevTools, confirm that fetching data now takes exactly **1 HTTP request** instead of 2, and that mutations do not trigger a subsequent network query download.
-3. **R3 React Profiler Inspection:** In the React DevTools Profiler, verify that:
-   - Switching tabs to/from "예산관리" shows "Did not render" for memoized views.
-   - Panning the MindMap 3D canvas does not trigger re-renders in `MindMapInspector` unless `activeNode.id` changes.
+### 1. Build and Lint Checks
+Before checking behavior, ensure that type safety and syntax are intact:
+- Run `npx tsc --noEmit` from the root workspace directory to verify no TypeScript compilation issues.
+- Run `npm run lint` or `npx eslint src/` to ensure no linting warnings/errors are introduced.
+
+### 2. React DevTools Profiling
+- Open the React DevTools **Profiler** tab in the browser.
+- Switch between tabs (e.g. from Dashboard to Budget). Confirm in the flamegraph that hidden views (e.g., `PortfolioDashboardView` when activeModule is `'workspace'`) show "Did not render" during state changes.
+- Type into the search input or registration form in `ContactsBox`. Confirm that `ContactCard` components show "Did not render" and do not re-render on keystrokes.

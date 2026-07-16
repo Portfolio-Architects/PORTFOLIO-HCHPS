@@ -41,6 +41,17 @@ export interface BatchedEdge {
 }
 
 export class OntologyRenderer {
+  private static ringPoints: Array<{cos: number, sin: number}> = [];
+  static {
+    const segments = 64;
+    for (let j = 0; j <= segments; j++) {
+      const theta = (j / segments) * Math.PI * 2;
+      OntologyRenderer.ringPoints.push({
+        cos: Math.cos(theta),
+        sin: Math.sin(theta)
+      });
+    }
+  }
   private static lastActiveNodeId: string | null = null;
   private static cachedNeighborsSet = new Set<string>();
   private static lastActiveNodeIdForDescendants: string | null = null;
@@ -365,8 +376,8 @@ export class OntologyRenderer {
     
     const cx = canvasW / 2 + cameraOffsetX;
     const cy = canvasH / 2 + cameraOffsetY;
-    const cosTilt = Math.cos(OntologyLayout.tiltAngle);
-    const sinTilt = Math.sin(OntologyLayout.tiltAngle);
+    const cosTilt = OntologyLayout.cosTilt;
+    const sinTilt = OntologyLayout.sinTilt;
     const cameraDist = 800;
     
     // 각 레이어(L0 ~ L3)마다 기울어진 궤도 링을 그려 입체 레이어 스택을 시각화
@@ -385,11 +396,10 @@ export class OntologyRenderer {
         if (R <= 0) continue;
         
         ctx.beginPath();
-        const segments = 64;
-        for (let j = 0; j <= segments; j++) {
-          const theta = (j / segments) * Math.PI * 2;
-          const wx = R * Math.cos(theta) * ELLIPSE_RATIO;
-          const wy = R * Math.sin(theta);
+        let isFirst = true;
+        for (const p of OntologyRenderer.ringPoints) {
+          const wx = R * p.cos * ELLIPSE_RATIO;
+          const wy = R * p.sin;
           
           const rotatedY = wy * cosTilt - h * sinTilt;
           const depth = -wy * sinTilt + h * cosTilt;
@@ -398,8 +408,9 @@ export class OntologyRenderer {
           const rx = cx + wx * zoom * pScale;
           const ry = cy + rotatedY * zoom * pScale;
           
-          if (j === 0) {
+          if (isFirst) {
             ctx.moveTo(rx, ry);
+            isFirst = false;
           } else {
             ctx.lineTo(rx, ry);
           }
@@ -669,35 +680,40 @@ export class OntologyRenderer {
                               edge.type !== 'DEPENDENCY';
 
       if (shouldDrawLabel) {
-        let labelItem;
-        if (OntologyRenderer.labelsToDrawPoolUsed < OntologyRenderer.labelsToDrawPool.length) {
-          labelItem = OntologyRenderer.labelsToDrawPool[OntologyRenderer.labelsToDrawPoolUsed++];
-        } else {
-          labelItem = {
-            edge,
-            leftRightX,
-            rightLeftX,
-            leftNode,
-            rightNode,
-            cpDist,
-            avgScale,
-            themeColor,
-            alpha
-          };
-          OntologyRenderer.labelsToDrawPool.push(labelItem);
-          OntologyRenderer.labelsToDrawPoolUsed++;
-        }
-        labelItem.edge = edge;
-        labelItem.leftRightX = leftRightX;
-        labelItem.rightLeftX = rightLeftX;
-        labelItem.leftNode = leftNode;
-        labelItem.rightNode = rightNode;
-        labelItem.cpDist = cpDist;
-        labelItem.avgScale = avgScale;
-        labelItem.themeColor = themeColor;
-        labelItem.alpha = alpha;
+        const midX = (leftRightX + rightLeftX) / 2;
+        const midY = (leftNode.renderY + rightNode.renderY) / 2;
+        if (midX >= -CULL_MARGIN && midX <= canvasW + CULL_MARGIN &&
+            midY >= -CULL_MARGIN && midY <= canvasH + CULL_MARGIN) {
+          let labelItem;
+          if (OntologyRenderer.labelsToDrawPoolUsed < OntologyRenderer.labelsToDrawPool.length) {
+            labelItem = OntologyRenderer.labelsToDrawPool[OntologyRenderer.labelsToDrawPoolUsed++];
+          } else {
+            labelItem = {
+              edge,
+              leftRightX,
+              rightLeftX,
+              leftNode,
+              rightNode,
+              cpDist,
+              avgScale,
+              themeColor,
+              alpha
+            };
+            OntologyRenderer.labelsToDrawPool.push(labelItem);
+            OntologyRenderer.labelsToDrawPoolUsed++;
+          }
+          labelItem.edge = edge;
+          labelItem.leftRightX = leftRightX;
+          labelItem.rightLeftX = rightLeftX;
+          labelItem.leftNode = leftNode;
+          labelItem.rightNode = rightNode;
+          labelItem.cpDist = cpDist;
+          labelItem.avgScale = avgScale;
+          labelItem.themeColor = themeColor;
+          labelItem.alpha = alpha;
 
-        OntologyRenderer.labelsToDrawList.push(labelItem);
+          OntologyRenderer.labelsToDrawList.push(labelItem);
+        }
       }
     }
 
@@ -934,6 +950,10 @@ export class OntologyRenderer {
       // 오직 루트 노드, 활성 노드, 호버 노드, 핵심 노드, 그리고 활성 노드의 이웃 노드 및 활성 트리 노드에 텍스트 드로잉 허용
       for (const node of centralitySorted) {
         if (node.layoutHidden) continue;
+        if (node.renderX < -CULL_MARGIN || node.renderX > canvasW + CULL_MARGIN ||
+            node.renderY < -CULL_MARGIN || node.renderY > canvasH + CULL_MARGIN) {
+          continue;
+        }
         const isActive = node.id === activeNodeId;
         const isHovered = node.id === hoveredNodeId;
         const isCenter = node.orbitIndex === 0;
@@ -992,6 +1012,10 @@ export class OntologyRenderer {
 
       for (const node of centralitySorted) {
         if (node.layoutHidden) continue;
+        if (node.renderX < -CULL_MARGIN || node.renderX > canvasW + CULL_MARGIN ||
+            node.renderY < -CULL_MARGIN || node.renderY > canvasH + CULL_MARGIN) {
+          continue;
+        }
         
         const isActive = node.id === activeNodeId;
         const isHovered = node.id === hoveredNodeId;
@@ -1027,11 +1051,7 @@ export class OntologyRenderer {
           continue;
         }
 
-        // 화면 Frustum 영역 바깥 노드는 계산 생략
-        if (node.renderX < -CULL_MARGIN || node.renderX > canvasW + CULL_MARGIN ||
-            node.renderY < -CULL_MARGIN || node.renderY > canvasH + CULL_MARGIN) {
-          continue;
-        }
+
 
         // 텍스트 라벨 최대 등록 한계 설정 (줌이 극도로 작을 때는 복잡도 방지를 위해 100개로 축소 제한)
         const maxTextLimit = zoom < 0.5 ? 100 : 220;

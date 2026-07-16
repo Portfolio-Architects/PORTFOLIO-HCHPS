@@ -1,30 +1,22 @@
-# Project: Dashboard Design and Performance Optimization (R1, R2, R3)
+# Project: VITAL Web Application Performance Optimization
 
 ## Architecture
-- **Model**: `src/app/api/data/route.ts` (SSOT) managing data JSON files under `data/`.
-- **View (UI)**: React components styled with TailwindCSS, utilizing Inter/Outfit fonts for high-contrast dark mode readability.
-- **Controller**: React Query hooks under `src/hooks/` for state and data mutations.
-- **Optimizations**: Next.js dynamic lazy loading for heavy components; React.memo, useCallback, useMemo, and staggered preloading for frame stability.
+- **Model**: Local file-based storage (`data/*.json`) loaded via `src/app/api/data/route.ts` as SSOT. Yjs CRDT is used for collaborative sync with a PartyKit backend.
+- **View (UI)**:
+  - `src/app/page.tsx`: Entry point containing the modules.
+  - `src/components/dashboard/`: Dashboard subcomponents.
+  - `src/components/budget/BudgetDashboard.tsx`: Budget Management UI.
+  - `src/components/inventory/InventoryList.tsx`: Promotion Material Inventory UI.
+  - `src/components/MindMap3D.tsx`: 3D Force-Directed Mindmap component.
+- **Controller (Hooks)**:
+  - `src/hooks/useTasks.ts`, `src/hooks/useBudget.ts`, etc. (React Query queries and mutations).
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
-|---|------|-------|-------------|--------|
-| M1 | Codebase Analysis & Strategy | Analyze components (`PortfolioDashboardView`, `WeeklyScheduler`, `MindMap3D`, `MindMapInspector`, `WikiEditor`, and cards/modals) to draft concrete suggestions | None | DONE |
-| M2 | High-Contrast Readability & Fonts (R1) | Add Outfit/Inter fonts, enhance readability, contrast, borders, and shadows in components | M1 | IN_PROGRESS |
-| M3 | Next.js Lazy Loading & FCP (R2) | Implement `next/dynamic` with `ssr: false` for `MindMap3D`, `WeeklyScheduler`, and `WikiEditor` | M2 | PLANNED |
-| M4 | Performance & Render Isolation (R3) | Apply `React.memo`, `useCallback`, `useMemo`, and staggered preloading logic to target components | M3 | PLANNED |
-| M5 | Validation & Rule Synchronization | Run lint/build check, update `Engineering Report.md`, execute `sync-rules.js`, and verify compliance | M4 | PLANNED |
-
-## Code Layout
-- `src/components/dashboard/PortfolioDashboardView.tsx`: Main dashboard entry point.
-- `src/components/dashboard/WeeklyScheduler.tsx`: Weekly scheduling grid component.
-- `src/components/MindMap3D.tsx`: Heavy 3D Force-Directed MindMap component.
-- `src/components/MindMapInspector.tsx`: Side panel inspector for mindmap nodes.
-- `src/components/WikiEditor.tsx`: Rich markdown/text editor component.
-- `src/components/ui/card.tsx` / `modal.tsx`: Base UI elements to adapt high-contrast themes.
-- `PORTFOLIO VITAL - Engineering Report.md`: Log of updates and patches.
-- `AGENTS.md`: Agent manifest and rules index.
-
-## Interface Contracts
-- **Dynamic Imports**: Components loaded with `dynamic(..., { ssr: false })` must expose identical prop signatures as their static counterparts.
-- **Staggered Preloading**: Main view state controls sequence of initialization (`isSchedulerReady`, `isMindmapReady`) to split rendering frames.
+|---|---|---|---|---|
+| 1 | explorer_analysis | Analyze codebase for performance bottlenecks and propose optimization | None | DONE |
+| 2 | r1_initial_loading | Implement dynamic lazy loading and splash optimization | M1 | DONE |
+| 3 | r2_tab_switching | Prevent tab UI freeze using memoization and useCallback | M2 | IN_PROGRESS |
+| 4 | r3_mindmap_optimization | Optimize 3D mindmap rendering and GC (pooling, cached math) | M3 | PLANNED |
+| 5 | r4_api_fetching_cache | Configure React Query cache and stale times for hooks | M4 | PLANNED |
+| 6 | final_verification | Run build/lint, run tests, update report, run sync-rules | M5 | PLANNED |

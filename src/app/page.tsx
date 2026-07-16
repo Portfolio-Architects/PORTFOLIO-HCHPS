@@ -22,44 +22,326 @@ function useIsClient() {
   );
 }
 
+function PortfolioDashboardViewSkeleton() {
+  return (
+    <div className="w-full flex flex-col gap-6 animate-pulse">
+      {/* Main Panels */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 mt-4">
+        {/* Left Column */}
+        <div className="xl:col-span-6 flex flex-col gap-6">
+          {/* Budget Allocation Panel */}
+          <div className="bg-slate-100/60 dark:bg-slate-800/40 rounded-[2rem] p-8 border border-slate-200/40 dark:border-slate-800 h-[400px] flex flex-col justify-between">
+            <div className="flex justify-between items-center mb-6">
+              <div className="w-48 h-6 bg-slate-200 dark:bg-slate-700 rounded-lg" />
+              <div className="w-36 h-10 bg-slate-200 dark:bg-slate-700 rounded-xl" />
+            </div>
+            <div className="flex-grow flex flex-col sm:flex-row gap-8 items-center justify-center">
+              <div className="w-[180px] h-[180px] rounded-full border-[16px] border-slate-200 dark:border-slate-700 flex items-center justify-center flex-shrink-0" />
+              <div className="flex-grow flex flex-col gap-3 w-full">
+                <div className="w-full h-4 bg-slate-200 dark:bg-slate-700 rounded" />
+                <div className="w-5/6 h-4 bg-slate-200 dark:bg-slate-700 rounded" />
+                <div className="w-2/3 h-4 bg-slate-200 dark:bg-slate-700 rounded" />
+                <div className="w-3/4 h-4 bg-slate-200 dark:bg-slate-700 rounded" />
+              </div>
+            </div>
+          </div>
+          {/* KPI Mini Cards Grid */}
+          <div className="grid grid-cols-2 gap-4 sm:gap-6">
+            <div className="bg-slate-100/60 dark:bg-slate-800/40 border border-slate-200/40 dark:border-slate-800 rounded-[1.5rem] p-5 h-[110px] flex flex-col justify-between">
+              <div className="w-24 h-3 bg-slate-200 dark:bg-slate-700 rounded" />
+              <div className="w-16 h-6 bg-slate-200 dark:bg-slate-700 rounded-lg" />
+            </div>
+            <div className="bg-slate-100/60 dark:bg-slate-800/40 border border-slate-200/40 dark:border-slate-800 rounded-[1.5rem] p-5 h-[110px] flex flex-col justify-between">
+              <div className="w-24 h-3 bg-slate-200 dark:bg-slate-700 rounded" />
+              <div className="w-16 h-6 bg-slate-200 dark:bg-slate-700 rounded-lg" />
+            </div>
+            <div className="bg-slate-100/60 dark:bg-slate-800/40 border border-slate-200/40 dark:border-slate-800 rounded-[1.5rem] p-5 h-[110px] flex flex-col justify-between">
+              <div className="w-24 h-3 bg-slate-200 dark:bg-slate-700 rounded" />
+              <div className="w-28 h-6 bg-slate-200 dark:bg-slate-700 rounded-lg" />
+            </div>
+            <div className="bg-slate-100/60 dark:bg-slate-800/40 border border-slate-200/40 dark:border-slate-800 rounded-[1.5rem] p-5 h-[110px] flex flex-col justify-between">
+              <div className="w-24 h-3 bg-slate-200 dark:bg-slate-700 rounded" />
+              <div className="w-28 h-6 bg-slate-200 dark:bg-slate-700 rounded-lg" />
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column */}
+        <div className="xl:col-span-6 flex flex-col gap-6">
+          {/* Monthly Budget Execution */}
+          <div className="bg-slate-100/60 dark:bg-slate-800/40 rounded-[2rem] p-8 border border-slate-200/40 dark:border-slate-800 h-full min-h-[530px] flex flex-col justify-between">
+            <div className="flex justify-between items-center mb-6">
+              <div className="flex flex-col gap-2">
+                <div className="w-56 h-6 bg-slate-200 dark:bg-slate-700 rounded-lg" />
+                <div className="w-40 h-3 bg-slate-200 dark:bg-slate-700 rounded" />
+              </div>
+              <div className="w-28 h-9 bg-slate-200 dark:bg-slate-700 rounded-xl" />
+            </div>
+            {/* Chart Area Mockup */}
+            <div className="flex-grow w-full bg-slate-200/20 dark:bg-slate-700/10 rounded-2xl flex items-end gap-3 p-4 h-[385px]">
+              <div className="flex-grow bg-slate-200 dark:bg-slate-700 rounded-t h-[20%]" />
+              <div className="flex-grow bg-slate-200 dark:bg-slate-700 rounded-t h-[35%]" />
+              <div className="flex-grow bg-slate-200 dark:bg-slate-700 rounded-t h-[25%]" />
+              <div className="flex-grow bg-slate-200 dark:bg-slate-700 rounded-t h-[50%]" />
+              <div className="flex-grow bg-slate-200 dark:bg-slate-700 rounded-t h-[45%]" />
+              <div className="flex-grow bg-slate-200 dark:bg-slate-700 rounded-t h-[70%]" />
+              <div className="flex-grow bg-slate-200 dark:bg-slate-700 rounded-t h-[60%]" />
+              <div className="flex-grow bg-slate-200 dark:bg-slate-700 rounded-t h-[80%]" />
+              <div className="flex-grow bg-slate-200 dark:bg-slate-700 rounded-t h-[75%]" />
+              <div className="flex-grow bg-slate-200 dark:bg-slate-700 rounded-t h-[90%]" />
+              <div className="flex-grow bg-slate-200 dark:bg-slate-700 rounded-t h-[85%]" />
+            </div>
+          </div>
+        </div>
+      </div>
+      {/* Weekly Scheduler Skeleton */}
+      <div className="bg-slate-100/60 dark:bg-slate-800/40 rounded-[2rem] p-8 border border-slate-200/40 dark:border-slate-800 h-[620px] flex flex-col justify-between mt-6">
+        <div className="w-48 h-6 bg-slate-200 dark:bg-slate-700 rounded-lg" />
+        <div className="grid grid-cols-7 gap-4 flex-grow mt-6">
+          <div className="bg-slate-200/30 dark:bg-slate-700/20 rounded-xl" />
+          <div className="bg-slate-200/30 dark:bg-slate-700/20 rounded-xl" />
+          <div className="bg-slate-200/30 dark:bg-slate-700/20 rounded-xl" />
+          <div className="bg-slate-200/30 dark:bg-slate-700/20 rounded-xl" />
+          <div className="bg-slate-200/30 dark:bg-slate-700/20 rounded-xl" />
+          <div className="bg-slate-200/30 dark:bg-slate-700/20 rounded-xl" />
+          <div className="bg-slate-200/30 dark:bg-slate-700/20 rounded-xl" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WorkspaceViewSkeleton() {
+  return (
+    <div className="w-full flex flex-col gap-6 animate-pulse">
+      {/* Tab Switcher Skeleton */}
+      <div className="flex border-b border-slate-200 gap-1 pb-px">
+        <div className="w-32 h-11 bg-slate-200 dark:bg-slate-700 rounded-t-lg" />
+        <div className="w-32 h-11 bg-slate-200/50 dark:bg-slate-700/50 rounded-t-lg" />
+      </div>
+
+      {/* Title Area */}
+      <div className="flex items-center justify-between flex-wrap gap-2 mt-4">
+        <div className="w-36 h-7 bg-slate-200 dark:bg-slate-700 rounded-lg" />
+        <div className="w-24 h-9 bg-slate-200 dark:bg-slate-700 rounded-lg" />
+      </div>
+
+      {/* Multi-Filter System Skeleton */}
+      <div className="bg-slate-100/60 dark:bg-slate-800/40 rounded-[2rem] p-5 border border-slate-200/40 dark:border-slate-800">
+        <div className="w-40 h-5 bg-slate-200 dark:bg-slate-700 rounded mb-3" />
+        <div className="flex flex-wrap gap-3">
+          <div className="w-36 h-9 bg-slate-200 dark:bg-slate-700 rounded-xl" />
+          <div className="w-36 h-9 bg-slate-200 dark:bg-slate-700 rounded-xl" />
+          <div className="w-36 h-9 bg-slate-200 dark:bg-slate-700 rounded-xl" />
+          <div className="w-36 h-9 bg-slate-200 dark:bg-slate-700 rounded-xl" />
+        </div>
+      </div>
+
+      {/* Summary Cards Grid (4 cards) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-2">
+        <div className="bg-slate-100/60 dark:bg-slate-800/40 border border-slate-200/40 dark:border-slate-800 rounded-[2rem] p-6 h-[160px] flex flex-col justify-between">
+          <div className="flex justify-between items-start">
+            <div className="w-24 h-4 bg-slate-200 dark:bg-slate-700 rounded" />
+            <div className="w-8 h-8 bg-slate-200 dark:bg-slate-700 rounded-lg" />
+          </div>
+          <div className="flex flex-col gap-2">
+            <div className="w-32 h-6 bg-slate-200 dark:bg-slate-700 rounded" />
+            <div className="w-48 h-4 bg-slate-200 dark:bg-slate-700 rounded" />
+          </div>
+        </div>
+        <div className="bg-slate-100/60 dark:bg-slate-800/40 border border-slate-200/40 dark:border-slate-800 rounded-[2rem] p-6 h-[160px] flex flex-col justify-between">
+          <div className="flex justify-between items-start">
+            <div className="w-24 h-4 bg-slate-200 dark:bg-slate-700 rounded" />
+            <div className="w-8 h-8 bg-slate-200 dark:bg-slate-700 rounded-lg" />
+          </div>
+          <div className="flex flex-col gap-2">
+            <div className="w-32 h-6 bg-slate-200 dark:bg-slate-700 rounded" />
+            <div className="w-48 h-4 bg-slate-200 dark:bg-slate-700 rounded" />
+          </div>
+        </div>
+        <div className="bg-slate-100/60 dark:bg-slate-800/40 border border-slate-200/40 dark:border-slate-800 rounded-[2rem] p-6 h-[160px] flex flex-col justify-between">
+          <div className="flex justify-between items-start">
+            <div className="w-24 h-4 bg-slate-200 dark:bg-slate-700 rounded" />
+            <div className="w-8 h-8 bg-slate-200 dark:bg-slate-700 rounded-lg" />
+          </div>
+          <div className="flex flex-col gap-2">
+            <div className="w-32 h-6 bg-slate-200 dark:bg-slate-700 rounded" />
+            <div className="w-48 h-4 bg-slate-200 dark:bg-slate-700 rounded" />
+          </div>
+        </div>
+        <div className="bg-slate-100/60 dark:bg-slate-800/40 border border-slate-200/40 dark:border-slate-800 rounded-[2rem] p-6 h-[160px] flex flex-col justify-between">
+          <div className="flex justify-between items-start">
+            <div className="w-24 h-4 bg-slate-200 dark:bg-slate-700 rounded" />
+            <div className="w-8 h-8 bg-slate-200 dark:bg-slate-700 rounded-lg" />
+          </div>
+          <div className="flex flex-col gap-2">
+            <div className="w-32 h-6 bg-slate-200 dark:bg-slate-700 rounded" />
+            <div className="w-48 h-4 bg-slate-200 dark:bg-slate-700 rounded" />
+          </div>
+        </div>
+      </div>
+
+      {/* Budget List Skeletons */}
+      <div className="flex flex-col gap-4 mt-4">
+        <div className="bg-slate-100/60 dark:bg-slate-800/40 border border-slate-200/40 dark:border-slate-800 rounded-3xl p-6 flex flex-col gap-4">
+          <div className="flex justify-between items-center">
+            <div className="w-48 h-6 bg-slate-200 dark:bg-slate-700 rounded-lg" />
+            <div className="w-24 h-8 bg-slate-200 dark:bg-slate-700 rounded-lg" />
+          </div>
+          <div className="h-[2px] bg-slate-200/40 dark:bg-slate-700/40" />
+          <div className="flex flex-col gap-3">
+            <div className="w-full h-4 bg-slate-200/50 dark:bg-slate-700/50 rounded" />
+            <div className="w-3/4 h-4 bg-slate-200/50 dark:bg-slate-700/50 rounded" />
+          </div>
+        </div>
+        <div className="bg-slate-100/60 dark:bg-slate-800/40 border border-slate-200/40 dark:border-slate-800 rounded-3xl p-6 flex flex-col gap-4">
+          <div className="flex justify-between items-center">
+            <div className="w-48 h-6 bg-slate-200 dark:bg-slate-700 rounded-lg" />
+            <div className="w-24 h-8 bg-slate-200 dark:bg-slate-700 rounded-lg" />
+          </div>
+          <div className="h-[2px] bg-slate-200/40 dark:bg-slate-700/40" />
+          <div className="flex flex-col gap-3">
+            <div className="w-full h-4 bg-slate-200/50 dark:bg-slate-700/50 rounded" />
+            <div className="w-3/4 h-4 bg-slate-200/50 dark:bg-slate-700/50 rounded" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LawSystemPageSkeleton() {
+  return (
+    <div className="w-full flex flex-col gap-6 animate-pulse">
+      {/* Title Header */}
+      <div className="flex flex-col gap-1 text-left">
+        <div className="w-64 h-8 bg-slate-200 dark:bg-slate-700 rounded-lg" />
+        <div className="w-80 h-3 bg-slate-200/60 dark:bg-slate-700/60 rounded" />
+      </div>
+
+      {/* Tab Navigation */}
+      <div className="flex border-b border-slate-200 gap-1 pb-px">
+        <div className="w-40 h-11 bg-slate-200 dark:bg-slate-700 rounded-t-lg" />
+        <div className="w-40 h-11 bg-slate-200 dark:bg-slate-700 rounded-t-lg" />
+        <div className="w-40 h-11 bg-slate-200 dark:bg-slate-700 rounded-t-lg" />
+      </div>
+
+      {/* Main Panel Content Skeleton */}
+      <div className="bg-slate-100/60 dark:bg-slate-800/40 border border-slate-200/40 dark:border-slate-800 rounded-[2rem] p-6 shadow-xs flex flex-col gap-6">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-slate-200/40 dark:border-slate-800 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 bg-slate-200 dark:bg-slate-700 rounded-2xl" />
+            <div className="flex flex-col gap-2">
+              <div className="w-64 h-5 bg-slate-200 dark:bg-slate-700 rounded" />
+              <div className="w-80 h-3 bg-slate-200 dark:bg-slate-700 rounded" />
+            </div>
+          </div>
+          <div className="w-28 h-6 bg-slate-200 dark:bg-slate-700 rounded-full" />
+        </div>
+
+        {/* Target Selector Tabs */}
+        <div className="flex bg-slate-200/40 dark:bg-slate-700/20 p-1.5 rounded-2xl gap-1">
+          <div className="flex-1 h-9 bg-slate-200 dark:bg-slate-700 rounded-xl" />
+          <div className="flex-1 h-9 bg-slate-200 dark:bg-slate-700 rounded-xl" />
+          <div className="flex-1 h-9 bg-slate-200 dark:bg-slate-700 rounded-xl" />
+        </div>
+
+        {/* Search Input Area */}
+        <div className="flex gap-2">
+          <div className="flex-grow h-12 bg-slate-200 dark:bg-slate-700 rounded-2xl" />
+          <div className="w-24 h-12 bg-slate-200 dark:bg-slate-700 rounded-2xl" />
+        </div>
+
+        {/* Recommendation Chips */}
+        <div className="flex flex-wrap gap-2">
+          <div className="w-28 h-7 bg-slate-200 dark:bg-slate-700 rounded-full" />
+          <div className="w-28 h-7 bg-slate-200 dark:bg-slate-700 rounded-full" />
+          <div className="w-28 h-7 bg-slate-200 dark:bg-slate-700 rounded-full" />
+          <div className="w-28 h-7 bg-slate-200 dark:bg-slate-700 rounded-full" />
+        </div>
+
+        {/* Search Results Skeleton */}
+        <div className="flex flex-col gap-3 mt-4">
+          <div className="border border-slate-200/40 dark:border-slate-800 rounded-2xl p-4 flex flex-col gap-2">
+            <div className="w-3/4 h-5 bg-slate-200 dark:bg-slate-700 rounded" />
+            <div className="w-full h-4 bg-slate-200/50 dark:bg-slate-750 rounded" />
+            <div className="w-1/2 h-4 bg-slate-200/50 dark:bg-slate-750 rounded" />
+          </div>
+          <div className="border border-slate-200/40 dark:border-slate-800 rounded-2xl p-4 flex flex-col gap-2">
+            <div className="w-3/4 h-5 bg-slate-200 dark:bg-slate-700 rounded" />
+            <div className="w-full h-4 bg-slate-200/50 dark:bg-slate-750 rounded" />
+            <div className="w-1/2 h-4 bg-slate-200/50 dark:bg-slate-750 rounded" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const PortfolioDashboardView = dynamic(() => import('@/components/dashboard/PortfolioDashboardView').then(mod => mod.PortfolioDashboardView), {
   ssr: false,
-  loading: () => (
-    <div className="flex flex-col items-center justify-center py-20 gap-4">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-      <p className="text-sm text-slate-500 font-bold">포트폴리오 대시보드를 생성하는 중...</p>
-    </div>
-  )
+  loading: () => <PortfolioDashboardViewSkeleton />
 });
+
+function MindMap3DSkeleton() {
+  return (
+    <div className="flex flex-col h-[660px] w-full bg-slate-950 border border-slate-800 rounded-3xl p-6 relative overflow-hidden animate-pulse">
+      {/* Top HUD Skeleton */}
+      <div className="flex justify-between items-center mb-6 z-10">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-slate-800 rounded-xl" />
+          <div className="flex flex-col gap-2">
+            <div className="w-36 h-5 bg-slate-800 rounded" />
+            <div className="w-48 h-3 bg-slate-800 rounded" />
+          </div>
+        </div>
+        <div className="w-24 h-9 bg-slate-800 rounded-xl" />
+      </div>
+
+      {/* Orbit Visualization Mockup */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div className="w-[100px] h-[100px] border border-slate-800/60 rounded-full" />
+        <div className="absolute w-[240px] h-[240px] border border-slate-800/40 rounded-full" />
+        <div className="absolute w-[380px] h-[380px] border border-slate-800/20 rounded-full" />
+        <div className="absolute w-[500px] h-[500px] border border-slate-800/10 rounded-full" />
+      </div>
+
+      {/* Center Status Loader */}
+      <div className="flex-1 flex flex-col items-center justify-center gap-4 z-10">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-500"></div>
+        <div className="text-center">
+          <p className="text-sm font-semibold text-slate-400">3D 마인드맵 시각화 엔진을 구축하는 중...</p>
+          <p className="text-[11px] text-slate-600 mt-1">네트워크 분석 및 실시간 궤도 매핑 준비 중</p>
+        </div>
+      </div>
+
+      {/* Bottom HUD Placeholder */}
+      <div className="absolute bottom-6 left-6 right-6 flex justify-between items-center z-10">
+        <div className="flex gap-2">
+          <div className="w-10 h-10 bg-slate-800 rounded-xl" />
+          <div className="w-10 h-10 bg-slate-800 rounded-xl" />
+        </div>
+        <div className="w-40 h-8 bg-slate-800 rounded-lg" />
+        <div className="w-24 h-10 bg-slate-800 rounded-xl" />
+      </div>
+    </div>
+  );
+}
 
 const MindMap3D = dynamic(() => import('@/components/MindMap3D').then(mod => mod.MindMap3D), {
   ssr: false,
-  loading: () => (
-    <div className="flex flex-col items-center justify-center h-[660px] gap-4">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-      <p className="text-sm text-slate-500 font-bold">3D 마인드맵 엔진을 로드하는 중...</p>
-    </div>
-  )
+  loading: () => <MindMap3DSkeleton />
 });
 
 const WorkspaceView = dynamic(() => import('@/components/WorkspaceView').then(mod => mod.WorkspaceView), {
   ssr: false,
-  loading: () => (
-    <div className="flex flex-col items-center justify-center py-20 gap-4">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      <p className="text-sm text-slate-500 font-bold">예산 지출 대조보드를 불러오는 중...</p>
-    </div>
-  )
+  loading: () => <WorkspaceViewSkeleton />
 });
 
-const InventoryList = dynamic(() => import('@/components/inventory/InventoryList').then(mod => mod.InventoryList), {
+const LawSystemPage = dynamic(() => import('@/components/law/LawSystemPage'), {
   ssr: false,
-  loading: () => (
-    <div className="flex flex-col items-center justify-center py-20 gap-4">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
-      <p className="text-sm text-slate-500 font-bold">홍보 자재 관리 대장을 불러오는 중...</p>
-    </div>
-  )
+  loading: () => <LawSystemPageSkeleton />
 });
 import { AlertTriangle, RefreshCw, Sparkles, X } from 'lucide-react';
 import { useSecurityLock } from '@/hooks/useSecurityLock';
@@ -128,7 +410,7 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
     dashboard: true,
     mindmap: false,
     workspace: false,
-    inventory: false,
+    law: false,
   });
   const [isQuickInputOpen, setIsQuickInputOpen] = useState(false);
   const [buttonBottom, setButtonBottom] = useState<number | null>(null);
@@ -178,7 +460,7 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
     const triggerPreload = (module: ModuleType) => {
       if (module === 'mindmap') import('@/components/MindMap3D');
       else if (module === 'workspace') import('@/components/WorkspaceView');
-      else if (module === 'inventory') import('@/components/inventory/InventoryList');
+      else if (module === 'law') import('@/components/law/LawSystemPage');
       console.log(`[Watcher Preload] Background caching initialized for: ${module}`);
     };
 
@@ -187,8 +469,8 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
       timers.push(window.setTimeout(() => triggerPreload('mindmap'), 1500));
       // 3.5초 후 예산 대조보드 로드
       timers.push(window.setTimeout(() => triggerPreload('workspace'), 3500));
-      // 5.5초 후 홍보자재 대장 로드
-      timers.push(window.setTimeout(() => triggerPreload('inventory'), 5500));
+      // 5.5초 후 법령/지침 표준 시스템 로드
+      timers.push(window.setTimeout(() => triggerPreload('law'), 5500));
     };
 
     let idleCallbackId: number | null = null;
@@ -292,11 +574,11 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
   const touchStartX = useRef<number | null>(null);
   const touchEndX = useRef<number | null>(null);
 
-  const handleModuleChange = (module: ModuleType) => {
+  const handleModuleChange = useCallback((module: ModuleType) => {
     setActiveModule(module);
     setVisitedModules(prev => prev[module] ? prev : { ...prev, [module]: true });
     localStorage.setItem('hchps_active_module', module);
-  };
+  }, []);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.targetTouches[0].clientX;
@@ -320,7 +602,7 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
     
     // Minimum horizontal swipe distance
     if (Math.abs(distance) > 60) {
-      const order: ModuleType[] = ['dashboard', 'workspace', 'mindmap', 'inventory'];
+      const order: ModuleType[] = ['dashboard', 'workspace', 'mindmap', 'law'];
       const currentIndex = order.indexOf(activeModule);
       
       if (distance > 0 && currentIndex < order.length - 1) {
@@ -406,8 +688,8 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
                         ? '마인드맵' 
                         : activeModule === 'workspace' 
                         ? '예산관리' 
-                        : activeModule === 'inventory' 
-                        ? '홍보물' 
+                        : activeModule === 'law' 
+                        ? '법령/지침' 
                         : ''
                     }`
                 }
@@ -480,17 +762,10 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
               </div>
             )}
 
-            {/* Inventory (PR Materials) */}
-            {visitedModules.inventory && (
-              <div className={activeModule === 'inventory' ? 'block' : 'hidden'}>
-                <InventoryList
-                  items={inventoryItems}
-                  addItem={addItem}
-                  updateItem={updateItem}
-                  deleteItem={deleteItem}
-                  adjustStock={adjustStock}
-                  getItemHistory={getItemHistory}
-                />
+            {/* Law & Ordinance Guidelines */}
+            {visitedModules.law && (
+              <div className={activeModule === 'law' ? 'block' : 'hidden'}>
+                <LawSystemPage />
               </div>
             )}
           </div>
@@ -561,14 +836,14 @@ export default function Home() {
     let timerId: NodeJS.Timeout | undefined;
     let removeTimerId: NodeJS.Timeout | undefined;
 
-    // 클라이언트 마운트 및 PIN 락이 해제되어 활성화된 순간부터 1.8초 동안만 스플래시 가동
+    // 클라이언트 마운트 및 PIN 락이 해제되어 활성화된 순간부터 1초 동안만 스플래시 가동
     if (isClient && !isLocked) {
       timerId = setTimeout(() => {
         setIsInitializing(false);
         removeTimerId = setTimeout(() => {
           setShowSplash(false);
         }, 700);
-      }, 1800);
+      }, 1000);
     }
 
     return () => {
@@ -578,9 +853,9 @@ export default function Home() {
   }, [isClient, isLocked]);
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const handleModeChange = (_mode: 'HCHPS' | 'VITAL') => {
+  const handleModeChange = useCallback((_mode: 'HCHPS' | 'VITAL') => {
     setAppMode('VITAL');
-  };
+  }, []);
 
   if (!isClient || hasSetupPIN === null) {
     return (

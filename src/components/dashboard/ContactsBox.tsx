@@ -1,11 +1,78 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useContacts } from '@/hooks/useContacts';
 import { BookOpen, UserPlus, Search, Phone, Mail, FileText, Trash2, ShieldAlert, Pencil } from 'lucide-react';
 import { Contact } from '@/types';
 
-export const ContactsBox: React.FC = () => {
+// ============ Memoized ContactCard Subcomponent ============
+const ContactCard = React.memo(({ 
+  contact, 
+  onStartEdit, 
+  onDelete 
+}: { 
+  contact: Contact; 
+  onStartEdit: (contact: Contact) => void; 
+  onDelete: (id: string) => void; 
+}) => {
+  const handleEdit = useCallback(() => {
+    onStartEdit(contact);
+  }, [onStartEdit, contact]);
+
+  const handleDelete = useCallback(() => {
+    if (confirm(`'${contact.name}' 연락처를 삭제하시겠습니까?`)) {
+      onDelete(contact.id);
+    }
+  }, [onDelete, contact.id, contact.name]);
+
+  return (
+    <div className="group relative flex flex-col p-4.5 bg-white/40 border border-slate-200/50 hover:border-emerald-500/40 rounded-2xl transition-all duration-200 hover:shadow-2xs">
+      <div className="flex items-start justify-between gap-3">
+        <span className="text-sm font-bold text-slate-800 tracking-tight truncate max-w-[170px]">
+          {contact.name}
+        </span>
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={handleEdit}
+            className="p-1.5 text-slate-350 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg cursor-pointer shrink-0"
+            title="수정"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={handleDelete}
+            className="p-1.5 text-slate-350 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer shrink-0"
+            title="삭제"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-1.5 mt-3 text-xs font-semibold text-slate-600">
+        <span className="flex items-center gap-1.5">
+          <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+          {contact.phone}
+        </span>
+        {contact.email && (
+          <span className="flex items-center gap-1.5 text-slate-500">
+            <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            {contact.email}
+          </span>
+        )}
+        {contact.notes && (
+          <span className="flex items-start gap-1.5 text-slate-500 mt-0.5 border-t border-slate-200/40 pt-1.5">
+            <FileText className="w-3.5 h-3.5 text-slate-450 shrink-0 mt-0.5" />
+            <span className="leading-relaxed break-all">{contact.notes}</span>
+          </span>
+        )}
+      </div>
+    </div>
+  );
+});
+ContactCard.displayName = 'ContactCard';
+
+const ContactsBoxComponent: React.FC = () => {
   const { contacts, loading, addContact, updateContact, deleteContact } = useContacts();
 
   // 검색 상태 (한글 IME 조합 및 백스페이스 버그 방지를 위해 디바운스 적용)
@@ -27,14 +94,14 @@ export const ContactsBox: React.FC = () => {
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  const startEdit = (contact: Contact) => {
+  const startEdit = useCallback((contact: Contact) => {
     setEditingContactId(contact.id);
     setName(contact.name);
     setPhone(contact.phone);
     setEmail(contact.email || '');
     setNotes(contact.notes || '');
     setError(null);
-  };
+  }, []);
 
   const handleCancelEdit = () => {
     setEditingContactId(null);
@@ -223,55 +290,12 @@ export const ContactsBox: React.FC = () => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[440px] overflow-y-auto pr-2 scrollbar-thin">
               {filteredContacts.map((contact) => (
-                <div
+                <ContactCard
                   key={contact.id}
-                  className="group relative flex flex-col p-4.5 bg-white/40 border border-slate-200/50 hover:border-emerald-500/40 rounded-2xl transition-all duration-200 hover:shadow-2xs"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <span className="text-sm font-bold text-slate-800 tracking-tight truncate max-w-[170px]">
-                      {contact.name}
-                    </span>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={() => startEdit(contact)}
-                        className="p-1.5 text-slate-350 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg cursor-pointer shrink-0"
-                        title="수정"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (confirm(`'${contact.name}' 연락처를 삭제하시겠습니까?`)) {
-                            deleteContact(contact.id);
-                          }
-                        }}
-                        className="p-1.5 text-slate-350 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer shrink-0"
-                        title="삭제"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-1.5 mt-3 text-xs font-semibold text-slate-600">
-                    <span className="flex items-center gap-1.5">
-                      <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      {contact.phone}
-                    </span>
-                    {contact.email && (
-                      <span className="flex items-center gap-1.5 text-slate-500">
-                        <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        {contact.email}
-                      </span>
-                    )}
-                    {contact.notes && (
-                      <span className="flex items-start gap-1.5 text-slate-500 mt-0.5 border-t border-slate-200/40 pt-1.5">
-                        <FileText className="w-3.5 h-3.5 text-slate-450 shrink-0 mt-0.5" />
-                        <span className="leading-relaxed break-all">{contact.notes}</span>
-                      </span>
-                    )}
-                  </div>
-                </div>
+                  contact={contact}
+                  onStartEdit={startEdit}
+                  onDelete={deleteContact}
+                />
               ))}
             </div>
           )}
@@ -280,3 +304,7 @@ export const ContactsBox: React.FC = () => {
     </div>
   );
 };
+
+export const ContactsBox = React.memo(ContactsBoxComponent);
+ContactsBox.displayName = 'ContactsBox';
+

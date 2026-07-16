@@ -45,7 +45,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md', footer }:
           <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">{title}</h2>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-gray-100 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors cursor-pointer"
           >
             <X size={18} />
           </button>
@@ -54,7 +54,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md', footer }:
           {children}
         </div>
         {footer && (
-          <div className="px-6 py-4 border-t border-[var(--color-border-light)] bg-gray-50/30 rounded-b-[var(--radius-lg)]">
+          <div className="px-6 py-4 border-t border-[var(--color-border-light)] bg-gray-50/30 dark:bg-slate-900/30 rounded-b-[var(--radius-lg)]">
             {footer}
           </div>
         )}

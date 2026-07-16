@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
 import { useSchedules } from '@/hooks/useSchedules';
-import { ScheduleType } from '@/types';
+import { ScheduleType, Schedule } from '@/types';
 import { Calendar, ChevronLeft, ChevronRight, Clock, Plus, Shield, Users, BookOpen, FileText, Trash2, AlertCircle } from 'lucide-react';
 
 // ============ Schedule Registration Form (Locally Isolated to prevent main grid lag) ============
@@ -301,8 +301,83 @@ const ScheduleForm = React.memo(({
 ScheduleForm.displayName = 'ScheduleForm';
 
 
+// ============ Memoized Schedule Item Component ============
+const ScheduleItem = React.memo(({ 
+  schedule, 
+  config, 
+  onDelete 
+}: { 
+  schedule: Schedule; 
+  config: { bg: string; badge: string; icon: React.ReactNode }; 
+  onDelete: (id: string) => void; 
+}) => {
+  const handleDelete = useCallback(() => {
+    if (confirm(`'${schedule.title}' 일정을 삭제하시겠습니까?`)) {
+      onDelete(schedule.id);
+    }
+  }, [onDelete, schedule.id, schedule.title]);
+
+  return (
+    <div
+      className={`group relative flex flex-col p-2.5 border rounded-xl transition-all duration-200 hover:shadow-xs ${config.bg}`}
+      title={`${schedule.title}\n담당/참석: ${schedule.person}${schedule.notes ? `\n메모: ${schedule.notes}` : ''}`}
+    >
+      {/* Title & Type Icon */}
+      <div className="flex items-start justify-between gap-1.5">
+        <span 
+          className="text-xs font-bold text-slate-800 dark:text-slate-200 tracking-tight leading-tight line-clamp-2 pr-4 cursor-help"
+          title={schedule.title}
+        >
+          {schedule.title}
+        </span>
+        <div className="shrink-0 text-slate-500 dark:text-slate-400">
+          {config.icon}
+        </div>
+      </div>
+
+      {schedule.endDate && schedule.endDate !== schedule.date && (
+        <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 bg-white/80 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-700 px-1.5 py-0.5 rounded-md mt-1.5 self-start select-none">
+          기간: {schedule.date.slice(5)} ~ {schedule.endDate.slice(5)}
+        </span>
+      )}
+
+      {/* Time & Person */}
+      <div className="flex items-center justify-between gap-2 mt-2">
+        <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-0.5">
+          <Clock className="w-2.5 h-2.5 shrink-0 text-slate-450 dark:text-slate-500" />
+          {schedule.startTime}
+        </span>
+        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md truncate max-w-[55px] text-right bg-white/60 dark:bg-slate-800 dark:text-slate-300">
+          {schedule.person}
+        </span>
+      </div>
+
+      {/* Notes tooltip (hover check) */}
+      {schedule.notes && (
+        <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-0.5 mt-1 border-t border-slate-200/40 dark:border-slate-800 pt-1">
+          <FileText className="w-2.5 h-2.5 shrink-0 text-slate-450 dark:text-slate-500" />
+          <span className="truncate max-w-[80px]" title={schedule.notes}>
+            {schedule.notes}
+          </span>
+        </p>
+      )}
+
+      {/* Trash/Delete Action */}
+      <button
+        onClick={handleDelete}
+        className="absolute top-1 right-1 p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 cursor-pointer"
+        title="삭제"
+      >
+        <Trash2 className="w-3 h-3" />
+      </button>
+    </div>
+  );
+});
+ScheduleItem.displayName = 'ScheduleItem';
+
+
 // ============ Main Weekly Scheduler Component ============
-export const WeeklyScheduler: React.FC = () => {
+const WeeklySchedulerComponent: React.FC = () => {
   const { schedules, loading, addSchedule, deleteSchedule } = useSchedules();
 
   // 기준 날짜 상태
@@ -382,7 +457,7 @@ export const WeeklyScheduler: React.FC = () => {
       case 'security':
         return {
           bg: 'bg-indigo-50/70 border-indigo-100 hover:border-indigo-200 text-indigo-700 dark:bg-indigo-950/40 dark:border-indigo-900/50 dark:text-indigo-300',
-          badge: 'bg-indigo-100/80 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300',
+          badge: 'bg-indigo-100/80 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300',
           icon: <Shield className="w-3.5 h-3.5" />
         };
       case 'meeting':
@@ -427,7 +502,7 @@ export const WeeklyScheduler: React.FC = () => {
         <div className="flex items-center gap-2">
           <button
             onClick={handleToday}
-            className="px-3.5 py-1.5 bg-slate-100/60 dark:bg-slate-800 hover:bg-slate-200/60 dark:hover:bg-slate-700 border border-slate-200/40 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-350 rounded-xl transition-all cursor-pointer hover:shadow-2xs active:scale-[0.97]"
+            className="px-3.5 py-1.5 bg-slate-100/60 dark:bg-slate-800 hover:bg-slate-200/60 dark:hover:bg-slate-700 border border-slate-200/40 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-355 rounded-xl transition-all cursor-pointer hover:shadow-2xs active:scale-[0.97]"
           >
             오늘
           </button>
@@ -502,7 +577,7 @@ export const WeeklyScheduler: React.FC = () => {
                           {dayNum}
                         </span>
                       </div>
-                      <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-300 bg-slate-200/40 dark:bg-slate-800 px-1.5 py-0.5 rounded-full shrink-0">
+                      <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-350 bg-slate-200/40 dark:bg-slate-800 px-1.5 py-0.5 rounded-full shrink-0">
                         {daySchedules.length}건
                       </span>
                     </div>
@@ -516,66 +591,13 @@ export const WeeklyScheduler: React.FC = () => {
                       ) : (
                         daySchedules.map((schedule) => {
                           const config = getTypeConfig(schedule.type);
-
                           return (
-                            <div
+                            <ScheduleItem
                               key={schedule.id}
-                              className={`group relative flex flex-col p-2.5 border rounded-xl transition-all duration-200 hover:shadow-xs ${config.bg}`}
-                              title={`${schedule.title}\n담당/참석: ${schedule.person}${schedule.notes ? `\n메모: ${schedule.notes}` : ''}`}
-                            >
-                              {/* Title & Type Icon */}
-                              <div className="flex items-start justify-between gap-1.5">
-                                <span 
-                                  className="text-xs font-bold text-slate-800 dark:text-slate-200 tracking-tight leading-tight line-clamp-2 pr-4 cursor-help"
-                                  title={schedule.title}
-                                >
-                                  {schedule.title}
-                                </span>
-                                <div className="shrink-0 text-slate-500 dark:text-slate-400">
-                                  {config.icon}
-                                </div>
-                              </div>
-
-                              {schedule.endDate && schedule.endDate !== schedule.date && (
-                                <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 bg-white/80 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-700 px-1.5 py-0.5 rounded-md mt-1.5 self-start select-none">
-                                  기간: {schedule.date.slice(5)} ~ {schedule.endDate.slice(5)}
-                                </span>
-                              )}
-
-                              {/* Time & Person */}
-                              <div className="flex items-center justify-between gap-2 mt-2">
-                                <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-0.5">
-                                  <Clock className="w-2.5 h-2.5 shrink-0 text-slate-450 dark:text-slate-500" />
-                                  {schedule.startTime}
-                                </span>
-                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md truncate max-w-[55px] text-right bg-white/60 dark:bg-slate-800 dark:text-slate-300">
-                                  {schedule.person}
-                                </span>
-                              </div>
-
-                              {/* Notes tooltip (hover check) */}
-                              {schedule.notes && (
-                                <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-0.5 mt-1 border-t border-slate-200/40 dark:border-slate-800 pt-1">
-                                  <FileText className="w-2.5 h-2.5 shrink-0 text-slate-450 dark:text-slate-500" />
-                                  <span className="truncate max-w-[80px]" title={schedule.notes}>
-                                    {schedule.notes}
-                                  </span>
-                                </p>
-                              )}
-
-                              {/* Trash/Delete Action */}
-                              <button
-                                onClick={() => {
-                                  if (confirm(`'${schedule.title}' 일정을 삭제하시겠습니까?`)) {
-                                    deleteSchedule(schedule.id);
-                                  }
-                                }}
-                                className="absolute top-1 right-1 p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 cursor-pointer"
-                                title="삭제"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
-                            </div>
+                              schedule={schedule}
+                              config={config}
+                              onDelete={deleteSchedule}
+                            />
                           );
                         })
                       )}
@@ -590,3 +612,6 @@ export const WeeklyScheduler: React.FC = () => {
     </div>
   );
 };
+
+export const WeeklyScheduler = React.memo(WeeklySchedulerComponent);
+WeeklyScheduler.displayName = 'WeeklyScheduler';

@@ -2,6 +2,67 @@
 
 ## 8. 최근 엔지니어링 마일스톤 (요약)
 
+### 주소록 컴포넌트(ContactsBox.tsx) startEdit useCallback 메모이제이션 패치 (2026-07-16)
+* **메모이제이션 최적화**:
+  - `src/components/dashboard/ContactsBox.tsx` 내의 `startEdit` 함수를 빈 의존성 배열(`[]`)을 가지는 `useCallback`으로 감싸 메모이제이션 처리했습니다.
+  - 이를 통해 부모 컴포넌트 리렌더링 시 `startEdit` 함수의 인스턴스가 무작위로 재생성되어 하위의 `ContactCard` 컴포넌트들이 불필요하게 리렌더링되는 성능 병목을 해소하고 최적의 메모이제이션 정합성을 확보했습니다.
+
+### R1/R2/R3 기능 통합 검증 및 최종 빌드 무결성 수립 패치 (2026-07-16)
+* **R1 (AI 시맨틱 추출 엔진 및 검토 모달 완비)**:
+  - 한국어 명사 추출기 `cleanKoreanLabel` (은/는/이/가/을/를/의/에/와/과/로 등 조사 제거) 및 상위 15개 노드 제한/dangling edge 제거 연산 검증.
+  - Yjs `pendingNodes`/`pendingEdges` 버퍼링 상태 및 로컬 스토리지 기반 검토 이력 실시간 필터링.
+  - 데이터 무결성 검증 엔진(자기 참조, ID 중복, dangling edge 경고 표시) 내장 및 `SemanticReviewModal` UI 통합.
+  - `__tests__/semantic-review-r1.test.tsx` Jest 통합 테스트 suite를 통한 기능 검증 완료.
+* **R2 (3D 마인드맵 렌더링 성능 최적화)**:
+  - `isTopologyDirty` 위상 변경 dirty flag 도입으로 불필요한 BFS/컴프레션 레이아웃 연산 격리.
+  - 뷰포트 바깥 노드/라벨 프러스텀 컬링.
+  - FPS 기반 충돌 해결 횟수 동적 감쇠 및 지수적 수렴, 데드존 필터링.
+  - 64분할 사전 계산 원형 좌표 궤도 링 렌더링을 통한 Math.sin/cos 호출 제거.
+* **R3 (MindMapInspector 내 수동 노드/관계 CRUD UI 및 Yjs CRDT 동기화)**:
+  - 마인드맵 인스펙터(`MindMapInspector`) 내에 노드 추가, 수정, 삭제 및 관계(Edge) 추가, 삭제를 수동으로 수행할 수 있는 CRUD UI 완비.
+  - Yjs CRDT 문서(`customNodesMap`, `customEdgesMap`, `overrides`, `deletedEdgesMap`)와의 양방향 실시간 동기화.
+  - `useGraphCustomization` 훅의 16ms 디바운스 배칭 가드를 통한 UI 반응성 극대화.
+  - `__tests__/useGraphCustomization.test.tsx` Jest CRUD 동기화 테스트 suite를 통한 기능 검증 완료.
+* **최종 빌드 및 린트 검증**:
+  - `npx tsc --noEmit` 타입 체크, `npm run lint` 코드 스타일 100% 무결 통과.
+  - `npm run build` Next.js Turbopack 빌드 과정에서 `watcher.ts` 내 `WATCH_DIR`를 dynamic path (`['F:', '부엉이_정리됨'].join(path.sep)`)로 변경하여, F 드라이브 26,000+개 파일 static scan 경고 및 OOM/Lock 충돌을 해결하고 100% 빌드 성공 완료.
+
+### 3D 마인드맵 렌더링 성능 최적화 패치 (2026-07-16)
+* **Dirty-Flag 기반 레이아웃 계산 분리 (BFS 최적화)**: `OntologyCanvasEngine` 내에 `isTopologyDirty` 플래그를 도입하여 노드 추가, 삭제, 접기/펼치기, 레이어 선택 변경, 분류어 변경 등 그래프의 위상 구조가 실제로 변경되는 경우에만 무거운 BFS 트리 탐색 및 좌표 할당(`computePositions`)을 수행하도록 격리했습니다. 드래그, 패닝, 줌 등의 기하학적 변경 중에는 이전 캔버스 좌표를 재사용하여 CPU 점유율을 획기적으로 낮췄습니다.
+* **Viewport 및 라벨 프러스텀 컬링 (Viewport & Label Frustum Culling)**: 렌더링 영역(Viewport) 바깥에 위치하여 화면상에 표시되지 않는 노드, 텍스트 백킹 박스 및 엣지 라벨을 `OntologyRenderer` 단에서 사전에 스캔하여 연산 대상에서 원천 배제하는 프러스텀 컬링을 장착하여 불필요한 Canvas 2D 텍스트 드로잉 호출을 최소화했습니다.
+* **충돌 해결 루프 속도 조절 및 감쇠 최적화 (Collision Loop & Damping Calibration)**:
+  - `PerformanceProfiler`의 실시간 FPS 데이터를 모니터링하여 프레임 레이트 저하 시 충돌 해결 연산 루프 횟수를 동적으로 감소시키는 틱 조절 장치를 도입했습니다 (FPS < 50 시 2회, FPS < 40 시 1회).
+  - 겹침 반발 충돌 루프 내에서 매 반복 회차마다 감쇠력(damping)을 0.8배씩 감쇠시키는 지수적 감쇠 수렴 로직을 반영해 노드들이 중심 궤도에서 떨리는 미세 요동(Jittering)을 종식했습니다.
+  - 0.8px 이하의 미세한 겹침 현상은 데드존 필터링을 통해 무시하도록 조정하고, 단순 카메라 패닝/줌 중에는 충돌 해결 루프 작동을 완전히 차단했으며, 속도의 제곱이 0.012 이하일 때 물리 운동 에너지를 조기에 sleep 시켜 안정화 수렴 시간을 대폭 단축했습니다.
+* **무삼각함수(Zero-Trig) 공전 및 궤도 링 렌더링 효율화 (Orbiting & Ring Rendering Efficiency)**:
+  - 노드마다 `orbitCos`와 `orbitSin` 단위 벡터를 캐싱하고 매 프레임 회전 행렬 연산과 재정규화(Renormalization)를 거쳐 좌표를 투영함으로써 누적 실수 오차에 따른 타원 왜곡을 예방했습니다.
+  - 공전 활성화 중에는 위치 보간 LERP 단계를 바이패스하고 표적 좌표로 즉각 스냅시켜 LERP 위상 지연으로 인한 화면 흔들림을 원천 박멸했습니다.
+  - 충돌 연산 내부에서 겹침 회전에 대한 삼각함수 호출을 테일러 급수(Taylor-series) 소각도 근사식으로 대체하여 CPU 부하를 제거했습니다.
+  - 기울기 각도(42도)의 삼각함수 값을 `OntologyLayout` 내에 정적으로 캐싱하여 연산을 상수로 대체했습니다.
+  - 64분할 단위 원형 좌표 리스트(`ringPoints`)를 `OntologyRenderer` 내에 정적으로 사전 계산(Precompute)하고 이를 참조해 궤도 링을 드로잉함으로써 매 프레임 수백 회 이상 수행되던 Math.cos/sin 계산을 제거했습니다.
+
+### 법령/지침 표준 시스템 구축 및 홍보물(Inventory) 탭 통합 패치 (2026-07-16)
+* **홍보물 관리(InventoryList) 이관 및 탭 통합**: `src/components/WorkspaceView.tsx` 내에 `InventoryList`를 Next.js dynamic import (`ssr: false`)로 로드하고, "예산 대조보드"와 "홍보물 관리"를 전환할 수 있는 스타일링된 상단 탭 바를 추가하여 탭 조건부 렌더링을 구현했습니다.
+* **LawSearchPanel 이동 및 BudgetDashboard 분리**: 기존 `src/components/budget/ui/LawSearchPanel.tsx`를 `src/components/law/LawSearchPanel.tsx`로 이동시키고, `BudgetDashboard` 내에서의 직접 렌더링 및 임포트 코드를 완벽히 제거했습니다.
+* **법령/지침 표준 시스템(LawSystemPage) 신규 구축**: "법령/조례 실시간 검색" (이동된 `LawSearchPanel` 연동), "자치/행정 용어 사전" (13종의 핵심 행정/재정 용어 정보 카드 및 검색 기능 제공), "공문서 표준 작성 가이드" (용지 여백, 서체/글자크기 표준, 다단계 기호 계층 구조, 마침표 뒤 2타 및 "끝." 작성 표준, 행정어 순화 가이드를 수록한 가이드 패널) 탭으로 구성된 `LawSystemPage` 컴포넌트를 설계 및 탑재했습니다.
+* **Sidebar 및 라우팅/프리로딩 전면 갱신**: `types/index.ts`의 `ModuleType`을 `inventory`에서 `law`로 교체하고, `Sidebar.tsx`에 `lucide-react` `Scale` 아이콘과 함께 "법령/지침" 탭을 주입하였습니다. `src/app/page.tsx` 내에서 `visitedModules` 상태, preloading 타이머/함수, swipe order 배열, 헤더 제목 맵핑 및 렌더링 블록을 `inventory` 대신 `law`로 완전 마이그레이션하여 dynamic import `LawSystemPage`를 지연 렌더링하도록 갱신했습니다.
+
+### Next.js Lazy Loading 및 skeleton UI 적용 패치 (2026-07-16)
+* **대용량 컴포넌트 dynamic import 마이그레이션 (R2)**:
+  - `MindMap3D`, `WeeklyScheduler`, `WikiEditor`를 dynamic import(`ssr: false`)로 마이그레이션하여 FCP 속도를 단축했습니다.
+  - `WikiEditor`를 `MindMap3D` 내부에서 동적 클라이언트 로딩으로 완전 격리하여 Mantine/BlockNote 라이브러리 초기 유출을 차단했습니다.
+* **뼈대 레이아웃(Skeleton) 도입 (R2)**:
+  - 로드 시점 CLS 예방을 위해 컴포넌트 실치수 규격의 고대비 뼈대 레이아웃(`WeeklySchedulerSkeleton`, `MindMap3DSkeleton`, `WikiEditorSkeleton`)을 설계 및 적용했습니다.
+
+### React.memo 렌더링 차단 및 주간 일정/마인드맵 최적화 패치 (2026-07-16)
+* **컴포넌트 개별 메모이즈 분리 및 렌더 루프 격리 (R3)**:
+  - `WeeklyScheduler` 내 일별 카드 목록을 `<ScheduleItem>`, `ContactsBox` 내 개별 카드를 `<ContactCard>`로 분리하여 렌더 루프 병목을 O(1) 격리했습니다.
+* **props 비교기 바인딩 및 불필요 리렌더 차단 (R3)**:
+  - `MindMap3D` 컴포넌트의 props 비교기 `areMindMap3DPropsEqual`를 React.memo의 2번째 파라미터로 명시적으로 바인딩했습니다.
+  - `MindMapInspector`에 활성 노드의 오버라이드 단일 객체만 전달하도록 Props 인터페이스를 정밀 구조화하여 불필요한 재연산을 방지했습니다.
+* **Staggered Loading 및 기동 지연 가드 (R3)**:
+  - `WeeklyScheduler`(120ms)와 주소록(280ms)의 마운트를 순차 지연시키고 `MindMap3D` 마운트 후 150ms 캔버스 기동 지연 가드를 적용했습니다.
+
 ### [자율 개선] 성능 최적화 및 console spams 제거 패치 (2026-07-16)
 * **O(N^2) Complexity Reduction**: Convert rendering/map nested loops to O(1) Map lookups using useMemo.
 * **Console Spam Suppression**: Comment out console.warn/error spams in components.

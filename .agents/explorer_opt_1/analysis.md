@@ -1,146 +1,387 @@
-# Optimization Analysis Report
+# Milestone 3: Tab Switching UI Freeze Prevention and Rendering Optimization Report
 
-This report documents the exploration and diagnostics of performance bottleneck areas in the PORTFOLIO - VITAL application, categorized under R1 (Initial Loading), R2 (Data API Latency), and R3 (Tab Transitions).
-
----
-
-## R1: Initial Dashboard Loading Performance Optimization
-
-### 1. Synchronously Imported Conditional Components
-* **Location:** `src/app/page.tsx:66`
-* **Observation:** 
-  ```typescript
-  66: import { SecurityLockScreen } from '@/components/SecurityLockScreen';
-  ```
-  `SecurityLockScreen` is conditionally rendered based on the client state `isLocked` (line 605):
-  ```typescript
-  605:   if (isLocked) {
-  606:     return (
-  607:       <SecurityLockScreen 
-  ...
-  ```
-  Even when the user has unlocked the app or disabled the PIN lock, this component is imported synchronously and bundled into the entry chunk.
-* **Recommendation:** Load `SecurityLockScreen` dynamically using Next.js `dynamic()` with `{ ssr: false }` to reduce the initial JavaScript bundle size.
-
-### 2. Immediate Dashboard Mounting During Splash Screen
-* **Location:** `src/app/page.tsx:124-129` and `src/app/page.tsx:416-420`
-* **Observation:**
-  `visitedModules` initializes `dashboard` to `true` on load:
-  ```typescript
-  124:   const [visitedModules, setVisitedModules] = useState<Record<ModuleType, boolean>>({
-  125:     dashboard: true,
-  126:     mindmap: false,
-  127:     workspace: false,
-  128:     inventory: false,
-  129:   });
-  ```
-  This causes `PortfolioDashboardView` (which contains Recharts, `WeeklyScheduler`, and `ContactsBox`) to mount and render immediately during the client initialization:
-  ```typescript
-  416:             {/* Dashboard */}
-  417:             {visitedModules.dashboard && (
-  418:               <div className={activeModule === 'dashboard' ? 'block' : 'hidden'}>
-  419:                 <PortfolioDashboardView ... />
-  ```
-  Because Recharts is a heavy library (over 300KB) and rendering charts blocks the UI thread, this causes visible frame drops during the premium loading splash animation (which runs for 2.5s).
-* **Recommendation:**
-  Initialize `visitedModules.dashboard` to `false`. Inside `useEffect` on mount, stagger its initialization using `setTimeout` (e.g. after 500ms - 1000ms) or `requestIdleCallback`. This deferral allows the initial splash screen and layout shell to render smoothly without CPU contention, loading the heavy dashboard only when the initial thread load settles.
+This report documents the exploration, diagnostics, and precise optimization strategies for Milestone 3 (Tab Switching UI Freeze Prevention and Rendering Optimization) in the PORTFOLIO - VITAL application.
 
 ---
 
-## R2: Data API Response Speed Optimization
-
-### 1. Double HTTP Round-Trip Time (RTT) on Data Fetch
-* **Location:** `src/lib/sheets-api.ts:58-94`
+## 1. Active Tab States and Module Rendering Analysis
+* **Location:** `src/app/page.tsx:711-771` (inside `ProtectedApp` component)
 * **Observation:**
-  To read a sheet, the client first performs a metadata check request:
-  ```typescript
-  58:       const metaRes = await fetch(`${API_BASE}?sheet=${encodeURIComponent(sheetName)}&meta=true&_t=${Date.now()}`, { ... });
-  ```
-  If the metadata check indicates that the file size or modification time (`mtime`) has changed, it executes a second HTTP request to load the full data:
-  ```typescript
-  81:     const res = await fetch(`${API_BASE}?sheet=${encodeURIComponent(sheetName)}&_t=${Date.now()}`, { ... });
-  ```
-  This creates 2 network round-trips for data loading. Additionally, on the server-side (`src/app/api/data/route.ts`), it triggers `fs.stat` twice and `fs.readFile` once.
-* **Recommendation:**
-  Pass the client's cached `mtime` and `size` directly as parameters or headers in the main `GET /api/data?sheet=...` request:
-  `GET /api/data?sheet=XYZ&mtime=12345&size=6789`
-  The backend route checks if the file matches these stats. If yes, it returns `304 Not Modified` or `{ success: true, notModified: true }`. If no, it returns the fresh data along with its metadata in a single response payload. This reduces RTT and server I/O calls by 50%.
-
-### 2. Cache Invalidation and Post-Write Redundant Reads
-* **Location:** `src/lib/sheets-api.ts:281-285`
-* **Observation:**
-  Write mutations (`addRow`, `updateRow`, `deleteRow`) call `writeData` on the API:
-  ```typescript
-  283:         clientCache.delete(sheetName);
-  ```
-  This completely deletes the client cache for the sheet. When React Query immediately triggers a query refetch after a mutation, it is forced to run a full RTT check and download the entire file again.
-* **Recommendation:**
-  Implement write-through caching. Since the backend `POST` response returns the updated file `mtime` and `size` (see `route.ts:555`):
-  `return NextResponse.json({ success: true, mtime, size });`
-  We can merge the mutation data locally on the client cache (`clientCache.set`) and update the cache metadata to match `mtime` and `size`. This makes subsequent query fetches hit the memory cache immediately, eliminating unnecessary download requests after writes.
-
-### 3. Asynchronous Microtask Queue Bloat (E2EE Bypass Path)
-* **Location:** `src/lib/sheets-api.ts:97-139` and `src/lib/crypto.ts:56-65`
-* **Observation:**
-  In `sheets-api.ts`, data rows are parsed sequentially using an async mapping:
-  ```typescript
-  97:     const decryptedPromises = json.data.map(async (row: Record<string, unknown>) => {
-  98:       if (row._enc) {
-  99:         try {
-  100:           const dec = await decryptPayload(row._enc as string) as Record<string, any>;
-  ```
-  Because E2EE is bypassed for performance (meaning `_enc` contains plain-text JSON), `decryptPayload` is called on every row. Although it runs a fast-path synchronous `JSON.parse` (crypto.ts:60), the fact that it is an `async` function means a new Promise is allocated and queued on the microtask queue for **every single row** (e.g. 500 rows = 500+ Promises queued).
-* **Recommendation:**
-  Implement a synchronous bypass check in `decryptPayload`. If the string starts with `{` or `[`, parse it synchronously on the client side directly within `sheets-api.ts`, avoiding promise mapping and microtask allocation unless it is indeed a legacy legacy encrypted format.
+  - Tab views are dynamically loaded using Next.js `dynamic()` with `{ ssr: false }`.
+  - Once a module is clicked, it is marked as `true` in `visitedModules` state:
+    ```typescript
+    const [visitedModules, setVisitedModules] = useState<Record<ModuleType, boolean>>({
+      dashboard: true,
+      mindmap: false,
+      workspace: false,
+      law: false,
+    });
+    ```
+  - Visited tab modules are rendered simultaneously inside the DOM, and their visibility is toggled using conditional CSS classes (`block` vs `hidden` based on the value of `activeModule`):
+    ```tsx
+    {visitedModules.dashboard && (
+      <div className={activeModule === 'dashboard' ? 'block' : 'hidden'}>
+        <PortfolioDashboardView ... />
+      </div>
+    )}
+    ```
+* **Performance Impact:**
+  - Keeping tab views in the DOM is beneficial for UI state persistence (e.g. scroll positions, inputs, form states).
+  - However, because these views are mounted, **any state change in the parent `ProtectedApp` component (such as budget categories, entries, tasks, signals, or switching tabs itself) triggers a complete React reconciliation and rendering cascade of all visited tabs**, even if they are currently hidden.
+  - Since `PortfolioDashboardView`, `WorkspaceView`, and `LawSystemPage` are not fully guarded, they re-execute heavy hooks (like `usePortfolioAnalytics`), filters, mapping loops, and recreate DOM elements, which blocks the main thread and causes UI freezing (up to 100-300ms) during tab switching.
 
 ---
 
-## R3: Tab Transition and Interaction Responsiveness
+## 2. Preventing Hidden Tab Views from Re-rendering and Running Expensive Logic
+To prevent hidden tabs from re-rendering and running expensive logic when the active tab switches or when shared data (like tasks or budget entries) updates:
+1. **Pass `isActive` Prop:** Introduce an `isActive` boolean prop to each main tab component:
+   - `PortfolioDashboardView`: `isActive={activeModule === 'dashboard'}`
+   - `WorkspaceView`: `isActive={activeModule === 'workspace'}`
+2. **Utilize `React.memo` with Custom Comparison Functions:**
+   - In each component's custom comparison function, if `prevProps.isActive` is `false` and `nextProps.isActive` is `false`, **return `true` immediately**.
+   - Returning `true` tells React that the props are "equal" and that it should skip rendering the component entirely.
+   - When the user switches back to the tab, `isActive` will change from `false` to `true`. This difference in `isActive` (`prevProps.isActive !== nextProps.isActive`) will cause the comparison to return `false`, prompting a re-render with the latest updated data.
+   - This ensures hidden tabs consume zero CPU cycles for rendering when inactive, while preserving seamless update propagation when they become active.
 
-### 1. Broken React.memo and Re-rendering Loop in MindMap3D
-* **Location:** `src/components/MindMap3D.tsx:72`
-* **Observation:**
-  `MindMap3D` is wrapped in `React.memo` without passing its custom comparison function `areMindMap3DPropsEqual` (defined at line 43):
+---
+
+## 3. Applying `React.memo` & Custom Comparison Functions
+
+### A. `PortfolioDashboardView`
+* **File:** `src/components/dashboard/PortfolioDashboardView.tsx`
+* **Current State:** Defined as a normal function component. Not memoized.
+* **Proposed Custom Comparison Logic:**
+  We wrap the component in `React.memo` and check:
+  1. If `prevProps.isActive === false` and `nextProps.isActive === false`, skip rendering.
+  2. Otherwise, check if active state, mode, categories, entries, or tasks have changed.
+  
   ```typescript
-  72: export const MindMap3D = React.memo(function MindMap3D({ signalKeywords, signalEntries, ... }) {
-  ```
-  React defaults to shallow prop reference checks. Since `signalKeywords` (`mergedKeywordMap`) and `signalEntries` (`mergedEntries`) are computed in `ProtectedApp` via the `useMergedSignals` hook, any global application state update (e.g. scroll offsets, timers, notifications) changes these references. This causes `MindMap3D` to fully re-render even if the actual content is unchanged.
-* **Recommendation:**
-  Pass the comparison function `areMindMap3DPropsEqual` as the second parameter to `React.memo` at line 72:
-  ```typescript
-  export const MindMap3D = React.memo(function MindMap3D(...) { ... }, areMindMap3DPropsEqual);
+  // Prop Interface Extension
+  interface DashboardProps {
+    tasks: Task[];
+    budgetCategories: BudgetCategory[];
+    budgetEntries: BudgetEntry[];
+    onLogout?: () => void;
+    appMode?: 'HCHPS' | 'VITAL';
+    isActive: boolean; // Add this prop
+  }
+
+  export const PortfolioDashboardView = React.memo(
+    PortfolioDashboardViewComponent,
+    (prevProps, nextProps) => {
+      // 1. If it was not active and is still not active, skip render
+      if (!prevProps.isActive && !nextProps.isActive) {
+        return true;
+      }
+      // 2. Otherwise, standard prop checks
+      return (
+        prevProps.isActive === nextProps.isActive &&
+        prevProps.appMode === nextProps.appMode &&
+        prevProps.tasks === nextProps.tasks &&
+        prevProps.budgetCategories === nextProps.budgetCategories &&
+        prevProps.budgetEntries === nextProps.budgetEntries &&
+        prevProps.onLogout === nextProps.onLogout
+      );
+    }
+  );
+  PortfolioDashboardView.displayName = 'PortfolioDashboardView';
   ```
 
-### 2. Tab Switch UI Freezes due to Lack of Memoization in Budget Views
-* **Location:** `src/components/WorkspaceView.tsx:36` and `src/components/budget/BudgetDashboard.tsx:38`
-* **Observation:**
-  Neither `WorkspaceView` nor `BudgetDashboard` is wrapped in `React.memo`. When switching tabs, `activeModule` in `ProtectedApp` updates, prompting a re-render. Since `WorkspaceView` and `BudgetDashboard` are not memoized, they re-render.
-  `BudgetDashboard` triggers `useBudgetFilters`, recalculating the filter logic and statistics tree:
+### B. `WorkspaceView`
+* **File:** `src/components/WorkspaceView.tsx`
+* **Current State:** Wrapped in default `React.memo(WorkspaceViewComponent)` which does a shallow comparison. Because the parent passes many callbacks, any change in parent render could break the shallow memoization.
+* **Proposed Custom Comparison Logic:**
+  Wrap it with a custom comparison function that checks the active state and compares all structural data props:
+  
   ```typescript
-  67:     groupedByPolicy,
-  68:     filteredStats
-  69:   } = useBudgetFilters(categories, entries, getCategoryStats);
-  ```
-  Furthermore, `BudgetDashboard` defines inline callback handlers like:
-  ```typescript
-  70:   const handleSaveCategory = (isEdit: boolean, editCatId: string | null, updates: Partial<BudgetCategory>) => { ... }
-  ```
-  These inline functions are recreated on every render, changing their reference. As a result, the memoization of subcomponents like `PolicyGroupCard` is broken:
-  ```typescript
-  18: export const PolicyGroupCard = React.memo(({ ... }) => { ... })
-  ```
-  React compares the callback props, sees they have changed, and forces all `PolicyGroupCard` instances to re-render, compute stats, and rebuild their DOM elements, causing a transition delay of 100-300ms.
-* **Recommendation:**
-  1. Wrap `WorkspaceView` and `BudgetDashboard` in `React.memo`.
-  2. Wrap inline callbacks inside `BudgetDashboard` (like `handleSaveCategory`, `handleSaveEntry`, `handleSettleEntry`, etc.) using `useCallback` to maintain stable reference identities.
+  // Prop Interface Extension
+  interface WorkspaceViewProps {
+    isActive: boolean; // Add this prop
+    budgetCategories: BudgetCategory[];
+    budgetEntries: BudgetEntry[];
+    // ... other props
+  }
 
-### 3. Background Data Hook Subscriptions in MindMap3D
-* **Location:** `src/components/MindMap3D.tsx:110-111`
-* **Observation:**
-  `MindMap3D` hooks directly into tasks and budget queries:
-  ```typescript
-  110:   const { tasks = [] } = useTasks();
+  export const WorkspaceView = React.memo(
+    WorkspaceViewComponent,
+    (prevProps, nextProps) => {
+      // 1. If it was not active and is still not active, skip render
+      if (!prevProps.isActive && !nextProps.isActive) {
+        return true;
+      }
+      // 2. Otherwise, compare core data props and stable callbacks
+      return (
+        prevProps.isActive === nextProps.isActive &&
+        prevProps.budgetCategories === nextProps.budgetCategories &&
+        prevProps.budgetEntries === nextProps.budgetEntries &&
+        prevProps.overallStats === nextProps.overallStats &&
+        prevProps.inventoryItems === nextProps.inventoryItems &&
+        prevProps.addCategory === nextProps.addCategory &&
+        prevProps.updateCategory === nextProps.updateCategory &&
+        prevProps.deleteCategory === nextProps.deleteCategory &&
+        prevProps.replaceCategories === nextProps.replaceCategories &&
+        prevProps.addEntry === nextProps.addEntry &&
+        prevProps.updateEntry === nextProps.updateEntry &&
+        prevProps.deleteEntry === nextProps.deleteEntry &&
+        prevProps.getCategoryStats === nextProps.getCategoryStats &&
+        prevProps.addItem === nextProps.addItem &&
+        prevProps.updateItem === nextProps.updateItem &&
+        prevProps.deleteItem === nextProps.deleteItem &&
+        prevProps.adjustStock === nextProps.adjustStock &&
+        prevProps.getItemHistory === nextProps.getItemHistory &&
+        prevProps.addSignal === nextProps.addSignal
+      );
+    }
+  );
+  WorkspaceView.displayName = 'WorkspaceView';
   ```
-  This couples `MindMap3D` to active data changes even when the tab is inactive (hidden via CSS). If tasks are modified in other tabs, the inactive `MindMap3D` is forced to re-run layout queries and trigger rendering computations in the background.
-* **Recommendation:**
-  Only subscribe to query streams or perform computations inside `MindMap3D` if `isActive` is `true`. Alternatively, lift these query bindings out to the parent view (`ProtectedApp`) and pass memoized selections down.
+
+---
+
+## 4. Hook Optimization: `useCallback` and `useMemo` Usage
+
+### A. Inside `ProtectedApp` (`src/app/page.tsx`)
+- All mutations and callback wrappers (`addCategory`, `updateCategory`, `deleteCategory`, `replaceCategories`, `addEntry`, `updateEntry`, `deleteEntry`, `getCategoryStats`, `addItem`, `updateItem`, `deleteItem`, `adjustStock`, `getItemHistory`, `addSignal`, `deleteSignal`, `updateSignalKeywords`) are **already properly stabilized using `useCallback`** inside their respective hooks (`useBudget`, `useInventory`, `useSignal`).
+- In `ProtectedApp`, `actualBudgetEntries` (filtered entries) and `aiContextData` are correctly cached using `useMemo`.
+- `handleGetCategoryStats` is stabilized using `useCallback` in `page.tsx` line 432:
+  ```typescript
+  const handleGetCategoryStats = useCallback((id: string) => getCategoryStats(id, true), [getCategoryStats]);
+  ```
+- **Recommendation:**
+  Ensure that when tabs are rendered, `isActive` is explicitly passed:
+  ```tsx
+  <PortfolioDashboardView 
+    tasks={tasks} 
+    budgetCategories={budgetCategories} 
+    budgetEntries={budgetEntries} 
+    onLogout={handleLogout} 
+    appMode={appMode} 
+    isActive={activeModule === 'dashboard'} 
+  />
+  ```
+  and:
+  ```tsx
+  <WorkspaceView
+    isActive={activeModule === 'workspace'}
+    budgetCategories={budgetCategories}
+    budgetEntries={actualBudgetEntries}
+    // ... other props
+  />
+  ```
+
+### B. Inside `PortfolioDashboardView`
+- **Dynamic Chart Container Width ResizeObserver:**
+  ```typescript
+  useEffect(() => {
+    if (!isMounted || !chartContainerRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      if (!entries || entries.length === 0) return;
+      const { width } = entries[0].contentRect;
+      setChartWidth(width);
+    });
+    observer.observe(chartContainerRef.current);
+    return () => observer.disconnect();
+  }, [isMounted]);
+  ```
+  This is fine, but it will trigger updates when width changes. Memoizing the chart rendering wrapper avoids redraws when only unrelated props change.
+- **Theme Colors and Pie Chart Data:**
+  The `themeColors` (line 180) and `dynamicPieData` (line 186) are correctly memoized with `useMemo`.
+
+---
+
+## 5. Diagnostics of `ContactsBox.tsx` and Expensive Filters
+
+### A. Expensive Filters
+* **Location:** `src/components/dashboard/ContactsBox.tsx:116-125`
+* **Observation:**
+  The search filter computes the filtered contacts on search query change:
+  ```typescript
+  const filteredContacts = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return contacts;
+    return contacts.filter(
+      (c) =>
+        c.name.toLowerCase().includes(term) ||
+        c.phone.toLowerCase().includes(term) ||
+        (c.notes && c.notes.toLowerCase().includes(term))
+    );
+  }, [contacts, searchTerm]);
+  ```
+  - **Assessment:** This filter uses `useMemo` and relies on `searchTerm` which is debounced by 150ms from `localSearchTerm` (line 82-87). This prevents the filter from running on every keystroke, which is highly efficient.
+
+### B. Broken Child Component Memoization
+* **Location:** `src/components/dashboard/ContactsBox.tsx:97-104`
+* **Observation:**
+  - `ContactCard` is wrapped in `React.memo` (line 9) and takes `contact`, `onStartEdit`, and `onDelete` as props.
+  - However, in `ContactsBoxComponent`, the edit handler `startEdit` is defined as a standard function:
+    ```typescript
+    const startEdit = (contact: Contact) => {
+      setEditingContactId(contact.id);
+      setName(contact.name);
+      setPhone(contact.phone);
+      setEmail(contact.email || '');
+      setNotes(contact.notes || '');
+      setError(null);
+    };
+    ```
+  - **Performance Bug:** Because `startEdit` is recreated on every single render of `ContactsBoxComponent`, its reference changes.
+  - Therefore, whenever the user types in the input fields (e.g. typing in Name, Phone, Email, or Notes) or search box, `ContactsBoxComponent` re-renders, creating a new `startEdit` reference.
+  - This breaks `React.memo` on **every single `ContactCard`**, causing the entire list of contacts to re-render in the virtual DOM on every single keystroke. This causes typing input latency (UI lag) in the creation form.
+* **Proposed Fix:**
+  Wrap `startEdit` in `useCallback`:
+  ```typescript
+  const startEdit = useCallback((contact: Contact) => {
+    setEditingContactId(contact.id);
+    setName(contact.name);
+    setPhone(contact.phone);
+    setEmail(contact.email || '');
+    setNotes(contact.notes || '');
+    setError(null);
+  }, []); // State setters are stable, so dependencies are empty
+  ```
+  Additionally, wrap `handleCancelEdit` in `useCallback` for consistency:
+  ```typescript
+  const handleCancelEdit = useCallback(() => {
+    setEditingContactId(null);
+    setName('');
+    setPhone('');
+    setEmail('');
+    setNotes('');
+    setError(null);
+  }, []);
+  ```
+
+---
+
+## 6. Optimization Diff Patch Projections
+
+Below are the exact changes proposed for implementation:
+
+### 1. `src/app/page.tsx`
+```diff
+@@ -404,4 +404,5 @@
+ interface ProtectedAppProps {
+   appMode: 'HCHPS' | 'VITAL';
+   onModeChange: (mode: 'HCHPS' | 'VITAL') => void;
++  isActive?: boolean;
+ }
+@@ -712,7 +713,7 @@
+             {/* Dashboard */}
+             {visitedModules.dashboard && (
+               <div className={activeModule === 'dashboard' ? 'block' : 'hidden'}>
+-                <PortfolioDashboardView tasks={tasks} budgetCategories={budgetCategories} budgetEntries={budgetEntries} onLogout={handleLogout} appMode={appMode} />
++                <PortfolioDashboardView tasks={tasks} budgetCategories={budgetCategories} budgetEntries={budgetEntries} onLogout={handleLogout} appMode={appMode} isActive={activeModule === 'dashboard'} />
+               </div>
+             )}
+ 
+@@ -740,6 +741,7 @@
+             {/* Workspace (Budget Management) */}
+             {visitedModules.workspace && (
+               <div className={activeModule === 'workspace' ? 'block' : 'hidden'}>
+                 <WorkspaceView
++                  isActive={activeModule === 'workspace'}
+                   budgetCategories={budgetCategories}
+                   budgetEntries={actualBudgetEntries}
+```
+
+### 2. `src/components/dashboard/PortfolioDashboardView.tsx`
+```diff
+@@ -78,6 +78,7 @@
+   onLogout?: () => void;
+   appMode?: 'HCHPS' | 'VITAL';
++  isActive: boolean;
+ }
+@@ -122,2 +123,2 @@
+-export function PortfolioDashboardView({ budgetCategories, budgetEntries, appMode = 'VITAL' }: DashboardProps) {
+-  const [chartType, setChartType] = useState<'monthly' | 'cumulative'>('monthly');
++function PortfolioDashboardViewComponent({ budgetCategories, budgetEntries, appMode = 'VITAL' }: DashboardProps) {
++  const [chartType, setChartType] = useState<'monthly' | 'cumulative'>('monthly');
+@@ -449,2 +450,17 @@
+-}
++
++export const PortfolioDashboardView = React.memo(
++  PortfolioDashboardViewComponent,
++  (prevProps, nextProps) => {
++    // If not active in both renders, skip rendering
++    if (!prevProps.isActive && !nextProps.isActive) {
++      return true;
++    }
++    return (
++      prevProps.isActive === nextProps.isActive &&
++      prevProps.appMode === nextProps.appMode &&
++      prevProps.tasks === nextProps.tasks &&
++      prevProps.budgetCategories === nextProps.budgetCategories &&
++      prevProps.budgetEntries === nextProps.budgetEntries &&
++      prevProps.onLogout === nextProps.onLogout
++    );
++  }
++);
++PortfolioDashboardView.displayName = 'PortfolioDashboardView';
+```
+
+### 3. `src/components/WorkspaceView.tsx`
+```diff
+@@ -46,2 +46,3 @@
+   addSignal?: (text: string) => void;
++  isActive: boolean;
+ }
+@@ -138,3 +139,27 @@
+-export const WorkspaceView = React.memo(WorkspaceViewComponent);
+-WorkspaceView.displayName = 'WorkspaceView';
++export const WorkspaceView = React.memo(
++  WorkspaceViewComponent,
++  (prevProps, nextProps) => {
++    if (!prevProps.isActive && !nextProps.isActive) {
++      return true;
++    }
++    return (
++      prevProps.isActive === nextProps.isActive &&
++      prevProps.budgetCategories === nextProps.budgetCategories &&
++      prevProps.budgetEntries === nextProps.budgetEntries &&
++      prevProps.overallStats === nextProps.overallStats &&
++      prevProps.inventoryItems === nextProps.inventoryItems &&
++      prevProps.addCategory === nextProps.addCategory &&
++      prevProps.updateCategory === nextProps.updateCategory &&
++      prevProps.deleteCategory === nextProps.deleteCategory &&
++      prevProps.replaceCategories === nextProps.replaceCategories &&
++      prevProps.addEntry === nextProps.addEntry &&
++      prevProps.updateEntry === nextProps.updateEntry &&
++      prevProps.deleteEntry === nextProps.deleteEntry &&
++      prevProps.getCategoryStats === nextProps.getCategoryStats &&
++      prevProps.addItem === nextProps.addItem &&
++      prevProps.updateItem === nextProps.updateItem &&
++      prevProps.deleteItem === nextProps.deleteItem &&
++      prevProps.adjustStock === nextProps.adjustStock &&
++      prevProps.getItemHistory === nextProps.getItemHistory &&
++      prevProps.addSignal === nextProps.addSignal
++    );
++  }
++);
++WorkspaceView.displayName = 'WorkspaceView';
+```
+
+### 4. `src/components/dashboard/ContactsBox.tsx`
+```diff
+@@ -96,17 +96,17 @@
+-  const startEdit = (contact: Contact) => {
++  const startEdit = useCallback((contact: Contact) => {
+     setEditingContactId(contact.id);
+     setName(contact.name);
+     setPhone(contact.phone);
+     setEmail(contact.email || '');
+     setNotes(contact.notes || '');
+     setError(null);
+-  };
++  }, []);
+ 
+-  const handleCancelEdit = () => {
++  const handleCancelEdit = useCallback(() => {
+     setEditingContactId(null);
+     setName('');
+     setPhone('');
+     setEmail('');
+     setNotes('');
+     setError(null);
+-  };
++  }, []);
+```

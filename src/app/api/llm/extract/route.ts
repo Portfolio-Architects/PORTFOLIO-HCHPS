@@ -1,7 +1,57 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import fs from 'fs';
+import path from 'path';
 
 const apiKey = process.env.GOOGLE_GEMINI_API_KEY || '';
+
+function cleanKoreanLabel(label: string): string {
+  if (!label) return '';
+  let cleaned = label.trim();
+
+  // Remove trailing Korean postpositions (조사)
+  const postpositions = ['에서', '에게', '으로', '까지', '부터', '은', '는', '이', '가', '을', '를', '의', '에', '와', '과', '로'];
+  for (const post of postpositions) {
+    if (cleaned.endsWith(post) && cleaned.length > post.length) {
+      const base = cleaned.substring(0, cleaned.length - post.length);
+      if (/[\uac00-\ud7a30-9a-zA-Z]$/.test(base)) {
+        cleaned = base;
+        break;
+      }
+    }
+  }
+
+  // Eliminate quotes and unnecessary outer spaces
+  cleaned = cleaned.replace(/^['"“‘]+|['"”’]+$/g, '').trim();
+
+  return cleaned;
+}
+
+function postProcessGraph(nodes: any[], edges: any[]): { nodes: any[], edges: any[] } {
+  if (!nodes) nodes = [];
+  if (!edges) edges = [];
+
+  // 1. cleanKoreanLabel on all node labels
+  const cleanedNodes = nodes
+    .map(n => ({
+      ...n,
+      label: cleanKoreanLabel(n.label || '')
+    }))
+    .filter(n => n.label.length > 0 && n.id);
+
+  // 2. Limit nodes to 15 (sort by baseValue descending and slice)
+  const sortedNodes = [...cleanedNodes].sort((a, b) => (b.baseValue || 0) - (a.baseValue || 0));
+  const limitedNodes = sortedNodes.slice(0, 15);
+  const nodeIds = new Set(limitedNodes.map(n => n.id));
+
+  // 3. Prune dangling edges (edges where source or target is not in the 15 nodes list)
+  // Also prune self-references (source === target)
+  const prunedEdges = edges.filter(e => {
+    return e.source && e.target && nodeIds.has(e.source) && nodeIds.has(e.target) && e.source !== e.target;
+  });
+
+  return { nodes: limitedNodes, edges: prunedEdges };
+}
 
 const responseSchema: any = {
   type: "object",
@@ -54,9 +104,24 @@ export async function POST(req: Request) {
       );
     }
 
-    const { text } = await req.json();
-    if (!text || typeof text !== 'string') {
-      return NextResponse.json({ success: false, error: 'Missing text content for extraction' }, { status: 400 });
+    const { text, fileName } = await req.json();
+    let contentToExtract = '';
+
+    if (text && typeof text === 'string') {
+      contentToExtract = text;
+    } else if (fileName && typeof fileName === 'string') {
+      // Read from scratch
+      const scratchDir = path.join(process.cwd(), 'scratch');
+      // Prevent directory traversal
+      const safeFileName = path.basename(fileName);
+      const filePath = path.join(scratchDir, safeFileName);
+      if (fs.existsSync(filePath)) {
+        contentToExtract = fs.readFileSync(filePath, 'utf-8');
+      } else {
+        return NextResponse.json({ success: false, error: `File not found in scratch: ${safeFileName}` }, { status: 404 });
+      }
+    } else {
+      return NextResponse.json({ success: false, error: 'Missing text or fileName for extraction' }, { status: 400 });
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
@@ -85,10 +150,11 @@ export async function POST(req: Request) {
    - SYSTEM_RISK: 예산 부족, 기한 마감 임박 등 주의가 필요한 요소 관련
    - OTHER: 기타 분류
 5. 텍스트에 나타나지 않은 가상의 사실을 과도하게 생성하지 마세요. 본문에 직접적으로 등장하는 개체와 관계 위주로 정확하게 요약하세요.
+6. 핵심 명사(Core Nouns)만 노드 표시명(label)으로 추출하고, 무의미한 조사(은/는/이/가/을/를/의/에/와/과/로 등), 접미사, 또는 수식어(형용사/관형사)는 철저히 배제하십시오. 예: "예산안의" -> "예산안", "회의를" -> "회의", "주요 사업" -> "사업".
 </RULES>
 
 사용자 텍스트:
-${text}
+${contentToExtract}
 `;
 
     const modelsToTry = ['gemini-3.5-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
@@ -133,7 +199,7 @@ ${text}
     if (!responseText) {
       console.warn('[Extract API] All models exhausted or API key failed. Triggering Heuristic Local Extractor.');
       
-      const words = Array.from(new Set(text.match(/[가-힣a-zA-Z0-9_]{2,12}/g) || []));
+      const words = Array.from(new Set(contentToExtract.match(/[가-힣a-zA-Z0-9_]{2,12}/g) || []));
       const nodes: any[] = [];
       const edges: any[] = [];
       
@@ -147,7 +213,7 @@ ${text}
       const idMap = new Map<string, string>();
 
       for (const word of words) {
-        if (nodes.length >= 8) break; // Limit to 8 nodes to avoid clutter
+        if (nodes.length >= 15) break;
         
         let layerId = 2; // Default to task
         let group = 'CORE_PROJECT';
@@ -165,12 +231,10 @@ ${text}
           layerId = 2;
           group = 'CORE_PROJECT';
         } else {
-          // General nouns
           layerId = 2;
           group = 'OTHER';
         }
 
-        // Generate clean ASCII-compatible ID
         const cleanId = `node_${idx++}_` + Buffer.from(word).toString('hex').substring(0, 8);
         idMap.set(word, cleanId);
 
@@ -185,7 +249,6 @@ ${text}
 
       // If we got nodes, build simple components edges
       if (nodes.length > 1) {
-        // Connect sequential nodes to form a chain
         for (let i = 0; i < nodes.length - 1; i++) {
           edges.push({
             source: nodes[i].id,
@@ -195,7 +258,6 @@ ${text}
           });
         }
         
-        // Match Assignees (people -> tasks) or Budget sources (budget -> tasks)
         const peopleNodes = nodes.filter(n => n.layerId === 0);
         const budgetNodes = nodes.filter(n => n.layerId === 1);
         const taskNodes = nodes.filter(n => n.layerId === 2);
@@ -220,7 +282,6 @@ ${text}
         });
       }
 
-      // Add a default fallback project node if no nodes were extracted
       if (nodes.length === 0) {
         nodes.push({
           id: "node_fallback_root",
@@ -241,7 +302,6 @@ ${text}
       cleaned = cleaned.replace(/```json/gi, '').replace(/```/g, '').trim();
     }
 
-    // { 로 시작해서 } 로 끝나는 JSON 본체만 정교하게 슬라이싱
     const startIdx = cleaned.indexOf('{');
     const endIdx = cleaned.lastIndexOf('}');
     if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
@@ -251,7 +311,8 @@ ${text}
     // JSON 유효성 검증
     try {
       const parsed = JSON.parse(cleaned);
-      return NextResponse.json({ success: true, data: parsed });
+      const processed = postProcessGraph(parsed.nodes || [], parsed.edges || []);
+      return NextResponse.json({ success: true, data: processed });
     } catch (jsonErr) {
       console.error('[Extract JSON Parse Error] Raw text from Gemma:', responseText, jsonErr);
       return NextResponse.json({ 

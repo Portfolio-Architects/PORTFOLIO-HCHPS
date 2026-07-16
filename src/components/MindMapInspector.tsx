@@ -1,7 +1,7 @@
 import React from 'react';
-import { OrbitalNode, OntologyEdge, GROUP_COLORS, OntologyGroup, EdgeType } from '@/lib/ontology.types';
-import { NodeOverride } from '@/hooks/useGraphCustomization';
-import { Edit2, Waypoints, Trash2, Link2, Radio, X, Crosshair, Activity, Bot, Unlink, Phone, FileText, DollarSign, CheckCircle2 } from 'lucide-react';
+import { OrbitalNode, OntologyEdge, GROUP_COLORS, OntologyGroup, EdgeType, OntologyLayerId, OntologyNode, GROUP_LABELS, LAYER_LABELS, EDGE_TYPE_LABELS } from '@/lib/ontology.types';
+import { useGraphCustomization, NodeOverride } from '@/hooks/useGraphCustomization';
+import { Edit2, Waypoints, Trash2, Link2, Radio, X, Crosshair, Activity, Bot, Unlink, Phone, FileText, DollarSign, CheckCircle2, PlusSquare } from 'lucide-react';
 import { useLocalContacts } from '@/hooks/useLocalContacts';
 import { getCanonicalWikiId } from '@/hooks/useWikiStorage';
 import { readSheet } from '@/lib/sheets-api';
@@ -11,6 +11,8 @@ import { useReportGenerator } from '@/hooks/useReportGenerator';
 import { useAILinker } from '@/hooks/useAILinker';
 import { useTasks } from '@/hooks/useTasks';
 import { useBudget } from '@/hooks/useBudget';
+import { useLlmExtract } from '@/hooks/useLlmExtract';
+
 
 interface ForceGraphEngine {
   nodes: OrbitalNode[];
@@ -25,7 +27,7 @@ interface ForceGraphEngine {
 interface MindMapInspectorProps {
   activeNode: OrbitalNode | null;
   engineRef: React.MutableRefObject<ForceGraphEngine | null | undefined>;
-  overrides: Record<string, NodeOverride>;
+  activeNodeOverride?: NodeOverride;
   setNodeOverride: (id: string, options: Partial<NodeOverride>) => void;
   setActiveNode: React.Dispatch<React.SetStateAction<OrbitalNode | null>>;
   onRenameCategory?: (oldName: string, newName: string) => void;
@@ -34,7 +36,8 @@ interface MindMapInspectorProps {
   removeCustomTombstone: (childId: string, parentId: string) => void;
   renameNodeId?: (oldId: string, newId: string) => void;
   deleteCustomNode: (id: string) => void;
-  addCustomEdge: (src: string, tgt: string, type?: EdgeType) => void;
+  addCustomNode: (label: string, x: number, y: number, color?: string, group?: OntologyGroup, baseValue?: number, layerId?: OntologyLayerId) => OntologyNode;
+  addCustomEdge: (src: string, tgt: string, type?: EdgeType, weight?: number) => void;
   deleteCustomEdge: (src: string, tgt: string) => void;
   parentModeSource: string | null;
   setParentModeSource: (id: string | null) => void;
@@ -47,9 +50,9 @@ interface MindMapInspectorProps {
 
 export const MindMapInspector = React.memo(function MindMapInspector(props: MindMapInspectorProps) {
   const {
-    activeNode, engineRef, overrides, setNodeOverride, setActiveNode,
+    activeNode, engineRef, activeNodeOverride, setNodeOverride, setActiveNode,
     onRenameCategory, onDeleteCategory, updateCustomNodeText, removeCustomTombstone, renameNodeId,
-    deleteCustomNode, deleteCustomEdge,
+    deleteCustomNode, addCustomNode, addCustomEdge, deleteCustomEdge,
     parentModeSource, setParentModeSource,
     initEngine, clearNodeOverride, isOverlay,
     wikiBlocks
@@ -57,6 +60,55 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
 
   const { tasks = [] } = useTasks();
   const { categories = [], getCategoryStats } = useBudget();
+  const llmExtractMutation = useLlmExtract();
+
+
+  const [isExtractingNormal, setIsExtractingNormal] = React.useState(false);
+  const [isExtractingRadar, setIsExtractingRadar] = React.useState(false);
+  const { addPendingSuggestions } = useGraphCustomization();
+
+  const handleExtractNormalNode = async () => {
+    if (!activeNode) return;
+    setIsExtractingNormal(true);
+    try {
+      const { extractSemanticGraph } = await import('@/lib/engine/ontology-extractor');
+      const textToExtract = rawWikiText || activeNode.label;
+      const result = await extractSemanticGraph(textToExtract);
+
+      if (result && result.nodes) {
+        await addPendingSuggestions(result.nodes, result.edges || []);
+        alert(`시맨틱 추출 성공: ${result.nodes.length}개의 노드 및 ${result.edges?.length || 0}개의 관계가 검토 후보에 추가되었습니다.`);
+      } else {
+        alert('추출된 노드가 없습니다.');
+      }
+    } catch (err: any) {
+      // console.error(err);
+      alert(`시맨틱 추출 실패: ${err.message}`);
+    } finally {
+      setIsExtractingNormal(false);
+    }
+  };
+
+  const handleExtractRadarNode = async () => {
+    if (!activeNode || !activeNode.meta?.fileName) return;
+    setIsExtractingRadar(true);
+    try {
+      const result = await llmExtractMutation.mutateAsync({ fileName: activeNode.meta.fileName });
+
+      const graph = result.data;
+      if (graph && graph.nodes) {
+        await addPendingSuggestions(graph.nodes, graph.edges || []);
+        alert(`시맨틱 추출 성공: ${graph.nodes.length}개의 노드 및 ${graph.edges?.length || 0}개의 관계가 검토 후보에 추가되었습니다.`);
+      } else {
+        alert('추출된 노드가 없습니다.');
+      }
+    } catch (err: any) {
+      // console.error(err);
+      alert(`시맨틱 추출 실패: ${err.message}`);
+    } finally {
+      setIsExtractingRadar(false);
+    }
+  };
 
   const matchedCat = React.useMemo(() => {
     if (!activeNode) return null;
@@ -88,6 +140,17 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
   const [aiTargetId, setAiTargetId] = React.useState<string>('');
   const aiLinkMut = useAILinker();
 
+  // Node Creation form states
+  const [createLabel, setCreateLabel] = React.useState('');
+  const [createGroup, setCreateGroup] = React.useState<OntologyGroup>('OTHER');
+  const [createBaseValue, setCreateBaseValue] = React.useState<number>(80);
+  const [createLayer, setCreateLayer] = React.useState<string>('');
+
+  // Edge Creation form states
+  const [newEdgeTargetId, setNewEdgeTargetId] = React.useState('');
+  const [newEdgeType, setNewEdgeType] = React.useState<EdgeType>('DEPENDENCY');
+  const [newEdgeWeight, setNewEdgeWeight] = React.useState<number>(1.0);
+
   const [catSearch, setCatSearch] = React.useState('');
   const [isCatOpen, setIsCatOpen] = React.useState(false);
   const catDropdownRef = React.useRef<HTMLDivElement>(null);
@@ -117,6 +180,11 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
     setCatSearch(parentLabel || '');
     setIsCatOpen(false);
     resetReport();
+
+    // Reset manual edge creation states
+    setNewEdgeTargetId('');
+    setNewEdgeType('DEPENDENCY');
+    setNewEdgeWeight(1.0);
   }, [activeNode, resetReport, parentLabel]);
 
   // Asynchronously trigger file radar when normal activeNode is selected
@@ -377,17 +445,6 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
     }
   }, [activeNode, engineRef]);
 
-  const uniqueConnectedEdges = React.useMemo(() => {
-    const seen = new Set<string>();
-    const unique: Array<{ edge: OntologyEdge; otherNode: OrbitalNode }> = [];
-    for (const item of connectedEdges) {
-      if (item.otherNode && !seen.has(item.otherNode.id)) {
-        seen.add(item.otherNode.id);
-        unique.push(item);
-      }
-    }
-    return unique;
-  }, [connectedEdges]);
 
   const handleSelectNode = (node: OrbitalNode) => {
     if (engineRef.current) {
@@ -457,13 +514,13 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
       <div 
         className={
           isOverlay 
-            ? "absolute bottom-6 left-1/2 -translate-x-1/2 z-[110] w-[95%] md:w-[90%] max-w-[800px] glass-panel rounded-2xl shadow-2xl overflow-hidden pointer-events-auto transition-all duration-300 transform translate-y-0 animate-slide-up-fade"
-            : "w-full h-full flex-1 glass-panel rounded-2xl shadow-md overflow-hidden relative flex flex-col pointer-events-auto transition-all duration-300"
+            ? "absolute bottom-6 left-1/2 -translate-x-1/2 z-[110] w-[95%] md:w-[90%] max-w-[800px] glass-panel dark:glass-panel-dark rounded-2xl shadow-2xl overflow-hidden pointer-events-auto transition-all duration-300 transform translate-y-0 animate-slide-up-fade"
+            : "w-full h-full flex-1 glass-panel dark:glass-panel-dark rounded-2xl shadow-md overflow-hidden relative flex flex-col pointer-events-auto transition-all duration-300"
         }
       >
         <div className="px-4.5 py-3.5 border-b border-white/20 bg-slate-500/5 flex justify-between items-center">
           <h3 className="text-[12.5px] font-bold text-slate-500 uppercase tracking-wider">노드 인스펙터</h3>
-          {isOverlay && (
+          {activeNode !== null && (
             <button onClick={() => setActiveNode(null)} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all cursor-pointer shrink-0">
               <X size={16} />
             </button>
@@ -525,15 +582,15 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                             </div>
                             <div className="flex flex-col gap-2">
                               {contacts.map((contact: any, idx: number) => (
-                                <div key={idx} className="flex items-center justify-between bg-white/60 hover:bg-white p-3 rounded-2xl border border-slate-200/30 text-[11px] font-semibold text-slate-700 shadow-2xs transition-all duration-150">
+                                <div key={idx} className="flex items-center justify-between bg-white/60 dark:bg-slate-850/60 hover:bg-white dark:hover:bg-slate-850 p-3 rounded-2xl border border-slate-200/30 dark:border-slate-800/40 text-[11px] font-semibold text-slate-700 dark:text-slate-350 shadow-2xs transition-all duration-150">
                                   <div className="min-w-0 flex-1">
                                     <div className="flex items-center gap-2 mb-0.5">
-                                      <span className="font-bold text-slate-800 text-[11.5px]">{contact.name || '미상'}</span>
-                                      <span className="text-[9.5px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md">
+                                      <span className="font-bold text-slate-800 dark:text-white text-[11.5px]">{contact.name || '미상'}</span>
+                                      <span className="text-[9.5px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 rounded-md">
                                         {contact.role || '담당자'}
                                       </span>
                                     </div>
-                                    <span className="text-slate-500 font-mono text-[10.5px]">{contact.phone || '번호 없음'}</span>
+                                    <span className="text-slate-500 dark:text-slate-400 font-mono text-[10.5px]">{contact.phone || '번호 없음'}</span>
                                   </div>
                                   {contact.phone && (
                                     <div className="flex gap-1.5">
@@ -579,6 +636,16 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                                   {isRecording ? '기록 중...' : recordSuccess ? '✓ 노트북 LM 기록 완료!' : '💾 노트북 LM에 담당자 연락처 기록'}
                                 </button>
                               )}
+
+                              {/* ✨ 이 문서에서 AI 시맨틱 추출 */}
+                              <button
+                                onClick={handleExtractRadarNode}
+                                disabled={isExtractingRadar}
+                                className="mt-2 w-full py-2.5 px-3.5 bg-gradient-to-r from-cyan-600 to-blue-650 hover:opacity-90 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-2xs flex items-center justify-center gap-1.5 transition-all duration-200 cursor-pointer"
+                              >
+                                <Bot size={13} className={isExtractingRadar ? "animate-spin" : ""} />
+                                {isExtractingRadar ? '시맨틱 추출 중...' : '✨ 이 문서에서 AI 시맨틱 추출'}
+                              </button>
                             </div>
                           </div>
                         </div>
@@ -615,15 +682,15 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                                   targetId = `tag-${rawNew}`;
                                   if (renameNodeId) {
                                     renameNodeId(activeNode.id, targetId);
-                                    const existingOverride = overrides[targetId] || overrides[activeNode.id] || {};
+                                    const existingOverride = activeNodeOverride || {};
                                     setNodeOverride(targetId, { ...existingOverride, customLabel: newName.trim() });
                                   } else {
-                                    const existingOverride = overrides[activeNode.id] || {};
+                                    const existingOverride = activeNodeOverride || {};
                                     setNodeOverride(targetId, { ...existingOverride, customLabel: newName.trim() });
                                     clearNodeOverride(activeNode.id);
                                   }
                                 } else {
-                                  const existingOverride = overrides[targetId] || {};
+                                  const existingOverride = activeNodeOverride || {};
                                   setNodeOverride(targetId, { ...existingOverride, customLabel: newName.trim() });
                                   if (targetId.startsWith('custom-')) {
                                     updateCustomNodeText(targetId, newName.trim());
@@ -773,7 +840,7 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                       <button
                         onClick={handleGenerateReport}
                         disabled={reportMut.isPending}
-                        className="mt-1 w-full py-2.5 px-3 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 disabled:from-indigo-400 disabled:to-blue-400 text-white rounded-xl text-[11.5px] font-bold shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer flex items-center justify-center gap-1.5"
+                        className="mt-1 w-full py-2.5 px-3 bg-gradient-to-r from-indigo-600 to-blue-650 hover:from-indigo-700 hover:to-blue-700 disabled:from-indigo-400 disabled:to-blue-400 text-white rounded-xl text-[11.5px] font-bold shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer flex items-center justify-center gap-1.5"
                       >
                         {reportMut.isPending ? (
                           <>
@@ -786,6 +853,16 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                             <span>📝 행정 보고서 초안 자동 생성</span>
                           </>
                         )}
+                      </button>
+
+                      {/* ✨ AI 시맨틱 추출 */}
+                      <button
+                        onClick={handleExtractNormalNode}
+                        disabled={isExtractingNormal}
+                        className="mt-2 w-full py-2.5 px-3 bg-gradient-to-r from-cyan-600 to-indigo-600 hover:opacity-90 disabled:opacity-50 text-white rounded-xl text-[11.5px] font-bold shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        <Bot size={14} className={isExtractingNormal ? "animate-spin text-white" : "text-white"} />
+                        <span>{isExtractingNormal ? '시맨틱 추출 중...' : '✨ AI 시맨틱 추출'}</span>
                       </button>
                     </div>
 
@@ -804,7 +881,7 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                           </div>
                           <div className="flex flex-col gap-2">
                             {phones.map((phone) => (
-                              <div key={phone} className="flex items-center justify-between bg-white/70 p-2.5 rounded-xl border border-slate-200/30 text-[11.5px] font-semibold text-slate-700 shadow-2xs">
+                              <div key={phone} className="flex items-center justify-between bg-white/70 dark:bg-slate-850/70 p-2.5 rounded-xl border border-slate-200/30 dark:border-slate-750 text-[11.5px] font-semibold text-slate-700 dark:text-slate-350 shadow-2xs">
                                 <span>{phone}</span>
                                 <div className="flex gap-1.5">
                                   <a
@@ -823,8 +900,8 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                               </div>
                             ))}
                             {emails.map((email) => (
-                              <div key={email} className="flex items-center justify-between bg-white/70 p-2.5 rounded-xl border border-slate-200/30 text-[11.5px] font-semibold text-slate-700 shadow-2xs min-w-0">
-                                <span className="truncate mr-2 text-slate-600" title={email}>{email}</span>
+                              <div key={email} className="flex items-center justify-between bg-white/70 dark:bg-slate-850/70 p-2.5 rounded-xl border border-slate-200/30 dark:border-slate-750 text-[11.5px] font-semibold text-slate-700 dark:text-slate-350 shadow-2xs min-w-0">
+                                <span className="truncate mr-2 text-slate-600 dark:text-slate-400" title={email}>{email}</span>
                                 <a
                                   href={`mailto:${email}`}
                                   className="px-2.5 py-1 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg font-bold shadow-2xs hover:shadow-xs transition-all duration-150 flex items-center gap-1 shrink-0 text-[10.5px]"
@@ -858,7 +935,7 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                         </div>
 
                         {/* 🤖 AI 관계 추론 및 자동 연결 */}
-                        <div className="flex flex-col gap-1.5 bg-gradient-to-br from-slate-500/5 to-indigo-500/5 border border-indigo-500/10 p-3.5 rounded-2xl shadow-2xs">
+                        <div className="flex flex-col gap-1.5 bg-gradient-to-br from-slate-500/5 to-indigo-500/5 dark:from-slate-900/10 dark:to-indigo-900/10 border border-indigo-500/10 dark:border-indigo-950/20 p-3.5 rounded-2xl shadow-2xs">
                           <label className="text-[10px] font-black text-indigo-700 uppercase tracking-wider flex items-center gap-1">
                             <Bot size={13} className="animate-pulse text-indigo-500" /> 🤖 AI 관계 추론 및 자동 연결
                           </label>
@@ -869,7 +946,7 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                             <select
                               value={aiTargetId}
                               onChange={(e) => setAiTargetId(e.target.value)}
-                              className="w-full min-w-0 text-[10.5px] px-2.5 py-1.5 bg-white border border-indigo-200 rounded-xl outline-none focus:border-indigo-500 font-medium cursor-pointer"
+                              className="w-full min-w-0 text-[10.5px] px-2.5 py-1.5 bg-white dark:bg-slate-950 border border-indigo-200 dark:border-indigo-900 rounded-xl outline-none focus:border-indigo-500 dark:text-slate-200 font-medium cursor-pointer"
                             >
                               <option value="">-- 연결할 대상 노드 선택 --</option>
                               {engineNodes
@@ -918,8 +995,8 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                         </div>
                         <div className="flex flex-col gap-2">
                           {/* 1. 카테고리 위계 선택 */}
-                          <div className="flex flex-col gap-1.5 bg-slate-500/5 border border-slate-200/40 rounded-2xl p-3 shadow-2xs">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">상위 카테고리 (그룹) 소속 지정</label>
+                          <div className="flex flex-col gap-1.5 bg-slate-500/5 dark:bg-slate-900/10 border border-slate-200/40 dark:border-slate-800 rounded-2xl p-3 shadow-2xs">
+                            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">상위 카테고리 (그룹) 소속 지정</label>
                             
                             {/* 스마트 카테고리 추천 영역 */}
                             {smartRecommendations.length > 0 && (
@@ -953,7 +1030,7 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                                     setIsCatOpen(true);
                                   }}
                                   onFocus={() => setIsCatOpen(true)}
-                                  className={`w-full text-xs pl-2.5 pr-8 py-2 rounded-xl border font-medium focus:outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)]/40 ${(activeNode.id.startsWith('root-') && (!activeNode.parentId || activeNode.parentId === 'root-HCHPS' || activeNode.parentId === 'NONE')) ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200 cursor-text'}`}
+                                  className={`w-full text-xs pl-2.5 pr-8 py-2 rounded-xl border font-medium focus:outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)]/40 ${(activeNode.id.startsWith('root-') && (!activeNode.parentId || activeNode.parentId === 'root-HCHPS' || activeNode.parentId === 'NONE')) ? 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-550 cursor-not-allowed' : 'bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 dark:text-slate-200 cursor-text'}`}
                                 />
                                 {catSearch && (
                                   <button
@@ -972,8 +1049,8 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                                 onClick={() => setParentModeSource(parentModeSource === activeNode.id ? null : activeNode.id)}
                                 className={`px-3 py-2 rounded-xl border text-xs shadow-2xs cursor-pointer transition-all flex items-center justify-center shrink-0 ${
                                   parentModeSource === activeNode.id
-                                    ? 'bg-purple-100 border-purple-300 text-purple-700 shadow-inner'
-                                    : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+                                    ? 'bg-purple-100 dark:bg-purple-950/40 border-purple-300 dark:border-purple-900 text-purple-700 dark:text-purple-300 shadow-inner'
+                                    : 'bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900 hover:text-slate-700 dark:hover:text-slate-300'
                                 }`}
                                 title={parentModeSource === activeNode.id ? "맵에서 지정할 부모 노드를 클릭하세요..." : "맵에서 대상 노드 직접 클릭하기"}
                               >
@@ -982,17 +1059,17 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
 
                               {/* Autocomplete Dropdown List */}
                               {isCatOpen && !((activeNode.id.startsWith('root-') && (!activeNode.parentId || activeNode.parentId === 'root-HCHPS' || activeNode.parentId === 'NONE'))) && (
-                                <div className="absolute top-[100%] left-0 right-0 mt-1 max-h-[220px] overflow-y-auto bg-white border border-slate-200 rounded-2xl shadow-lg z-50 py-1.5 custom-scrollbar">
+                                <div className="absolute top-[100%] left-0 right-0 mt-1 max-h-[220px] overflow-y-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-lg z-50 py-1.5 custom-scrollbar">
                                   {/* 연결 해제 상시 노출 */}
                                   <div
                                     onClick={() => handleSelectParent('NONE')}
-                                    className="px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 cursor-pointer transition-all border-b border-slate-100 flex items-center gap-1.5"
+                                    className="px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 cursor-pointer transition-all border-b border-slate-100 dark:border-slate-800 flex items-center gap-1.5"
                                   >
                                     <Unlink size={12} /> ❌ 연결 해제 (독립된 맵으로 고립)
                                   </div>
                                   
                                   {filteredCategoryNodes.length === 0 ? (
-                                    <div className="px-3 py-2.5 text-xs text-slate-400 text-center font-medium">
+                                    <div className="px-3 py-2.5 text-xs text-slate-400 dark:text-slate-500 text-center font-medium">
                                       검색된 카테고리가 없습니다
                                     </div>
                                   ) : (
@@ -1005,8 +1082,8 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                                           onClick={() => handleSelectParent(c.id)}
                                           className={`px-3 py-2 text-xs cursor-pointer transition-all flex items-center justify-between font-medium ${
                                             isSelected 
-                                              ? 'bg-indigo-50 text-indigo-700 font-bold' 
-                                              : 'text-slate-700 hover:bg-slate-50'
+                                              ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-bold' 
+                                              : 'text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-800'
                                           }`}
                                         >
                                           <span>{prefix} {c.label}</span>
@@ -1055,9 +1132,9 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                           </div>
 
                           {/* 3. 위치 고정 해제 */}
-                          {overrides[activeNode.id] && (
-                            (overrides[activeNode.id].fixedX !== undefined && overrides[activeNode.id].fixedX !== null) || 
-                            (overrides[activeNode.id].fixedY !== undefined && overrides[activeNode.id].fixedY !== null)
+                          {activeNodeOverride && (
+                            (activeNodeOverride.fixedX !== undefined && activeNodeOverride.fixedX !== null) || 
+                            (activeNodeOverride.fixedY !== undefined && activeNodeOverride.fixedY !== null)
                           ) && (
                             <div className="flex flex-col gap-1.5 bg-slate-500/5 border border-slate-200/40 rounded-2xl p-3 shadow-2xs">
                               <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">수동 드래그 위치 고정 상태</label>
@@ -1082,53 +1159,168 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                             </div>
                           )}
 
-                          {/* 4. 연결 끊기 */}
-                          <div className="flex flex-col gap-1.5 bg-slate-500/5 border border-slate-200/40 rounded-2xl p-3 shadow-2xs">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">연결 끊기 (관계 해제)</label>
-                            {uniqueConnectedEdges.length === 0 ? (
-                              <div className="text-[10.5px] font-semibold text-slate-400 text-center py-2">
-                                연결된 노드가 없습니다.
+                          {/* 4. 수동 관계 연결 (Edge 생성) */}
+                          <div className="flex flex-col gap-2.5 bg-gradient-to-br from-slate-500/5 to-indigo-500/5 border border-indigo-500/10 p-3.5 rounded-2xl shadow-2xs">
+                            <label className="text-[10px] font-black text-indigo-700 uppercase tracking-wider flex items-center gap-1">
+                              <Link2 size={13} className="text-indigo-500" /> 수동 관계 연결 (Edge 생성)
+                            </label>
+                            <div className="flex flex-col gap-2.5">
+                              {/* Target Selection */}
+                              <select
+                                value={newEdgeTargetId}
+                                onChange={(e) => setNewEdgeTargetId(e.target.value)}
+                                className="w-full text-xs px-2.5 py-1.5 bg-white dark:bg-slate-950 border border-indigo-200 dark:border-indigo-900 rounded-xl focus:border-indigo-500 font-medium cursor-pointer dark:text-slate-200"
+                              >
+                                <option value="">-- 연결할 대상 노드 선택 --</option>
+                                {engineNodes
+                                  .filter(n => n.id !== activeNode.id && n.id !== 'root-HCHPS' && !n.layoutHidden)
+                                  .sort((a, b) => a.label.localeCompare(b.label))
+                                  .map(n => (
+                                    <option key={n.id} value={n.id}>{n.label}</option>
+                                  ))
+                                }
+                              </select>
+
+                              {/* Edge Type */}
+                              <select
+                                value={newEdgeType}
+                                onChange={(e) => setNewEdgeType(e.target.value as EdgeType)}
+                                className="w-full text-xs px-2.5 py-1.5 bg-white dark:bg-slate-950 border border-indigo-200 dark:border-indigo-900 rounded-xl focus:border-indigo-500 font-medium cursor-pointer dark:text-slate-200"
+                              >
+                                {Object.entries(EDGE_TYPE_LABELS).map(([key, val]) => (
+                                  <option key={key} value={key}>{val}</option>
+                                ))}
+                              </select>
+
+                              {/* Edge Weight Slider */}
+                              <div className="flex flex-col gap-1">
+                                <div className="flex justify-between items-center">
+                                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">가중치 (-1.0 ~ 1.0)</label>
+                                  <span className="text-[9.5px] font-bold text-indigo-650">{newEdgeWeight}</span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min="-1"
+                                  max="1"
+                                  step="0.1"
+                                  value={newEdgeWeight}
+                                  onChange={(e) => setNewEdgeWeight(Number(e.target.value))}
+                                  className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-650"
+                                />
                               </div>
-                            ) : (
-                              <div className="flex flex-col gap-1.5 max-h-[140px] overflow-y-auto custom-scrollbar">
-                                {uniqueConnectedEdges.map(({ otherNode }) => {
-                                  const isParentChild = activeNode.parentId === otherNode.id || otherNode.parentId === activeNode.id;
-                                  return (
-                                    <div key={otherNode.id} className="flex items-center justify-between gap-2 p-1.5 hover:bg-slate-500/5 rounded-xl transition-all">
-                                      <span className={`text-[11px] font-semibold truncate ${isParentChild ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-600'}`}>
-                                        {otherNode.label}
-                                      </span>
-                                      <button
-                                        onClick={() => {
-                                          if (confirm(`'${activeNode.label}'와(과) '${otherNode.label}'의 연결을 해제하시겠습니까?`)) {
-                                            if (activeNode.parentId === otherNode.id) {
-                                              setNodeOverride(activeNode.id, { customParent: 'NONE', customOrbitIndex: undefined, fixedX: undefined, fixedY: undefined });
-                                            } else if (otherNode.parentId === activeNode.id) {
-                                              setNodeOverride(otherNode.id, { customParent: 'NONE', customOrbitIndex: undefined, fixedX: undefined, fixedY: undefined });
-                                            }
-                                            deleteCustomEdge(activeNode.id, otherNode.id);
-                                            
-                                            setTimeout(() => {
-                                              initEngine();
-                                              if (engineRef.current) {
-                                                 const updatedActive = engineRef.current.getNodeById ? engineRef.current.getNodeById(activeNode.id) : null;
-                                                 if (updatedActive) {
-                                                   setActiveNode(updatedActive);
-                                                 }
+
+                              <button
+                                disabled={!newEdgeTargetId}
+                                onClick={() => {
+                                  addCustomEdge(activeNode.id, newEdgeTargetId, newEdgeType, newEdgeWeight);
+                                  setNewEdgeTargetId('');
+                                  setNewEdgeType('DEPENDENCY');
+                                  setNewEdgeWeight(1.0);
+
+                                  setTimeout(() => {
+                                    initEngine();
+                                    if (engineRef.current) {
+                                      const updated = engineRef.current.getNodeById ? engineRef.current.getNodeById(activeNode.id) : null;
+                                      if (updated) setActiveNode(updated);
+                                    }
+                                  }, 50);
+                                }}
+                                className="w-full py-1.5 bg-indigo-650 hover:bg-indigo-700 disabled:bg-slate-100 disabled:text-slate-400 text-white font-bold rounded-xl text-[10.5px] transition-all shadow-3xs cursor-pointer flex items-center justify-center gap-1"
+                              >
+                                연결 추가
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* 5. 연결 관계 상세 목록 (Categorized Connections List) */}
+                          <div className="flex flex-col gap-3.5 bg-slate-500/5 border border-slate-200/40 rounded-2xl p-3.5 shadow-2xs">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                              <Waypoints size={13} className="text-slate-400" /> 연결 관계 상세 목록
+                            </label>
+
+                            <div className="flex flex-col gap-3">
+                              {/* Outgoing Connections */}
+                              <div className="flex flex-col gap-1.5">
+                                <span className="text-[9px] font-extrabold text-indigo-650 dark:text-indigo-400 uppercase tracking-wider">나가는 연결 (Outgoing)</span>
+                                {connectedEdges.filter(item => item.edge.source === activeNode.id).length === 0 ? (
+                                  <span className="text-[9.5px] text-slate-450 italic pl-1">나가는 방향의 연결이 없습니다.</span>
+                                ) : (
+                                  <div className="flex flex-col gap-1.5 max-h-[120px] overflow-y-auto custom-scrollbar">
+                                    {connectedEdges
+                                      .filter(item => item.edge.source === activeNode.id)
+                                      .map(({ edge, otherNode }) => (
+                                        <div key={otherNode.id} className="flex items-center justify-between gap-2 p-1.5 bg-white/40 dark:bg-slate-900/40 rounded-xl hover:bg-slate-100/50 dark:hover:bg-slate-800/50 border border-slate-150/40 transition-all">
+                                          <span className="text-[10.5px] font-semibold truncate text-slate-700 dark:text-slate-350 flex-1">
+                                            → {otherNode.label} <span className="text-[8px] text-indigo-500 font-bold bg-indigo-500/5 px-1 rounded ml-1">{EDGE_TYPE_LABELS[edge.type]} ({edge.weight})</span>
+                                          </span>
+                                          <button
+                                            onClick={() => {
+                                              if (confirm(`'${activeNode.label}'에서 '${otherNode.label}'로 가는 관계를 끊으시겠습니까?`)) {
+                                                if (otherNode.parentId === activeNode.id) {
+                                                  setNodeOverride(otherNode.id, { customParent: 'NONE', customOrbitIndex: undefined, fixedX: undefined, fixedY: undefined });
+                                                }
+                                                deleteCustomEdge(activeNode.id, otherNode.id);
+                                                setTimeout(() => {
+                                                  initEngine();
+                                                  if (engineRef.current) {
+                                                    const updated = engineRef.current.getNodeById ? engineRef.current.getNodeById(activeNode.id) : null;
+                                                    if (updated) setActiveNode(updated);
+                                                  }
+                                                }, 50);
                                               }
-                                            }, 50);
-                                          }
-                                        }}
-                                        className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-500/10 rounded-lg transition-all cursor-pointer shrink-0"
-                                        title="연결 해제"
-                                      >
-                                        <Unlink size={13} />
-                                      </button>
-                                    </div>
-                                  );
-                                })}
+                                            }}
+                                            className="p-1 hover:bg-rose-500/10 text-slate-450 hover:text-rose-600 rounded-lg cursor-pointer transition-all shrink-0"
+                                            title="연결 해제"
+                                          >
+                                            <Unlink size={12} />
+                                          </button>
+                                        </div>
+                                      ))}
+                                  </div>
+                                )}
                               </div>
-                            )}
+
+                              {/* Incoming Connections */}
+                              <div className="flex flex-col gap-1.5 border-t border-slate-200/20 pt-2.5">
+                                <span className="text-[9px] font-extrabold text-cyan-600 dark:text-cyan-400 uppercase tracking-wider">들어오는 연결 (Incoming)</span>
+                                {connectedEdges.filter(item => item.edge.target === activeNode.id).length === 0 ? (
+                                  <span className="text-[9.5px] text-slate-450 italic pl-1">들어오는 방향의 연결이 없습니다.</span>
+                                ) : (
+                                  <div className="flex flex-col gap-1.5 max-h-[120px] overflow-y-auto custom-scrollbar">
+                                    {connectedEdges
+                                      .filter(item => item.edge.target === activeNode.id)
+                                      .map(({ edge, otherNode }) => (
+                                        <div key={otherNode.id} className="flex items-center justify-between gap-2 p-1.5 bg-white/40 dark:bg-slate-900/40 rounded-xl hover:bg-slate-100/50 dark:hover:bg-slate-800/50 border border-slate-150/40 transition-all">
+                                          <span className="text-[10.5px] font-semibold truncate text-slate-700 dark:text-slate-350 flex-1">
+                                            ← {otherNode.label} <span className="text-[8px] text-cyan-650 font-bold bg-cyan-500/5 px-1 rounded ml-1">{EDGE_TYPE_LABELS[edge.type]} ({edge.weight})</span>
+                                          </span>
+                                          <button
+                                            onClick={() => {
+                                              if (confirm(`'${otherNode.label}'에서 '${activeNode.label}'로 들어오는 관계를 끊으시겠습니까?`)) {
+                                                if (activeNode.parentId === otherNode.id) {
+                                                  setNodeOverride(activeNode.id, { customParent: 'NONE', customOrbitIndex: undefined, fixedX: undefined, fixedY: undefined });
+                                                }
+                                                deleteCustomEdge(otherNode.id, activeNode.id);
+                                                setTimeout(() => {
+                                                  initEngine();
+                                                  if (engineRef.current) {
+                                                    const updated = engineRef.current.getNodeById ? engineRef.current.getNodeById(activeNode.id) : null;
+                                                    if (updated) setActiveNode(updated);
+                                                  }
+                                                }, 50);
+                                              }
+                                            }}
+                                            className="p-1 hover:bg-rose-500/10 text-slate-450 hover:text-rose-600 rounded-lg cursor-pointer transition-all shrink-0"
+                                            title="연결 해제"
+                                          >
+                                            <Unlink size={12} />
+                                          </button>
+                                        </div>
+                                      ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1248,6 +1440,111 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                   })()
                 ) : (
                   <div className="p-4.5 flex flex-col h-full gap-4">
+                    {/* New Node Creation Form */}
+                    <div className="flex flex-col gap-3.5 bg-gradient-to-br from-indigo-500/5 to-purple-500/5 border border-indigo-500/10 p-4 rounded-2xl shadow-2xs mb-2">
+                      <div className="text-[11px] font-black text-indigo-700 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-indigo-500/10">
+                        <PlusSquare size={14} className="text-indigo-500" />
+                        <span>➕ 새 노드 생성</span>
+                      </div>
+
+                      <div className="flex flex-col gap-3">
+                        {/* 1. Label Input */}
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider">노드 이름</label>
+                          <input
+                            type="text"
+                            placeholder="노드 이름을 입력하세요..."
+                            value={createLabel}
+                            onChange={(e) => setCreateLabel(e.target.value)}
+                            className="w-full text-xs px-2.5 py-2 border rounded-xl bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 dark:text-slate-200 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/40 font-medium"
+                          />
+                        </div>
+
+                        {/* 2. Group Select */}
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider">그룹 지정</label>
+                          <select
+                            value={createGroup}
+                            onChange={(e) => setCreateGroup(e.target.value as OntologyGroup)}
+                            className="w-full text-xs px-2.5 py-2 border rounded-xl bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 dark:text-slate-200 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/40 font-medium cursor-pointer"
+                          >
+                            {Object.entries(GROUP_LABELS).map(([key, val]) => (
+                              <option key={key} value={key}>{val}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* 3. baseValue (Importance) Slider */}
+                        <div className="flex flex-col gap-1">
+                          <div className="flex justify-between items-center">
+                            <label className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider">중요도 (0 - 100)</label>
+                            <span className="text-[10px] font-bold text-indigo-650">{createBaseValue}</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0"
+                            max="100"
+                            value={createBaseValue}
+                            onChange={(e) => setCreateBaseValue(Number(e.target.value))}
+                            className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-650"
+                          />
+                        </div>
+
+                        {/* 4. Layer Select */}
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider">레이어 지정 (선택)</label>
+                          <select
+                            value={createLayer}
+                            onChange={(e) => setCreateLayer(e.target.value)}
+                            className="w-full text-xs px-2.5 py-2 border rounded-xl bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 dark:text-slate-200 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/40 font-medium cursor-pointer"
+                          >
+                            <option value="">-- 레이어 선택 안 함 --</option>
+                            {Object.entries(LAYER_LABELS).map(([key, val]) => (
+                              <option key={key} value={key}>{val}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Create Button */}
+                        <button
+                          onClick={() => {
+                            const name = createLabel.trim();
+                            if (!name) return alert('이름을 입력하세요.');
+                            const x = (Math.random() - 0.5) * 50;
+                            const y = (Math.random() - 0.5) * 50;
+                            const color = GROUP_COLORS[createGroup];
+                            const layerId = createLayer !== '' ? Number(createLayer) as OntologyLayerId : undefined;
+
+                            const newNode = addCustomNode(name, x, y, color, createGroup, createBaseValue, layerId);
+                            
+                            // Reset form
+                            setCreateLabel('');
+                            setCreateGroup('OTHER');
+                            setCreateBaseValue(80);
+                            setCreateLayer('');
+
+                            // Re-focus camera and activate new node
+                            setTimeout(() => {
+                              initEngine();
+                              if (engineRef.current) {
+                                const addedNode = engineRef.current.nodes.find(n => n.id === newNode.id || n.label === name);
+                                if (addedNode) {
+                                  engineRef.current.activeNode = addedNode;
+                                  engineRef.current.pendingCameraTargetId = addedNode.id;
+                                  engineRef.current.needsRedraw = true;
+                                  setActiveNode(addedNode);
+                                }
+                              }
+                            }, 80);
+                          }}
+                          className="w-full py-2 bg-indigo-650 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition-all shadow-3xs cursor-pointer flex items-center justify-center gap-1.5"
+                        >
+                          <PlusSquare size={13} />
+                          <span>노드 생성</span>
+                        </button>
+                      </div>
+                    </div>
+
                     {priorityNodes.length > 0 ? (
                       <div className="flex-1 flex flex-col">
                         <div className="mb-4 bg-gradient-to-r from-blue-500/5 to-indigo-500/5 border border-indigo-500/15 rounded-2xl p-4 shadow-2xs">
@@ -1304,7 +1601,7 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                               <button
                                 key={node.id}
                                 onClick={() => handleSelectNode(node)}
-                                className="w-full text-left bg-white/60 hover:bg-white border border-slate-200/40 hover:border-indigo-500/30 rounded-xl p-3.5 shadow-2xs hover:shadow-md hover:scale-[1.005] transition-all duration-150 flex items-start gap-3 group cursor-pointer"
+                                className="w-full text-left bg-white/60 dark:bg-slate-850/60 hover:bg-white dark:hover:bg-slate-850 border border-slate-200/40 dark:border-slate-800 hover:border-indigo-500/30 dark:hover:border-indigo-900/40 rounded-xl p-3.5 shadow-2xs hover:shadow-md hover:scale-[1.005] transition-all duration-150 flex items-start gap-3 group cursor-pointer"
                               >
                                 <div 
                                   className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-white text-xs font-bold shadow-xs"
@@ -1314,7 +1611,7 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                                 </div>
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-center justify-between gap-1 mb-1">
-                                    <span className="font-bold text-xs text-slate-800 group-hover:text-indigo-700 truncate transition-colors">
+                                    <span className="font-bold text-xs text-slate-800 dark:text-white group-hover:text-indigo-700 dark:group-hover:text-indigo-400 truncate transition-colors">
                                       {node.label}
                                     </span>
                                     <span className="shrink-0 px-1.5 py-0.5 text-[8px] font-bold text-indigo-700 bg-indigo-500/10 border border-indigo-500/15 rounded-md">
@@ -1323,7 +1620,7 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                                   </div>
                                   <div className="flex flex-col gap-0.5">
                                     {reasons.map((r, idx) => (
-                                      <span key={idx} className="text-[9.5px] font-semibold text-slate-500 flex items-center gap-1">
+                                      <span key={idx} className="text-[9.5px] font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1">
                                         {r}
                                       </span>
                                     ))}

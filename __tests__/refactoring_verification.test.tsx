@@ -439,6 +439,7 @@ describe('Refactoring Correctness and Leak Verification Suite', () => {
   // ─── MindMap3D Event Listeners and Engine Cleanup Tests ───
   describe('MindMap3D Event Listeners and Engine Cleanup', () => {
     it('should register all window and canvas listeners on mount and clear them on unmount without leakage', () => {
+      jest.useFakeTimers();
       const onAddSignal = jest.fn();
       
       const { unmount } = render(
@@ -449,6 +450,11 @@ describe('Refactoring Correctness and Leak Verification Suite', () => {
           isActive={true}
         />
       );
+
+      // Advance timers to trigger the 150ms delay for engineActive
+      act(() => {
+        jest.advanceTimersByTime(150);
+      });
 
       // Check registered listeners on window
       const windowAddCalls = addEventListenerSpy.mock.calls;
@@ -476,6 +482,7 @@ describe('Refactoring Correctness and Leak Verification Suite', () => {
 
       // Verify that engine.destroy was called
       expect(mockDestroy).toHaveBeenCalledTimes(1);
+      jest.useRealTimers();
     });
 
     it('should handle wheel event listener on canvas element and unregister it on unmount', async () => {

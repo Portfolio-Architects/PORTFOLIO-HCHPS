@@ -1,143 +1,119 @@
-# Performance Optimization Diagnostics & Analysis Report
+# Milestone 3 Analysis: Tab Switching UI Freeze Prevention and Rendering Optimization
 
-This report presents the diagnostic findings and proposed optimization strategies for the VITAL Work & Wealth platform. The analysis is divided into three key areas corresponding to the requirements R1, R2, and R3.
-
----
-
-## R1: Initial Dashboard Loading Performance Optimization
-
-### 1. Synchronously Imported Components in `src/app/page.tsx`
-The following components are imported synchronously at the top level of `src/app/page.tsx`:
-* **`Sidebar`** (Line 14):
-  ```typescript
-  import { Sidebar } from '@/components/Sidebar';
-  ```
-* **`SecurityLockScreen`** (Line 66):
-  ```typescript
-  import { SecurityLockScreen } from '@/components/SecurityLockScreen';
-  ```
-
-#### Diagnostic Assessment:
-* **`SecurityLockScreen`** is only rendered conditionally when `isLocked` is true (representing a lock state). If the session is unlocked, loading this component synchronously adds unnecessary bundle weight to the initial critical chunk.
-* **`Sidebar`** is not needed until the application completes its initial loading animation (the 1.8-second premium splash screen).
-* **Recommendation**: Replace these synchronous imports with dynamic imports (`dynamic(() => import(...), { ssr: false })`) to defer script loading and reduce the initial main bundle size.
+## Summary
+The application manages tab states using a keep-alive strategy (storing visited modules in DOM with `hidden` class), which causes hidden views to continuously re-render when parent state updates. Applying `React.memo` with custom comparison functions that bypass hidden views, combined with memoizing unstable event handlers like `startEdit` in `ContactsBox`, will prevent UI freeze and optimize rendering.
 
 ---
 
-### 2. Staggered Sequential Preloading & Background Rendering Bottleneck
-In `src/app/page.tsx` (Lines 155–187), the preloading of background modules is implemented using `preloadModulesOnIdle` with staggered timers inside a `requestIdleCallback`:
-```typescript
-const startStaggeredSequence = () => {
-  // 1.5초 후 마인드맵 로드
-  timers.push(window.setTimeout(() => triggerPreload('mindmap'), 1500));
-  // 3.5초 후 예산 대조보드 로드
-  timers.push(window.setTimeout(() => triggerPreload('workspace'), 3500));
-  // 5.5초 후 홍보자재 대장 로드
-  timers.push(window.setTimeout(() => triggerPreload('inventory'), 5500));
-};
+## 1. Active Tab States and Module Rendering Analysis
+In `src/app/page.tsx`, the `ProtectedApp` component manages module state using:
+- `activeModule` (`useState<ModuleType>('dashboard')`): Stores the currently visible tab.
+- `visitedModules` (`useState<Record<ModuleType, boolean>>`): Tracks which modules have been visited.
+
+### Rendering Method
+Tabs are mounted lazily but kept alive in the DOM using CSS visibility toggle:
+```tsx
+{visitedModules.dashboard && (
+  <div className={activeModule === 'dashboard' ? 'block' : 'hidden'}>
+    <PortfolioDashboardView ... />
+  </div>
+)}
 ```
-When `triggerPreload` is invoked, it sets `visitedModules[module] = true`.
-
-#### Diagnostic Assessment:
-* Setting `visitedModules[module] = true` forces Next.js to **render and mount** the component tree to the DOM (hidden via Tailwind's `hidden` utility class).
-* Rendering heavy components like `MindMap3D` forces script parsing, component initialization, WebGL/Three.js context initialization, and event listener bindings to execute on the main thread in the background.
-* This background execution causes severe CPU/GPU spikes and frame drops (micro-stuttering) while the user is actively interacting with the initial `dashboard` view.
-* **Recommendation**: Decouple **script prefetching** from **DOM mounting**. Modify the preloading logic to call the dynamic import dynamically (e.g., `import('@/components/MindMap3D')`) during idle time to download and cache the JavaScript bundle, but defer actual rendering in the React tree until the user explicitly navigates to the tab (`activeModule === module`).
+### Performance Impact
+Because these views remain mounted in the DOM, any state update in `ProtectedApp` (e.g. periodic tickers, global search updates, or switching the active tab itself) triggers a full virtual DOM reconciliation and re-rendering of all hidden views, leading to visible frames dropping (UI freeze) during transitions.
 
 ---
 
-## R2: Data API Response Speed Optimization
-
-### 1. Double-Fetch / Latency Bottleneck in `src/lib/sheets-api.ts`
-The data fetching logic in `readSheet` (Lines 46–235) uses an 8-second client-side cache guard. On cache misses or stale data (older than 8s), it implements a two-step query sequence:
-1. **First HTTP Request** (Metadata Verification):
-   ```typescript
-   const metaRes = await fetch(`${API_BASE}?sheet=${encodeURIComponent(sheetName)}&meta=true&_t=${Date.now()}`, ...);
-   ```
-2. **Second HTTP Request** (Full Data Retrieval - triggered if `mtime` or `size` differs from cache):
-   ```typescript
-   const res = await fetch(`${API_BASE}?sheet=${encodeURIComponent(sheetName)}&_t=${Date.now()}`, ...);
-   ```
-
-#### Diagnostic Assessment:
-* Every stale cache access incurs a latency penalty of at least **1 RTT** (for metadata check) and **2 RTTs** if the data has changed.
-* The Next.js API GET handler (`src/app/api/data/route.ts`, Lines 292–337) serves the `metaOnly` request and the full data request separately.
-* **Recommendation**: Eliminate the metadata fetch request. Modify `readSheet` to pass the client's current cached `mtime` and `size` as query parameters or headers (e.g., `If-Modified-Since` or `X-Client-Mtime`) in a single GET request.
-  * If the file has not been modified on disk, the server GET handler (using fast `fs.stat` without file read/parsing) should return `304 Not Modified` or `{ success: true, notModified: true }`.
-  * If the file has changed, the server returns the updated data and new `mtime`/`size` in the same response.
-  * This reduces the RTT to **1 RTT** in all scenarios, and saves substantial server I/O and network transmission bandwidth.
+## 2. Bypassing Hidden Tab Re-renders
+To prevent hidden views from executing expensive rendering or processing when they are not visible:
+1. **Pass `isActive` status as a prop** to each tab-level view:
+   - `PortfolioDashboardView`: `isActive={activeModule === 'dashboard'}`
+   - `WorkspaceView`: `isActive={activeModule === 'workspace'}`
+   - `MindMap3D`: `isActive={activeModule === 'mindmap'}` (already receives `isActive={activeModule === 'mindmap'}`)
+2. **Utilize `React.memo` with a custom comparison function**:
+   - If `prevProps.isActive !== nextProps.isActive`, allow re-rendering to toggle CSS visibility.
+   - If `!nextProps.isActive`, return `true` (skip rendering) to freeze/isolate the component while hidden.
+   - If the component is active, perform normal shallow comparison of relevant data dependencies.
 
 ---
 
-### 2. E2EE Microtask Overheads
-In `src/lib/sheets-api.ts` (Lines 97–139), decryption is performed asynchronously for all rows:
-```typescript
-const decryptedPromises = json.data.map(async (row: Record<string, unknown>) => {
-  if (row._enc) {
-    try {
-      const dec = await decryptPayload(row._enc as string) as Record<string, any>;
-      ...
+## 3. React.memo & Custom Comparison Functions
+
+### A. PortfolioDashboardView
+- **Current State**: Imported dynamically without wrapper.
+- **Proposed Optimization**: Wrap the exported component in `React.memo`:
+```tsx
+export const PortfolioDashboardView = React.memo(
+  function PortfolioDashboardView({ isActive = true, tasks, budgetCategories, budgetEntries, appMode = 'VITAL' }: DashboardProps) {
+    // ...
+  },
+  (prev, next) => {
+    if (prev.isActive !== next.isActive) return false;
+    if (!next.isActive) return true; // Freeze when hidden
+    return (
+      prev.appMode === next.appMode &&
+      prev.tasks === next.tasks &&
+      prev.budgetCategories === next.budgetCategories &&
+      prev.budgetEntries === next.budgetEntries
+    );
+  }
+);
 ```
 
-#### Diagnostic Assessment:
-* Since the E2EE bypass is active (`encryptPayload` simply returns a JSON string, and `decryptPayload` performs a fast `JSON.parse` check), the actual cryptography is bypassed.
-* However, calling an `async` function inside `map` and using `Promise.all` schedules thousands of microtasks in the JavaScript event loop.
-* **Recommendation**: Perform a synchronous type check on the payload. If the string is plain JSON, parse it synchronously to avoid promise scheduling overhead.
-
----
-
-## R3: Tab Transition and Interaction Responsiveness
-
-### 1. Broken Prop Comparison Memoization in `src/components/MindMap3D.tsx`
-`MindMap3D.tsx` defines a comprehensive prop comparison function `areMindMap3DPropsEqual` (Lines 43–68). However, at Line 72, the component is exported with default shallow comparison:
-```typescript
-export const MindMap3D = React.memo(function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onDeleteCategory, isActive = true }: MindMap3DProps) {
-```
-The custom comparison function is **completely omitted** in the `React.memo` invocation.
-
-#### Diagnostic Assessment:
-* React falls back to default shallow comparison.
-* In `src/app/page.tsx` (Lines 427–436), the parent passes `signalKeywords={mergedKeywordMap}` and `signalEntries={mergedEntries}` which are computed dynamically via `useMergedSignals` on every render.
-* Because these prop references change on every parent update, `MindMap3D` **always re-renders** whenever `ProtectedApp` re-renders.
-* **Recommendation**: Correct the export of `MindMap3D` to pass the comparison function:
-  ```typescript
-  export const MindMap3D = React.memo(MindMap3DComponent, areMindMap3DPropsEqual);
-  ```
-
----
-
-### 2. High-Frequency State Subscriptions at Top Level of `MindMap3D.tsx`
-`MindMap3D` subscribes to global hooks at its top-level (Lines 110–111):
-```typescript
-const { tasks = [] } = useTasks();
-const { categories = [], getCategoryStats } = useBudget();
+### B. WorkspaceView
+- **Current State**: Imported dynamically without wrapper.
+- **Proposed Optimization**: Wrap in `React.memo`:
+```tsx
+export const WorkspaceView = React.memo(
+  function WorkspaceView(props: WorkspaceViewProps) {
+    // ...
+  },
+  (prev, next) => {
+    if (prev.isActive !== next.isActive) return false;
+    if (!next.isActive) return true; // Freeze when hidden
+    return (
+      prev.budgetCategories === next.budgetCategories &&
+      prev.budgetEntries === next.budgetEntries &&
+      prev.inventoryItems === next.inventoryItems &&
+      prev.overallStats === next.overallStats
+    );
+  }
+);
 ```
 
-#### Diagnostic Assessment:
-* These subscriptions force the entire 3D MindMap component to re-render whenever any task or budget category is added, updated, or deleted, even if the MindMap tab is currently in the background (`isActive = false`).
-* These data arrays are only needed for the `MindMapInspector` side panel, which is only rendered when a node is actively selected (`activeNode !== null`).
-* **Recommendation**: Move `useTasks()` and `useBudget()` inside `MindMapInspector` to isolate rendering boundaries.
+### C. ContactsBox
+- **Current State**: Wrapped in a standard dynamic import, but not memoized.
+- **Proposed Optimization**: Wrap `ContactsBox` in `React.memo(ContactsBox)`. Since it takes no props, the default memoization prevents all re-renders caused by parent changes, as long as internal event handlers are properly memoized.
 
 ---
 
-### 3. Inline Arrow Functions & Fresh References in `src/app/page.tsx`
-In `src/app/page.tsx` (Lines 443–466), several prop references are instantiated inline:
-```typescript
-budgetEntries={budgetEntries.filter(e => !e.isPlanned)}
-getCategoryStats={(id) => getCategoryStats(id, true)}
+## 4. React.useCallback and useMemo Optimizations
+
+### A. ContactsBox Callback Instability (Crucial Fix)
+- **Problem**: `startEdit` in `ContactsBox.tsx` (line 97) is an inline function. Since it is passed to `ContactCard` (`onStartEdit`), it changes reference on every render. Because of this, the `React.memo` on `ContactCard` is completely broken. Every keystroke in the form inputs causes every contact card to re-render.
+- **Proposed Fix**: Wrap `startEdit` in `useCallback`:
+```tsx
+const startEdit = useCallback((contact: Contact) => {
+  setEditingContactId(contact.id);
+  setName(contact.name);
+  setPhone(contact.phone);
+  setEmail(contact.email || '');
+  setNotes(contact.notes || '');
+  setError(null);
+}, []);
 ```
+- **Other handlers**: Wrap `handleCancelEdit` and `handleSubmit` in `useCallback`.
 
-#### Diagnostic Assessment:
-* The inline `.filter` and inline arrow function create new references on every single render.
-* This breaks memoization on `WorkspaceView` and `BudgetDashboard` and forces child `useMemo` hooks inside `useBudgetFilters` to invalidate and re-evaluate.
-* **Recommendation**: Wrap these filtered data arrays and callback wrappers in `useMemo` and `useCallback` inside `ProtectedApp` before passing them down.
+### B. Stable Callbacks from Custom Hooks
+- **Verification**: Hook functions returned by `useBudget` (e.g. `addCategory`, `addEntry`) and `useInventory` (e.g. `addItem`, `updateItem`) are already properly memoized with `useCallback` inside their respective hooks, making them safe to pass down as dependencies.
 
 ---
 
-### 4. Continuous Idle Animation Frame Loop in `MindMap3D.tsx`
-The animation loop in `MindMap3D.tsx` (Lines 641–683) runs `requestAnimationFrame(loop)` continuously at 60 FPS, calling `engine.tick()` on every frame.
-
-#### Diagnostic Assessment:
-* Although `engine.tick()` implements an idle threshold to skip rendering (`idleFramesCount > 90`), the `requestAnimationFrame` loop itself is never canceled.
-* The browser still wakes up 60 times a second to execute Javascript checks, causing unnecessary CPU cycles (and battery drain on laptop devices).
-* **Recommendation**: Implement a **Zero-Occupancy Sleep** mechanism. When `engine.tick()` indicates the physics simulation is fully cooled down and no camera movement is active, cancel the animation loop. Re-register and wake it up only when user interactions (mousedown, wheel, touch, hover) or state changes occur.
+## 5. Expensive Filters in ContactsBox
+- **Current State**:
+  - `filteredContacts` is memoized:
+    ```tsx
+    const filteredContacts = useMemo(() => { ... }, [contacts, searchTerm]);
+    ```
+  - `searchTerm` is debounced from `localSearchTerm` with a `150ms` delay to prevent triggering filters on every keypress during IME composition.
+- **Verdict**: The filter logic is clean and properly debounced. The lag in `ContactsBox` is primarily caused by **render cascades** resulting from the unstable `startEdit` callback, which triggers virtual DOM updates on all `ContactCard` elements during typing. Stabilizing `startEdit` resolves this performance bottleneck.

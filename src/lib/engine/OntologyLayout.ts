@@ -1,4 +1,5 @@
 import { OrbitalNode, OntologyEdge } from '../ontology.types';
+import { PerformanceProfiler } from './PerformanceProfiler';
 
 // ============ Constants ============
 
@@ -19,6 +20,8 @@ export const CULL_MARGIN = 80;
 export class OntologyLayout {
   public static LAYER_GAP = 65;
   public static tiltAngle = 42 * Math.PI / 180;
+  public static readonly cosTilt = Math.cos(42 * Math.PI / 180);
+  public static readonly sinTilt = Math.sin(42 * Math.PI / 180);
   public static filterLayers = new Set<number>([0, 1, 2, 3]);
   public static filterGroups = new Set<string>();
   public static filterRiskOnly = false;
@@ -190,7 +193,8 @@ export class OntologyLayout {
     activeLayers?: Set<number>,
     isInteractive: boolean = false,
     recomputeWorldPositions: boolean = true,
-    isOrbiting: boolean = false
+    isOrbiting: boolean = false,
+    isDragging: boolean = false
   ): void {
     if (nodes.length === 0) return;
     OntologyLayout.totalNodesCount = nodes.length;
@@ -520,22 +524,29 @@ export class OntologyLayout {
           const cosS = node.cosSpeed ?? Math.cos(node.orbitSpeed ?? 0);
           const sinS = node.sinSpeed ?? Math.sin(node.orbitSpeed ?? 0);
           
-          if (isOrbiting && typeof node.targetWorldX === 'number' && typeof node.targetWorldY === 'number' && !isNaN(node.targetWorldX) && !isNaN(node.targetWorldY) && (node.targetWorldX !== 0 || node.targetWorldY !== 0)) {
-            // 타원 보정 해제 후 회전 행렬 적용 (삼각함수 Zero-Call 최적화)
-            const rawX = node.targetWorldX / ELLIPSE_RATIO;
-            const rawY = node.targetWorldY;
+          if (isOrbiting && node.orbitCos !== undefined && node.orbitSin !== undefined) {
+            // Rotate unit vector
+            const nextCos = node.orbitCos * cosS - node.orbitSin * sinS;
+            const nextSin = node.orbitCos * sinS + node.orbitSin * cosS;
             
-            const nextRawX = rawX * cosS - rawY * sinS;
-            const nextY = rawX * sinS + rawY * cosS;
+            // Renormalize to completely eliminate rounding error accumulation
+            const len = Math.sqrt(nextCos * nextCos + nextSin * nextSin);
+            node.orbitCos = nextCos / (len || 0.1);
+            node.orbitSin = nextSin / (len || 0.1);
             
-            node.targetWorldX = nextRawX * ELLIPSE_RATIO;
-            node.targetWorldY = nextY;
-          } else {
-            // 비공전 중이거나 초기화 상태일 때는 삼각함수로 위치 확정
+            // Map back to coordinates using exact radius
             const rOffset = node.radialOffset ?? 0;
             const R = OntologyLayout.getOrbitRadius(node.orbitIndex) + rOffset;
-            node.targetWorldX = R * Math.cos(node.orbitAngle) * ELLIPSE_RATIO;
-            node.targetWorldY = R * Math.sin(node.orbitAngle);
+            node.targetWorldX = R * node.orbitCos * ELLIPSE_RATIO;
+            node.targetWorldY = R * node.orbitSin;
+          } else {
+            // 비공전 중이거나 초기화 상태일 때는 삼각함수로 위치 확정
+            if (node.targetWorldX === undefined || node.targetWorldY === undefined || isNaN(node.targetWorldX) || isNaN(node.targetWorldY)) {
+              const rOffset = node.radialOffset ?? 0;
+              const R = OntologyLayout.getOrbitRadius(node.orbitIndex) + rOffset;
+              node.targetWorldX = R * Math.cos(node.orbitAngle) * ELLIPSE_RATIO;
+              node.targetWorldY = R * Math.sin(node.orbitAngle);
+            }
           }
         }
       }
@@ -544,8 +555,8 @@ export class OntologyLayout {
     // 6. Camera 변환 (World -> Screen - 3D Perspective Projection 복원)
     const cx = canvasW / 2 + cameraOffsetX;
     const cy = canvasH / 2 + cameraOffsetY;
-    const cosTilt = Math.cos(OntologyLayout.tiltAngle);
-    const sinTilt = Math.sin(OntologyLayout.tiltAngle);
+    const cosTilt = OntologyLayout.cosTilt;
+    const sinTilt = OntologyLayout.sinTilt;
     const cameraDist = 800; // 3D 원근 기준 거리
 
     for (const node of nodes) {
@@ -603,7 +614,21 @@ export class OntologyLayout {
 
     // 7. Screen-Space Collision Resolution (2D 화면 공간 충돌 방지 루프 복원)
     // 💡 노드들이 튕기고 흔들리는 물리적 요동(Jittering)을 박멸하기 위해 공전 중이 아닐 때만 충돌 방지 루프를 가동합니다.
-    const maxIterations = isOrbiting ? 0 : (isInteractive ? 5 : 0);
+    const shouldRunCollision = !isOrbiting && (recomputeWorldPositions || isDragging);
+    let maxIterations = 0;
+    if (shouldRunCollision) {
+      if (isInteractive) {
+        maxIterations = 5;
+        const fps = PerformanceProfiler.getInstance().getMetrics().fps;
+        if (fps > 0) {
+          if (fps < 40) {
+            maxIterations = 1;
+          } else if (fps < 50) {
+            maxIterations = 2;
+          }
+        }
+      }
+    }
     
     if (maxIterations > 0) {
       // 화면 영역(Frustum) 바깥의 노드는 충돌 물리 계산에서 제외하여 O(N^2) 루프의 연산 대상을 격감시킴
@@ -654,8 +679,9 @@ export class OntologyLayout {
       layerGroups.forEach((group) => {
         // 💡 공전 중인 환경에서 노드들이 튕기거나 요동치는 떨림(Jittering)을 박멸하기 위해,
         // 충돌 반발력 감쇠(damping)를 극도로 낮추어 부드럽게 미끄러지며 분산되도록 튜닝합니다.
-        const damping = 0.015;
+        let iterationDamping = 0.025; // Slightly higher initial damping for faster convergence
         for (let iter = 0; iter < maxIterations; iter++) {
+          iterationDamping *= 0.80; // Damping decay factor
           let hasOverlap = false;
           for (let i = 0; i < group.length; i++) {
             const dataA = group[i];
@@ -687,35 +713,66 @@ export class OntologyLayout {
                 continue;
               }
 
-              hasOverlap = true;
               const overlap = Math.min(overlapX, overlapY);
+              if (overlap < 0.8) {
+                continue; // Ignore overlaps below 0.8px
+              }
+              hasOverlap = true;
 
               let angleDiff = (nodeB.orbitAngle || 0) - (nodeA.orbitAngle || 0);
               while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
               while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
 
               const radiusA = OntologyLayout.getOrbitRadius(nodeA.orbitIndex || 1);
-              // 1회 충돌 반발 당 최대 밀기 회전각을 0.04라디안으로 제한하여 과도한 진동/발산 운동을 차단합니다.
-              const rawPushAngle = (overlap / Math.max(50, radiusA)) * damping;
-              // 💡 1회 프레임당 가해지는 최대 밀기각 한도를 0.04 -> 0.005로 크게 줄여 급격한 각도 흔들림을 억제합니다.
+              const rawPushAngle = (overlap / Math.max(50, radiusA)) * iterationDamping;
               const pushAngle = Math.min(0.005, rawPushAngle);
               const direction = angleDiff >= 0 ? 1 : -1;
 
+              // compute dTheta for nodeA and nodeB
+              let dThetaA = 0;
+              let dThetaB = 0;
+
               if (!isFixedA && !isFixedB) {
-                nodeA.orbitAngle = (nodeA.orbitAngle || 0) - pushAngle * 0.5 * direction;
-                nodeB.orbitAngle = (nodeB.orbitAngle || 0) + pushAngle * 0.5 * direction;
+                dThetaA = -pushAngle * 0.5 * direction;
+                dThetaB = pushAngle * 0.5 * direction;
               } else if (isFixedA && !isFixedB) {
-                nodeB.orbitAngle = (nodeB.orbitAngle || 0) + pushAngle * direction;
+                dThetaB = pushAngle * direction;
               } else if (!isFixedA && isFixedB) {
-                nodeA.orbitAngle = (nodeA.orbitAngle || 0) - pushAngle * direction;
+                dThetaA = -pushAngle * direction;
               }
 
-              // 부모의 각도 쐐기 바운더리를 벗어나지 않도록 강제 제한 (Clamping)
-              if (!isFixedA && nodeA.minAngle !== undefined) {
-                nodeA.orbitAngle = Math.max(nodeA.minAngle, Math.min(nodeA.maxAngle ?? 0, nodeA.orbitAngle || 0));
+              if (dThetaA !== 0) {
+                nodeA.orbitAngle = (nodeA.orbitAngle || 0) + dThetaA;
+                if (!isFixedA && nodeA.minAngle !== undefined) {
+                  nodeA.orbitAngle = Math.max(nodeA.minAngle, Math.min(nodeA.maxAngle ?? 0, nodeA.orbitAngle));
+                }
+                // Taylor-series approximation for nodeA unit vector
+                const cosDA = 1 - dThetaA * dThetaA * 0.5;
+                const sinDA = dThetaA;
+                const prevCosA = nodeA.orbitCos ?? Math.cos(nodeA.orbitAngle - dThetaA);
+                const prevSinA = nodeA.orbitSin ?? Math.sin(nodeA.orbitAngle - dThetaA);
+                const nextCosA = prevCosA * cosDA - prevSinA * sinDA;
+                const nextSinA = prevCosA * sinDA + prevSinA * cosDA;
+                const lenA = Math.sqrt(nextCosA * nextCosA + nextSinA * nextSinA);
+                nodeA.orbitCos = nextCosA / (lenA || 0.1);
+                nodeA.orbitSin = nextSinA / (lenA || 0.1);
               }
-              if (!isFixedB && nodeB.minAngle !== undefined) {
-                nodeB.orbitAngle = Math.max(nodeB.minAngle, Math.min(nodeB.maxAngle ?? 0, nodeB.orbitAngle || 0));
+
+              if (dThetaB !== 0) {
+                nodeB.orbitAngle = (nodeB.orbitAngle || 0) + dThetaB;
+                if (!isFixedB && nodeB.minAngle !== undefined) {
+                  nodeB.orbitAngle = Math.max(nodeB.minAngle, Math.min(nodeB.maxAngle ?? 0, nodeB.orbitAngle));
+                }
+                // Taylor-series approximation for nodeB unit vector
+                const cosDB = 1 - dThetaB * dThetaB * 0.5;
+                const sinDB = dThetaB;
+                const prevCosB = nodeB.orbitCos ?? Math.cos(nodeB.orbitAngle - dThetaB);
+                const prevSinB = nodeB.orbitSin ?? Math.sin(nodeB.orbitAngle - dThetaB);
+                const nextCosB = prevCosB * cosDB - prevSinB * sinDB;
+                const nextSinB = prevCosB * sinDB + prevSinB * cosDB;
+                const lenB = Math.sqrt(nextCosB * nextCosB + nextSinB * nextSinB);
+                nodeB.orbitCos = nextCosB / (lenB || 0.1);
+                nodeB.orbitSin = nextSinB / (lenB || 0.1);
               }
 
               // 동일 궤도상 노드들 간 겹침 시 지그재그 반경 오프셋 적용
@@ -723,7 +780,6 @@ export class OntologyLayout {
                 const rawOverlap = overlap;
                 if (rawOverlap > 0) {
                   const maxOffset = 45;
-                  // 💡 반경 방향 밀림 계수를 0.45에서 0.05로 크게 낮추어 궤도 반경 방향 튕김 현상을 억제합니다.
                   if (!isFixedA) {
                     nodeA.radialOffset = (nodeA.radialOffset ?? 0) - rawOverlap * 0.05;
                     nodeA.radialOffset = Math.max(-maxOffset, Math.min(maxOffset, nodeA.radialOffset));
@@ -735,12 +791,12 @@ export class OntologyLayout {
                 }
               }
 
-              // worldX, worldY 즉시 싱크 (LERP 지연에 의해 이전 renderX/Y가 계속해서 반발되는 교착 떨림 현상을 해소합니다)
+              // worldX, worldY 즉시 싱크
               if (nodeA.orbitIndex !== 0) {
                 const radiusA = OntologyLayout.getOrbitRadius(nodeA.orbitIndex || 1);
                 const rOffsetA = nodeA.radialOffset ?? 0;
-                nodeA.targetWorldX = (radiusA + rOffsetA) * Math.cos(nodeA.orbitAngle) * ELLIPSE_RATIO;
-                nodeA.targetWorldY = (radiusA + rOffsetA) * Math.sin(nodeA.orbitAngle);
+                nodeA.targetWorldX = (radiusA + rOffsetA) * (nodeA.orbitCos ?? Math.cos(nodeA.orbitAngle)) * ELLIPSE_RATIO;
+                nodeA.targetWorldY = (radiusA + rOffsetA) * (nodeA.orbitSin ?? Math.sin(nodeA.orbitAngle));
                 nodeA.worldX = nodeA.targetWorldX;
                 nodeA.worldY = nodeA.targetWorldY;
               } else {
@@ -753,8 +809,8 @@ export class OntologyLayout {
               if (nodeB.orbitIndex !== 0) {
                 const radiusB = OntologyLayout.getOrbitRadius(nodeB.orbitIndex || 1);
                 const rOffsetB = nodeB.radialOffset ?? 0;
-                nodeB.targetWorldX = (radiusB + rOffsetB) * Math.cos(nodeB.orbitAngle) * ELLIPSE_RATIO;
-                nodeB.targetWorldY = (radiusB + rOffsetB) * Math.sin(nodeB.orbitAngle);
+                nodeB.targetWorldX = (radiusB + rOffsetB) * (nodeB.orbitCos ?? Math.cos(nodeB.orbitAngle)) * ELLIPSE_RATIO;
+                nodeB.targetWorldY = (radiusB + rOffsetB) * (nodeB.orbitSin ?? Math.sin(nodeB.orbitAngle));
                 nodeB.worldX = nodeB.targetWorldX;
                 nodeB.worldY = nodeB.targetWorldY;
               } else {
@@ -764,9 +820,9 @@ export class OntologyLayout {
                 nodeB.worldY = 0;
               }
 
-              // 2D 스크린 투영 좌표 즉시 갱신 (이중 루프 내 후속 노드들의 겹침 계산에 즉각 반영하여 진동을 종식시킵니다)
-              const cosT = Math.cos(OntologyLayout.tiltAngle);
-              const sinT = Math.sin(OntologyLayout.tiltAngle);
+              // 2D 스크린 투영 좌표 즉시 갱신
+              const cosT = OntologyLayout.cosTilt;
+              const sinT = OntologyLayout.sinTilt;
 
               const rotYA = nodeA.worldY * cosT;
               const depthA = -nodeA.worldY * sinT;

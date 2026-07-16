@@ -164,7 +164,7 @@ export interface DocumentEntry {
   status: 'draft' | 'ready' | 'done'; // 상태
 }
 
-export type ModuleType = 'workspace' | 'mindmap' | 'dashboard' | 'inventory';
+export type ModuleType = 'workspace' | 'mindmap' | 'dashboard' | 'law';
 
 // ============ Weekly Scheduler Module ============
 export type ScheduleType = 'security' | 'meeting' | 'education' | 'other';

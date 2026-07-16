@@ -1,102 +1,73 @@
-# Handoff Report: Performance Optimization Exploration (R1, R2, R3)
-
-This report summarizes the results of the performance investigation and diagnostics conducted on the VITAL Work & Wealth platform codebase, focusing on initial loading times (R1), API responsiveness (R2), and tab transition/interaction responsiveness (R3).
-
----
+# Handoff Report: Milestone 3 (Tab Switching UI Freeze Prevention and Rendering Optimization)
 
 ## 1. Observation
-
-### R1: Initial Dashboard Loading Performance
-* **Synchronous Imports in `src/app/page.tsx`**:
-  * Line 14: `import { Sidebar } from '@/components/Sidebar';`
-  * Line 66: `import { SecurityLockScreen } from '@/components/SecurityLockScreen';`
-* **Staggered Loading in `src/app/page.tsx`**:
-  * Lines 155–187: The function `preloadModulesOnIdle` mounts heavy background components dynamically via `visitedModules[module] = true`.
-    * Line 170: `timers.push(window.setTimeout(() => triggerPreload('mindmap'), 1500));`
-    * Line 172: `timers.push(window.setTimeout(() => triggerPreload('workspace'), 3500));`
-    * Line 174: `timers.push(window.setTimeout(() => triggerPreload('inventory'), 5500));`
-  * This causes the components `MindMap3D`, `WorkspaceView`, and `InventoryList` to be rendered in the DOM inside `div` elements with Tailwind's `hidden` class.
-
-### R2: Data API Response Speed
-* **Metadata Check Request in `src/lib/sheets-api.ts`**:
-  * Lines 58–64: `readSheet` queries metadata before fetching actual data:
-    ```typescript
-    const metaRes = await fetch(`${API_BASE}?sheet=${encodeURIComponent(sheetName)}&meta=true&_t=${Date.now()}`, {
-      headers: { ...getAuthHeaders(), 'Cache-Control': 'no-cache, no-store, must-revalidate' },
-      cache: 'no-store'
-    });
-    ```
-* **Full Data Request in `src/lib/sheets-api.ts`**:
-  * Lines 81–87: A separate request retrieves the sheet data if modified:
-    ```typescript
-    const res = await fetch(`${API_BASE}?sheet=${encodeURIComponent(sheetName)}&_t=${Date.now()}`, {
-      headers: { ...getAuthHeaders(), 'Cache-Control': 'no-cache, no-store, must-revalidate' },
-      cache: 'no-store'
-    });
-    ```
-* **E2EE Decryption Async Overhead in `src/lib/sheets-api.ts`**:
-  * Lines 97–139: Every row is mapped to an `async` handler awaiting `decryptPayload` via `Promise.all`.
-* **API GET Route in `src/app/api/data/route.ts`**:
-  * Lines 306–337: The serverGET method is split between serving `metaOnly` data or returning the full sheet payload.
-
-### R3: Tab Transition & Interaction Responsiveness
-* **React.memo Missing Comparator in `src/components/MindMap3D.tsx`**:
-  * Lines 43–68: `areMindMap3DPropsEqual` is defined but omitted in the `React.memo` invocation on Line 72:
-    ```typescript
-    export const MindMap3D = React.memo(function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onDeleteCategory, isActive = true }: MindMap3DProps) {
-    ```
-  * In `src/app/page.tsx` (Lines 427–436), parent passes dynamic object/array references `signalKeywords={mergedKeywordMap}` and `signalEntries={mergedEntries}` which change on every parent render.
-* **Top-Level Subscriptions in `src/components/MindMap3D.tsx`**:
-  * Lines 110–111: Subscriptions to global tasks and budget hooks exist at the top level:
-    ```typescript
-    const { tasks = [] } = useTasks();
-    const { categories = [], getCategoryStats } = useBudget();
-    ```
-* **Inline Arrow Functions & Filters in `src/app/page.tsx`**:
-  * Line 443–466: Dynamic props are created inline inside the rendering return block of `ProtectedApp`:
-    * `budgetEntries={budgetEntries.filter(e => !e.isPlanned)}`
-    * `getCategoryStats={(id) => getCategoryStats(id, true)}`
-* **Un-cancelled Animation Frame Loop in `src/components/MindMap3D.tsx`**:
-  * Lines 641–683: The rendering loop is repeatedly called at 60 FPS using `requestAnimationFrame(loop)` even if `engine.tick()` is idle.
+- **Observation A (Active Tab and keep-alive strategy)**: In `src/app/page.tsx`, `ProtectedApp` keeps all visited modules in the DOM using a class-based block/hidden display utility.
+  ```tsx
+  {/* Dashboard */}
+  {visitedModules.dashboard && (
+    <div className={activeModule === 'dashboard' ? 'block' : 'hidden'}>
+      <PortfolioDashboardView tasks={tasks} budgetCategories={budgetCategories} budgetEntries={budgetEntries} onLogout={handleLogout} appMode={appMode} />
+    </div>
+  )}
+  ```
+- **Observation B (Un-memoized parent views)**: `PortfolioDashboardView` and `WorkspaceView` are not memoized. They do not accept an `isActive` prop or handle short-circuit rendering when inactive.
+- **Observation C (Un-memoized handler causing ContactCard render cascade)**: In `src/components/dashboard/ContactsBox.tsx`, `ContactCard` is wrapped in `React.memo` (line 9). However, the callback `startEdit` passed to it (line 97) is an un-memoized standard function:
+  ```tsx
+  const startEdit = (contact: Contact) => {
+    setEditingContactId(contact.id);
+    setName(contact.name);
+    setPhone(contact.phone);
+    setEmail(contact.email || '');
+    setNotes(contact.notes || '');
+    setError(null);
+  };
+  ```
+- **Observation D (Debounced search filtering)**: In `src/components/dashboard/ContactsBox.tsx`, search input filtering uses a `150ms` debounce (line 82) and is memoized (line 116):
+  ```tsx
+  const filteredContacts = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return contacts;
+    return contacts.filter(
+      (c) =>
+        c.name.toLowerCase().includes(term) ||
+        c.phone.toLowerCase().includes(term) ||
+        (c.notes && c.notes.toLowerCase().includes(term))
+    );
+  }, [contacts, searchTerm]);
+  ```
 
 ---
 
 ## 2. Logic Chain
-
-1. **R1 (Initial Chunk Weight)**: Since `SecurityLockScreen` and `Sidebar` are imported synchronously, the initial JS bundle contains code that is either conditionally mounted or only required post-splashscreen. Converting them to Next.js dynamic imports with `ssr: false` will trim the initial critical bundle size.
-2. **R1 (Main Thread Occupancy)**: Mounting heavy components like `MindMap3D` in the background (even if hidden in the DOM) executes their React lifecycles and initializes WebGL contexts. Decoupling preloading (downloading the JS chunk via dynamic `import()`) from mounting (instantiating in the DOM) prevents this idle main thread occupancy.
-3. **R2 (Double Fetches)**: Performing a metadata check request followed by a full data request doubles the RTT (Round Trip Time). Merging these into a single request carrying client cache timestamps and sizes allows the server to return a `304 Not Modified` or a lightweight `notModified` flag, reducing RTT to 1.
-4. **R2 (E2EE microtasks)**: Because E2EE is bypassed on development environments (returning plain strings), executing it inside an async loop incurs microtask scheduling overhead. Using synchronous parsing for plaintext payloads avoids this overhead.
-5. **R3 (MindMap Re-renders)**: Omitting `areMindMap3DPropsEqual` in `React.memo` forces the 3D MindMap to re-render on every parent change. Passing the comparator resolves this.
-6. **R3 (State decoupling)**: `MindMap3D` subscribes to tasks and budgets, causing it to re-render on any task/budget edit, even when in the background. Moving these subscriptions to the conditionally mounted `MindMapInspector` isolates rendering boundaries.
-7. **R3 (Inline Props)**: Instantiating filters and callbacks inline inside `ProtectedApp` invalidates React Query / `useMemo` cache dependencies in child components. Wrapping them in `useMemo`/`useCallback` stabilizes the references.
-8. **R3 (Zero-Occupancy Loop)**: Constantly running `requestAnimationFrame` at 60 FPS consumes CPU power during idle. Cancelling the frame loop when the physics simulation sleeps and waking it up upon mouse/touch interactions reduces idle CPU usage to 0%.
+- **Step 1 (Parent state updates trigger hidden view renders)**: In `ProtectedApp` (`src/app/page.tsx`), state updates (e.g. `activeModule` switching, tickers, budget updates) trigger `ProtectedApp` to re-render. Since `PortfolioDashboardView` and `WorkspaceView` are not wrapped in `React.memo`, React unconditionally re-renders them, running all hooks, layout logic, and virtual DOM diffing even when their outer container has `display: none` (`className="hidden"`).
+- **Step 2 (Custom React.memo to freeze hidden tabs)**: By wrapping `PortfolioDashboardView` and `WorkspaceView` in `React.memo` and passing `isActive={activeModule === '...'}` as a prop, we can implement a custom comparison function. If the component was hidden and remains hidden (`!nextProps.isActive`), the comparison returns `true` (skipping re-render). This completely stops hidden views from running any computation on parent changes.
+- **Step 3 (Event handler recreation breaks ContactCard memoization)**: In `ContactsBox.tsx`, because `startEdit` is recreated on every render, the reference of `onStartEdit` prop passed to `<ContactCard>` changes on every keystroke in the form. This causes React to bypass the `React.memo` wrapper on `ContactCard` and re-render all contacts in the list. Wrapping `startEdit` in `useCallback` makes the prop reference stable, allowing `React.memo` to successfully skip renders.
+- **Step 4 (Search filter is not the bottleneck)**: The search filter is already optimized because it is debounced by 150ms and wrapped in `useMemo`. The lag is purely caused by the `ContactCard` render cascade during text typing.
 
 ---
 
 ## 3. Caveats
-
-* **E2EE Backward Compatibility**: Any optimization bypassing E2EE decryption async microtasks must gracefully fall back to the async crypto path if older encrypted data is encountered on disk.
-* **Three.js WebGL Startup Cost**: WebGL context creation cannot be threaded and must happen on the main thread. Postponing WebGL setup until the MindMap tab is clicked will make the first transition into the MindMap tab take slightly longer (around 200–400ms), but it keeps the initial dashboard load completely smooth.
+- Bypassing rendering of inactive views means any background state updates (e.g. new budget entries arriving while on the Law tab) will not be reflected in the inactive view's virtual DOM immediately. They will update once the view becomes active again. This is the desired behavior for performance, but the developer should ensure that component local states (like expanded items or charts) do not reset when transitioning.
+- The `isLocked` or security screens are top-level and completely unmount the app, so they are not affected by this optimization.
 
 ---
 
 ## 4. Conclusion
-
-* **R1**: Initial loading times can be optimized by dynamically importing `Sidebar` and `SecurityLockScreen`, and prefetching JS bundles without background DOM mounting.
-* **R2**: Network latency can be halved by introducing conditional requests using client-side `mtime`/`size` parameters and serving a fast `304 Not Modified` response from `/api/data`.
-* **R3**: Tab freezes and render stutters can be mitigated by passing the missing comparator to `React.memo` on `MindMap3D`, moving task/budget subscriptions down into the inspector sub-component, caching inline props in `page.tsx`, and implementing a wake/sleep loop control for the 3D physics rendering cycle.
+- The UI freeze/sluggishness during tab switching and input typing is caused by:
+  1. Hidden, un-memoized tab views undergoing virtual DOM reconciliation when they are not active.
+  2. Cascade re-renders of all `ContactCard`s in `ContactsBox` due to unstable handler props (`startEdit`).
+- **Action Plan**:
+  1. Wrap `PortfolioDashboardView` and `WorkspaceView` in `React.memo` with custom comparison functions that return `true` (skip render) if `!nextProps.isActive`.
+  2. Pass `isActive` from `ProtectedApp` to both views.
+  3. Wrap `startEdit`, `handleCancelEdit`, and `handleSubmit` in `useCallback` inside `ContactsBox.tsx`.
+  4. Wrap `ContactsBox` in `React.memo(ContactsBox)`.
 
 ---
 
 ## 5. Verification Method
-
-* **Build & Bundle Analysis**:
-  * Run `npm run build` or `next build` to verify that chunk sizes for the main page decrease.
-* **Network & Performance Testing**:
-  * Open browser developer tools and check the Network tab.
-  * Verify that `/api/data` requests return `304 Not Modified` on cache hits.
-  * Verify that the separate `meta=true` queries are eliminated.
-* **React Profiler**:
-  * Use React Developer Tools to profile parent updates (e.g. adding a task).
-  * Confirm that `MindMap3D` does not re-render when global tasks/budgets change or when it is running in the background.
+- **Static Verification**:
+  - Run `npm run lint` and `npm run build` to verify no syntactic or typing regressions.
+- **Behavioral Verification**:
+  - Open React Developer Tools Profiler.
+  - Record a profile. Switch tabs. Verify that components for hidden tabs do not trigger a render cycle when they are hidden.
+  - Type into the search or form fields in `ContactsBox`. Check that only the updated elements render and no other `ContactCard`s are re-rendered.

@@ -1,10 +1,64 @@
 'use client';
 
 import { useEffect, useCallback, useMemo, useSyncExternalStore, useRef, useState } from 'react';
-import { OntologyNode, OntologyEdge, EdgeType } from '@/lib/ontology.types';
-import { useYjsStore, runSafeTransaction, globalYDoc } from './useYjsStore';
+import { OntologyNode, OntologyEdge, EdgeType, OntologyGroup, OntologyLayerId } from '@/lib/ontology.types';
+import { useYjsStore, globalYDoc } from './useYjsStore';
 import * as Y from 'yjs';
 import { readSheet, replaceAll } from '@/lib/sheets-api';
+
+// Global variables for pending items and listeners
+let globalPendingNodes: OntologyNode[] = [];
+let globalPendingEdges: OntologyEdge[] = [];
+const pendingListeners = new Set<() => void>();
+const recentlyDeletedNodes = new Set<string>();
+
+const addPendingListener = (listener: () => void) => {
+  pendingListeners.add(listener);
+  return () => {
+    pendingListeners.delete(listener);
+  };
+};
+
+const setGlobalPending = (nodes: OntologyNode[], edges: OntologyEdge[]) => {
+  globalPendingNodes = nodes;
+  globalPendingEdges = edges;
+  pendingListeners.forEach(l => l());
+};
+
+function getReviewedNodeIds(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const val = localStorage.getItem('hchps-reviewed-ai-nodes');
+    return val ? JSON.parse(val) : [];
+  } catch {
+    return [];
+  }
+}
+
+function getReviewedEdgeKeys(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const val = localStorage.getItem('hchps-reviewed-ai-edges');
+    return val ? JSON.parse(val) : [];
+  } catch {
+    return [];
+  }
+}
+
+function addReviewedItems(nodeIds: string[], edgeKeys: string[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    const currentNodes = getReviewedNodeIds();
+    const nextNodes = Array.from(new Set([...currentNodes, ...nodeIds]));
+    localStorage.setItem('hchps-reviewed-ai-nodes', JSON.stringify(nextNodes));
+
+    const currentEdges = getReviewedEdgeKeys();
+    const nextEdges = Array.from(new Set([...currentEdges, ...edgeKeys]));
+    localStorage.setItem('hchps-reviewed-ai-edges', JSON.stringify(nextEdges));
+  } catch (e) {
+    console.error('Failed to update reviewed items in localStorage:', e);
+  }
+}
 
 // Global variables for singleton polling loop
 let activePollInterval: ReturnType<typeof setInterval> | null = null;
@@ -48,6 +102,127 @@ export interface MapCustomizationData {
 export function useGraphCustomization(enabled = true) {
   const { ydoc } = useYjsStore();
   const isSyncing = useRef(false);
+
+  const [pendingNodes, setPendingNodes] = useState<OntologyNode[]>(globalPendingNodes);
+  const [pendingEdges, setPendingEdges] = useState<OntologyEdge[]>(globalPendingEdges);
+
+  useEffect(() => {
+    return addPendingListener(() => {
+      setPendingNodes(globalPendingNodes);
+      setPendingEdges(globalPendingEdges);
+    });
+  }, []);
+
+  const approveAndMerge = useCallback((
+    approvedNodes: OntologyNode[],
+    approvedEdges: OntologyEdge[],
+    skippedIds: string[]
+  ) => {
+    ydoc.transact(() => {
+      const customNodesMap = ydoc.getMap('customNodesMap') as Y.Map<OntologyNode>;
+      const customEdgesMap = ydoc.getMap('customEdgesMap') as Y.Map<OntologyEdge>;
+
+      approvedNodes.forEach(node => {
+        customNodesMap.set(node.id, node);
+      });
+
+      approvedEdges.forEach(edge => {
+        const k = `${edge.source}|||${edge.target}`;
+        customEdgesMap.set(k, edge);
+      });
+    });
+
+    const reviewedNodeIds = [
+      ...approvedNodes.map(n => n.id),
+      ...skippedIds.filter(id => !id.includes('|||'))
+    ];
+    const reviewedEdgeKeys = [
+      ...approvedEdges.map(e => `${e.source}|||${e.target}`),
+      ...skippedIds.filter(id => id.includes('|||'))
+    ];
+
+    addReviewedItems(reviewedNodeIds, reviewedEdgeKeys);
+
+    const remainingNodes = globalPendingNodes.filter(
+      n => !reviewedNodeIds.includes(n.id) && !approvedNodes.some(an => an.id === n.id)
+    );
+    const remainingEdges = globalPendingEdges.filter(
+      e => {
+        const k = `${e.source}|||${e.target}`;
+        return !reviewedEdgeKeys.includes(k) && !approvedEdges.some(ae => `${ae.source}|||${ae.target}` === k);
+      }
+    );
+
+    setGlobalPending(remainingNodes, remainingEdges);
+  }, [ydoc]);
+
+  const addPendingSuggestions = useCallback(async (newNodes: OntologyNode[], newEdges: OntologyEdge[]) => {
+    try {
+      const rows = await readSheet<MapCustomizationData & { id: string }>('MAP_CUSTOMIZATION');
+      let currentData: MapCustomizationData = { overrides: {}, customNodes: [], customEdges: [], deletedEdges: [] };
+      if (rows && rows.length > 0 && rows[0].id === 'singleton') {
+        currentData = rows[0];
+      }
+
+      const existingNodeIds = new Set((currentData.customNodes || []).map(n => n.id));
+      const existingEdgeKeys = new Set((currentData.customEdges || []).map(e => `${e.source}|||${e.target}`));
+
+      const filteredNewNodes = newNodes.filter(n => !existingNodeIds.has(n.id));
+      const filteredNewEdges = newEdges.filter(e => !existingEdgeKeys.has(`${e.source}|||${e.target}`));
+
+      if (filteredNewNodes.length === 0 && filteredNewEdges.length === 0) {
+        const reviewedNodes = new Set(getReviewedNodeIds());
+        const reviewedEdges = new Set(getReviewedEdgeKeys());
+        const customNodesMap = ydoc.getMap('customNodesMap') as Y.Map<OntologyNode>;
+        const customEdgesMap = ydoc.getMap('customEdgesMap') as Y.Map<OntologyEdge>;
+
+        const freshNodes = newNodes.filter(n => !customNodesMap.has(n.id) && !reviewedNodes.has(n.id));
+        const freshEdges = newEdges.filter(e => {
+          const k = `${e.source}|||${e.target}`;
+          const r = `${e.target}|||${e.source}`;
+          return !customEdgesMap.has(k) && !customEdgesMap.has(r) && !reviewedEdges.has(k) && !reviewedEdges.has(r);
+        });
+
+        if (freshNodes.length > 0 || freshEdges.length > 0) {
+          const mergedNodes = Array.from(new Map([...globalPendingNodes, ...freshNodes].map(n => [n.id, n])).values());
+          const mergedEdges = Array.from(new Map([...globalPendingEdges, ...freshEdges].map(e => [`${e.source}|||${e.target}`, e])).values());
+          setGlobalPending(mergedNodes, mergedEdges);
+        }
+        return;
+      }
+
+      const updatedNodes = [...(currentData.customNodes || []), ...filteredNewNodes];
+      const updatedEdges = [...(currentData.customEdges || []), ...filteredNewEdges];
+
+      await replaceAll('MAP_CUSTOMIZATION', [{
+        id: 'singleton',
+        overrides: currentData.overrides || {},
+        customNodes: updatedNodes,
+        customEdges: updatedEdges,
+        deletedEdges: currentData.deletedEdges || []
+      }]);
+
+      const reviewedNodes = new Set(getReviewedNodeIds());
+      const reviewedEdges = new Set(getReviewedEdgeKeys());
+      const customNodesMap = ydoc.getMap('customNodesMap') as Y.Map<OntologyNode>;
+      const customEdgesMap = ydoc.getMap('customEdgesMap') as Y.Map<OntologyEdge>;
+
+      const freshNodes = filteredNewNodes.filter(n => !customNodesMap.has(n.id) && !reviewedNodes.has(n.id));
+      const freshEdges = filteredNewEdges.filter(e => {
+        const k = `${e.source}|||${e.target}`;
+        const r = `${e.target}|||${e.source}`;
+        return !customEdgesMap.has(k) && !customEdgesMap.has(r) && !reviewedEdges.has(k) && !reviewedEdges.has(r);
+      });
+
+      const mergedNodes = Array.from(new Map([...globalPendingNodes, ...freshNodes].map(n => [n.id, n])).values());
+      const mergedEdges = Array.from(new Map([...globalPendingEdges, ...freshEdges].map(e => [`${e.source}|||${e.target}`, e])).values());
+      setGlobalPending(mergedNodes, mergedEdges);
+
+      console.info(`[useGraphCustomization] Successfully added ${filteredNewNodes.length} nodes and ${filteredNewEdges.length} edges to MAP_CUSTOMIZATION sheet.`);
+    } catch (err) {
+      console.error('Failed to add pending suggestions to cloud:', err);
+    }
+  }, [ydoc]);
 
   const undoManager = useMemo(() => {
     return new Y.UndoManager([
@@ -212,24 +387,54 @@ export function useGraphCustomization(enabled = true) {
     ydoc.getMap('overrides').delete(id);
   }, [ydoc]);
 
-  const addCustomNode = useCallback((label: string, x: number, y: number, color?: string) => {
+  const addCustomNode = useCallback((
+    label: string,
+    x: number,
+    y: number,
+    color?: string,
+    group?: OntologyGroup,
+    baseValue?: number,
+    layerId?: OntologyLayerId
+  ) => {
+    const labelLower = label.toLowerCase();
     const newNode: OntologyNode = {
       id: `custom-${Date.now()}`,
       label,
-      group: 'OTHER',
-      baseValue: 80,
+      group: group || 'OTHER',
+      baseValue: baseValue !== undefined ? baseValue : 80,
       fixedX: x,
       fixedY: y,
       customColor: color,
+      layerId: layerId,
       centralityScore: 100,
     };
-    (ydoc.getMap('customNodesMap') as Y.Map<OntologyNode>).set(newNode.id, newNode);
+
+    ydoc.transact(() => {
+      const overridesMap = ydoc.getMap('overrides') as Y.Map<NodeOverride>;
+      for (const key of Array.from(overridesMap.keys())) {
+        const override = overridesMap.get(key);
+        if (override) {
+          if (key === `tag-${labelLower}` || key === `leaf-${labelLower}` || override.customLabel === label) {
+            if (override.hidden) {
+              overridesMap.set(key, { ...override, hidden: null });
+            }
+          }
+        }
+      }
+      (ydoc.getMap('customNodesMap') as Y.Map<OntologyNode>).set(newNode.id, newNode);
+    });
+
     return newNode;
   }, [ydoc]);
 
 
 
   const deleteCustomNode = useCallback((id: string) => {
+    recentlyDeletedNodes.add(id);
+    setTimeout(() => {
+      recentlyDeletedNodes.delete(id);
+    }, 5000);
+
     ydoc.transact(() => {
       (ydoc.getMap('customNodesMap') as Y.Map<OntologyNode>).delete(id);
       
@@ -280,7 +485,17 @@ export function useGraphCustomization(enabled = true) {
       if (deletedMap.has(edgeId)) deletedMap.delete(edgeId);
       if (deletedMap.has(reverseId)) deletedMap.delete(reverseId);
 
-      if (!map.has(edgeId) && !map.has(reverseId)) {
+      if (map.has(edgeId)) {
+        const existing = map.get(edgeId);
+        if (existing) {
+          map.set(edgeId, { ...existing, weight, type });
+        }
+      } else if (map.has(reverseId)) {
+        const existing = map.get(reverseId);
+        if (existing) {
+          map.set(reverseId, { ...existing, weight, type });
+        }
+      } else {
         map.set(edgeId, { source, target, weight, type });
       }
     });
@@ -479,7 +694,8 @@ export function useGraphCustomization(enabled = true) {
     return () => clearTimeout(timer);
   }, [data, syncToCloud]);
 
-  // 10초 간격 백엔드 로컬 DB 실시간 폴링 및 Yjs CRDT 실시간 병합 (Visibility Gating 적용 - Global Singleton Pattern)
+  // 10초 간격 백엔드 로컬 DB 실시간 폴링 및 Yjs CRDT 실시간 병합 대신,
+  // AI 추출 후보를 감지하여 pendingNodes / pendingEdges 버퍼 상태로 필터링 수집
   useEffect(() => {
     if (!enabled || !isCloudLoaded) return;
 
@@ -487,12 +703,8 @@ export function useGraphCustomization(enabled = true) {
     
     if (!activePollInterval) {
       console.info('[Watcher Poll] Starting global singleton polling loop.');
-      activePollInterval = setInterval(async () => {
-        // Visibility Gating: 브라우저 탭이 비활성 상태(background)인 경우 폴링 생략하여 CPU/IO 소모 극소화
-        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
-          return;
-        }
 
+      const runPoll = async () => {
         try {
           const { readSheet } = await import('@/lib/sheets-api');
           const rows = await readSheet<MapCustomizationData & { id: string }>('MAP_CUSTOMIZATION');
@@ -500,44 +712,55 @@ export function useGraphCustomization(enabled = true) {
           if (rows && rows.length > 0 && rows[0].id === 'singleton') {
             const dbData = rows[0];
             
-            await runSafeTransaction(globalYDoc, () => {
-              const customNodesMap = globalYDoc.getMap('customNodesMap') as Y.Map<OntologyNode>;
-              const customEdgesMap = globalYDoc.getMap('customEdgesMap') as Y.Map<OntologyEdge>;
-              
-              let changed = false;
+            const customNodesMap = globalYDoc.getMap('customNodesMap') as Y.Map<OntologyNode>;
+            const customEdgesMap = globalYDoc.getMap('customEdgesMap') as Y.Map<OntologyEdge>;
+            const deletedEdgesMap = globalYDoc.getMap('deletedEdgesMap') as Y.Map<boolean>;
 
-              // 1. 신규 노드 추가
-              if (dbData.customNodes) {
-                dbData.customNodes.forEach((n: OntologyNode) => {
-                  if (!customNodesMap.has(n.id)) {
-                    customNodesMap.set(n.id, n);
-                    changed = true;
-                    console.info(`[Watcher Poll] AI 신규 노드 감지 및 화면 병합: ${n.label} (${n.id})`);
-                  }
-                });
-              }
-              
-              // 2. 신규 엣지 추가
-              if (dbData.customEdges) {
-                dbData.customEdges.forEach((e: OntologyEdge) => {
-                  const k = `${e.source}|||${e.target}`;
-                  const r = `${e.target}|||${e.source}`;
-                  if (!customEdgesMap.has(k) && !customEdgesMap.has(r)) {
-                    customEdgesMap.set(k, e);
-                    changed = true;
-                    console.info(`[Watcher Poll] AI 신규 관계 감지 및 화면 병합: ${e.source} -> ${e.target}`);
-                  }
-                });
-              }
+            const reviewedNodeIds = new Set(getReviewedNodeIds());
+            const reviewedEdgeKeys = new Set(getReviewedEdgeKeys());
 
-              if (changed) {
-                console.log('[Watcher Poll] Yjs 데이터 실시간 동기화 완료.');
-              }
-            });
+            const newPendingNodes: OntologyNode[] = [];
+            if (dbData.customNodes) {
+              dbData.customNodes.forEach((n: OntologyNode) => {
+                if (!customNodesMap.has(n.id) && !reviewedNodeIds.has(n.id) && !recentlyDeletedNodes.has(n.id)) {
+                  newPendingNodes.push(n);
+                }
+              });
+            }
+
+            const newPendingEdges: OntologyEdge[] = [];
+            if (dbData.customEdges) {
+              dbData.customEdges.forEach((e: OntologyEdge) => {
+                const k = `${e.source}|||${e.target}`;
+                const r = `${e.target}|||${e.source}`;
+                
+                if (recentlyDeletedNodes.has(e.source) || recentlyDeletedNodes.has(e.target)) {
+                  return;
+                }
+
+                if (
+                  !customEdgesMap.has(k) && !customEdgesMap.has(r) && 
+                  !reviewedEdgeKeys.has(k) && !reviewedEdgeKeys.has(r) &&
+                  !deletedEdgesMap.has(k) && !deletedEdgesMap.has(r)
+                ) {
+                  newPendingEdges.push(e);
+                }
+              });
+            }
+
+            setGlobalPending(newPendingNodes, newPendingEdges);
           }
         } catch (err) {
           console.error('[Watcher Poll Error] Failed to auto-sync watcher DB:', err);
         }
+      };
+
+      runPoll();
+      activePollInterval = setInterval(() => {
+        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+          return;
+        }
+        runPoll();
       }, 10000);
     }
 
@@ -572,5 +795,9 @@ export function useGraphCustomization(enabled = true) {
     clearAll,
     syncToCloud,
     fetchFromCloud,
+    pendingNodes,
+    pendingEdges,
+    approveAndMerge,
+    addPendingSuggestions,
   };
 }

@@ -11,8 +11,67 @@ import {
   GROUP_COLORS, GROUP_LABELS, OntologyGroup,
 } from '@/lib/ontology.types';
 import { useGraphCustomization } from '@/hooks/useGraphCustomization';
-import { WikiEditor } from './WikiEditor';
 import { MindMapInspector } from './MindMapInspector';
+import { SemanticReviewModal } from './SemanticReviewModal';
+import dynamic from 'next/dynamic';
+
+function WikiEditorSkeleton() {
+  return (
+    <div className="absolute top-0 right-0 h-full bg-white dark:bg-slate-950 z-[120] shadow-xl border-l border-slate-200 dark:border-slate-800 w-full md:w-[450px] lg:w-[500px] flex flex-col animate-pulse">
+      {/* Header Skeleton */}
+      <div className="shrink-0 pt-6 px-8 pb-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-start">
+        <div className="flex flex-col gap-2">
+          <div className="w-20 h-3.5 bg-slate-200 dark:bg-slate-800 rounded" />
+          <div className="w-48 h-6 bg-slate-200 dark:bg-slate-800 rounded" />
+        </div>
+        <div className="w-8 h-8 bg-slate-200 dark:bg-slate-800 rounded-full" />
+      </div>
+
+      {/* Editor Content Body Skeleton */}
+      <div className="flex-1 p-8 flex flex-col gap-6 overflow-y-auto">
+        <div className="w-32 h-8 bg-slate-200 dark:bg-slate-800 rounded-md" />
+        
+        <div className="space-y-4">
+          <div className="w-full h-4 bg-slate-200 dark:bg-slate-800 rounded" />
+          <div className="w-11/12 h-4 bg-slate-200 dark:bg-slate-800 rounded" />
+          <div className="w-10/12 h-4 bg-slate-200 dark:bg-slate-800 rounded" />
+        </div>
+
+        <div className="w-44 h-6 bg-slate-200 dark:bg-slate-800 rounded-md mt-4" />
+        
+        <div className="space-y-3 pl-4">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-slate-200 dark:bg-slate-800 rounded-full" />
+            <div className="w-5/6 h-3 bg-slate-200 dark:bg-slate-800 rounded" />
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-slate-200 dark:bg-slate-800 rounded-full" />
+            <div className="w-4/5 h-3 bg-slate-200 dark:bg-slate-800 rounded" />
+          </div>
+        </div>
+
+        <div className="flex-1 flex flex-col items-center justify-center gap-3 py-10">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 dark:border-indigo-400"></div>
+          <span className="text-xs text-slate-400 dark:text-slate-500 font-bold">블록 에디터 리소스를 불러오는 중...</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const WikiEditor = dynamic(() => import('./WikiEditor').then(mod => {
+  return {
+    default: (props: any) => (
+      <div className="absolute top-0 right-0 h-full bg-white dark:bg-slate-950 z-[120] shadow-xl border-l border-slate-200 dark:border-slate-800 w-full md:w-[450px] lg:w-[500px]">
+        <mod.WikiEditor {...props} />
+      </div>
+    )
+  };
+}), {
+  ssr: false,
+  loading: () => <WikiEditorSkeleton />
+});
+
 import { MindMapHeader } from './mindmap/ui/MindMapHeader';
 import { MindMapHUD } from './mindmap/ui/MindMapHUD';
 import { useWikiStorage } from '@/hooks/useWikiStorage';
@@ -67,7 +126,7 @@ function areMindMap3DPropsEqual(prevProps: MindMap3DProps, nextProps: MindMap3DP
 
 // ============ Component ============
 
-export const MindMap3D = React.memo(function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onDeleteCategory, isActive = true }: MindMap3DProps) {
+const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onDeleteCategory, isActive = true }: MindMap3DProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<OntologyCanvasEngine | null>(null);
@@ -94,7 +153,18 @@ export const MindMap3D = React.memo(function MindMap3D({ signalKeywords, signalE
   const [parentModeSource, setParentModeSource] = useState<string | null>(null);
   const [isWikiOpen, setIsWikiOpen] = useState(false);
   const [radarFiles, setRadarFiles] = useState<{ nodeId: string; files: any[] } | null>(null);
-  
+  const [engineActive, setEngineActive] = useState(false);
+
+  useEffect(() => {
+    if (!isActive) {
+      setEngineActive(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setEngineActive(true);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [isActive]);
 
 
   // ── 수직 적층 온톨로지 레이어 필터 상태 삭제됨 ──
@@ -109,48 +179,94 @@ export const MindMap3D = React.memo(function MindMap3D({ signalKeywords, signalE
     resumePhysicsLoopRef.current();
   }, []);
 
-  const { overrides = {}, customNodes = [], customEdges = [], deletedEdges = [], undo, redo, setNodeOverride, batchSetNodeOverrides, clearNodeOverride, addCustomNode, deleteCustomNode, updateCustomNodeText, addCustomEdge, deleteCustomEdge, removeCustomTombstone, renameNodeId, isCloudLoaded } = useGraphCustomization(isActive);
+  const { overrides = {}, customNodes = [], customEdges = [], deletedEdges = [], undo, redo, setNodeOverride, batchSetNodeOverrides, clearNodeOverride, addCustomNode, deleteCustomNode, updateCustomNodeText, addCustomEdge, deleteCustomEdge, removeCustomTombstone, renameNodeId, isCloudLoaded, pendingNodes = [], pendingEdges = [], approveAndMerge } = useGraphCustomization(isActive);
   const { mutate: getFileRadar } = useFileRadar();
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+
+  const activeNodeOverride = React.useMemo(() => {
+    return activeNode ? overrides[activeNode.id] : undefined;
+  }, [activeNode, overrides]);
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   const handleExecuteDelete = useCallback(() => {
     if (!activeNode) return;
 
-    const parentId = activeNode.parentId;
-    const isDeepDelete = activeNode.id.startsWith('custom-') || activeNode.orbitIndex === 1;
+    const allNodes = engineRef.current ? engineRef.current.nodes : [];
+    const children = allNodes.filter((n: OrbitalNode) => n.parentId === activeNode.id);
+    const hasChildren = children.length > 0;
     
-    if (isDeepDelete) {
-      if ((activeNode.orbitIndex === 1 || activeNode.group === 'MACRO_RESEARCH') && onDeleteCategory) {
-        onDeleteCategory(activeNode.label);
+    let deleteList: OrbitalNode[] = [activeNode];
+    let cascadeDelete = false;
+
+    if (hasChildren) {
+      cascadeDelete = confirm(
+        `"${activeNode.label}" 노드에 하위 노드가 ${children.length}개 존재합니다.\n\n하위 노드도 전체 함께 삭제하시겠습니까?\n\n[확인]: 하위 노드도 모두 일괄 삭제\n[취소]: 선택한 부모 노드만 단독 삭제`
+      );
+      
+      if (cascadeDelete) {
+        const queue = [activeNode.id];
+        const visited = new Set<string>([activeNode.id]);
+        
+        while (queue.length > 0) {
+          const currentId = queue.shift()!;
+          const childNodes = allNodes.filter((n: OrbitalNode) => n.parentId === currentId);
+          for (const child of childNodes) {
+            if (!visited.has(child.id)) {
+              visited.add(child.id);
+              deleteList.push(child);
+              queue.push(child.id);
+            }
+          }
+        }
       }
-      if (activeNode.id.startsWith('custom-')) {
-        deleteCustomNode(activeNode.id);
-      }
+    } else {
+      const isDeepDelete = activeNode.id.startsWith('custom-') || activeNode.orbitIndex === 1;
+      const msg = isDeepDelete 
+        ? '이 카테고리(또는 노드)를 완전히 삭제할까요?\n\n※ 연관된 태그나 데이터 연동이 해제될 수 있습니다.'
+        : '이 노드를 맵에서 삭제할까요?\n\n※ 원본 데이터(업무/지식 등)는 보존되며 맵 화면에서만 지워집니다.';
+      if (!confirm(msg)) return;
     }
+
+    const deleteIds = deleteList.map(n => n.id);
+    const deleteLabels = deleteList.map(n => n.label).filter(Boolean) as string[];
 
     try {
       const oldTombstonesRaw = localStorage.getItem('hchps-global-tombstones');
       const tombstones: string[] = oldTombstonesRaw ? JSON.parse(oldTombstonesRaw) : [];
-      localStorage.setItem('hchps-global-tombstones', JSON.stringify(Array.from(new Set([...tombstones, activeNode.id]))));
+      localStorage.setItem('hchps-global-tombstones', JSON.stringify(Array.from(new Set([...tombstones, ...deleteIds]))));
 
-      if (activeNode.label) {
-        const oldLabelsRaw = localStorage.getItem('hchps-deleted-labels');
-        const deletedLabels: string[] = oldLabelsRaw ? JSON.parse(oldLabelsRaw) : [];
-        localStorage.setItem('hchps-deleted-labels', JSON.stringify(Array.from(new Set([...deletedLabels, activeNode.label]))));
-      }
+      const oldLabelsRaw = localStorage.getItem('hchps-deleted-labels');
+      const deletedLabels: string[] = oldLabelsRaw ? JSON.parse(oldLabelsRaw) : [];
+      localStorage.setItem('hchps-deleted-labels', JSON.stringify(Array.from(new Set([...deletedLabels, ...deleteLabels]))));
     } catch (e) {
       console.log('Tombstone saving error in MindMap3D:', e);
     }
     
-    setNodeOverride(activeNode.id, { hidden: true });
-    
+    const parentId = activeNode.parentId;
     let parentNode: OrbitalNode | null = null;
-    if (engineRef.current) {
-      engineRef.current.nodes = engineRef.current.nodes.filter((n: OrbitalNode) => n.id !== activeNode.id);
-      engineRef.current.edges = engineRef.current.edges.filter((e: OntologyEdge) => e.source !== activeNode.id && e.target !== activeNode.id);
+
+    for (const targetNode of deleteList) {
+      const isDeepDelete = targetNode.id.startsWith('custom-') || targetNode.orbitIndex === 1;
       
-      if (parentId) {
+      if (isDeepDelete) {
+        if ((targetNode.orbitIndex === 1 || targetNode.group === 'MACRO_RESEARCH') && onDeleteCategory) {
+          onDeleteCategory(targetNode.label);
+        }
+        if (targetNode.id.startsWith('custom-')) {
+          deleteCustomNode(targetNode.id);
+        }
+      }
+      
+      setNodeOverride(targetNode.id, { hidden: true });
+    }
+    
+    if (engineRef.current) {
+      const deleteIdSet = new Set(deleteIds);
+      engineRef.current.nodes = engineRef.current.nodes.filter((n: OrbitalNode) => !deleteIdSet.has(n.id));
+      engineRef.current.edges = engineRef.current.edges.filter((e: OntologyEdge) => !deleteIdSet.has(e.source) && !deleteIdSet.has(e.target));
+      
+      if (parentId && !deleteIdSet.has(parentId)) {
         parentNode = engineRef.current.nodes.find((n: OrbitalNode) => n.id === parentId) || null;
       }
       
@@ -165,7 +281,7 @@ export const MindMap3D = React.memo(function MindMap3D({ signalKeywords, signalE
     
     setActiveNode(parentNode);
     setIsDeleteModalOpen(false);
-  }, [activeNode, onDeleteCategory, deleteCustomNode, setNodeOverride]);
+  }, [activeNode, onDeleteCategory, deleteCustomNode, setNodeOverride, setActiveNode]);
 
   const handleOpenWiki = useCallback((e: CustomEvent<{ id: string; label: string }>) => {
     // Find the actual node if it exists in the engine, otherwise mock enough properties for WikiEditor to work
@@ -203,6 +319,7 @@ export const MindMap3D = React.memo(function MindMap3D({ signalKeywords, signalE
       OntologyLayout.dynamicRules = classificationWords;
       if (engineRef.current) {
         engineRef.current.layoutWorldGeometryDirty = true;
+        engineRef.current.isTopologyDirty = true;
         engineRef.current.needsRedraw = true;
       }
     }
@@ -427,6 +544,7 @@ export const MindMap3D = React.memo(function MindMap3D({ signalKeywords, signalE
                     engineRef.current.collapsedNodeIds.delete(node.id);
                     engineRef.current.activeNode = node;
                     engineRef.current.topologyDirty = true;
+                    engineRef.current.isTopologyDirty = true;
                     engineRef.current.needsRedraw = true;
                   }
                 } else {
@@ -527,10 +645,10 @@ export const MindMap3D = React.memo(function MindMap3D({ signalKeywords, signalE
 
   // ── 탭 복귀 시 엔진 재기동 보완 ──
   useEffect(() => {
-    if (isActive && !engineRef.current) {
+    if (isActive && engineActive && !engineRef.current) {
       initEngine();
     }
-  }, [isActive, initEngine]);
+  }, [isActive, engineActive, initEngine]);
 
   // ── 컴포넌트 완전 언마운트 시에만 엔진 리소스 해제 ──
   useEffect(() => {
@@ -547,34 +665,67 @@ export const MindMap3D = React.memo(function MindMap3D({ signalKeywords, signalE
   // 최초 렌더링 시에는 Yjs 네트워크 지연으로 overrides가 빈 통({}) 상태입니다.
   // 찰나의 순간 뒤 서버에서 데이터가 넘어오거나 마이그레이션이 발동하면, 한 번 엔진을 덮어씌워서 복구(초기화)합니다.
   const didInitialAsyncLoad = useRef(false);
-  const prevDataLengths = useRef({ nodes: 0, edges: 0, deletedEdges: 0, topoHash: '' });
+  const prevDataLengths = useRef({ 
+    nodes: 0, 
+    edges: 0, 
+    deletedEdges: 0, 
+    customizationHash: '', 
+    customNodesHash: '' 
+  });
   
-  // customParent, customOrbitIndex 등 토폴로지에 영향을 주는 속성 변경사항만 추적 (좌표이동 fixedX/Y 제외)
-  const topologicOverridesHash = Object.entries(overrides)
-    .filter(([, ov]) => ov.customParent !== undefined || ov.customOrbitIndex !== undefined)
-    .map(([id, ov]) => `${id}:${ov.customParent}:${ov.customOrbitIndex}`)
+  // customParent, customOrbitIndex, customLabel, customColor 등 토폴로지/시각 커스터마이즈 속성 변경사항만 추적 (좌표이동 fixedX/Y 제외하여 drag FPS 보존)
+  const customizationHash = [
+    ...Object.entries(overrides)
+      .filter(([, ov]) => 
+        ov.customParent !== undefined || 
+        ov.customOrbitIndex !== undefined || 
+        ov.customLabel !== undefined || 
+        ov.customColor !== undefined ||
+        ov.customGroup !== undefined
+      )
+      .map(([id, ov]) => `${id}:${ov.customParent}:${ov.customOrbitIndex}:${ov.customLabel}:${ov.customColor}:${ov.customGroup}`),
+    ...customEdges.map(e => `${e.source}->${e.target}:${e.type}:${e.weight}`)
+  ]
+    .sort()
+    .join('|');
+
+  const customNodesHash = customNodes
+    .map(n => `${n.id}:${n.label}:${n.group}:${n.baseValue}:${n.layerId}`)
     .sort()
     .join('|');
 
   useEffect(() => {
-    if (!isActive) return; // 🚀 비활성화된 백그라운드 탭 상태에서는 절대 엔진을 기동/재시동하지 않음
+    if (!isActive || !engineActive) return; // 🚀 비활성화된 백그라운드 탭 상태에서는 절대 엔진을 기동/재시동하지 않음
 
     // 하나라도 복구된(존재하는) 데이터가 들어왔고, 방금 막 다운로드 받은 상태라면
     if (!didInitialAsyncLoad.current && (Object.keys(overrides).length > 0 || customNodes.length > 0 || customEdges.length > 0 || deletedEdges.length > 0)) {
       didInitialAsyncLoad.current = true;
-      prevDataLengths.current = { nodes: customNodes.length, edges: customEdges.length, deletedEdges: deletedEdges.length, topoHash: topologicOverridesHash };
+      prevDataLengths.current = { 
+        nodes: customNodes.length, 
+        edges: customEdges.length, 
+        deletedEdges: deletedEdges.length, 
+        customizationHash, 
+        customNodesHash 
+      };
       initEngine();
     } else if (didInitialAsyncLoad.current) {
       // 그 이후에 노드 생성/삭제 또는 토폴로지(부모/궤도/연결끊기)가 변동했다면 엔진 재초기화 (수동 setTimeout 타이밍 이슈 해결)
       if (customNodes.length !== prevDataLengths.current.nodes || 
           customEdges.length !== prevDataLengths.current.edges ||
           deletedEdges.length !== prevDataLengths.current.deletedEdges ||
-          topologicOverridesHash !== prevDataLengths.current.topoHash) {
-        prevDataLengths.current = { nodes: customNodes.length, edges: customEdges.length, deletedEdges: deletedEdges.length, topoHash: topologicOverridesHash };
+          customizationHash !== prevDataLengths.current.customizationHash ||
+          customNodesHash !== prevDataLengths.current.customNodesHash) {
+        prevDataLengths.current = { 
+          nodes: customNodes.length, 
+          edges: customEdges.length, 
+          deletedEdges: deletedEdges.length, 
+          customizationHash, 
+          customNodesHash 
+        };
         initEngine();
       }
     }
-  }, [isActive, overrides, customNodes, customEdges, deletedEdges, topologicOverridesHash, initEngine]);
+  }, [isActive, engineActive, overrides, customNodes, customEdges, deletedEdges, customizationHash, customNodesHash, initEngine]);
 
   useEffect(() => {
     // 💡 이펙트 진입 시 이전 애니메이션 프레임 루프를 100% 확실히 정지하여 중복 루프를 방지합니다.
@@ -583,7 +734,7 @@ export const MindMap3D = React.memo(function MindMap3D({ signalKeywords, signalE
       animationRef.current = 0;
     }
 
-    if (loading || error || !isCloudLoaded || !isActive) {
+    if (loading || error || !isCloudLoaded || !isActive || !engineActive) {
       // 조건 불만족으로 복귀하더라도 항상 정리할 수 있는 최소한의 리턴 함수를 제공합니다.
       return () => {
         if (animationRef.current) {
@@ -722,7 +873,7 @@ export const MindMap3D = React.memo(function MindMap3D({ signalKeywords, signalE
         }
       }
     };
-  }, [loading, error, isCloudLoaded, isActive, resumePhysicsLoop]);
+  }, [loading, error, isCloudLoaded, isActive, engineActive, resumePhysicsLoop]);
 
   // ── Mouse/Touch Events ──
   const getCanvasPos = useCallback((e: React.MouseEvent | MouseEvent | TouchEvent): { x: number; y: number } => {
@@ -1100,10 +1251,10 @@ export const MindMap3D = React.memo(function MindMap3D({ signalKeywords, signalE
         >
           <div className="flex-1 min-h-0 relative">
             <MindMapInspector
-              activeNode={activeNode} engineRef={engineRef} overrides={overrides} setNodeOverride={setNodeOverride}
+              activeNode={activeNode} engineRef={engineRef} activeNodeOverride={activeNodeOverride} setNodeOverride={setNodeOverride}
               setActiveNode={setActiveNode} onRenameCategory={onRenameCategory} onDeleteCategory={onDeleteCategory}
               updateCustomNodeText={updateCustomNodeText} removeCustomTombstone={removeCustomTombstone} renameNodeId={renameNodeId}
-              deleteCustomNode={deleteCustomNode} addCustomEdge={addCustomEdge} deleteCustomEdge={deleteCustomEdge}
+              deleteCustomNode={deleteCustomNode} addCustomNode={addCustomNode} addCustomEdge={addCustomEdge} deleteCustomEdge={deleteCustomEdge}
               parentModeSource={parentModeSource} setParentModeSource={setParentModeSource}
               initEngine={initEngine} handleSwapNodeOrder={handleSwapNodeOrder} clearNodeOverride={clearNodeOverride}
               isOverlay={false}
@@ -1143,6 +1294,23 @@ export const MindMap3D = React.memo(function MindMap3D({ signalKeywords, signalE
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
               />
+
+              {pendingNodes && pendingNodes.length > 0 && (
+                <div className="absolute top-16 left-4 z-20 w-72 bg-gradient-to-r from-indigo-950/90 to-blue-950/90 backdrop-blur-md border border-indigo-500/35 text-white p-3.5 rounded-xl shadow-lg flex items-center justify-between gap-3 pointer-events-auto animate-bounce-short">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">✨</span>
+                    <span className="text-xs font-bold leading-normal text-slate-200">
+                      AI가 파일 변경사항에서 {pendingNodes.length}개의 새 노드/관계를 감지했습니다.
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setIsReviewModalOpen(true)}
+                    className="shrink-0 px-2.5 py-1 bg-indigo-650 hover:bg-indigo-700 text-[10px] font-bold rounded-lg cursor-pointer transition-colors shadow-3xs border-0"
+                  >
+                    검토하기
+                  </button>
+                </div>
+              )}
 
               <div className="absolute top-4 left-4 z-20 flex flex-col w-72 pointer-events-auto">
                 <div className="relative flex items-center bg-white border border-slate-200/80 shadow-lg rounded-xl transition-all duration-200 focus-within:ring-2 focus-within:ring-[var(--color-primary)]/20 focus-within:border-[var(--color-primary)]">
@@ -1210,7 +1378,7 @@ export const MindMap3D = React.memo(function MindMap3D({ signalKeywords, signalE
 
                 {/* Auto-complete Results Dropdown */}
                 {isSearchFocused && searchQuery.trim() && (
-                  <div className="absolute top-[48px] left-0 right-0 max-h-60 overflow-y-auto bg-white border border-slate-200/80 rounded-xl shadow-xl z-50 custom-scrollbar animate-in fade-in slide-in-from-top-1 duration-150">
+                  <div className="absolute top-[48px] left-0 right-0 max-h-60 overflow-y-auto bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl shadow-xl z-50 custom-scrollbar animate-in fade-in slide-in-from-top-1 duration-150">
                     {(() => {
                       const filtered = engineRef.current
                         ? engineRef.current.nodes.filter(node => 
@@ -1240,7 +1408,7 @@ export const MindMap3D = React.memo(function MindMap3D({ signalKeywords, signalE
                               setSelectedSearchIndex(-1);
                             }}
                             className={`px-3.5 py-2 text-sm flex items-center justify-between cursor-pointer transition-colors duration-150 ${
-                              isSelected ? 'bg-slate-100 text-[var(--color-primary)] font-semibold' : 'hover:bg-slate-50 text-slate-700'
+                              isSelected ? 'bg-slate-100 dark:bg-slate-800 text-[var(--color-primary)] font-semibold' : 'hover:bg-slate-50 dark:hover:bg-slate-850 text-slate-700 dark:text-slate-200'
                             }`}
                           >
                             <div className="flex items-center gap-2 min-w-0">
@@ -1277,23 +1445,21 @@ export const MindMap3D = React.memo(function MindMap3D({ signalKeywords, signalE
 
               {/* Sliding Wiki Panel Overlay */}
               {isWikiOpen && activeNode && wikiLoaded && (
-                <div className="absolute top-0 right-0 h-full bg-white z-[120] shadow-xl border-l border-slate-200 w-full md:w-[450px] lg:w-[500px]">
-                  <WikiEditor 
-                    key={activeNode.id}
-                    nodeId={activeNode.id} 
-                    nodeTitle={activeNode.label} 
-                    initialBlocks={wikiBlocks ?? undefined} 
-                    onChange={(blocks) => saveWikiBlocks(activeNode.id, blocks)} 
-                    onClose={() => setIsWikiOpen(false)} 
-                    addCustomEdge={addCustomEdge}
-                  />
-                </div>
+                <WikiEditor 
+                  key={activeNode.id}
+                  nodeId={activeNode.id} 
+                  nodeTitle={activeNode.label} 
+                  initialBlocks={wikiBlocks ?? undefined} 
+                  onChange={(blocks: any) => saveWikiBlocks(activeNode.id, blocks)} 
+                  onClose={() => setIsWikiOpen(false)} 
+                  addCustomEdge={addCustomEdge}
+                />
               )}
             </div>
 
             {/* 하단 정보 패널 (전체화면 모드일 때 Canvas Container 하단에 Flex로 렌더링되도록 함) */}
             {isFullscreen && (
-              <div className="w-full bg-white border-t border-slate-200/80 p-4 shrink-0 shadow-lg z-20 pointer-events-auto">
+              <div className="w-full bg-white dark:bg-slate-950 border-t border-slate-200/80 dark:border-slate-800 p-4 shrink-0 shadow-lg z-20 pointer-events-auto">
                 {renderBottomInfoPanels()}
               </div>
             )}
@@ -1316,26 +1482,26 @@ export const MindMap3D = React.memo(function MindMap3D({ signalKeywords, signalE
           onClick={() => setIsDeleteModalOpen(false)}
         >
           <div 
-            className="w-full max-w-md bg-white border border-slate-200/60 rounded-2xl shadow-2xl p-6 flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200"
+            className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 rounded-2xl shadow-2xl p-6 flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center gap-3.5 border-b border-slate-100 pb-3">
-              <div className="p-2 rounded-xl bg-rose-50 text-rose-500 border border-rose-100 shadow-sm shadow-rose-500/5">
+            <div className="flex items-center gap-3.5 border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/20 text-rose-500 border border-rose-100 dark:border-rose-900/40 shadow-sm shadow-rose-500/5">
                 <Trash2 size={20} className="animate-pulse" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-slate-800">노드 삭제 확인</h3>
+                <h3 className="text-base font-bold text-slate-800 dark:text-white">노드 삭제 확인</h3>
                 <p className="text-xs text-slate-400 mt-0.5">선택한 노드를 맵에서 제거합니다</p>
               </div>
             </div>
             
             <div className="py-2">
-              <p className="text-sm text-slate-700 leading-relaxed">
-                정말 노드 <strong className="text-slate-900 bg-slate-100 px-1.5 py-0.5 rounded font-semibold">'{activeNode.label}'</strong>을(를) 삭제하시겠습니까?
+              <p className="text-sm text-slate-700 dark:text-slate-350 leading-relaxed">
+                정말 노드 <strong className="text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-850 px-1.5 py-0.5 rounded font-semibold">'{activeNode.label}'</strong>을(를) 삭제하시겠습니까?
               </p>
               
-              <div className="mt-3.5 p-3 rounded-xl bg-slate-50 border border-slate-100/80 text-xs text-slate-500 leading-normal flex flex-col gap-1.5">
-                <span className="font-semibold text-slate-600 flex items-center gap-1.5">
+              <div className="mt-3.5 p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100/80 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 leading-normal flex flex-col gap-1.5">
+                <span className="font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
                   <AlertTriangle size={12} className="text-amber-500" />
                   {activeNode.id.startsWith('custom-') || activeNode.orbitIndex === 1 
                     ? '완전 삭제 노드' 
@@ -1352,9 +1518,9 @@ export const MindMap3D = React.memo(function MindMap3D({ signalKeywords, signalE
             <div className="flex gap-2.5 mt-2 justify-end">
               <button
                 onClick={() => setIsDeleteModalOpen(false)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer flex items-center gap-1"
+                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-350 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer flex items-center gap-1"
               >
-                취소 <span className="text-[10px] text-slate-400 font-medium px-1 bg-white rounded border border-slate-200">Esc</span>
+                취소 <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium px-1 bg-white dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-750">Esc</span>
               </button>
               <button
                 onClick={handleExecuteDelete}
@@ -1377,15 +1543,15 @@ export const MindMap3D = React.memo(function MindMap3D({ signalKeywords, signalE
           }}
         >
           <div 
-            className="w-full max-w-md bg-white border border-slate-200/60 rounded-2xl shadow-2xl p-6 flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200"
+            className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 rounded-2xl shadow-2xl p-6 flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center gap-3.5 border-b border-slate-100 pb-3">
-              <div className="p-2 rounded-xl bg-indigo-50 text-[var(--color-primary)] border border-indigo-100 shadow-sm shadow-indigo-500/5">
+            <div className="flex items-center gap-3.5 border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/20 text-[var(--color-primary)] border border-indigo-100 dark:border-indigo-900/40 shadow-sm shadow-indigo-500/5">
                 <PlusSquare size={20} className="animate-pulse" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-slate-800">새 노드 추가</h3>
+                <h3 className="text-base font-bold text-slate-800 dark:text-white">새 노드 추가</h3>
                 <p className="text-xs text-slate-400 mt-0.5">
                   {activeNode 
                     ? `'${activeNode.label}' 아래에 새 하위 노드를 생성합니다`
@@ -1395,7 +1561,7 @@ export const MindMap3D = React.memo(function MindMap3D({ signalKeywords, signalE
             </div>
 
             <div className="py-2 flex flex-col gap-3">
-              <label htmlFor="modalNewNodeName" className="text-xs font-semibold text-slate-500">노드 이름</label>
+              <label htmlFor="modalNewNodeName" className="text-xs font-semibold text-slate-500 dark:text-slate-400">노드 이름</label>
               <input
                 id="modalNewNodeName"
                 autoFocus
@@ -1415,7 +1581,7 @@ export const MindMap3D = React.memo(function MindMap3D({ signalKeywords, signalE
                     setNewNodeName("");
                   }
                 }}
-                className="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/10 text-slate-800 placeholder-slate-400 font-medium transition-all"
+                className="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:bg-white focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/10 text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-550 font-medium transition-all"
               />
             </div>
 
@@ -1425,9 +1591,9 @@ export const MindMap3D = React.memo(function MindMap3D({ signalKeywords, signalE
                   setIsAddingNode(false);
                   setNewNodeName("");
                 }}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer flex items-center gap-1"
+                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer flex items-center gap-1"
               >
-                취소 <span className="text-[10px] text-slate-400 font-medium px-1 bg-white rounded border border-slate-200">Esc</span>
+                취소 <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium px-1 bg-white dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-750">Esc</span>
               </button>
               <button
                 onClick={handleExecuteAddNode}
@@ -1444,9 +1610,22 @@ export const MindMap3D = React.memo(function MindMap3D({ signalKeywords, signalE
           </div>
         </div>
       )}
+
+      {isReviewModalOpen && (
+        <SemanticReviewModal
+          isOpen={isReviewModalOpen}
+          onClose={() => setIsReviewModalOpen(false)}
+          pendingNodes={pendingNodes}
+          pendingEdges={pendingEdges}
+          existingNodeIds={new Set(engineRef.current?.nodes.map(n => n.id) || [])}
+          approveAndMerge={approveAndMerge}
+        />
+      )}
     </div>
   );
-}, areMindMap3DPropsEqual);
+};
+
+export const MindMap3D = React.memo(MindMap3DComponent, areMindMap3DPropsEqual);
 
 // ── Bottom Info Panels Content Renderer (Isolated React Re-render scope for 60 FPS) ──
 interface BottomPerformancePanelProps {
@@ -1522,78 +1701,78 @@ ${logText}`;
   return (
     <div className="flex flex-col gap-4">
       {/* 3. 성능 프로파일러 카드 */}
-      <div className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col md:flex-row gap-8 font-mono text-[11.5px] text-slate-600 w-full pointer-events-auto">
+      <div className="bg-white dark:bg-slate-900 p-4.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-col md:flex-row gap-8 font-mono text-[11.5px] text-slate-600 dark:text-slate-400 w-full pointer-events-auto">
         {/* 좌측: 실시간 성능 지표 */}
         <div className="flex-1 flex flex-col gap-1.5">
           <div className="flex items-center justify-between gap-3 mb-0.5">
-            <span className="font-sans font-extrabold text-sm text-slate-800 flex items-center gap-2">
-              <Radio size={14} className="text-slate-500" />
+            <span className="font-sans font-extrabold text-sm text-slate-800 dark:text-white flex items-center gap-2">
+              <Radio size={14} className="text-slate-500 dark:text-slate-400" />
               성능 프로파일러 (실시간 지표)
             </span>
             <div className="flex items-center gap-2">
               <button 
                 onClick={handleCopyMetrics}
-                className="font-sans text-[10.5px] font-bold text-slate-500 hover:text-[var(--color-primary)] cursor-pointer bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded transition-all flex items-center gap-1 border border-slate-200/40"
+                className="font-sans text-[10.5px] font-bold text-slate-500 dark:text-slate-400 hover:text-[var(--color-primary)] cursor-pointer bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 px-2 py-0.5 rounded transition-all flex items-center gap-1 border border-slate-200/40 dark:border-slate-700"
                 title="성능 지표 복사"
               >
                 <Copy size={11} />
                 {copiedMetric ? '복사됨!' : '지표 복사'}
               </button>
-              <div className="w-px h-3 bg-slate-200"></div>
+              <div className="w-px h-3 bg-slate-200 dark:bg-slate-800"></div>
               <div className="flex items-center gap-1">
                 <span className={`w-1.5 h-1.5 rounded-full ${perfMetrics.fps >= 55 ? 'bg-emerald-500 animate-pulse' : perfMetrics.fps >= 30 ? 'bg-amber-500' : 'bg-rose-500'}`}></span>
-                <span className="font-sans font-black text-slate-800 text-[12px]">{perfMetrics.fps} FPS</span>
+                <span className="font-sans font-black text-slate-800 dark:text-white text-[12px]">{perfMetrics.fps} FPS</span>
               </div>
             </div>
           </div>
-          <div className="h-px bg-slate-200/40 my-0.5"></div>
+          <div className="h-px bg-slate-200/40 dark:bg-slate-800 my-0.5"></div>
           <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
             <div className="flex justify-between">
               <span>최근 렌더:</span>
-              <span className="font-bold text-slate-900">{perfMetrics.lastRenderTime.toFixed(2)}ms</span>
+              <span className="font-bold text-slate-900 dark:text-white">{perfMetrics.lastRenderTime.toFixed(2)}ms</span>
             </div>
             <div className="flex justify-between">
               <span>평균 렌더:</span>
-              <span className="font-bold text-slate-900">{perfMetrics.avgRenderTime.toFixed(2)}ms</span>
+              <span className="font-bold text-slate-900 dark:text-white">{perfMetrics.avgRenderTime.toFixed(2)}ms</span>
             </div>
             <div className="flex justify-between">
               <span>최대 렌더:</span>
-              <span className="font-bold text-slate-900">{perfMetrics.maxRenderTime.toFixed(2)}ms</span>
+              <span className="font-bold text-slate-900 dark:text-white">{perfMetrics.maxRenderTime.toFixed(2)}ms</span>
             </div>
             <div className="flex justify-between">
               <span>지연 경고:</span>
-              <span className={`font-bold ${perfMetrics.warningCount > 0 ? 'text-amber-600 font-extrabold animate-pulse' : 'text-slate-900'}`}>{perfMetrics.warningCount}회</span>
+              <span className={`font-bold ${perfMetrics.warningCount > 0 ? 'text-amber-550 font-extrabold animate-pulse' : 'text-slate-900 dark:text-white'}`}>{perfMetrics.warningCount}회</span>
             </div>
             <div className="flex justify-between">
               <span>유휴 CPU 부하:</span>
-              <span className="font-bold text-slate-900">{cpuLoad}</span>
+              <span className="font-bold text-slate-900 dark:text-white">{cpuLoad}</span>
             </div>
             <div className="flex justify-between">
               <span>프레임 예산 준수율:</span>
-              <span className="font-bold text-slate-900">{frameCompliance}</span>
+              <span className="font-bold text-slate-900 dark:text-white">{frameCompliance}</span>
             </div>
           </div>
         </div>
 
-        <div className="hidden md:block w-px bg-slate-200/60 self-stretch"></div>
+        <div className="hidden md:block w-px bg-slate-200/60 dark:bg-slate-800 self-stretch"></div>
 
         {/* 우측: 렌더링 지연 상시 감시 */}
         <div className="flex-1 flex flex-col gap-1.5">
           <div className="flex items-center justify-between gap-3 mb-0.5">
-            <span className="font-sans font-extrabold text-sm text-slate-800 flex items-center gap-2">
-              <AlertTriangle size={14} className={lagSpikes.length > 0 ? 'text-rose-500 animate-pulse' : 'text-slate-500'} />
+            <span className="font-sans font-extrabold text-sm text-slate-800 dark:text-white flex items-center gap-2">
+              <AlertTriangle size={14} className={lagSpikes.length > 0 ? 'text-rose-500 animate-pulse' : 'text-slate-500 dark:text-slate-400'} />
               렌더링 지연 상시 감시
             </span>
             <div className="flex items-center gap-2">
               <button 
                 onClick={handleCopyLagSpikes}
-                className="font-sans text-[10.5px] font-bold text-slate-500 hover:text-[var(--color-primary)] cursor-pointer bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded transition-all flex items-center gap-1 border border-slate-200/40"
+                className="font-sans text-[10.5px] font-bold text-slate-500 dark:text-slate-400 hover:text-[var(--color-primary)] cursor-pointer bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 px-2 py-0.5 rounded transition-all flex items-center gap-1 border border-slate-200/40 dark:border-slate-700"
                 title="감시 로그 복사"
               >
                 <Copy size={11} />
                 {copiedLag ? '복사됨!' : '로그 복사'}
               </button>
-              <div className="w-px h-3 bg-slate-200"></div>
+              <div className="w-px h-3 bg-slate-200 dark:bg-slate-800"></div>
               <button 
                 onClick={handleResetLagSpikes}
                 className="font-sans text-[11.5px] font-bold text-[var(--color-primary)] hover:underline cursor-pointer"
@@ -1602,12 +1781,12 @@ ${logText}`;
               </button>
             </div>
           </div>
-          <div className="h-px bg-slate-200/40 my-0.5"></div>
+          <div className="h-px bg-slate-200/40 dark:bg-slate-800 my-0.5"></div>
           
           <div className="flex flex-col gap-1 overflow-y-auto max-h-[75px] custom-scrollbar">
             {lagSpikes.length > 0 ? (
               lagSpikes.map((spikeMsg, idx) => (
-                <div key={idx} className="flex items-center bg-rose-50/50 border border-rose-100 rounded px-2.5 py-1 text-rose-700 font-mono text-[11px] leading-tight">
+                <div key={idx} className="flex items-center bg-rose-50/50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/40 rounded px-2.5 py-1 text-rose-750 dark:text-rose-400 font-mono text-[11px] leading-tight">
                   <span className="truncate">{spikeMsg}</span>
                 </div>
               ))

@@ -1,7 +1,7 @@
-# BRIEFING — 2026-07-15T09:27:00Z
+# BRIEFING — 2026-07-16T11:59:00+09:00
 
 ## Mission
-Analyze scripts/diagnose-targets.js, scripts/run-harness.js, and scripts/sync-rules.js, inspect directory structure, and design the self-evolution script parsing strategy and git integration. (COMPLETED)
+Investigate the VITAL Work & Wealth application code to design and plan (1) relocation of promotional materials (InventoryList) into a sub-tab of Budget Management (WorkspaceView), and (2) building a new independent Law System page.
 
 ## 🔒 My Identity
 - Archetype: M1 Explorer
@@ -16,17 +16,19 @@ Analyze scripts/diagnose-targets.js, scripts/run-harness.js, and scripts/sync-ru
 - System Prompt Protection Rule 1 and Rule 2 apply
 
 ## Current Parent
-- Conversation ID: d1deeaa8-6d8d-46c6-bd15-fec48487af6a
-- Updated: 2026-07-15T09:20:01Z
+- Conversation ID: 31acc72e-e0bc-4c9d-a62a-5c8a9a6b863f
+- Updated: 2026-07-16T11:58:45+09:00
 
 ## Investigation State
-- **Explored paths**: `scripts/diagnose-targets.js`, `scripts/run-harness.js`, `scripts/sync-rules.js`, `src/app/page.tsx`, `src/components/`
-- **Key findings**: Detailed parser and regex strategies for console removal, static to dynamic imports, and O(N^2) to useMemo loop optimization, backed by Git checkout rollback and run-harness checks. All checks verified by running the project harness.
+- **Explored paths**: `src/app/page.tsx`, `src/components/WorkspaceView.tsx`, `src/components/Sidebar.tsx`, `src/components/budget/BudgetDashboard.tsx`, `src/components/budget/ui/LawSearchPanel.tsx`
+- **Key findings**: Designed a sub-tab layout for `WorkspaceView.tsx` with dynamic loading of `InventoryList`. Proposed route ID swap (`inventory` -> `law`) across types, sidebar, page header, and layout. Structured the new `LawSystemPage.tsx` with law search, administrative dictionary, and document guidelines.
 - **Unexplored areas**: None.
 
 ## Key Decisions Made
-- Formulated the exact regexes, brace-counting search methods, and Git integration / retry structures for the self-evolution engine.
-- Successfully verified the functionality of the `run-harness.js` script.
+- Relocated `InventoryList` under `WorkspaceView` to clean up root module layout.
+- Decided to move `LawSearchPanel` under `src/components/law/` to keep clean folder architecture.
+- Formulated interactive administrative dictionary and HWPX guidelines.
 
 ## Artifact Index
-- d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\explorer_m1\handoff.md — Analysis and recommendations report.
+- d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\explorer_m1\analysis.md — Planning and analysis report.
+- d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\explorer_m1\handoff.md — 5-component handoff report.

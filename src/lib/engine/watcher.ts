@@ -104,7 +104,7 @@ async function ensureClassificationWords() {
 
 
 
-const WATCH_DIR = 'F:\\부엉이_정리됨';
+const WATCH_DIR = process.env.WATCH_DIR || ['F:', '부엉이_정리됨'].join(path.sep);
 let organizeTimer: NodeJS.Timeout | null = null;
 let isOrganizing = false;
 

@@ -1,22 +1,20 @@
-# Dashboard and Performance Optimization Plan (R1, R2, R3)
+# Project Plan: AI Semantic Engine, 3D Rendering Performance, and Manual CRDT UI
 
 ## Objectives
-Enhance visual presentation, improve dark-theme contrast, implement lazy-loading, and resolve re-rendering/frame drops for the VITAL Dashboard app:
-1. **R1 (High Contrast Dark Theme UI)**: Refactor target components (`PortfolioDashboardView.tsx`, `WeeklyScheduler.tsx`, `MindMap3D.tsx`, `MindMapInspector.tsx`, etc.) to use a high-contrast dark theme, import/use `Outfit`/`Inter` fonts, and improve readability with precise borders, shadows, and paddings.
-2. **R2 (Next.js Lazy Loading)**: Convert heavy components (`MindMap3D`, `WeeklyScheduler`, `WikiEditor`) to dynamic import (`ssr: false`) to minimize bundle sizes and FCP time.
-3. **R3 (Render Blocker/Lock Defense)**: Apply `React.memo`, `useCallback`, and `useMemo` to isolate re-renderings. Implement staggered preloading logic to stagger DOM loads.
+1. **R1**: Enhance the AI semantic extraction engine prompt and logic, and implement a Review Modal to let users review/edit nodes and edges before they are merged. (Completed)
+2. **R2**: Optimize 3D mindmap rendering performance (target 60 FPS) via Dirty-Flag layout calculations, Frustum Culling, collision loops tuning, and Orbiting rotation optimization. (Completed)
+3. **R3**: Add manual node/edge creation & deletion UI in `MindMapInspector.tsx` synchronized with Yjs CRDT. (Completed)
+4. **Validation**: Verify the build, lint, and run tests. (In-Progress)
 
-## Milestones
-| Milestone | Name | Objective | Assigned Subagents | Status |
-|-----------|------|-----------|--------------------|--------|
-| M1 | Codebase Analysis & Strategy | Analyze components, collect imports/rendering info, and plan layout changes | Explorer (3 parallel) | DONE |
-| M2 | High-Contrast Readability (R1) | Refactor component styles, add Outfit/Inter fonts, optimize layout contrast | Worker, Reviewer | IN_PROGRESS |
-| M3 | Lazy Loading (R2) | Inject dynamic imports with `ssr: false` | Worker, Reviewer | PLANNED |
-| M4 | Performance & Render Isolation (R3) | Memoize components, optimize callbacks/computations, implement staggered preloading | Worker, Reviewer | PLANNED |
-| M5 | Verification & Rule Synchronization | Build, lint, log updates in Engineering Report.md, sync rules | Challenger, Auditor | PLANNED |
+## Milestone Breakdown
+- **Milestone 1**: AI Semantic Extraction & Review Modal (R1) (DONE)
+- **Milestone 2**: 3D Mindmap Rendering Performance Optimization (R2) (DONE)
+- **Milestone 3**: Manual Node/Edge CRDT UI in MindMapInspector (R3) (DONE)
+- **Milestone 4**: Final Verification & Rules Sync (IN_PROGRESS)
+  - Tasks:
+    - Run build and lint.
+    - Log changes to `PORTFOLIO VITAL - Engineering Report.md`.
+    - Run `node scripts/sync-rules.js` to sync milestones.
 
-## Detailed Verification Plan
-1. **Lint and Build**: Run `npm run lint` and `npm run build` after modifications.
-2. **Code Structure check**: Verify dynamic chunks are generated for lazy-loaded files and verify font imports are present.
-3. **Component Profiling**: Challenger checks component props, re-renderings, and dependencies.
-4. **Auditing**: Forensic Auditor verifies that optimization isn't cheated or hardcoded.
+## Task Partitioning
+We will dispatch a Final Verification Worker to run build, lint, tests, update engineering report, and run sync-rules.

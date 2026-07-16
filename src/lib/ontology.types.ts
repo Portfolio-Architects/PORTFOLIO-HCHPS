@@ -124,6 +124,8 @@ export interface OrbitalNode extends OntologyNode {
   vy?: number;                 // Optional: Physics velocity Y for force-directed solver
   cosSpeed?: number;           // Optional: Cached cos of orbit speed for Zero-Call physics
   sinSpeed?: number;           // Optional: Cached sin of orbit speed for Zero-Call physics
+  orbitCos?: number;           // Optional: Cached cos of orbit angle for unit vector orbiting
+  orbitSin?: number;           // Optional: Cached sin of orbit angle for unit vector orbiting
   renderX: number;             // canvas X
   renderY: number;             // canvas Y
   renderZ: number;             // depth (-1 to 1)
