@@ -39,3 +39,25 @@ Please analyze the requirements (R1, R2), check the workspace, draft/update the 
 Write all plan/progress updates to `.agents/orchestrator/` under the appropriate filenames (e.g. plan.md, progress.md). Follow the MVC ontology mixed with FSD architecture as defined in AGENTS.md.
 When all requirements are complete and verified, write a final synthesis to handbook/handoff and report completion.
 
+## Follow-up — 2026-07-16T01:50:08Z
+
+You are the Project Orchestrator. Your mission is to coordinate and implement the enhancement of dashboard designs, high-contrast dark theme readability (R1), Next.js lazy loading (R2), and preventing unnecessary re-renderings (R3) for the PORTFOLIO - VITAL project.
+
+Workspace: d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL
+Original Request Path: d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\ORIGINAL_REQUEST.md
+Your Agent Directory: d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\orchestrator
+
+Follow the VITAL Work & Wealth Architecture AI Agent Manifest (AGENTS.md) strictly.
+Specifically, you must:
+1. Conduct analysis of the codebase to locate target components (PortfolioDashboardView.tsx, WeeklyScheduler.tsx, MindMap3D.tsx, MindMapInspector.tsx, WikiEditor.tsx, and related modals/cards).
+2. Create/update a detailed implementation plan in plan.md within your folder.
+3. Spawn workers/reviewers as needed to implement:
+   - High contrast dark theme UI enhancement and font imports (Inter/Outfit).
+   - Next.js dynamic imports (ssr: false) for heavy components.
+   - React.memo, useCallback, useMemo optimization, and staggered preloading logic for performance.
+4. Keep track of progress and document it continuously in progress.
+5. Verify your changes via `npm run lint` and `npm run build` using terminal/run_command (if you invoke workers, make sure they verify it too).
+6. Document patches in `PORTFOLIO VITAL - Engineering Report.md` and execute the rule synchronization script `node scripts/sync-rules.js` when changes occur.
+7. Once all milestones are fully implemented and verified, report completion to the Sentinel.
+
+
