@@ -1,42 +1,37 @@
-# Synthesized Optimization Findings and Proposals
+# Synthesized RSI Loop and Self-Healing Pipeline Verification
 
-This document synthesizes the findings of Explorer 1, Explorer 2, and Explorer 3.
+We have verified the Recursive Self-Improvement (RSI) loop, Self-Healing pipeline, Rollback Guard, and Infinity Tick Chain scheduler logic.
 
-## R1: Initial Dashboard Loading Performance Optimization
-1. **Dynamic Import of Conditionally Rendered Components**:
-   - `SecurityLockScreen` in `src/app/page.tsx` is imported statically but conditionally rendered when `isLocked` is true. Convert to a dynamic import with `ssr: false`.
-   - `Sidebar` can also be dynamically imported if needed.
-2. **Decouple Preloading from DOM Mounting**:
-   - The staggered sequence in `page.tsx` mounts heavy modules (`MindMap3D`, `WorkspaceView`, `InventoryList`) hidden in the DOM using `visitedModules` timers.
-   - This executes React rendering cycles, custom hooks, and WebGL (Three.js) canvas initialization during the splash screen, causing CPU contention.
-   - **Optimization**: Change the preloader to download the JS chunks without DOM mounting (e.g. via dynamic import prefetch call or simply dynamically import them but delay DOM mounting until the active module is selected).
+## 1. M2: scripts/self-evolution.js Implementation and Verification
+- **Code Optimization Rules**: We verified that `self-evolution.js` detects the 3 target bottlenecks in `DummyPerfTest.tsx` and refactors them correctly:
+  - **O(N^2) Complexity Reduction**: Converts nested `.map( ... .filter/find/some )` loops to O(1) Map lookups using `useMemo`.
+  - **Console Spam Suppression**: Detects and comments out `console.warn` and `console.error` spams in components.
+  - **Dynamic Import Migration**: Replaces static imports of heavy components (`MindMap3D`, `WeeklyScheduler`, etc.) with Next.js dynamic imports (`ssr: false`).
+- **Milestone Formatting Fix**: We resolved a mismatch where `self-evolution.js` logged milestones starting with `- **` while `sync-rules.js` expected `### `. We modified `self-evolution.js` to log headings using the `### ` prefix.
+- **Milestone Syncing**: verified that the milestone `[자율 개선] 성능 최적화 및 console spams 제거 패치 (2026-07-16)` is successfully appended to the report files and synced to the `AGENTS.md` Synced Milestones Log.
+- **Git Integration**: The script successfully commits changes with the format `[auto] self-improvement: optimize <details>`.
 
-## R2: Data API Response Speed Optimization
-1. **Merge Metadata Check & Data Fetch (1 RTT Read)**:
-   - In `src/lib/sheets-api.ts`, `readSheet` makes a metadata request followed by a data request if changed. This is 2 RTTs.
-   - **Optimization**: Combine this. The client should send the cached version (timestamp `mtime` and `size`) in a single GET request (e.g., as query parameters or headers like `If-None-Match`/`If-Modified-Since`). The server in `src/app/api/data/route.ts` will check the file metadata on disk and return either `304 Not Modified` (a simple `{ notModified: true }` JSON block) or the full updated data payload in a single HTTP round-trip.
-2. **Bypass E2EE Row-by-Row Async Overhead**:
-   - In `src/lib/sheets-api.ts`, the E2EE bypass is active in development but the code still maps every row to an async task `decryptPayload` via `Promise.all`.
-   - **Optimization**: Check if E2EE is bypassed (plain-text payload) and parse it synchronously, skipping the promise microtask overhead.
-3. **Asynchronous LocalStorage Writes**:
-   - Synchronous `localStorage.setItem` blocks the main thread.
-   - **Optimization**: Wrap non-critical `localStorage` writes (fallback cache writing) in `setTimeout` or `requestIdleCallback`.
+## 2. M3: DummyPerfTest.tsx Bottleneck Testing
+- The test component `src/components/dashboard/DummyPerfTest.tsx` was implemented containing all 3 bottlenecks.
+- Running `self-evolution.js` mutated the file to:
+  - Import `useMemo` from React and `dynamic` from Next.js.
+  - Dynamically load the heavy `MindMap3D` component.
+  - Comment out `console.warn` and `console.error`.
+  - Set up a `useMemo` statement for the O(1) Map and query it using `projectListMap.get(...)`.
+- The optimized component successfully passes compilation and lint tests.
 
-## R3: Tab Transition and Interaction Responsiveness
-1. **Fix MindMap3D Memoization**:
-   - `MindMap3D` has `areMindMap3DPropsEqual` defined but is never passed to `React.memo()`. Change `React.memo(MindMap3D)` to `React.memo(MindMap3D, areMindMap3DPropsEqual)`.
-2. **Decouple Global Hook Subscriptions from MindMap3D**:
-   - `MindMap3D` subscribes to `useTasks` and `useBudget` at the top level. Since they change frequently, they trigger full re-renders of the heavy 3D engine even when the MindMap is inactive.
-   - **Optimization**: Move these subscriptions down to the conditional `MindMapInspector` or similar child components that actually render the text.
-3. **Decouple useGraphCustomization Polling**:
-   - `useGraphCustomization()` is called in `MindMap3D` without parameters, keeping background polling active even when the tab is hidden. Pass the `isActive` state to disable polling when inactive.
-4. **Cache Inline Props & Callbacks**:
-   - In `page.tsx`, inline props/callbacks are recreated every render, invalidating child memoization. Cache them using `useCallback` or `useMemo`.
-5. **Optimize getCategoryStats to $O(1)$**:
-   - In `src/hooks/useBudget.ts`, `uniqueCategories.find` runs in $O(N)$ inside a render loop. Replace it with a direct lookup on the pre-calculated `categoryStatsMap`.
-6. **Lazy Render Collapsed Panels**:
-   - In `src/components/budget/ui/PolicyGroupCard.tsx`, collapsed cards are hidden via CSS `max-h-0`. This leaves thousands of DOM nodes mounted.
-   - **Optimization**: Implement lazy conditional rendering `{isOpen && ...}` to decrease the initial DOM element count significantly.
-7. **Pause 3D Physics Loop When Idle**:
-   - In `src/components/MindMap3D.tsx`, `requestAnimationFrame(loop)` runs constantly at 60 FPS even when physics is idle.
-   - **Optimization**: Cancel the animation frame when physics sleeps, and resume it on user interaction.
+## 3. M4: Self-Rollback Guard Verification
+- We tested the rollback logic by running `self-evolution.js --test-rollback` with the unoptimized file, which injects a syntax error (`const invalidSyntaxError = ;`) at the end of the file.
+- The validation harness (`run-harness.js`) fails with a syntax error, causing `self-evolution.js` to trigger the rollback mechanism.
+- The script successfully:
+  - Reverted `DummyPerfTest.tsx` back to its pre-mutation state.
+  - Incremented the consecutive failure count in `data/self_evolution_state.json`.
+  - Exited with code 1.
+- A subsequent normal run of `self-evolution.js` successfully optimized the component, verified it, and reset the failure count back to `0`.
+
+## 4. Infinity Tick Chain Verification
+- The Infinity Tick Chain operates when the AI agent is in idle:
+  1. The agent schedules a 3-minute (180-second) timer with `Prompt: "RSI_TICK"` using the `schedule` tool before entering idle.
+  2. When the timer fires, the agent runs codebase diagnostics and triggers `scripts/self-evolution.js`.
+  3. If refactoring is done, it verifies, syncs milestones, commits, and recursively schedules the next `RSI_TICK` timer.
+  4. This provides a continuous self-evolving and self-healing environment.

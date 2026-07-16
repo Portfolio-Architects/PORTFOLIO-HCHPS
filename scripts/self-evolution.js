@@ -158,7 +158,13 @@ function suppressConsoleSpams(content) {
     
     if (endCall !== -1) {
       const originalCall = content.substring(index, endCall);
-      const commentedCall = `/* ${originalCall} */`;
+      const commentedCall = originalCall.split('\n').map(l => {
+        const trimmed = l.trim();
+        if (trimmed.startsWith('console.warn') || trimmed.startsWith('console.error')) {
+          return '// ' + trimmed;
+        }
+        return '// ' + l;
+      }).join('\n');
       content = content.substring(0, index) + commentedCall + content.substring(endCall);
       pos = index + commentedCall.length;
     } else {
