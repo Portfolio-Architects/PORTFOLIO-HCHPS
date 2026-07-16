@@ -652,6 +652,13 @@ sequenceDiagram
   - `src/components/dashboard/ContactsBox.tsx` 내의 `startEdit` 함수를 빈 의존성 배열(`[]`)을 가지는 `useCallback`으로 감싸 메모이제이션 처리했습니다.
   - 이를 통해 부모 컴포넌트 리렌더링 시 `startEdit` 함수의 인스턴스가 무작위로 재생성되어 하위의 `ContactCard` 컴포넌트들이 불필요하게 리렌더링되는 성능 병목을 해소하고 최적의 메모이제이션 정합성을 확보했습니다.
 
+- **Yjs 오버라이드 툼스톤 복구, 중복 엣지 업데이트, 3D 캐스케이드 삭제 및 디실렉트 UX 패치 (2026-07-16)**:
+  - `src/hooks/useGraphCustomization.ts` 내 `addCustomNode`에서 동일 이름으로 노드 추가 시 Yjs overrides에 존재하는 hidden flag를 제거해(hidden: null) 툼스톤 재생성 버그를 완벽히 해결했습니다.
+  - `src/hooks/useGraphCustomization.ts` 내 `addCustomEdge`에서 이미 존재하는 엣지(또는 역방향 엣지) 생성 요청 시, 단순 스킵 대신 기존 엣지의 weight와 type을 동적으로 갱신(Update)하도록 수정했습니다.
+  - `src/components/MindMap3D.tsx` 내 `handleExecuteDelete` 콜백에 재귀적인 자식 노드 순회 및 삭제 확인 프롬프트(Cascade Delete) 로직을 정교화 적용하여, 인스펙터 패널과 3D 캔버스 엔진 간의 삭제 데이터 정합성을 일치시켰습니다.
+  - `src/components/MindMapInspector.tsx` 내 `renderNodeDetails` 헤더 영역의 닫기/디실렉트(`X`) 버튼이 `isOverlay` 여부와 상관없이 노드가 선택된 상태(`activeNode !== null`)이면 항상 렌더링되도록 개선하여 UX 결함을 해소했습니다.
+  - 관련 Jest 테스트 코드를 `__tests__/useGraphCustomization.test.tsx`에 추가 수립하여 7건의 모든 테스트 스윗 검증 및 `npx tsc --noEmit` 빌드 무결성을 검증 완료했습니다.
+
 *상세한 전체 마일스톤 패치 내역은 [PORTFOLIO VITAL - Engineering Report.md](file:///d:/Desktop/PORTFOLIO/PORTFOLIO%20-%20VITAL/PORTFOLIO%20VITAL%20-%20Engineering%20Report.md)를 참조하십시오.*
 
 ## 9. 감사 기반 로드맵 및 전략적 지평
