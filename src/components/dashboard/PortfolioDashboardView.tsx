@@ -38,9 +38,9 @@ const CustomPieTooltip = ({ active, payload }: any) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     return (
-      <div className="glass-panel p-3 rounded-xl shadow-lg border border-white/20 flex flex-col gap-1 text-[11px] font-bold text-slate-800">
+      <div className="glass-panel dark:glass-panel-dark p-3 rounded-xl shadow-lg border border-white/20 dark:border-slate-800 flex flex-col gap-1 text-[11px] font-bold text-slate-800 dark:text-slate-200">
         <span>{data.name}</span>
-        <span className="font-mono text-indigo-600 text-xs">
+        <span className="font-mono text-indigo-600 dark:text-indigo-400 text-xs">
           {Number(data.value).toLocaleString()}원
         </span>
       </div>
@@ -52,16 +52,16 @@ const CustomPieTooltip = ({ active, payload }: any) => {
 const CustomComposedTooltip = ({ active, payload, label, chartType, isHchps }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div className="glass-panel p-3.5 rounded-xl shadow-xl border border-white/20 flex flex-col gap-1.5 text-[11px] min-w-[180px]">
-        <div className="font-bold text-slate-400 border-b border-slate-200/40 pb-1.5 mb-1 text-[10px] uppercase tracking-wider">{label}월 집행 정보</div>
+      <div className="glass-panel dark:glass-panel-dark p-3.5 rounded-xl shadow-xl border border-white/20 dark:border-slate-800 flex flex-col gap-1.5 text-[11px] min-w-[180px]">
+        <div className="font-bold text-slate-400 dark:text-slate-300 border-b border-slate-200/40 dark:border-slate-800 pb-1.5 mb-1 text-[10px] uppercase tracking-wider">{label}월 집행 정보</div>
         <div className="flex flex-col gap-1">
           {payload.map((p: any, idx: number) => {
             const isTarget = p.dataKey === 'targetCumulative';
             const nameText = isTarget ? '11월 소진 목표' : chartType === 'cumulative' ? '누적 집행액' : '월별 집행액';
-            const colorClass = isTarget ? 'text-slate-400' : isHchps ? 'text-emerald-600' : 'text-blue-600';
+            const colorClass = isTarget ? 'text-slate-400 dark:text-slate-500' : isHchps ? 'text-emerald-600 dark:text-emerald-400' : 'text-blue-600 dark:text-blue-400';
             return (
               <div key={idx} className="flex justify-between items-center gap-3">
-                <span className="font-semibold text-slate-500">{nameText}:</span>
+                <span className="font-semibold text-slate-500 dark:text-slate-400">{nameText}:</span>
                 <span className={`font-bold font-mono ${colorClass}`}>
                   {Number(p.value).toLocaleString()}원
                 </span>
@@ -141,15 +141,15 @@ export function PortfolioDashboardView({ budgetCategories, budgetEntries, appMod
         {/* Left Column */}
         <div className="xl:col-span-6 flex flex-col gap-6">
           {/* Budget Allocation */}
-          <div className="glass-panel rounded-[2rem] p-8 shadow-2xs hover:shadow-md hover:scale-[1.002] transition-all duration-150 flex flex-col h-[400px]">
+          <div className="glass-panel dark:glass-panel-dark rounded-[2rem] p-8 shadow-2xs hover:shadow-md hover:scale-[1.002] transition-all duration-150 flex flex-col h-[400px]">
           <div className="flex justify-between items-center z-10 mb-8">
-            <h2 className="text-xl font-bold text-slate-900 flex items-center gap-3">
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
               Budget Allocation
             </h2>
             <select
               value={selectedProject}
               onChange={(e) => setSelectedProject(e.target.value)}
-              className={`bg-slate-50 border border-slate-200 text-slate-700 text-sm font-bold rounded-xl px-4 py-2.5 outline-none focus:border-${isHchps ? 'emerald' : 'blue'}-500 focus:ring-2 focus:ring-${isHchps ? 'emerald' : 'blue'}-500/20 transition-all cursor-pointer shadow-sm min-w-[180px]`}
+              className={`bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-750 text-slate-700 dark:text-slate-200 text-sm font-bold rounded-xl px-4 py-2.5 outline-none focus:border-${isHchps ? 'emerald' : 'blue'}-500 focus:ring-2 focus:ring-${isHchps ? 'emerald' : 'blue'}-500/20 transition-all cursor-pointer shadow-sm min-w-[180px]`}
             >
               <option value="ALL">세부사업명 전체</option>
               {detailedProjects.map(dp => (
@@ -184,10 +184,10 @@ export function PortfolioDashboardView({ budgetCategories, budgetEntries, appMod
                 )}
                 {/* Center Text */}
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none mt-1">
-                  <span className="text-[12px] font-semibold text-slate-800 uppercase tracking-widest mb-1">TOTAL BUDGET</span>
+                  <span className="text-[12px] font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-widest mb-1">TOTAL BUDGET</span>
                   <div className="flex items-baseline gap-1">
-                    <span className="text-[18px] font-bold text-slate-900 leading-none tracking-tight">{totalBudget.toLocaleString()}</span>
-                    <span className="text-[11px] font-bold text-slate-400 leading-none">KRW</span>
+                    <span className="text-[18px] font-bold text-slate-900 dark:text-white leading-none tracking-tight">{totalBudget.toLocaleString()}</span>
+                    <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 leading-none">KRW</span>
                   </div>
                 </div>
               </div>
@@ -198,27 +198,27 @@ export function PortfolioDashboardView({ budgetCategories, budgetEntries, appMod
                 {breakdownData.map((item, idx) => (
                 <div 
                   key={idx} 
-                  className="group flex items-center w-full p-2 -ml-2 rounded-xl hover:bg-slate-50 transition-colors cursor-default min-w-0"
+                  className="group flex items-center w-full p-2 -ml-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-default min-w-0"
                 >
                   <div className="w-4 h-4 rounded-full shrink-0 mr-3 shadow-sm" style={{ backgroundColor: themeColors[idx % themeColors.length] || '#cbd5e1' }} />
                   <div className="flex flex-col min-w-0 shrink" title={item.formationItem ? `${item.formationItem} - ${item.name}` : item.name}>
                     {item.formationItem && (
-                      <span className="text-[10px] font-bold text-slate-400 truncate tracking-wider leading-none mb-1">
+                      <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 truncate tracking-wider leading-none mb-1">
                         {item.formationItem}
                       </span>
                     )}
-                    <span className="text-[14px] font-bold text-slate-700 uppercase tracking-wider truncate leading-none">
+                    <span className="text-[14px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider truncate leading-none">
                       {item.name}
                     </span>
                   </div>
-                  <div className="flex-1 min-w-[12px] border-b-[2px] border-dotted border-slate-200 mx-3 mt-1.5 opacity-80"></div>
+                  <div className="flex-1 min-w-[12px] border-b-[2px] border-dotted border-slate-200 dark:border-slate-800 mx-3 mt-1.5 opacity-80"></div>
                   <div className="w-[96px] shrink-0 text-right transition-transform group-hover:-translate-x-1 duration-300 ml-auto">
-                    <span className="text-[16px] font-bold text-slate-800 leading-none tabular-nums whitespace-nowrap block">{item.total.toLocaleString()}</span>
+                    <span className="text-[16px] font-bold text-slate-800 dark:text-slate-200 leading-none tabular-nums whitespace-nowrap block">{item.total.toLocaleString()}</span>
                   </div>
                 </div>
               ))}
               {breakdownData.length === 0 && (
-                <span className="text-xs font-bold text-slate-400 text-center">세부 항목이 없습니다.</span>
+                <span className="text-xs font-bold text-slate-400 dark:text-slate-500 text-center">세부 항목이 없습니다.</span>
               )}
               </div>
             </div>
@@ -228,42 +228,42 @@ export function PortfolioDashboardView({ budgetCategories, budgetEntries, appMod
           {/* KPI Mini Cards Grid */}
           <div className="grid grid-cols-2 gap-x-4 sm:gap-x-6 gap-y-2 sm:gap-y-3 content-start">
             {/* 1. Execution Rate */}
-            <div className="glass-panel shadow-2xs border border-white/20 rounded-[1.5rem] p-4 flex flex-col justify-between relative overflow-hidden group hover:scale-[1.01] hover:shadow-md transition-all duration-150">
-              <span className={`text-[10px] font-bold ${isHchps ? 'text-emerald-600' : 'text-blue-600'} uppercase tracking-widest relative z-10 mb-3`}>BUDGET EXECUTION</span>
-              <span className={`text-2xl font-bold ${isHchps ? 'text-emerald-600' : 'text-blue-600'} leading-none relative z-10`}>{executionRate.toFixed(1)}%</span>
+            <div className="glass-panel dark:glass-panel-dark shadow-2xs border border-white/20 dark:border-slate-800/40 rounded-[1.5rem] p-4 flex flex-col justify-between relative overflow-hidden group hover:scale-[1.01] hover:shadow-md transition-all duration-150">
+              <span className={`text-[10px] font-bold ${isHchps ? 'text-emerald-600 dark:text-emerald-400' : 'text-blue-600 dark:text-blue-400'} uppercase tracking-widest relative z-10 mb-3`}>BUDGET EXECUTION</span>
+              <span className={`text-2xl font-bold ${isHchps ? 'text-emerald-600 dark:text-emerald-400' : 'text-blue-600 dark:text-blue-400'} leading-none relative z-10`}>{executionRate.toFixed(1)}%</span>
               <div 
                 className="absolute right-4 bottom-4 w-8 h-8 rounded-full shrink-0 flex items-center justify-center shadow-sm opacity-80 group-hover:scale-110 transition-transform"
                 style={{ background: `conic-gradient(${isHchps ? '#10b981' : '#3b82f6'} ${executionRate}%, #e2e8f0 0)` }}
               >
-                <div className="w-[20px] h-[20px] bg-white rounded-full" />
+                <div className="w-[20px] h-[20px] bg-white dark:bg-slate-900 rounded-full" />
               </div>
             </div>
 
             {/* 2. Remaining Budget */}
-            <div className="glass-panel shadow-2xs border border-white/20 rounded-[1.5rem] p-4 flex flex-col justify-between relative overflow-hidden group hover:scale-[1.01] hover:shadow-md transition-all duration-150">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest relative z-10 mb-3">REMAINING BUDGET</span>
-              <span className="text-2xl font-bold text-slate-900 leading-none relative z-10">{(100 - executionRate).toFixed(1)}%</span>
+            <div className="glass-panel dark:glass-panel-dark shadow-2xs border border-white/20 dark:border-slate-800/40 rounded-[1.5rem] p-4 flex flex-col justify-between relative overflow-hidden group hover:scale-[1.01] hover:shadow-md transition-all duration-150">
+              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest relative z-10 mb-3">REMAINING BUDGET</span>
+              <span className="text-2xl font-bold text-slate-900 dark:text-white leading-none relative z-10">{(100 - executionRate).toFixed(1)}%</span>
               <div 
                 className="absolute right-4 bottom-4 w-8 h-8 rounded-full shrink-0 flex items-center justify-center shadow-sm opacity-80 group-hover:scale-110 transition-transform"
                 style={{ background: `conic-gradient(#94a3b8 ${100 - executionRate}%, #e2e8f0 0)` }}
               >
-                <div className="w-[20px] h-[20px] bg-white rounded-full" />
+                <div className="w-[20px] h-[20px] bg-white dark:bg-slate-900 rounded-full" />
               </div>
             </div>
 
             {/* 3. Executed Amount */}
-            <div className="glass-panel shadow-2xs border border-white/20 rounded-[1.5rem] p-4 flex flex-col justify-between relative overflow-hidden group hover:scale-[1.01] hover:shadow-md transition-all duration-150">
-              <span className={`text-[10px] font-bold ${isHchps ? 'text-emerald-600' : 'text-blue-600'} uppercase tracking-widest relative z-10 mb-3`}>EXECUTED AMOUNT</span>
-              <span className="text-xl font-bold text-slate-900 leading-none relative z-10 truncate" title={`${executedBudget.toLocaleString()} KRW`}>
-                {executedBudget.toLocaleString()}<span className="text-xs text-slate-400 ml-1">KRW</span>
+            <div className="glass-panel dark:glass-panel-dark shadow-2xs border border-white/20 dark:border-slate-800/40 rounded-[1.5rem] p-4 flex flex-col justify-between relative overflow-hidden group hover:scale-[1.01] hover:shadow-md transition-all duration-150">
+              <span className={`text-[10px] font-bold ${isHchps ? 'text-emerald-600 dark:text-emerald-400' : 'text-blue-600 dark:text-blue-400'} uppercase tracking-widest relative z-10 mb-3`}>EXECUTED AMOUNT</span>
+              <span className="text-xl font-bold text-slate-900 dark:text-white leading-none relative z-10 truncate" title={`${executedBudget.toLocaleString()} KRW`}>
+                {executedBudget.toLocaleString()}<span className="text-xs text-slate-400 dark:text-slate-500 ml-1">KRW</span>
               </span>
             </div>
 
             {/* 4. Remaining Amount */}
-            <div className="glass-panel shadow-2xs border border-white/20 rounded-[1.5rem] p-4 flex flex-col justify-between relative overflow-hidden group hover:scale-[1.01] hover:shadow-md transition-all duration-150">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest relative z-10 mb-3">REMAINING AMOUNT</span>
-              <span className="text-xl font-bold text-slate-900 truncate block leading-none relative z-10" title={`${remainingBudget.toLocaleString()} KRW`}>
-                {remainingBudget.toLocaleString()}<span className="text-xs text-slate-400 ml-1">KRW</span>
+            <div className="glass-panel dark:glass-panel-dark shadow-2xs border border-white/20 dark:border-slate-800/40 rounded-[1.5rem] p-4 flex flex-col justify-between relative overflow-hidden group hover:scale-[1.01] hover:shadow-md transition-all duration-150">
+              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest relative z-10 mb-3">REMAINING AMOUNT</span>
+              <span className="text-xl font-bold text-slate-900 dark:text-white truncate block leading-none relative z-10" title={`${remainingBudget.toLocaleString()} KRW`}>
+                {remainingBudget.toLocaleString()}<span className="text-xs text-slate-400 dark:text-slate-500 ml-1">KRW</span>
               </span>
             </div>
           </div>
@@ -271,29 +271,29 @@ export function PortfolioDashboardView({ budgetCategories, budgetEntries, appMod
 
         {/* Right Panel: Predictive Budget Modeling */}
         <div className="xl:col-span-6 flex flex-col gap-6">
-          <div className="glass-panel rounded-[2rem] p-8 shadow-2xs h-full flex flex-col relative overflow-hidden hover:scale-[1.002] hover:shadow-md transition-all duration-150">
+          <div className="glass-panel dark:glass-panel-dark rounded-[2rem] p-8 shadow-2xs h-full flex flex-col relative overflow-hidden hover:scale-[1.002] hover:shadow-md transition-all duration-150">
             {/* Background Decor */}
-            <div className={`absolute -top-24 -right-24 w-64 h-64 ${isHchps ? 'bg-emerald-50/50' : 'bg-blue-50/50'} rounded-full blur-3xl pointer-events-none`} />
+            <div className={`absolute -top-24 -right-24 w-64 h-64 ${isHchps ? 'bg-emerald-500/5 dark:bg-emerald-950/20' : 'bg-blue-500/5 dark:bg-blue-950/20'} rounded-full blur-3xl pointer-events-none`} />
 
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 relative z-10">
               <div>
-                <h2 className="text-xl font-bold text-slate-900 flex items-center gap-3">
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
                   Monthly Budget Execution
                 </h2>
-                <p className="text-[13px] font-bold text-slate-400 mt-1">Monthly breakdown and cumulative execution trend</p>
+                <p className="text-[13px] font-bold text-slate-400 dark:text-slate-500 mt-1">Monthly breakdown and cumulative execution trend</p>
               </div>
 
               {/* Chart Type Toggle Switch */}
-              <div className="flex p-1 bg-slate-50 rounded-xl border border-slate-200/60 shadow-inner shrink-0">
+              <div className="flex p-1 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200/60 dark:border-slate-700 shadow-inner shrink-0">
                 <button 
                   onClick={() => setChartType('monthly')} 
-                  className={`px-3.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${chartType === 'monthly' ? `bg-white ${isHchps ? 'text-emerald-600' : 'text-blue-600'} shadow-sm border border-slate-200/50` : 'text-slate-400 hover:text-slate-600 border border-transparent'}`}
+                  className={`px-3.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${chartType === 'monthly' ? `bg-white dark:bg-slate-700 ${isHchps ? 'text-emerald-600 dark:text-emerald-300' : 'text-blue-600 dark:text-blue-300'} shadow-sm border border-slate-200/50 dark:border-slate-850/40` : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 border border-transparent'}`}
                 >
                   월별 집행액
                 </button>
                 <button 
                   onClick={() => setChartType('cumulative')} 
-                  className={`px-3.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${chartType === 'cumulative' ? `bg-white ${isHchps ? 'text-emerald-600' : 'text-blue-600'} shadow-sm border border-slate-200/50` : 'text-slate-400 hover:text-slate-600 border border-transparent'}`}
+                  className={`px-3.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${chartType === 'cumulative' ? `bg-white dark:bg-slate-700 ${isHchps ? 'text-emerald-600 dark:text-emerald-300' : 'text-blue-600 dark:text-blue-300'} shadow-sm border border-slate-200/50 dark:border-slate-850/40` : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 border border-transparent'}`}
                 >
                   누적 집행액
                 </button>
@@ -303,24 +303,24 @@ export function PortfolioDashboardView({ budgetCategories, budgetEntries, appMod
             {/* KPIs for 11-Month Total Execution Target */}
             <div className="grid grid-cols-3 gap-2 sm:gap-4 mt-6 relative z-10">
               <div className="flex flex-col">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 truncate">PEAK SPENDING</span>
+                <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1 truncate">PEAK SPENDING</span>
                 <div className="flex flex-col sm:flex-row sm:items-baseline gap-0.5 sm:gap-1">
-                  <span className="text-xl font-bold text-slate-800 leading-none">{maxSpendMonth.month}</span>
-                  <span className="text-[11px] font-bold text-slate-500 truncate">({maxSpendMonth.amount.toLocaleString()}원)</span>
+                  <span className="text-xl font-bold text-slate-800 dark:text-slate-200 leading-none">{maxSpendMonth.month}</span>
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 truncate">({maxSpendMonth.amount.toLocaleString()}원)</span>
                 </div>
               </div>
-              <div className="flex flex-col items-center sm:items-start border-l border-slate-100 pl-2">
-                <span className={`text-[10px] font-bold ${isHchps ? 'text-emerald-600' : 'text-blue-600'} uppercase tracking-widest mb-1 truncate`}>REQ. SPEND / MO (11월)</span>
+              <div className="flex flex-col items-center sm:items-start border-l border-slate-100 dark:border-slate-800 pl-2">
+                <span className={`text-[10px] font-bold ${isHchps ? 'text-emerald-600 dark:text-emerald-450' : 'text-blue-600 dark:text-blue-450'} uppercase tracking-widest mb-1 truncate`}>REQ. SPEND / MO (11월)</span>
                 <div className="flex items-baseline gap-0.5 sm:gap-1 flex-wrap">
-                  <span className={`text-[15px] sm:text-xl font-bold ${isHchps ? 'text-emerald-600' : 'text-blue-600'} leading-none tracking-tight`}>{Math.round(recommendedMonthlySpendForTarget).toLocaleString()}</span>
+                  <span className={`text-[15px] sm:text-xl font-bold ${isHchps ? 'text-emerald-600 dark:text-emerald-450' : 'text-blue-600 dark:text-blue-450'} leading-none tracking-tight`}>{Math.round(recommendedMonthlySpendForTarget).toLocaleString()}</span>
                   <span className={`text-[10px] font-bold ${isHchps ? 'text-emerald-400' : 'text-blue-400'}`}>원</span>
                 </div>
               </div>
-              <div className="flex flex-col items-end sm:items-start border-l border-slate-100 pl-2">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1 truncate">REMAINING TARGET</span>
+              <div className="flex flex-col items-end sm:items-start border-l border-slate-100 dark:border-slate-800 pl-2">
+                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1 truncate">REMAINING TARGET</span>
                 <div className="flex items-baseline gap-0.5 sm:gap-1 flex-wrap">
-                  <span className="text-[15px] sm:text-xl font-bold text-slate-900 leading-none tracking-tight">{remainingTargetAmount.toLocaleString()}</span>
-                  <span className="text-[10px] font-bold text-slate-400">원</span>
+                  <span className="text-[15px] sm:text-xl font-bold text-slate-900 dark:text-white leading-none tracking-tight">{remainingTargetAmount.toLocaleString()}</span>
+                  <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500">원</span>
                 </div>
               </div>
             </div>
