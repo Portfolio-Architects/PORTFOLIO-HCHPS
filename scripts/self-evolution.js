@@ -364,15 +364,15 @@ if (validationPassed) {
   
   // Record milestone
   const today = new Date().toISOString().split('T')[0];
-  let milestoneText = `- **[자율 개선] 성능 최적화 및 console spams 제거 패치 (${today})**:\n`;
+  let milestoneText = `### [자율 개선] 성능 최적화 및 console spams 제거 패치 (${today})\n`;
   if (refactoredO2) {
-    milestoneText += `  - **O(N^2) Complexity Reduction**: Convert rendering/map nested loops to O(1) Map lookups using useMemo.\n`;
+    milestoneText += `* **O(N^2) Complexity Reduction**: Convert rendering/map nested loops to O(1) Map lookups using useMemo.\n`;
   }
   if (refactoredConsole) {
-    milestoneText += `  - **Console Spam Suppression**: Comment out console.warn/error spams in components.\n`;
+    milestoneText += `* **Console Spam Suppression**: Comment out console.warn/error spams in components.\n`;
   }
   if (refactoredDynamic) {
-    milestoneText += `  - **Dynamic Import Migration**: Rewrite static imports of heavy components to Next.js dynamic imports.`;
+    milestoneText += `* **Dynamic Import Migration**: Rewrite static imports of heavy components to Next.js dynamic imports.`;
   }
   
   recordMilestoneInFile(path.join(process.cwd(), 'PORTFOLIO VITAL - Engineering Report.md'), milestoneText);

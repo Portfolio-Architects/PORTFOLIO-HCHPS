@@ -1,18 +1,11 @@
 {
-  "timestamp": "2026-07-16T01:17:43.760Z",
+  "timestamp": "2026-07-16T01:21:26.566Z",
   "lintWarnings": [],
   "architecturalViolations": [],
-  "performanceBottlenecks": [
-    {
-      "file": "src/components/dashboard/DummyPerfTest.tsx",
-      "line": 12,
-      "pattern": "console.warn/error",
-      "message": "Direct console logging inside component. This can spam the console and freeze the browser thread during high frequency renders."
-    }
-  ],
+  "performanceBottlenecks": [],
   "summary": {
     "totalWarnings": 0,
     "totalViolations": 0,
-    "totalBottlenecks": 1
+    "totalBottlenecks": 0
   }
 }

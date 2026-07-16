@@ -1,7 +1,7 @@
 import dynamic from 'next/dynamic';
 import React, { useMemo } from 'react';
 const MindMap3D = dynamic(() => import('../MindMap3D').then(mod => mod.MindMap3D), { ssr: false });
-import { Task, Project } from '@/types';
+import { Task, Project } from "@/types";
 
 interface DummyPerfTestProps {
   projectList: Project[];
@@ -9,8 +9,6 @@ interface DummyPerfTestProps {
 }
 
 export function DummyPerfTest({ projectList, taskList }: DummyPerfTestProps) {
-  /* console.warn("DummyPerfTest loaded with console.warn spam!"); */
-  /* console.error("DummyPerfTest console.error spam!"); */
 
   const projectListMap = useMemo(() => new Map(projectList.map(p => [p.id, p])), [projectList]);
   return (
@@ -22,7 +20,7 @@ export function DummyPerfTest({ projectList, taskList }: DummyPerfTestProps) {
           return (
             <div key={task.id} className="p-2 bg-white/5 rounded border border-white/5 flex justify-between">
               <span>{task.title}</span>
-              <span className="text-indigo-400 font-mono text-xs">{project ? project.name : 'No Project'}</span>
+              <span className="text-indigo-400 font-mono text-xs">{project ? project.name : "No Project"}</span>
             </div>
           );
         })}
