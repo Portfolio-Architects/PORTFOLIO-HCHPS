@@ -86,8 +86,8 @@ const ScheduleForm = React.memo(({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="xl:col-span-3 flex flex-col gap-4 bg-slate-55/20 p-6 rounded-2xl border border-slate-200/40 backdrop-blur-xs max-h-[580px] overflow-y-auto">
-      <span className="text-sm font-bold text-slate-700 mb-1 flex items-center gap-2">
+    <form onSubmit={handleSubmit} className="xl:col-span-3 flex flex-col gap-4 bg-slate-50/20 dark:bg-slate-900/60 p-6 rounded-2xl border border-slate-200/40 dark:border-slate-800 backdrop-blur-xs max-h-[580px] overflow-y-auto">
+      <span className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-1 flex items-center gap-2">
         <Plus className="w-4 h-4 text-indigo-500" /> 새 일정 등록
       </span>
 
@@ -109,7 +109,7 @@ const ScheduleForm = React.memo(({
               className={`py-1.5 px-2.5 rounded-lg border text-xs font-bold text-center transition-all cursor-pointer ${
                 type === t
                   ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
-                  : 'bg-white border-slate-200 text-slate-650 hover:bg-slate-50'
+                  : 'bg-white dark:bg-slate-850 border-slate-200 dark:border-slate-700 text-slate-650 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-800'
               }`}
             >
               {t === 'security' && '보안'}
@@ -122,36 +122,36 @@ const ScheduleForm = React.memo(({
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label className="text-[11px] font-bold text-slate-500">일정명 (제목)</label>
+        <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">일정명 (제목)</label>
         <input
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="예: 4층 보안"
-          className="w-full px-4.5 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 bg-white/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-300 placeholder:font-semibold"
+          className="w-full px-4.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white/50 dark:bg-slate-950/40 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-300 dark:placeholder:text-slate-650 placeholder:font-semibold"
           required
         />
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label className="text-[11px] font-bold text-slate-500">담당자 / 참석자</label>
+        <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">담당자 / 참석자</label>
         <input
           type="text"
           value={person}
           onChange={(e) => setPerson(e.target.value)}
           placeholder="담당 당번 혹은 회의 주최자"
-          className="w-full px-4.5 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 bg-white/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-300 placeholder:font-semibold"
+          className="w-full px-4.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white/50 dark:bg-slate-950/40 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-300 dark:placeholder:text-slate-650 placeholder:font-semibold"
           required
         />
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label className="text-[11px] font-bold text-slate-500">시작 날짜</label>
+        <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">시작 날짜</label>
         <input
           type="date"
           value={date}
           onChange={(e) => handleDateChange(e.target.value)}
-          className="w-full px-4.5 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 bg-white/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+          className="w-full px-4.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white/50 dark:bg-slate-950/40 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
           required
         />
       </div>
@@ -167,29 +167,29 @@ const ScheduleForm = React.memo(({
               setEndDate(date);
             }
           }}
-          className="w-4 h-4 rounded text-indigo-650 border-slate-300 focus:ring-indigo-500 cursor-pointer"
+          className="w-4 h-4 rounded text-indigo-650 border-slate-300 dark:border-slate-750 focus:ring-indigo-500 cursor-pointer"
         />
-        <label htmlFor="isRangeCheck" className="text-xs font-bold text-slate-600 cursor-pointer">
+        <label htmlFor="isRangeCheck" className="text-xs font-bold text-slate-600 dark:text-slate-400 cursor-pointer">
           연속 일정으로 등록
         </label>
       </div>
 
       {isRange && (
         <div className="flex flex-col gap-1.5">
-          <label className="text-[11px] font-bold text-slate-500">종료 날짜</label>
+          <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">종료 날짜</label>
           <input
             type="date"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
             min={date}
-            className="w-full px-4.5 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 bg-white/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+            className="w-full px-4.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white/50 dark:bg-slate-950/40 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
             required
           />
         </div>
       )}
 
       <div className="flex flex-col gap-1.5">
-        <label className="text-[11px] font-bold text-slate-500">퀵 시간 설정</label>
+        <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">퀵 시간 설정</label>
         <div className="flex flex-wrap gap-1.5 mb-1">
           <button
             type="button"
@@ -197,7 +197,7 @@ const ScheduleForm = React.memo(({
             className={`px-2.5 py-1.5 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
               startTime === '11:30' && endTime === '13:00'
                 ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
-                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-700'
             }`}
           >
             보안 (11:30~13:00)
@@ -208,7 +208,7 @@ const ScheduleForm = React.memo(({
             className={`px-2.5 py-1.5 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
               startTime === '10:00' && endTime === '11:00'
                 ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm'
-                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-700'
             }`}
           >
             회의 (10:00~11:00)
@@ -219,7 +219,7 @@ const ScheduleForm = React.memo(({
             className={`px-2.5 py-1.5 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
               startTime === '14:00' && endTime === '15:00'
                 ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm'
-                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-700'
             }`}
           >
             회의 (14:00~15:00)
@@ -230,7 +230,7 @@ const ScheduleForm = React.memo(({
             className={`px-2.5 py-1.5 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
               startTime === '09:00' && endTime === '18:00'
                 ? 'bg-slate-600 border-slate-600 text-white shadow-sm'
-                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-700'
             }`}
           >
             종일 (09:00~18:00)
@@ -240,38 +240,38 @@ const ScheduleForm = React.memo(({
 
       <div className="grid grid-cols-2 gap-3.5">
         <div className="flex flex-col gap-1.5">
-          <label className="text-[11px] font-bold text-slate-500">시작 시간</label>
+          <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">시작 시간</label>
           <div className="flex gap-1.5">
             <select
               value={startTime.split(':')[0] || '11'}
               onChange={(e) => setStartTime(`${e.target.value}:${startTime.split(':')[1] || '30'}`)}
-              className="w-1/2 px-3 py-2.5 rounded-xl border border-slate-200/60 text-xs font-semibold text-slate-700 bg-white/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
+              className="w-1/2 px-3 py-2.5 rounded-xl border border-slate-200/60 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white/50 dark:bg-slate-950/40 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
             >
               {hours.map(h => <option key={h} value={h}>{h}시</option>)}
             </select>
             <select
               value={startTime.split(':')[1] || '30'}
               onChange={(e) => setStartTime(`${startTime.split(':')[0] || '11'}:${e.target.value}`)}
-              className="w-1/2 px-3 py-2.5 rounded-xl border border-slate-200/60 text-xs font-semibold text-slate-700 bg-white/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
+              className="w-1/2 px-3 py-2.5 rounded-xl border border-slate-200/60 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white/50 dark:bg-slate-950/40 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
             >
               {minutes.map(m => <option key={m} value={m}>{m}분</option>)}
             </select>
           </div>
         </div>
         <div className="flex flex-col gap-1.5">
-          <label className="text-[11px] font-bold text-slate-500">종료 시간</label>
+          <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">종료 시간</label>
           <div className="flex gap-1.5">
             <select
               value={endTime.split(':')[0] || '13'}
               onChange={(e) => setEndTime(`${e.target.value}:${endTime.split(':')[1] || '00'}`)}
-              className="w-1/2 px-3 py-2.5 rounded-xl border border-slate-200/60 text-xs font-semibold text-slate-700 bg-white/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
+              className="w-1/2 px-3 py-2.5 rounded-xl border border-slate-200/60 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white/50 dark:bg-slate-950/40 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
             >
               {hours.map(h => <option key={h} value={h}>{h}시</option>)}
             </select>
             <select
               value={endTime.split(':')[1] || '00'}
               onChange={(e) => setEndTime(`${endTime.split(':')[0] || '13'}:${e.target.value}`)}
-              className="w-1/2 px-3 py-2.5 rounded-xl border border-slate-200/60 text-xs font-semibold text-slate-700 bg-white/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
+              className="w-1/2 px-3 py-2.5 rounded-xl border border-slate-200/60 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white/50 dark:bg-slate-950/40 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
             >
               {minutes.map(m => <option key={m} value={m}>{m}분</option>)}
             </select>
@@ -280,12 +280,12 @@ const ScheduleForm = React.memo(({
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label className="text-[11px] font-bold text-slate-500">메모 / 특이사항</label>
+        <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">메모 / 특이사항</label>
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           placeholder="상세 위치, 안건 및 기타 중요 특이사항을 적어주세요."
-          className="w-full px-4.5 py-2.5 rounded-xl border border-slate-200/60 text-sm font-semibold text-slate-700 bg-white/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-300 placeholder:font-semibold resize-none h-20"
+          className="w-full px-4.5 py-2.5 rounded-xl border border-slate-200/60 dark:border-slate-700 text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white/50 dark:bg-slate-950/40 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-300 dark:placeholder:text-slate-650 placeholder:font-semibold resize-none h-20"
         />
       </div>
 
@@ -381,27 +381,27 @@ export const WeeklyScheduler: React.FC = () => {
     switch (schedType) {
       case 'security':
         return {
-          bg: 'bg-indigo-55/70 border-indigo-100 hover:border-indigo-200 text-indigo-700',
-          badge: 'bg-indigo-100/80 text-indigo-800',
+          bg: 'bg-indigo-50/70 border-indigo-100 hover:border-indigo-200 text-indigo-700 dark:bg-indigo-950/40 dark:border-indigo-900/50 dark:text-indigo-300',
+          badge: 'bg-indigo-100/80 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300',
           icon: <Shield className="w-3.5 h-3.5" />
         };
       case 'meeting':
         return {
-          bg: 'bg-emerald-55/70 border-emerald-100 hover:border-emerald-200 text-emerald-700',
-          badge: 'bg-emerald-100/80 text-emerald-800',
+          bg: 'bg-emerald-50/70 border-emerald-100 hover:border-emerald-200 text-emerald-700 dark:bg-emerald-950/40 dark:border-emerald-900/50 dark:text-emerald-300',
+          badge: 'bg-emerald-100/80 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300',
           icon: <Users className="w-3.5 h-3.5" />
         };
       case 'education':
         return {
-          bg: 'bg-amber-55/70 border-amber-100 hover:border-amber-200 text-amber-700',
-          badge: 'bg-amber-100/85 text-amber-800',
+          bg: 'bg-amber-50/70 border-amber-100 hover:border-amber-200 text-amber-700 dark:bg-amber-950/40 dark:border-amber-900/50 dark:text-amber-300',
+          badge: 'bg-amber-100/85 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
           icon: <BookOpen className="w-3.5 h-3.5" />
         };
       case 'other':
       default:
         return {
-          bg: 'bg-slate-55/70 border-slate-100 hover:border-slate-200 text-slate-700',
-          badge: 'bg-slate-100 text-slate-800',
+          bg: 'bg-slate-50/70 border-slate-100 hover:border-slate-200 text-slate-700 dark:bg-slate-800/50 dark:border-slate-700/50 dark:text-slate-300',
+          badge: 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-350',
           icon: <Calendar className="w-3.5 h-3.5" />
         };
     }
@@ -410,16 +410,16 @@ export const WeeklyScheduler: React.FC = () => {
   const dayNames = ['월', '화', '수', '목', '금', '토', '일'];
 
   return (
-    <div className="glass-panel rounded-[2rem] p-8 shadow-2xs border border-white/20 transition-all duration-300 hover:shadow-md">
+    <div className="glass-panel dark:glass-panel-dark rounded-[2rem] p-8 shadow-2xs border border-white/20 dark:border-slate-800/40 transition-all duration-300 hover:shadow-md">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200/50 pb-6 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200/50 dark:border-slate-800 pb-6 mb-6">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-indigo-500/10 text-indigo-600 rounded-2xl border border-indigo-500/15">
             <Calendar className="w-6 h-6" />
           </div>
           <div>
-            <h4 className="text-xl font-bold text-slate-800 tracking-tight">통합 주간 일정 플래너</h4>
-            <p className="text-xs font-semibold text-slate-450 mt-0.5">보안, 회의, 교육 등 주간 주요 일정을 한눈에 조율합니다.</p>
+            <h4 className="text-xl font-bold text-slate-800 dark:text-white tracking-tight">통합 주간 일정 플래너</h4>
+            <p className="text-xs font-semibold text-slate-400 mt-0.5">보안, 회의, 교육 등 주간 주요 일정을 한눈에 조율합니다.</p>
           </div>
         </div>
 
@@ -427,25 +427,25 @@ export const WeeklyScheduler: React.FC = () => {
         <div className="flex items-center gap-2">
           <button
             onClick={handleToday}
-            className="px-3.5 py-1.5 bg-slate-100/60 hover:bg-slate-200/60 border border-slate-200/40 text-xs font-bold text-slate-600 rounded-xl transition-all cursor-pointer hover:shadow-2xs active:scale-[0.97]"
+            className="px-3.5 py-1.5 bg-slate-100/60 dark:bg-slate-800 hover:bg-slate-200/60 dark:hover:bg-slate-700 border border-slate-200/40 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-350 rounded-xl transition-all cursor-pointer hover:shadow-2xs active:scale-[0.97]"
           >
             오늘
           </button>
-          <div className="flex items-center bg-slate-100/50 border border-slate-200/30 rounded-xl p-1 shrink-0">
+          <div className="flex items-center bg-slate-100/50 dark:bg-slate-800 border border-slate-200/30 dark:border-slate-700 rounded-xl p-1 shrink-0">
             <button
               onClick={handlePrevWeek}
-              className="p-1 hover:bg-white rounded-lg transition-colors cursor-pointer"
+              className="p-1 hover:bg-white dark:hover:bg-slate-750 rounded-lg transition-colors cursor-pointer"
             >
-              <ChevronLeft className="w-4 h-4 text-slate-600" />
+              <ChevronLeft className="w-4 h-4 text-slate-600 dark:text-slate-355" />
             </button>
-            <span className="text-xs font-bold text-slate-700 px-3 min-w-[210px] text-center">
+            <span className="text-xs font-bold text-slate-700 dark:text-slate-200 px-3 min-w-[210px] text-center">
               {weekRangeText}
             </span>
             <button
               onClick={handleNextWeek}
-              className="p-1 hover:bg-white rounded-lg transition-colors cursor-pointer"
+              className="p-1 hover:bg-white dark:hover:bg-slate-750 rounded-lg transition-colors cursor-pointer"
             >
-              <ChevronRight className="w-4 h-4 text-slate-600" />
+              <ChevronRight className="w-4 h-4 text-slate-600 dark:text-slate-355" />
             </button>
           </div>
         </div>
@@ -480,29 +480,29 @@ export const WeeklyScheduler: React.FC = () => {
                 return (
                   <div
                     key={idx}
-                    className={`flex flex-col bg-white/30 border border-slate-200/40 rounded-2xl p-3 h-full min-h-[200px] md:min-h-[480px] transition-all hover:bg-white/60 hover:shadow-2xs ${
-                      isToday ? 'bg-indigo-50/10 border-indigo-300/50 shadow-xs ring-1 ring-indigo-500/5' : ''
+                    className={`flex flex-col bg-white/30 dark:bg-slate-900/30 border border-slate-200/40 dark:border-slate-800/40 rounded-2xl p-3 h-full min-h-[200px] md:min-h-[480px] transition-all hover:bg-white/60 dark:hover:bg-slate-800/40 hover:shadow-2xs ${
+                      isToday ? 'bg-indigo-50/10 border-indigo-300/50 shadow-xs ring-1 ring-indigo-500/5 dark:bg-indigo-950/20 dark:border-indigo-800/50 dark:ring-indigo-500/10' : ''
                     }`}
                   >
                     {/* Day Column Header */}
                     <div 
                       onClick={() => setDate(day.toISOString().split('T')[0])}
-                      className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-200/40 cursor-pointer hover:bg-slate-100/50 p-1 rounded-lg transition-all select-none"
+                      className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-200/40 dark:border-slate-800/50 cursor-pointer hover:bg-slate-100/50 dark:hover:bg-slate-800/50 p-1 rounded-lg transition-all select-none"
                       title={`${dayNum}일로 일정 등록 날짜 지정`}
                     >
                       <div className="flex items-center gap-1.5">
                         <span className={`text-[12px] font-bold ${
-                          idx === 5 ? 'text-blue-500' : idx === 6 ? 'text-red-500' : 'text-slate-500'
+                          idx === 5 ? 'text-blue-500' : idx === 6 ? 'text-red-500' : 'text-slate-500 dark:text-slate-400'
                         }`}>
                           {dayNames[idx]}
                         </span>
                         <span className={`text-sm font-bold w-6 h-6 flex items-center justify-center rounded-full ${
-                          isToday ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-800'
+                          isToday ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-800 dark:text-slate-200'
                         }`}>
                           {dayNum}
                         </span>
                       </div>
-                      <span className="text-[10px] font-semibold text-slate-450 bg-slate-200/40 px-1.5 py-0.5 rounded-full shrink-0">
+                      <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-300 bg-slate-200/40 dark:bg-slate-800 px-1.5 py-0.5 rounded-full shrink-0">
                         {daySchedules.length}건
                       </span>
                     </div>
@@ -510,7 +510,7 @@ export const WeeklyScheduler: React.FC = () => {
                     {/* Column Body: Schedules */}
                     <div className="flex flex-col gap-2 overflow-y-auto flex-1 max-h-[360px] md:max-h-none scrollbar-none">
                       {daySchedules.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center flex-1 py-8 text-slate-350 italic text-[11px] font-semibold">
+                        <div className="flex flex-col items-center justify-center flex-1 py-8 text-slate-400 dark:text-slate-500 italic text-[11px] font-semibold">
                           일정 없음
                         </div>
                       ) : (
@@ -526,37 +526,37 @@ export const WeeklyScheduler: React.FC = () => {
                               {/* Title & Type Icon */}
                               <div className="flex items-start justify-between gap-1.5">
                                 <span 
-                                  className="text-xs font-bold text-slate-800 tracking-tight leading-tight line-clamp-2 pr-4 cursor-help"
+                                  className="text-xs font-bold text-slate-800 dark:text-slate-200 tracking-tight leading-tight line-clamp-2 pr-4 cursor-help"
                                   title={schedule.title}
                                 >
                                   {schedule.title}
                                 </span>
-                                <div className="shrink-0 text-slate-550">
+                                <div className="shrink-0 text-slate-500 dark:text-slate-400">
                                   {config.icon}
                                 </div>
                               </div>
 
                               {schedule.endDate && schedule.endDate !== schedule.date && (
-                                <span className="text-[9px] font-bold text-slate-500 bg-white/80 border border-slate-200/50 px-1.5 py-0.5 rounded-md mt-1.5 self-start select-none">
+                                <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 bg-white/80 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-700 px-1.5 py-0.5 rounded-md mt-1.5 self-start select-none">
                                   기간: {schedule.date.slice(5)} ~ {schedule.endDate.slice(5)}
                                 </span>
                               )}
 
                               {/* Time & Person */}
                               <div className="flex items-center justify-between gap-2 mt-2">
-                                <span className="text-[9px] font-bold text-slate-500 flex items-center gap-0.5">
-                                  <Clock className="w-2.5 h-2.5 shrink-0 text-slate-400" />
+                                <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-0.5">
+                                  <Clock className="w-2.5 h-2.5 shrink-0 text-slate-450 dark:text-slate-500" />
                                   {schedule.startTime}
                                 </span>
-                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md truncate max-w-[55px] text-right bg-white/60">
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md truncate max-w-[55px] text-right bg-white/60 dark:bg-slate-800 dark:text-slate-300">
                                   {schedule.person}
                                 </span>
                               </div>
 
                               {/* Notes tooltip (hover check) */}
                               {schedule.notes && (
-                                <p className="text-[10px] font-semibold text-slate-500 flex items-center gap-0.5 mt-1 border-t border-slate-200/40 pt-1">
-                                  <FileText className="w-2.5 h-2.5 shrink-0 text-slate-450" />
+                                <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-0.5 mt-1 border-t border-slate-200/40 dark:border-slate-800 pt-1">
+                                  <FileText className="w-2.5 h-2.5 shrink-0 text-slate-450 dark:text-slate-500" />
                                   <span className="truncate max-w-[80px]" title={schedule.notes}>
                                     {schedule.notes}
                                   </span>
