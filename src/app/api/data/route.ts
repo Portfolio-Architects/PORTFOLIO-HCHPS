@@ -2,21 +2,8 @@ import { NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { getDomainSchema } from '@/lib/schemas';
-import { startWatcherDaemon } from '@/lib/engine/watcher';
 import { RAGEngine } from '@/lib/rag/rag-engine';
-
-// 백엔드 데몬 가동
-const isBuild = typeof process !== 'undefined' && (
-  process.env.NEXT_PHASE === 'phase-production-build' ||
-  process.env.NEXT_PHASE === 'phase-action-build' ||
-  process.env.NEXT_IS_BUILDING === 'true'
-);
-
-if (typeof window === 'undefined' && !isBuild) {
-  startWatcherDaemon().catch(err => {
-    console.error('[Watcher Daemon Initialization Error]', err);
-  });
-}
+// 바탕화면 실시간 파일 감시 및 자동 파싱 데몬이 수기 마인드맵 전환에 따라 비활성화되었습니다.
 
 // Allowed sheets
 const ALLOWED_SHEETS = new Set([
@@ -291,8 +278,8 @@ async function writeDataToFile(sheet: string, data: any[]): Promise<void> {
   // 캐시 즉시 무효화
   apiCache.delete(sheet);
   
-  // Trigger backup
-  await backupDataFile(sheet, data);
+  // Trigger backup asynchronously in background so client response is instant (0ms) and not blocked by disk IO
+  backupDataFile(sheet, data).catch(err => console.error('[Backup Error]:', err));
 }
 
 export async function GET(request: Request) {
@@ -557,7 +544,7 @@ export async function POST(request: Request) {
 
       // 비동기로 RAG 임베딩 갱신
       if (rows.length > 0 && rows[0].blocks) {
-        RAGEngine.updateNodeEmbedding(nodeId, nodeLabel, rows[0].blocks).catch((err) => {
+        RAGEngine.updateNodeEmbedding(nodeId, nodeLabel, rows[0].blocks).catch((err: unknown) => {
           console.error('[API Data POST] Failed to update RAG embedding:', err);
         });
       }

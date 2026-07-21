@@ -1,1 +1,38 @@
-[]
+[
+  {
+    "id": "task-ai-1",
+    "title": "강남 AI 메디헬스 센터 조성 사업계획 수립 및 방침 결재",
+    "description": "보건소 4층 공간(500m²) 확보 및 부서 간 공간 이전 협의",
+    "status": "in-progress",
+    "priority": "high",
+    "category": "강남 AI 메디헬스 센터(가칭) 조성",
+    "projectId": "mrtzykb56mp2l66nv",
+    "createdAt": "2026-07-21T10:58:28.000Z",
+    "updatedAt": "2026-07-21T10:58:28.000Z",
+    "tags": ["보건행정과", "AI메디헬스센터", "사업계획"]
+  },
+  {
+    "id": "task-ai-2",
+    "title": "리모델링 공사 및 스마트짐 시스템 구축 예산 편성 검토",
+    "description": "총 1,255,000천원 (신규 조성비 850,000천원, 시비 매칭 405,000천원)",
+    "status": "todo",
+    "priority": "high",
+    "category": "강남 AI 메디헬스 센터(가칭) 조성",
+    "projectId": "mrtzykb56mp2l66nv",
+    "createdAt": "2026-07-21T10:58:28.000Z",
+    "updatedAt": "2026-07-21T10:58:28.000Z",
+    "tags": ["예산", "조성비", "스마트짐"]
+  },
+  {
+    "id": "task-ai-3",
+    "title": "대사증후군 관리센터 및 서울체력장 강남센터 데이터 연동 AI 시스템 설계",
+    "description": "혈액 수치, 체력 계측, 근골격계 검사 데이터 기반 맞춤형 AI 운동·영양 상담 솔루션 구축",
+    "status": "todo",
+    "priority": "medium",
+    "category": "강남 AI 메디헬스 센터(가칭) 조성",
+    "projectId": "mrtzykb56mp2l66nv",
+    "createdAt": "2026-07-21T10:58:28.000Z",
+    "updatedAt": "2026-07-21T10:58:28.000Z",
+    "tags": ["AI솔루션", "데이터연동", "운동처방"]
+  }
+]

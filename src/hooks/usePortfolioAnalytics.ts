@@ -229,26 +229,41 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
     
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const monthlyAmounts = Array(12).fill(0);
-    
+    const plannedMonthlyAmounts = Array(12).fill(0);
+    const executedNoIssuanceByCatId: Record<string, number> = {};
+    filteredCategories.forEach(c => {
+      executedNoIssuanceByCatId[c.id] = 0;
+    });
+
     budgetEntries.forEach(e => {
-      if (e.isPlanned || e.actionType === 'settle' || !validCategoryIds.has(e.categoryId)) {
-        return;
-      }
-      
+      if (!validCategoryIds.has(e.categoryId)) return;
+
       const parts = e.date.split('-');
       const monthIdx = parts.length >= 2 ? parseInt(parts[1], 10) - 1 : -1;
-      
-      if (monthIdx >= 0 && monthIdx < 12) {
-        const amount = e.actionType === 'transfer' ? -e.amount : e.amount;
-        monthlyAmounts[monthIdx] += amount;
+
+      if (!e.isPlanned && e.actionType !== 'settle') {
+        if (monthIdx >= 0 && monthIdx < 12) {
+          const amount = e.actionType === 'transfer' ? -e.amount : e.amount;
+          monthlyAmounts[monthIdx] += amount;
+        }
+        if (e.actionType !== 'issuance' && executedNoIssuanceByCatId[e.categoryId] !== undefined) {
+          if (e.actionType === 'transfer') {
+            executedNoIssuanceByCatId[e.categoryId] -= e.amount;
+          } else {
+            executedNoIssuanceByCatId[e.categoryId] += e.amount;
+          }
+        }
+      } else if (e.isPlanned) {
+        if (monthIdx >= 0 && monthIdx <= 11) {
+          plannedMonthlyAmounts[monthIdx] += e.amount;
+        }
       }
     });
-    
+
     // 11월(Index 10)까지 100% 소진 목표선형 가이드
     const monthlyTargetUnit = totalBudget / 11;
 
     // --- 1. Linear Regression (최소자승법 선형 회귀) ---
-    // N = currentMonth ( Jan to currentMonth )
     const N = currentMonth;
     let sumX = 0;
     let sumY = 0;
@@ -268,36 +283,8 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
     const intercept = (sumY - slope * sumX) / N;
 
     // --- 2. Target Burn-down Plan by Nov 30 ---
-    const actualCumulative = tempCumulative; // Jan to currentMonth actual total
+    const actualCumulative = tempCumulative;
     const remainTargetAmt = Math.max(0, totalBudget - actualCumulative);
-    
-    // 가계획 (isPlanned: true) 항목들의 월별 집계
-    const plannedMonthlyAmounts = Array(12).fill(0);
-    budgetEntries.forEach(e => {
-      if (!e.isPlanned || !validCategoryIds.has(e.categoryId)) {
-        return;
-      }
-      const parts = e.date.split('-');
-      const monthIdx = parts.length >= 2 ? parseInt(parts[1], 10) - 1 : -1;
-      if (monthIdx >= 0 && monthIdx <= 11) { // 1월 ~ 12월 전체 수용
-        plannedMonthlyAmounts[monthIdx] += e.amount;
-      }
-    });
-
-     // Aggregate category execution sums (excluding issuance) in O(E)
-    const executedNoIssuanceByCatId: Record<string, number> = {};
-    filteredCategories.forEach(c => {
-      executedNoIssuanceByCatId[c.id] = 0;
-    });
-    budgetEntries.forEach(e => {
-      if (!e.isPlanned && e.actionType !== 'settle' && e.actionType !== 'issuance' && executedNoIssuanceByCatId[e.categoryId] !== undefined) {
-        if (e.actionType === 'transfer') {
-          executedNoIssuanceByCatId[e.categoryId] -= e.amount;
-        } else {
-          executedNoIssuanceByCatId[e.categoryId] += e.amount;
-        }
-      }
-    });
 
     // 가상 조정액(Virtual Adjustment) 총합 계산 (개별 카테고리 단위로 실제 집행액을 하한선으로 보정)
     let totalVirtualAdjustment = 0;
@@ -329,7 +316,6 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
     const totalPlannedInDraft = plannedMonthlyAmounts.reduce((sum, val) => sum + val, 0);
     // 가상 조정액 보정치 반영 (설계 완료로 인식하여 차감)
     const unplannedRemainingAmount = remainTargetAmt - totalPlannedInDraft - totalVirtualAdjustment;
-
 
     // 월 권장 지출액 (참고용 기준값)
     const recommendedMonthlySpendForTarget = Math.round(remainTargetAmt / 6);

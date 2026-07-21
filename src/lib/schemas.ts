@@ -118,6 +118,13 @@ export const ProjectSchema = z.object({
   checklistItems: z.array(ChecklistItemSchema).default([]).catch([]),
   createdAt: z.string().catch(new Date().toISOString()),
   updatedAt: z.string().catch(new Date().toISOString()),
+  target: z.string().optional().catch(''),
+  budget: z.string().optional().catch(''),
+  location: z.string().optional().catch(''),
+  staff: z.string().optional().catch(''),
+  performance: z.string().optional().catch(''),
+  futurePlans: z.string().optional().catch(''),
+  timeline: z.string().optional().catch(''),
 });
 
 export const ExternalDocSchema = z.object({

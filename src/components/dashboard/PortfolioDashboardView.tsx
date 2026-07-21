@@ -1,8 +1,24 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useSyncExternalStore } from 'react';
 import { PieChart, Pie, Cell, Line, Bar, ReferenceLine, XAxis, YAxis, Tooltip as RechartsTooltip, Area, CartesianGrid, ComposedChart } from 'recharts';
 import { Task, BudgetCategory, BudgetEntry } from '@/types';
 import { usePortfolioAnalytics } from '@/hooks/usePortfolioAnalytics';
 import dynamic from 'next/dynamic';
+
+const emptySubscribe = () => () => {};
+const useIsMounted = () => useSyncExternalStore(emptySubscribe, () => true, () => false);
+
+function deferIdle(cb: () => void, timeout: number, fallbackMs: number) {
+  if (typeof window === 'undefined') return () => {};
+  const isIdle = 'requestIdleCallback' in window, w = window as any;
+  const id = isIdle ? w.requestIdleCallback(cb, { timeout }) : setTimeout(cb, fallbackMs);
+  return () => {
+    if (isIdle) {
+      w.cancelIdleCallback(id);
+    } else {
+      clearTimeout(id);
+    }
+  };
+}
 
 function WeeklySchedulerSkeleton() {
   return (
@@ -122,7 +138,7 @@ const CustomComposedTooltip = ({ active, payload, label, chartType, isHchps }: a
 
 function PortfolioDashboardViewComponent({ budgetCategories, budgetEntries, appMode = 'VITAL' }: DashboardProps) {
   const [chartType, setChartType] = useState<'monthly' | 'cumulative'>('monthly');
-  const [isMounted, setIsMounted] = useState(false);
+  const isMounted = useIsMounted();
   const chartContainerRef = React.useRef<HTMLDivElement>(null);
   const [chartWidth, setChartWidth] = useState<number>(0);
 
@@ -130,34 +146,31 @@ function PortfolioDashboardViewComponent({ budgetCategories, budgetEntries, appM
   const [renderContacts, setRenderContacts] = useState(false);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setIsMounted(true);
-
-    const schedulerTimer = setTimeout(() => {
-      setRenderScheduler(true);
-    }, 120);
-
-    const contactsTimer = setTimeout(() => {
-      setRenderContacts(true);
-    }, 280);
-
-    return () => {
-      clearTimeout(schedulerTimer);
-      clearTimeout(contactsTimer);
-    };
+    const c1 = deferIdle(() => setRenderScheduler(true), 300, 120);
+    const c2 = deferIdle(() => setRenderContacts(true), 600, 280);
+    return () => { c1(); c2(); };
   }, []);
 
   useEffect(() => {
     if (!isMounted || !chartContainerRef.current) return;
     
+    let animFrame: number | null = null;
     const observer = new ResizeObserver((entries) => {
       if (!entries || entries.length === 0) return;
       const { width } = entries[0].contentRect;
-      setChartWidth(width);
+      if (width <= 0) return;
+      if (animFrame) cancelAnimationFrame(animFrame);
+      animFrame = requestAnimationFrame(() => {
+        const rounded = Math.round(width / 20) * 20;
+        setChartWidth(prev => (Math.abs(prev - rounded) >= 20 ? rounded : prev));
+      });
     });
     
     observer.observe(chartContainerRef.current);
-    return () => observer.disconnect();
+    return () => {
+      if (animFrame) cancelAnimationFrame(animFrame);
+      observer.disconnect();
+    };
   }, [isMounted]);
 
   const {

@@ -26,7 +26,8 @@ export function buildSignalGraph(
     deletedEdges?: string[];
   }
 ): OntologyGraph {
-  console.log('[DEBUG] buildSignalGraph START. entries.length=', entries.length, 'customNodes.length=', customData?.customNodes.length);
+  const hideDefaultGraph = !!(customData && customData.overrides && customData.overrides['root-HCHPS']?.hideDefaultGraph);
+  console.log('[DEBUG] buildSignalGraph START. hideDefaultGraph=', hideDefaultGraph, 'entries.length=', entries.length, 'customNodes.length=', customData?.customNodes.length);
   
   const normalizeNodeId = (id: string): string => {
     if (id) {
@@ -129,233 +130,229 @@ export function buildSignalGraph(
     customColor: '#94a3b8', // 흐릿한 회색 (slate-400)
   });
 
-  // 2. Extract Orbit 1 Tags (Category constraints from Tasks/Modules)
-  const tagCounts = new Map<string, number>();
-  let hasRawSignals = false;
+  if (!hideDefaultGraph) {
+    // 2. Extract Orbit 1 Tags (Category constraints from Tasks/Modules)
+    const tagCounts = new Map<string, number>();
+    let hasRawSignals = false;
 
-  entries.forEach(e => {
-    if (!e.tags || e.tags.length === 0) hasRawSignals = true;
-    e.tags?.forEach(t => {
-      tagCounts.set(t, (tagCounts.get(t) || 0) + 1);
-    });
-  });
-
-  // Force '미분류' / '내 생각' branch if there are raw signals
-  if (hasRawSignals) {
-    tagCounts.set('💭 미분류', 9999); 
-  }
-
-  // Take top N tags to avoid clutter, but ALWAYS include tags that have overrides or are custom parents
-  const allSortedTags = Array.from(tagCounts.entries())
-    .sort((a, b) => b[1] - a[1]);
-
-  const sortedTags: [string, number][] = [];
-  const overrideKeys = customData ? new Set(Object.keys(customData.overrides)) : new Set<string>();
-
-  allSortedTags.forEach(([tag, count], i) => {
-    const id = `tag-${tag}`;
-    const hasOverride = overrideKeys.has(id);
-    const isParentOfAny = customParentSet.has(id);
-
-    if (i < 15 || hasOverride || isParentOfAny) {
-      sortedTags.push([tag, count]);
-    }
-  });
-
-  const tagNodesMap = new Map<string, string>();
-  const tagGroupMap = new Map<string, OntologyGroup>();
-
-  const categoryGroups: OntologyGroup[] = [
-    'MACRO_RESEARCH',
-    'DCF_MODELING',
-    'DATA_PIPELINE',
-    'INFRASTRUCTURE',
-    'SYSTEM_RISK'
-  ];
-
-  // Add Orbit 1 Nodes
-  sortedTags.forEach(([tag], i) => {
-    const id = `tag-${tag}`;
-    const groupAssign = categoryGroups[i % categoryGroups.length];
-    
-    // 1차 카테고리 초기 색상 랜덤 (태그 문자열 해싱 기반으로 안정적인 랜덤 생성)
-    let hash = 0;
-    for (let j = 0; j < tag.length; j++) {
-      hash = tag.charCodeAt(j) + ((hash << 5) - hash);
-    }
-    
-    // Canvas 엔진(colorWithAlpha 등)이 HEX 형식을 요구하므로, 파스텔톤 HEX 팔레트에서 선택
-    const hexPalette = [
-      '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', 
-      '#ef4444', '#14b8a6', '#f97316', '#84cc16', '#6366f1',
-      '#0ea5e9', '#d946ef', '#eab308', '#f43f5e', '#8b5cf6'
-    ];
-    const stableColor = hexPalette[Math.abs(hash) % hexPalette.length];
-
-    tagNodesMap.set(tag, id);
-    tagGroupMap.set(tag, groupAssign);
-
-    nodes.push({
-      id,
-      label: tag,
-      group: groupAssign,
-      customColor: stableColor,
-      baseValue: 80,
-      centralityScore: 1000 - i, // Orbit 1
-    });
-    // Create structural branch from Sun to Category
-    edges.push({
-      source: 'root-HCHPS',
-      target: id,
-      weight: 1.0,
-      type: 'CAUSAL_DRIVE',
-    });
-  });
-
-  // 3. Process Leaves (Keywords) & Map to Categories
-  const keywordFreqByTag = new Map<string, Map<string, number>>();
-
-  entries.forEach(e => {
-    let applicableTags: string[] = [];
-    if (e.tags) {
-      for (let i = 0; i < e.tags.length; i++) {
-        const t = e.tags[i];
-        if (tagNodesMap.has(t)) {
-          applicableTags.push(t);
-        }
-      }
-    }
-    
-    // Pure signal routing: Does it match a category keyword?
-    if (applicableTags.length === 0) {
-      const matched: string[] = [];
-      for (let i = 0; i < e.keywords.length; i++) {
-        const kw = e.keywords[i];
-        if (tagNodesMap.has(kw)) {
-          matched.push(kw);
-        }
-      }
-      if (matched.length > 0) applicableTags = matched;
-      else if (tagNodesMap.has('💭 미분류')) applicableTags = ['💭 미분류'];
-    }
-
-    applicableTags.forEach(tag => {
-      const tagMap = keywordFreqByTag.get(tag) || new Map<string, number>();
-      e.keywords.forEach(kw => {
-        // Exclude the category name itself from the leaves
-        if (kw !== tag) { 
-          tagMap.set(kw, (tagMap.get(kw) || 0) + 1);
-        }
+    entries.forEach(e => {
+      if (!e.tags || e.tags.length === 0) hasRawSignals = true;
+      e.tags?.forEach(t => {
+        tagCounts.set(t, (tagCounts.get(t) || 0) + 1);
       });
-      keywordFreqByTag.set(tag, tagMap);
     });
-  });
 
-  // Create Leaf Nodes & Branched Edges
-  const nodesMap = new Map<string, OntologyNode>();
-  nodes.forEach(n => nodesMap.set(n.id, n));
+    // Force '미분류' / '내 생각' branch if there are raw signals
+    if (hasRawSignals) {
+      tagCounts.set('💭 미분류', 9999); 
+    }
 
-  keywordFreqByTag.forEach((kwMap, tag) => {
-    const tagNodeId = tagNodesMap.get(tag)!;
-    const branchGroup = tagGroupMap.get(tag) || 'OTHER';
-    
-    // Top 8 keywords per branch to prevent chaos, but ALWAYS include overridden ones or those referenced as customParent
-    const allSortedKw = Array.from(kwMap.entries())
+    // Take top N tags to avoid clutter, but ALWAYS include tags that have overrides or are custom parents
+    const allSortedTags = Array.from(tagCounts.entries())
       .sort((a, b) => b[1] - a[1]);
 
-    const sortedKw: [string, number][] = [];
+    const sortedTags: [string, number][] = [];
     const overrideKeys = customData ? new Set(Object.keys(customData.overrides)) : new Set<string>();
 
-    allSortedKw.forEach(([kw, freq], i) => {
-      const leafId = `leaf-${kw}`;
-      const hasOverride = overrideKeys.has(leafId);
-      const isParentOfAny = customParentSet.has(leafId);
+    allSortedTags.forEach(([tag, count], i) => {
+      const id = `tag-${tag}`;
+      const hasOverride = overrideKeys.has(id);
+      const isParentOfAny = customParentSet.has(id);
 
-      if (i < 8 || hasOverride || isParentOfAny) {
-        sortedKw.push([kw, freq]);
+      if (i < 15 || hasOverride || isParentOfAny) {
+        sortedTags.push([tag, count]);
       }
     });
 
-    sortedKw.forEach(([kw, freq]) => {
-      const leafId = `leaf-${kw}`;
+    const tagNodesMap = new Map<string, string>();
+    const tagGroupMap = new Map<string, OntologyGroup>();
+
+    const categoryGroups: OntologyGroup[] = [
+      'MACRO_RESEARCH',
+      'DCF_MODELING',
+      'DATA_PIPELINE',
+      'INFRASTRUCTURE',
+      'SYSTEM_RISK'
+    ];
+
+    // Add Orbit 1 Nodes
+    sortedTags.forEach(([tag], i) => {
+      const id = `tag-${tag}`;
+      const groupAssign = categoryGroups[i % categoryGroups.length];
       
-      let existingNode = nodesMap.get(leafId);
-      if (!existingNode) {
-        const newNode: OntologyNode = {
-          id: leafId,
-          label: kw,
-          group: branchGroup, // Inherit category's color
-          baseValue: Math.min(60, 30 + freq * 10),
-          centralityScore: 100 + freq, // Orbit 2+
-          parentId: tagNodeId,
-        };
-        nodes.push(newNode);
-        nodesMap.set(leafId, newNode);
-      } else {
-        existingNode.baseValue = Math.max(existingNode.baseValue || 0, Math.min(60, 30 + freq * 10));
-        existingNode.centralityScore = Math.max(existingNode.centralityScore || 0, 100 + freq);
+      // 1차 카테고리 초기 색상 랜덤 (태그 문자열 해싱 기반으로 안정적인 랜덤 생성)
+      let hash = 0;
+      for (let j = 0; j < tag.length; j++) {
+        hash = tag.charCodeAt(j) + ((hash << 5) - hash);
       }
       
-      // Branch off the Orbit 1 node
+      // Canvas 엔진(colorWithAlpha 등)이 HEX 형식을 요구하므로, 파스텔톤 HEX 팔레트에서 선택
+      const hexPalette = [
+        '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', 
+        '#ef4444', '#14b8a6', '#f97316', '#84cc16', '#6366f1',
+        '#0ea5e9', '#d946ef', '#eab308', '#f43f5e', '#8b5cf6'
+      ];
+      const stableColor = hexPalette[Math.abs(hash) % hexPalette.length];
+
+      tagNodesMap.set(tag, id);
+      tagGroupMap.set(tag, groupAssign);
+
+      nodes.push({
+        id,
+        label: tag,
+        group: groupAssign,
+        customColor: stableColor,
+        baseValue: 80,
+        centralityScore: 1000 - i, // Orbit 1
+      });
+      // Create structural branch from Sun to Category
       edges.push({
-        source: tagNodeId,
-        target: leafId,
-        weight: 0.7, 
-        type: 'DEPENDENCY',
+        source: 'root-HCHPS',
+        target: id,
+        weight: 1.0,
+        type: 'CAUSAL_DRIVE',
       });
     });
-  });
 
-  // 3.5. Inject AI Curation Graph Connectivity (Phase 3)
-  // entries 배열을 순환하며 LLM이 추천한 relatedKeywords가 그래프 상에 존재할 경우 횡적 엣지를 추가합니다.
-  const nodesByLabelMap = new Map<string, OntologyNode>();
-  nodes.forEach(n => nodesByLabelMap.set(n.label, n));
+    // 3. Process Leaves (Keywords) & Map to Categories
+    const keywordFreqByTag = new Map<string, Map<string, number>>();
 
-  entries.forEach(e => {
-    if (e.aiCurated && e.curationData?.relatedKeywords) {
-      // 이 Signal이 만들어낸 주된 리프 노드 ID를 역추적 (복잡하므로 카테고리에 할당)
-      // 또는 Signal 전체를 대표하는 태그 노드를 찾습니다.
-      let firstSourceTag: string | undefined = undefined;
+    entries.forEach(e => {
+      let applicableTags: string[] = [];
       if (e.tags) {
         for (let i = 0; i < e.tags.length; i++) {
           const t = e.tags[i];
           if (tagNodesMap.has(t)) {
-            firstSourceTag = t;
-            break;
+            applicableTags.push(t);
           }
         }
       }
-      if (firstSourceTag) {
-        const sourceTagId = tagNodesMap.get(firstSourceTag);
-        if (sourceTagId) {
-          e.curationData.relatedKeywords.forEach(rk => {
-            // relatedKeyword가 기존 리프 노드 레이블이거나 태그 레이블인지 찾습니다.
-            const targetTagId = tagNodesMap.get(rk);
-            if (targetTagId && targetTagId !== sourceTagId) {
-               // AI Recommendation: Category to Category structural cross-link
-               edges.push({
-                 source: sourceTagId,
-                 target: targetTagId,
-                 weight: 0.4,
-                 type: 'FEEDBACK_LOOP',
-               });
-            } else {
-               // 키워드 간의 횡적 연결을 시도 (매우 느슨한 네트워크)
-               const existingNode = nodesByLabelMap.get(rk);
-               if (existingNode && existingNode.id !== sourceTagId) {
-                 edges.push({
-                   source: sourceTagId,
-                   target: existingNode.id,
-                   weight: 0.3,
-                   type: 'DEPENDENCY', // AI 추천 엣지
-                 });
-               }
+      
+      // Pure signal routing: Does it match a category keyword?
+      if (applicableTags.length === 0) {
+        const matched: string[] = [];
+        for (let i = 0; i < e.keywords.length; i++) {
+          const kw = e.keywords[i];
+          if (tagNodesMap.has(kw)) {
+            matched.push(kw);
+          }
+        }
+        if (matched.length > 0) applicableTags = matched;
+        else if (tagNodesMap.has('💭 미분류')) applicableTags = ['💭 미분류'];
+      }
+
+      applicableTags.forEach(tag => {
+        const tagMap = keywordFreqByTag.get(tag) || new Map<string, number>();
+        e.keywords.forEach(kw => {
+          // Exclude the category name itself from the leaves
+          if (kw !== tag) { 
+            tagMap.set(kw, (tagMap.get(kw) || 0) + 1);
+          }
+        });
+        keywordFreqByTag.set(tag, tagMap);
+      });
+    });
+
+    // Create Leaf Nodes & Branched Edges
+    const nodesMap = new Map<string, OntologyNode>();
+    nodes.forEach(n => nodesMap.set(n.id, n));
+
+    keywordFreqByTag.forEach((kwMap, tag) => {
+      const tagNodeId = tagNodesMap.get(tag)!;
+      const branchGroup = tagGroupMap.get(tag) || 'OTHER';
+      
+      // Top 8 keywords per branch to prevent chaos, but ALWAYS include overridden ones or those referenced as customParent
+      const allSortedKw = Array.from(kwMap.entries())
+        .sort((a, b) => b[1] - a[1]);
+
+      const sortedKw: [string, number][] = [];
+      const overrideKeys = customData ? new Set(Object.keys(customData.overrides)) : new Set<string>();
+
+      allSortedKw.forEach(([kw, freq], i) => {
+        const leafId = `leaf-${kw}`;
+        const hasOverride = overrideKeys.has(leafId);
+        const isParentOfAny = customParentSet.has(leafId);
+
+        if (i < 8 || hasOverride || isParentOfAny) {
+          sortedKw.push([kw, freq]);
+        }
+      });
+
+      sortedKw.forEach(([kw, freq]) => {
+        const leafId = `leaf-${kw}`;
+        
+        let existingNode = nodesMap.get(leafId);
+        if (!existingNode) {
+          const newNode: OntologyNode = {
+            id: leafId,
+            label: kw,
+            group: branchGroup, // Inherit category's color
+            baseValue: Math.min(60, 30 + freq * 10),
+            centralityScore: 100 + freq, // Orbit 2+
+            parentId: tagNodeId,
+          };
+          nodes.push(newNode);
+          nodesMap.set(leafId, newNode);
+        } else {
+          existingNode.baseValue = Math.max(existingNode.baseValue || 0, Math.min(60, 30 + freq * 10));
+          existingNode.centralityScore = Math.max(existingNode.centralityScore || 0, 100 + freq);
+        }
+        
+        // Branch off the Orbit 1 node
+        edges.push({
+          source: tagNodeId,
+          target: leafId,
+          weight: 0.7, 
+          type: 'DEPENDENCY',
+        });
+      });
+    });
+
+    // 3.5. Inject AI Curation Graph Connectivity (Phase 3)
+    const nodesByLabelMap = new Map<string, OntologyNode>();
+    nodes.forEach(n => nodesByLabelMap.set(n.label, n));
+
+    entries.forEach(e => {
+      if (e.aiCurated && e.curationData?.relatedKeywords) {
+        let firstSourceTag: string | undefined = undefined;
+        if (e.tags) {
+          for (let i = 0; i < e.tags.length; i++) {
+            const t = e.tags[i];
+            if (tagNodesMap.has(t)) {
+              firstSourceTag = t;
+              break;
             }
-          });
+          }
+        }
+        if (firstSourceTag) {
+          const sourceTagId = tagNodesMap.get(firstSourceTag);
+          if (sourceTagId) {
+            e.curationData.relatedKeywords.forEach(rk => {
+              const targetTagId = tagNodesMap.get(rk);
+              if (targetTagId && targetTagId !== sourceTagId) {
+                edges.push({
+                  source: sourceTagId,
+                  target: targetTagId,
+                  weight: 0.4,
+                  type: 'FEEDBACK_LOOP',
+                });
+              } else {
+                const existingNode = nodesByLabelMap.get(rk);
+                if (existingNode && existingNode.id !== sourceTagId) {
+                  edges.push({
+                    source: sourceTagId,
+                    target: existingNode.id,
+                    weight: 0.3,
+                    type: 'DEPENDENCY',
+                  });
+                }
+              }
+            });
+          }
         }
       }
-    }
-  });
+    });
+  }
 
   // 4. Merge Custom Nodes and Edges from Whiteboard
   if (customData) {
@@ -797,25 +794,7 @@ export function buildSignalGraph(
     finalEdges = finalEdges.filter(e => e.source !== e.target);
   }
 
-  if (customData) {
-    const hiddens = new Set<string>();
-    nodes.forEach(n => {
-      if (customData.overrides[n.id]?.hidden) hiddens.add(n.id);
-    });
-
-    if (hiddens.size > 0) {
-      // 숨긴 노드 본인은 물론이고, 그 노드를 부모로 둔 자식 노드들까지 통째로 삭제(히든 처리)하여 가지치기(Pruning)합니다.
-      finalNodes = nodes.filter(n => {
-        if (hiddens.has(n.id)) return false;
-        if (n.parentId && hiddens.has(n.parentId)) {
-          hiddens.add(n.id); // 연쇄적인 하위 가지치기를 위해 자식도 hidden 셋에 추가
-          return false;
-        }
-        return true;
-      });
-      finalEdges = edges.filter(e => !hiddens.has(e.source) && !hiddens.has(e.target));
-    }
-  }
+  // Node hiding (hidden) filtering logic completely removed per user directive
 
   // --- 6. Top-Down Color Inheritance ---
   // 1차 카테고리의 색상을 하위 노드 전체로 전파합니다.

@@ -1,4 +1,5 @@
 import { promises as fs } from 'fs';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import fsNonPromise from 'fs';
 import path from 'path';
 import { execFile } from 'child_process';
@@ -61,6 +62,7 @@ async function decryptData(encryptedBase64: string): Promise<any> {
   return JSON.parse(decoder.decode(decryptedBuffer));
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function ensureClassificationWords() {
   const wordsFilePath = path.join(process.cwd(), 'data', 'CLASSIFICATION_WORDS.json');
   try {
@@ -104,10 +106,12 @@ async function ensureClassificationWords() {
 
 
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const WATCH_DIR = process.env.WATCH_DIR || ['F:', '부엉이_정리됨'].join(path.sep);
 let organizeTimer: NodeJS.Timeout | null = null;
 let isOrganizing = false;
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function triggerAutoOrganization() {
   if (isOrganizing) return;
   if (organizeTimer) clearTimeout(organizeTimer);
@@ -621,6 +625,7 @@ function processFile(filePath: string): Promise<void> {
 /**
  * 파일 복사 완료 대기용 안정성 루프
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function queueFileEvent(filePath: string) {
   if (activeJobs.has(filePath)) {
     clearTimeout(activeJobs.get(filePath));
@@ -658,127 +663,13 @@ function queueFileEvent(filePath: string) {
  * 데몬 시작 함수
  */
 export async function startWatcherDaemon() {
-  // 기존에 구동 중이던 watcher가 있다면 리로드 대응을 위해 안전하게 닫기
+  // 기존 구동 중인 감시자 인스턴스 닫기
   if (globalForWatcher.watcher) {
     try {
       globalForWatcher.watcher.close();
-      console.info('[Watcher Daemon] 기존 파일 감시자 인스턴스를 안전하게 종료하고 재기동합니다.');
+      globalForWatcher.watcher = null;
     } catch {}
   }
-
-  // 폴더 자동 생성 대신 존재 여부만 체크하고, 폴더가 없다면 감시를 시작하지 않습니다.
-  try {
-    await fs.access(WATCH_DIR);
-  } catch {
-    console.info(`[Watcher Daemon] 감시 대상 폴더가 바탕화면에 존재하지 않으므로 파일 감시 데몬을 시작하지 않습니다: ${WATCH_DIR}`);
-    return;
-  }
-
-  await ensureClassificationWords();
-
-  // 히스토리 로드
-  const history = await loadHistory();
-  let skipCount = 0;
-
-  // 기존에 이미 폴더에 있던 파일들을 읽어서 처리 (사용자가 미리 넣어둔 파일 대응)
-  try {
-    const existingFiles = await fs.readdir(WATCH_DIR);
-    for (const file of existingFiles) {
-      const fullPath = path.join(WATCH_DIR, file);
-      const stat = await fs.stat(fullPath);
-      if (stat.isFile()) {
-        const baseName = path.basename(file);
-        if (
-          baseName.startsWith('.') ||
-          baseName.startsWith('~') ||
-          baseName.endsWith('.tmp') ||
-          baseName === 'desktop.ini' ||
-          baseName === '.search_cache.json' ||
-          baseName === 'MAP_CUSTOMIZATION.json' ||
-          baseName === 'CLASSIFICATION_WORDS.json' ||
-          baseName === 'WATCHER_HISTORY.json'
-        ) {
-          continue;
-        }
-
-        const ext = path.extname(file).toLowerCase();
-        if (['.pdf', '.hwpx', '.txt', '.xlsx', '.xls', '.md', '.csv', '.json'].includes(ext)) {
-          const key = path.basename(fullPath);
-          const record = history[key];
-          if (record && record.size === stat.size && record.mtime === stat.mtimeMs) {
-            skipCount++;
-            continue; // 이미 처리됨 -> 건너뜀
-          }
-          console.info(`[Watcher Daemon] 신규 또는 변경된 기존 파일 감지: ${file}, 복사 상태 확인 시작`);
-          queueFileEvent(fullPath);
-        }
-      }
-    }
-    if (skipCount > 0) {
-      console.info(`[Watcher Daemon] 파일 처리 히스토리 대조에 의해 기존 파일 ${skipCount}개 분석 스킵 완료.`);
-    }
-  } catch (err) {
-    console.error('[Watcher Daemon] 기존 파일 목록 로드 실패:', err);
-  }
-
-  console.info('[Watcher Daemon] 윈도우 바탕화면 파일 감시 서비스 기동 완료.');
-  console.info(`[Watcher Daemon] 실시간 감시 대상 폴더: ${WATCH_DIR}`);
-
-  // fs.watch로 폴더 실시간 감시
-  // Windows에서는 recursive 옵션이 안정적으로 작동
-  const watcher = fsNonPromise.watch(WATCH_DIR, { recursive: true }, (eventType, filename) => {
-    if (!filename) return;
-    const baseName = path.basename(filename as string);
-
-    if (
-      baseName.startsWith('.') ||
-      baseName.startsWith('~') ||
-      baseName.endsWith('.tmp') ||
-      baseName === 'desktop.ini' ||
-      baseName === '.search_cache.json' ||
-      baseName === 'MAP_CUSTOMIZATION.json' ||
-      baseName === 'CLASSIFICATION_WORDS.json' ||
-      baseName === 'WATCHER_HISTORY.json'
-    ) {
-      return;
-    }
-
-    // 실시간 파일 이동 분류기 백그라운드 구동 트리거
-    triggerAutoOrganization();
-
-    const fullPath = path.join(WATCH_DIR, filename as string);
-
-    if (eventType === 'rename') {
-      // 파일이 새로 생성되었거나 이름이 바뀐 경우
-      fs.access(fullPath)
-        .then(() => {
-          queueFileEvent(fullPath);
-        })
-        .catch(() => {
-          // 파일이 삭제된 경우 히스토리에서 제거
-          loadHistory().then(history => {
-            const key = filename as string;
-            if (history[key]) {
-              delete history[key];
-              saveHistory(history).then(() => {
-                console.info(`[Watcher Daemon] 파일 삭제 감지 및 히스토리 제거: ${key}`);
-              });
-            }
-          });
-        });
-    }
-  });
-
-  // 전역 싱글톤 보관
-  globalForWatcher.watcher = watcher;
-
-  // 프로세스 종료 시 watcher 닫기
-  process.on('SIGINT', () => {
-    watcher.close();
-    globalForWatcher.watcher = null;
-  });
-  process.on('SIGTERM', () => {
-    watcher.close();
-    globalForWatcher.watcher = null;
-  });
+  console.info('[Watcher Daemon] 수기 마인드맵 전환 요청에 따라 바탕화면 실시간 파일 감시 및 파싱 데몬이 비활성화되었습니다.');
+  return;
 }

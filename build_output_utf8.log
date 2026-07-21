@@ -1,0 +1,85 @@
+﻿??Next.js 16.2.10 (Turbopack)
+- Environments: .env.local
+
+  Creating an optimized production build ...
+node.exe : Turbopack build encountered 2 warnings:
+위치 줄:1 문자:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Turbopack build encountered 2 warnings::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+./src/lib/engine/watcher.ts:687:24
+The file pattern ('F:/遺?됱씠_?뺣━??' <dynamic> | 'F:/遺?됱씠_?뺣━?? <dynamic>) matches 26932 files in [project]/
+  [90m685 |[0m     [36mconst[0m existingFiles = [36mawait[0m fs.readdir([33mWATCH_DIR[0m);
+  [90m686 |[0m     [36mfor[0m ([36mconst[0m file [36mof[0m existingFiles) {
+[31m[1m>[0m [90m687 |[0m       [36mconst[0m fullPath = path.join([33mWATCH_DIR[0m, file);
+  [90m    |[0m                        [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m688 |[0m       [36mconst[0m stat = [36mawait[0m fs.stat(fullPath);
+  [90m689 |[0m       [36mif[0m (stat.isFile()) {
+  [90m690 |[0m         [36mconst[0m ext = path.extname(file).toLowerCase();
+
+Overly broad patterns can lead to build performance issues and over bundling.
+
+Import trace:
+  App Route:
+    ./src/lib/engine/watcher.ts
+    ./src/app/api/data/route.ts
+
+
+./src/lib/engine/watcher.ts:735:22
+The file pattern ('F:/遺?됱씠_?뺣━??' <dynamic> | 'F:/遺?됱씠_?뺣━?? <dynamic>) matches 26932 files in [project]/
+  [90m733 |[0m     triggerAutoOrganization();
+  [90m734 |[0m
+[31m[1m>[0m [90m735 |[0m     [36mconst[0m fullPath = path.join([33mWATCH_DIR[0m, filename [36mas[0m string);
+  [90m    |[0m                      [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m736 |[0m
+  [90m737 |[0m     [36mif[0m (eventType === [32m'rename'[0m) {
+  [90m738 |[0m       [90m// ?뚯씪???덈줈 ?앹꽦?섏뿀嫄곕굹 ?대쫫??諛붾?寃쎌슦[0m
+
+Overly broad patterns can lead to build performance issues and over bundling.
+
+Import trace:
+  App Route:
+    ./src/lib/engine/watcher.ts
+    ./src/app/api/data/route.ts
+
+
+??Compiled successfully in 36.8s
+  Running TypeScript ...
+  Finished TypeScript in 16.4s ...
+  Collecting page data using 3 workers ...
+[DriveCache] 8604媛?臾몄꽌 蹂몃Ц 罹먯떆瑜?硫붾え由ъ뿉 濡쒕뱶 ?꾨즺.
+  Generating static pages using 3 workers (0/16) ...
+[DriveCache] 8604媛?臾몄꽌 蹂몃Ц 罹먯떆瑜?硫붾え由ъ뿉 濡쒕뱶 ?꾨즺.
+  Generating static pages using 3 workers (4/16) 
+[Watcher Daemon] ?좉퇋 ?먮뒗 蹂寃쎈맂 湲곗〈 ?뚯씪 媛먯?: .search_cache.json, 蹂듭궗 ?곹깭 ?뺤씤 ?쒖옉
+  Generating static pages using 3 workers (8/16) 
+[Watcher Daemon] ?덈룄??諛뷀깢?붾㈃ ?뚯씪 媛먯떆 ?쒕퉬??湲곕룞 ?꾨즺.
+[Watcher Daemon] ?ㅼ떆媛?媛먯떆 ????대뜑: F:\遺?됱씠_?뺣━??  Generating static pages using 3 workers (12/16) 
+??Generating static pages using 3 workers (16/16) in 1861ms
+  Finalizing page optimization ...
+
+Route (app)
+????/
+????/_not-found
+??? /api/ai-linker
+??? /api/auth
+??? /api/data
+??? /api/drive
+??? /api/file-radar
+??? /api/law
+??? /api/llm/extract
+??? /api/local-contacts
+??? /api/report-generator
+????/apple-icon.png
+????/icon.png
+??? /llm/chat
+????/login
+
+
+? Proxy (Middleware)
+
+?? (Static)   prerendered as static content
+?  (Dynamic)  server-rendered on demand
+

@@ -48,70 +48,55 @@ export function useBudgetFilters(
   };
 
   // Hierarchical Filter Calculation
-  const uniquePolicies = useMemo(() => {
-    const sums: Record<string, number> = {};
-    categories.forEach(c => {
-      if (c.policyProject) {
-        sums[c.policyProject] = (sums[c.policyProject] || 0) + c.totalBudget;
-      }
-    });
-    return Object.keys(sums).map(policy => ({
-      value: policy,
-      suffix: `${formatN(sums[policy])}원`
-    }));
-  }, [categories]);
-  
-  const unitOptions = useMemo(() => {
-    const list = categories.filter(c => filterPolicy.length === 0 || filterPolicy.includes(c.policyProject || ''));
-    const sums: Record<string, number> = {};
-    list.forEach(c => {
-      if (c.unitProject) {
-        sums[c.unitProject] = (sums[c.unitProject] || 0) + c.totalBudget;
-      }
-    });
-    return Object.keys(sums).map(unit => ({
-      value: unit,
-      suffix: `${formatN(sums[unit])}원`
-    }));
-  }, [categories, filterPolicy]);
-  
-  const detailOptions = useMemo(() => {
-    const list = categories.filter(c => (filterPolicy.length === 0 || filterPolicy.includes(c.policyProject || '')) && (filterUnit.length === 0 || filterUnit.includes(c.unitProject || '')));
-    const sums: Record<string, number> = {};
-    list.forEach(c => {
-      if (c.detailedProject) {
-        sums[c.detailedProject] = (sums[c.detailedProject] || 0) + c.totalBudget;
-      }
-    });
-    return Object.keys(sums).map(detail => ({
-      value: detail,
-      suffix: `${formatN(sums[detail])}원`
-    }));
-  }, [categories, filterPolicy, filterUnit]);
-  
-  const statOptions = useMemo(() => {
-    const list = categories.filter(c => (filterPolicy.length === 0 || filterPolicy.includes(c.policyProject || '')) && (filterUnit.length === 0 || filterUnit.includes(c.unitProject || '')) && (filterDetail.length === 0 || filterDetail.includes(c.detailedProject || '')));
-    const sums: Record<string, number> = {};
-    list.forEach(c => {
-      if (c.statItem) {
-        sums[c.statItem] = (sums[c.statItem] || 0) + c.totalBudget;
-      }
-    });
-    return Object.keys(sums).map(stat => ({
-      value: stat,
-      suffix: `${formatN(sums[stat])}원`
-    }));
-  }, [categories, filterPolicy, filterUnit, filterDetail]);
+  const policySet = useMemo(() => new Set(filterPolicy), [filterPolicy]);
+  const unitSet = useMemo(() => new Set(filterUnit), [filterUnit]);
+  const detailSet = useMemo(() => new Set(filterDetail), [filterDetail]);
+  const statSet = useMemo(() => new Set(filterStat), [filterStat]);
 
-  const filteredCategoriesTree = useMemo(() => {
-    return categories.filter(c => {
-      if (filterPolicy.length > 0 && !filterPolicy.includes(c.policyProject || '')) return false;
-      if (filterUnit.length > 0 && !filterUnit.includes(c.unitProject || '')) return false;
-      if (filterDetail.length > 0 && !filterDetail.includes(c.detailedProject || '')) return false;
-      if (filterStat.length > 0 && !filterStat.includes(c.statItem || '')) return false;
-      return true;
-    });
-  }, [categories, filterPolicy, filterUnit, filterDetail, filterStat]);
+  const { uniquePolicies, unitOptions, detailOptions, statOptions, filteredCategoriesTree } = useMemo(() => {
+    const policySums: Record<string, number> = {};
+    const unitSums: Record<string, number> = {};
+    const detailSums: Record<string, number> = {};
+    const statSums: Record<string, number> = {};
+    const tree: BudgetCategory[] = [];
+
+    const hasPolicy = policySet.size > 0;
+    const hasUnit = unitSet.size > 0;
+    const hasDetail = detailSet.size > 0;
+    const hasStat = statSet.size > 0;
+
+    for (let i = 0; i < categories.length; i++) {
+      const c = categories[i];
+      const pMatch = !hasPolicy || policySet.has(c.policyProject || '');
+      const uMatch = !hasUnit || unitSet.has(c.unitProject || '');
+      const dMatch = !hasDetail || detailSet.has(c.detailedProject || '');
+      const sMatch = !hasStat || statSet.has(c.statItem || '');
+
+      if (c.policyProject) {
+        policySums[c.policyProject] = (policySums[c.policyProject] || 0) + c.totalBudget;
+      }
+      if (pMatch && c.unitProject) {
+        unitSums[c.unitProject] = (unitSums[c.unitProject] || 0) + c.totalBudget;
+      }
+      if (pMatch && uMatch && c.detailedProject) {
+        detailSums[c.detailedProject] = (detailSums[c.detailedProject] || 0) + c.totalBudget;
+      }
+      if (pMatch && uMatch && dMatch && c.statItem) {
+        statSums[c.statItem] = (statSums[c.statItem] || 0) + c.totalBudget;
+      }
+      if (pMatch && uMatch && dMatch && sMatch) {
+        tree.push(c);
+      }
+    }
+
+    return {
+      uniquePolicies: Object.keys(policySums).map(p => ({ value: p, suffix: `${formatN(policySums[p])}원` })),
+      unitOptions: Object.keys(unitSums).map(u => ({ value: u, suffix: `${formatN(unitSums[u])}원` })),
+      detailOptions: Object.keys(detailSums).map(d => ({ value: d, suffix: `${formatN(detailSums[d])}원` })),
+      statOptions: Object.keys(statSums).map(s => ({ value: s, suffix: `${formatN(statSums[s])}원` })),
+      filteredCategoriesTree: tree
+    };
+  }, [categories, policySet, unitSet, detailSet, statSet]);
 
   const groupedByPolicy = useMemo(() => {
     const groupsMap: Record<string, BudgetCategory[]> = {};

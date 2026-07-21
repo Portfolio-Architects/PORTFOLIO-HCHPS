@@ -29,6 +29,7 @@ export class OntologyLayout {
   public static lastSpanningTreeEdgeSet = new Set<string>();
   public static dynamicRules: { agents: string[], resources: string[], executions: string[] } | null = null;
   public static totalNodesCount = 0;
+  private static collisionGroups: [OrbitalNode[], OrbitalNode[], OrbitalNode[], OrbitalNode[]] = [[], [], [], []];
 
   /**
    * 궤도 인덱스에 따른 비선형 반경을 반환하는 지능형 헬퍼
@@ -529,10 +530,19 @@ export class OntologyLayout {
             const nextCos = node.orbitCos * cosS - node.orbitSin * sinS;
             const nextSin = node.orbitCos * sinS + node.orbitSin * cosS;
             
-            // Renormalize to completely eliminate rounding error accumulation
-            const len = Math.sqrt(nextCos * nextCos + nextSin * nextSin);
-            node.orbitCos = nextCos / (len || 0.1);
-            node.orbitSin = nextSin / (len || 0.1);
+            // Renormalize using Taylor series fast-path + drift correction
+            const d = nextCos * nextCos + nextSin * nextSin;
+            node._renormFrame = (node._renormFrame || 0) + 1;
+            if (node._renormFrame >= 120 || d < 0.999 || d > 1.001) {
+              node._renormFrame = 0;
+              const len = Math.sqrt(d);
+              node.orbitCos = nextCos / (len || 0.1);
+              node.orbitSin = nextSin / (len || 0.1);
+            } else {
+              const invLen = 1.5 - 0.5 * d; // Taylor series approximation around x = 1
+              node.orbitCos = nextCos * invLen;
+              node.orbitSin = nextSin * invLen;
+            }
             
             // Map back to coordinates using exact radius
             const rOffset = node.radialOffset ?? 0;
@@ -610,6 +620,19 @@ export class OntologyLayout {
       node.renderZ = depth;
       node.perspectiveScale = perspectiveScale;
       node.nodeRadius = 24 * perspectiveScale; 
+      
+      // Calculate and cache collision properties on the node itself:
+      const weight = node.renderSize ?? 0.5;
+      const sizeFactor = 0.8 + 0.5 * weight;
+      const scale = perspectiveScale * sizeFactor;
+      let textW = (node.label || '').length * 7.5;
+      if (node._cachedTextWidth) {
+        const cache = node._cachedTextWidth;
+        textW = cache['600'] || cache['500'] || textW;
+      }
+      node._collisionW = Math.max(60 * scale, textW * scale + 28 * scale) + 16 * scale;
+      node._collisionH = Math.max(28 * scale, 12 * scale + 20 * scale) + 12 * scale;
+      node._isCollisionFixed = (!isOrbiting && node.fixedX !== undefined && node.fixedX !== null && node.fixedY !== undefined && node.fixedY !== null) || node.orbitIndex === 0; 
     }
 
     // 7. Screen-Space Collision Resolution (2D 화면 공간 충돌 방지 루프 복원)
@@ -631,70 +654,50 @@ export class OntologyLayout {
     }
     
     if (maxIterations > 0) {
-      // 화면 영역(Frustum) 바깥의 노드는 충돌 물리 계산에서 제외하여 O(N^2) 루프의 연산 대상을 격감시킴
-      const activeNodes = nodes.filter(n => 
-        !n.layoutHidden && 
-        n.renderX !== -999999 &&
-        n.renderX >= -CULL_MARGIN &&
-        n.renderX <= canvasW + CULL_MARGIN &&
-        n.renderY >= -CULL_MARGIN &&
-        n.renderY <= canvasH + CULL_MARGIN
-      );
-      
-      // O(N)으로 사전 계산
-      const nodeData = activeNodes.map(node => {
-        const weight = node.renderSize ?? 0.5;
-        const sizeFactor = 0.8 + 0.5 * weight;
-        const scale = (node.perspectiveScale ?? 1.0) * sizeFactor;
-        
-        let textW = (node.label || '').length * 7.5;
-        if (node._cachedTextWidth) {
-          const cache = node._cachedTextWidth;
-          textW = cache['600'] || cache['500'] || textW;
-        }
-        
-        const w = Math.max(60 * scale, textW * scale + 28 * scale) + 16 * scale; // 가로 마진 포함
-        const h = Math.max(28 * scale, 12 * scale + 20 * scale) + 12 * scale;  // 세로 마진 포함
-        const isFixed = (!isOrbiting && node.fixedX !== undefined && node.fixedX !== null && node.fixedY !== undefined && node.fixedY !== null) || node.orbitIndex === 0;
-        const layer = node.effectiveLayer ?? 3;
-        
-        return {
-          node,
-          w,
-          h,
-          isFixed,
-          layer
-        };
-      });
-
-      // Group nodeData by layer for much faster collision checking (O(N^2 / L) vs O(N^2))
-      const layerGroups = new Map<number, typeof nodeData>();
-      for (const d of nodeData) {
-        if (!layerGroups.has(d.layer)) {
-          layerGroups.set(d.layer, []);
-        }
-        layerGroups.get(d.layer)!.push(d);
+      // Clear the pre-allocated static collisionGroups:
+      for (let k = 0; k < 4; k++) {
+        OntologyLayout.collisionGroups[k].length = 0;
       }
       
-      layerGroups.forEach((group) => {
-        // 💡 공전 중인 환경에서 노드들이 튕기거나 요동치는 떨림(Jittering)을 박멸하기 위해,
-        // 충돌 반발력 감쇠(damping)를 극도로 낮추어 부드럽게 미끄러지며 분산되도록 튜닝합니다.
-        let iterationDamping = 0.025; // Slightly higher initial damping for faster convergence
+      // Populate collisionGroups using direct loop (no filter, no map, no array allocations):
+      for (let i = 0; i < nodes.length; i++) {
+        const node = nodes[i];
+        if (
+          !node.layoutHidden &&
+          node.renderX !== -999999 &&
+          node.renderX >= -CULL_MARGIN &&
+          node.renderX <= canvasW + CULL_MARGIN &&
+          node.renderY >= -CULL_MARGIN &&
+          node.renderY <= canvasH + CULL_MARGIN
+        ) {
+          const layer = node.effectiveLayer ?? 3;
+          // Ensure layer is clamped to 0..3 to avoid index out of bounds
+          const layerIdx = Math.max(0, Math.min(3, layer));
+          OntologyLayout.collisionGroups[layerIdx].push(node);
+        }
+      }
+      
+      for (let k = 0; k < 4; k++) {
+        const group = OntologyLayout.collisionGroups[k];
+        const groupLen = group.length;
+        if (groupLen === 0) continue;
+        
+        let iterationDamping = 0.025;
         for (let iter = 0; iter < maxIterations; iter++) {
-          iterationDamping *= 0.80; // Damping decay factor
+          iterationDamping *= 0.80;
           let hasOverlap = false;
-          for (let i = 0; i < group.length; i++) {
-            const dataA = group[i];
-            const nodeA = dataA.node;
-            const wA = dataA.w;
-            const hA = dataA.h;
-            const isFixedA = dataA.isFixed;
-            for (let j = i + 1; j < group.length; j++) {
-              const dataB = group[j];
-              const nodeB = dataB.node;
-              const wB = dataB.w;
-              const hB = dataB.h;
-              const isFixedB = dataB.isFixed;
+          
+          for (let i = 0; i < groupLen; i++) {
+            const nodeA = group[i];
+            const wA = nodeA._collisionW!;
+            const hA = nodeA._collisionH!;
+            const isFixedA = nodeA._isCollisionFixed!;
+            
+            for (let j = i + 1; j < groupLen; j++) {
+              const nodeB = group[j];
+              const wB = nodeB._collisionW!;
+              const hB = nodeB._collisionH!;
+              const isFixedB = nodeB._isCollisionFixed!;
 
               // 두 노드 겹침 확인
               const dx = nodeB.renderX - nodeA.renderX;
@@ -841,7 +844,7 @@ export class OntologyLayout {
           }
           if (!hasOverlap) break;
         }
-      });
+      }
     }
   }
 

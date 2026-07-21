@@ -112,6 +112,13 @@ const ProjectSchema = z.object({
   checklistItems: z.array(ChecklistItemSchema).default([]),
   createdAt: z.string(),
   updatedAt: z.string(),
+  target: z.string().optional(),
+  budget: z.string().optional(),
+  location: z.string().optional(),
+  staff: z.string().optional(),
+  performance: z.string().optional(),
+  futurePlans: z.string().optional(),
+  timeline: z.string().optional(),
 });
 
 const SHEETS_TO_CHECK = [

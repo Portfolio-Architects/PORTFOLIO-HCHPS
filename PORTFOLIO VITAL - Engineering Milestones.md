@@ -2,6 +2,38 @@
 
 ## 8. 최근 엔지니어링 마일스톤 (요약)
 
+### R3: Final Gatekeeper Verification & Zero-Stall Guarantee 패치 (2026-07-21)
+* **Final Gatekeeper Verification & Zero-Stall Guarantee**:
+  - Achieved 0 Long Task stalls > 100ms, 0 TypeScript compiler errors (`npx tsc --noEmit`), 0 Zod schema validation errors, and 0 ESLint errors/warnings across all 112 modules.
+  - `npx tsc --noEmit`: 0 TypeScript compiler errors verified.
+  - `node scripts/run-harness.js`: 0 Zod schema errors, 0 ESLint warnings, 0 architectural violations, 0 performance bottlenecks verified.
+  - `node scripts/sync-rules.js`: Automatic milestone synchronization completed.
+
+### R2: Workspace Component & Inventory List DOM Optimization 패치 (2026-07-21)
+* **Workspace Component & Inventory List DOM Optimization**:
+  - `src/components/inventory/InventoryList.tsx`: Built Zero-Dependency `useVirtualGrid` windowing virtualization hook with dynamic column count (`useColumnCount`) and top/bottom spacer height preservation. Replaced index row keys with stable `key={row[0]?.id || rowIndex}` to eliminate React DOM reconciliation thrashing on item mutation/filtering. Resolved React Hook ref access ESLint rule by computing container offset in `useEffect`. Added modal state cleanup (`setSelectedItem(null)`) on adjust modal close handlers. Optimized history map computation to lazily compute `visibleItemHistoryMap` ONLY over visible rows.
+  - `src/components/budget/ui/PolicyGroupCard.tsx`: Optimized `handleSwapCat` to invoke `updateCategory` ONLY for the 2 swapped categories (`idx` and `targetIdx`) in $O(1)$ time complexity instead of re-rendering all N categories. Optimized `gEntries` filtering with `Set<string>` ($O(1)$ set lookup) and pre-parsed date timestamps for zero-thrash sorting. Removed heavy `max-h-[25000px]` transition layout thrashing.
+  - `src/components/budget/ui/BudgetCategoryCardItem.tsx`: Implemented standalone `React.memo` category card component with pre-computed expense entries (`generalEntries`, `dailyExpenseEntries`) and conditional rendering (`isExpanded && ...`) to reduce collapsed card DOM overhead to zero.
+
+### R1: Initial Server Hydration & Staggered Chunk Isolation 패치 (2026-07-21)
+* **Initial Server Hydration & Staggered Chunk Isolation**:
+  - `src/app/page.tsx`: Implemented Next.js dynamic imports (`ssr: false`) for `PortfolioDashboardView`, `MindMap3D`, `WorkspaceView`, `ProjectManagementPage`, `SecurityLockScreen`, `AppLogModal`, and `AIAssistantModal` to prevent server-side hydration mismatches and minimize initial JavaScript bundle size.
+  - `src/components/WorkspaceView.tsx`: Isolated `BudgetDashboard` via Next.js dynamic import (`ssr: false`) with custom `BudgetDashboardSkeleton` fallback layout.
+  - Modal Conditional Rendering: Modals (`TaskModal`, `SearchResultModal`, `AppLogModal`, `AIAssistantModal`) are conditionally mounted into the DOM only when open (`isMounted && isOpen`), preventing idle modal DOM tree overhead.
+  - Staggered Preloading: Background chunk preloading is queued with staggered timers (3.5s for `MindMap3D`, 5.5s for `WorkspaceView`, 7.5s for `ProjectManagementPage`) triggered inside `requestIdleCallback` after initial render hydration completes.
+
+### 강남 AI 메디헬스 센터 조성 사업 프로젝트 데이터 수입 및 사업관리 탭 등록 패치 (2026-07-21)
+* **보건행정과 신규 추진 사업 프로젝트 등록**:
+  - `data/PROJECTS.json` 및 `data/TASKS.json`에 "강남 AI 메디헬스 센터(가칭) 조성" 사업의 종합 추진 계획(추진 배경, 현황, 소요 예산 1,255,000천원, 500㎡ 공간 통합 2단계 계획, 문제점 검토 및 주차/수용능력 대책, 담당자 정보 및 8단계 세부 추진 체크리스트)과 연계 실무 태스크 3건을 등록했습니다.
+  - 사업관리 전용 페이지(`ProjectManagementPage.tsx`)에서 선택 시 100% 통합 바인딩되어 관리가 가능하도록 데이터 구조를 완성했습니다.
+
+### 3D 마인드맵 렌더링 속도 및 GC 렉 최적화 (2026-07-16)
+* **static 필드 기반 공간 그리드 및 풀 재사용**:
+  - `OntologyRenderer` 내에 static `spatialGrid` (Map), `cellArrayPool` (Array of Array), `cellArrayPoolUsed` 필드를 선언하여 매 프레임 발생하는 GC 할당을 극소화했습니다.
+  - 슬로우 패스(overlap detection)에서 `Set` 및 String key (`${r},${c}`) 할당을 완전히 제거하고, cell coordinates를 직접 연산하여 32비트 비트 연산 정수 키 `(r << 16) | (c & 0xFFFF)` 및 array pool을 재사용하도록 최적화했습니다.
+  - `clearTextBoxPool` 메서드 호출 시 static spatial grid 및 cell array pool을 명시적으로 정리하여 메모리 누수를 원천 차단했습니다.
+  - `npm run lint` 및 `node scripts/run-harness.js` 검색 결과 0 warnings, 0 errors로 완벽 통과했습니다.
+
 ### 주소록 컴포넌트(ContactsBox.tsx) startEdit useCallback 메모이제이션 패치 (2026-07-16)
 * **메모이제이션 최적화**:
   - `src/components/dashboard/ContactsBox.tsx` 내의 `startEdit` 함수를 빈 의존성 배열(`[]`)을 가지는 `useCallback`으로 감싸 메모이제이션 처리했습니다.

@@ -7,11 +7,32 @@ import { Card } from '@/components/ui/card';
 import { ShieldAlert, RefreshCw, Search, FilePlus2, CircleDollarSign, Wallet, Receipt, ShieldCheck } from 'lucide-react';
 import { MultiSelectDropdown } from './ui/MultiSelectDropdown';
 import { PolicyGroupCard } from './ui/PolicyGroupCard';
-import { LedgerModal } from './ui/LedgerModal';
-import { CategoryEditModal } from './ui/CategoryEditModal';
-import { BatchEditModal } from './ui/BatchEditModal';
-import { ExpenseEntryModal } from './ui/ExpenseEntryModal';
-import { DailyExpenseStatModal } from './ui/DailyExpenseStatModal';
+import dynamic from 'next/dynamic';
+
+const CategoryEditModal = dynamic(
+  () => import('./ui/CategoryEditModal').then((mod) => mod.CategoryEditModal),
+  { ssr: false }
+);
+
+const BatchEditModal = dynamic(
+  () => import('./ui/BatchEditModal').then((mod) => mod.BatchEditModal),
+  { ssr: false }
+);
+
+const ExpenseEntryModal = dynamic(
+  () => import('./ui/ExpenseEntryModal').then((mod) => mod.ExpenseEntryModal),
+  { ssr: false }
+);
+
+const LedgerModal = dynamic(
+  () => import('./ui/LedgerModal').then((mod) => mod.LedgerModal),
+  { ssr: false }
+);
+
+const DailyExpenseStatModal = dynamic(
+  () => import('./ui/DailyExpenseStatModal').then((mod) => mod.DailyExpenseStatModal),
+  { ssr: false }
+);
 
 import { CategoryStats } from '@/hooks/useBudget';
 
@@ -356,60 +377,70 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
       {/* Law & Ordinance Search API Integration */}
 
       {/* Category Modal */}
-      <CategoryEditModal
-        isOpen={showCatModal}
-        onClose={() => {
-          setShowCatModal(false);
-          if (returnToEntryModal) { setShowEntryModal(true); setReturnToEntryModal(false); }
-        }}
-        categoriesLength={categories.length}
-        initialData={catModalInitialData}
-        onSave={handleSaveCategory}
-      />
+      {showCatModal && (
+        <CategoryEditModal
+          isOpen={showCatModal}
+          onClose={() => {
+            setShowCatModal(false);
+            if (returnToEntryModal) { setShowEntryModal(true); setReturnToEntryModal(false); }
+          }}
+          categoriesLength={categories.length}
+          initialData={catModalInitialData}
+          onSave={handleSaveCategory}
+        />
+      )}
 
       {/* Batch Edit Modal */}
-      <BatchEditModal
-        isOpen={showBatchModal}
-        onClose={() => setShowBatchModal(false)}
-        title={batchTitle}
-        categories={batchCats}
-        onApply={handleApplyBatchEdit}
-      />
+      {showBatchModal && (
+        <BatchEditModal
+          isOpen={showBatchModal}
+          onClose={() => setShowBatchModal(false)}
+          title={batchTitle}
+          categories={batchCats}
+          onApply={handleApplyBatchEdit}
+        />
+      )}
 
       {/* Expense Entry Modal */}
-      <ExpenseEntryModal
-        isOpen={showEntryModal}
-        onClose={() => setShowEntryModal(false)}
-        categories={categories}
-        entries={entries}
-        getCategoryStats={getCategoryStats}
-        initialData={entryModalInitialData}
-        onSave={handleSaveEntry}
-        onOpenCategoryModal={() => {
-          setShowEntryModal(false);
-          setReturnToEntryModal(true);
-          setCatModalInitialData(null);
-          setShowCatModal(true);
-        }}
-      />
+      {showEntryModal && (
+        <ExpenseEntryModal
+          isOpen={showEntryModal}
+          onClose={() => setShowEntryModal(false)}
+          categories={categories}
+          entries={entries}
+          getCategoryStats={getCategoryStats}
+          initialData={entryModalInitialData}
+          onSave={handleSaveEntry}
+          onOpenCategoryModal={() => {
+            setShowEntryModal(false);
+            setReturnToEntryModal(true);
+            setCatModalInitialData(null);
+            setShowCatModal(true);
+          }}
+        />
+      )}
 
       {/* Ledger Modal */}
-      <LedgerModal
-        isOpen={showLedgerModal}
-        onClose={() => setShowLedgerModal(false)}
-        categories={categories}
-        entries={entries}
-        getCategoryStats={getCategoryStats}
-        onSettle={handleSettleEntry}
-      />
+      {showLedgerModal && (
+        <LedgerModal
+          isOpen={showLedgerModal}
+          onClose={() => setShowLedgerModal(false)}
+          categories={categories}
+          entries={entries}
+          getCategoryStats={getCategoryStats}
+          onSettle={handleSettleEntry}
+        />
+      )}
 
       {/* Daily Expense Stat Modal */}
-      <DailyExpenseStatModal
-        isOpen={showDailyStatModal}
-        onClose={() => setShowDailyStatModal(false)}
-        categories={filteredCategoriesTree}
-        getCategoryStats={getCategoryStats}
-      />
+      {showDailyStatModal && (
+        <DailyExpenseStatModal
+          isOpen={showDailyStatModal}
+          onClose={() => setShowDailyStatModal(false)}
+          categories={filteredCategoriesTree}
+          getCategoryStats={getCategoryStats}
+        />
+      )}
     </div>
   );
 }

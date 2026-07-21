@@ -3,8 +3,8 @@ import { QueryClient } from '@tanstack/react-query';
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes (data remains fresh before refetching)
-      gcTime: 1000 * 60 * 15,   // 15 minutes garbage collection (formerly cacheTime)
+      staleTime: 5 * 60 * 1000, // 5 minutes (data remains fresh before refetching)
+      gcTime: 30 * 60 * 1000,   // 30 minutes garbage collection (formerly cacheTime)
       retry: (failureCount, error: unknown) => {
         // Stop retrying if the error is related to auth (401/403) or we've retried 2 times already
         const errStatus = (error as { status?: number })?.status;
@@ -12,7 +12,8 @@ export const queryClient = new QueryClient({
         return failureCount < 2;
       },
       retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
-      refetchOnWindowFocus: true, // Auto-sync when returning to the tab
+      refetchOnWindowFocus: false, // Prevent heavy main thread block on window focus
+      refetchOnReconnect: false,   // Prevent automatic refetch on network reconnect
     },
     mutations: {
       retry: 1, // Minimize retry on mutation to prevent duplicate records

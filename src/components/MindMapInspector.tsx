@@ -1,17 +1,14 @@
 import React from 'react';
 import { OrbitalNode, OntologyEdge, GROUP_COLORS, OntologyGroup, EdgeType, OntologyLayerId, OntologyNode, GROUP_LABELS, LAYER_LABELS, EDGE_TYPE_LABELS } from '@/lib/ontology.types';
-import { useGraphCustomization, NodeOverride } from '@/hooks/useGraphCustomization';
-import { Edit2, Waypoints, Trash2, Link2, Radio, X, Crosshair, Activity, Bot, Unlink, Phone, FileText, DollarSign, CheckCircle2, PlusSquare } from 'lucide-react';
+import { NodeOverride } from '@/hooks/useGraphCustomization';
+import { Edit2, Waypoints, Trash2, Link2, Radio, X, Crosshair, Activity, Bot, Unlink, Phone, DollarSign, CheckCircle2, PlusSquare } from 'lucide-react';
 import { useLocalContacts } from '@/hooks/useLocalContacts';
 import { getCanonicalWikiId } from '@/hooks/useWikiStorage';
 import { readSheet } from '@/lib/sheets-api';
 import { extractRawTextFromBlocks, parseContacts } from '@/lib/contacts-parser';
-import { useFileRadar } from '@/hooks/useFileRadar';
-import { useReportGenerator } from '@/hooks/useReportGenerator';
 import { useAILinker } from '@/hooks/useAILinker';
 import { useTasks } from '@/hooks/useTasks';
 import { useBudget } from '@/hooks/useBudget';
-import { useLlmExtract } from '@/hooks/useLlmExtract';
 
 
 interface ForceGraphEngine {
@@ -60,55 +57,8 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
 
   const { tasks = [] } = useTasks();
   const { categories = [], getCategoryStats } = useBudget();
-  const llmExtractMutation = useLlmExtract();
 
 
-  const [isExtractingNormal, setIsExtractingNormal] = React.useState(false);
-  const [isExtractingRadar, setIsExtractingRadar] = React.useState(false);
-  const { addPendingSuggestions } = useGraphCustomization();
-
-  const handleExtractNormalNode = async () => {
-    if (!activeNode) return;
-    setIsExtractingNormal(true);
-    try {
-      const { extractSemanticGraph } = await import('@/lib/engine/ontology-extractor');
-      const textToExtract = rawWikiText || activeNode.label;
-      const result = await extractSemanticGraph(textToExtract);
-
-      if (result && result.nodes) {
-        await addPendingSuggestions(result.nodes, result.edges || []);
-        alert(`시맨틱 추출 성공: ${result.nodes.length}개의 노드 및 ${result.edges?.length || 0}개의 관계가 검토 후보에 추가되었습니다.`);
-      } else {
-        alert('추출된 노드가 없습니다.');
-      }
-    } catch (err: any) {
-      // console.error(err);
-      alert(`시맨틱 추출 실패: ${err.message}`);
-    } finally {
-      setIsExtractingNormal(false);
-    }
-  };
-
-  const handleExtractRadarNode = async () => {
-    if (!activeNode || !activeNode.meta?.fileName) return;
-    setIsExtractingRadar(true);
-    try {
-      const result = await llmExtractMutation.mutateAsync({ fileName: activeNode.meta.fileName });
-
-      const graph = result.data;
-      if (graph && graph.nodes) {
-        await addPendingSuggestions(graph.nodes, graph.edges || []);
-        alert(`시맨틱 추출 성공: ${graph.nodes.length}개의 노드 및 ${graph.edges?.length || 0}개의 관계가 검토 후보에 추가되었습니다.`);
-      } else {
-        alert('추출된 노드가 없습니다.');
-      }
-    } catch (err: any) {
-      // console.error(err);
-      alert(`시맨틱 추출 실패: ${err.message}`);
-    } finally {
-      setIsExtractingRadar(false);
-    }
-  };
 
   const matchedCat = React.useMemo(() => {
     if (!activeNode) return null;
@@ -126,17 +76,12 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
   }, [activeNode, tasks]);
 
   const { recordContactMutation, batchRecordContactsMutation } = useLocalContacts();
-  const { mutate: getFileRadar, data: radarData } = useFileRadar();
-  const reportMut = useReportGenerator();
-  const { reset: resetReport } = reportMut;
 
   const [connectedEdges, setConnectedEdges] = React.useState<Array<{ edge: OntologyEdge; otherNode: OrbitalNode }>>([]);
   const [parentLabel, setParentLabel] = React.useState<string | null>(null);
   const [engineNodes, setEngineNodes] = React.useState<OrbitalNode[]>([]);
   const [isRecording, setIsRecording] = React.useState(false);
   const [recordSuccess, setRecordSuccess] = React.useState(false);
-  const [isReportModalOpen, setIsReportModalOpen] = React.useState(false);
-  const [copiedReport, setCopiedReport] = React.useState(false);
   const [aiTargetId, setAiTargetId] = React.useState<string>('');
   const aiLinkMut = useAILinker();
 
@@ -171,33 +116,21 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
     };
   }, [setIsCatOpen]);
  
-  // Clear success feedback and reset report when activeNode changes
+  // Clear success feedback when activeNode changes
   React.useEffect(() => {
     setRecordSuccess(false);
     setIsRecording(false);
-    setCopiedReport(false);
     setAiTargetId(''); // reset AI target selection
     setCatSearch(parentLabel || '');
     setIsCatOpen(false);
-    resetReport();
 
     // Reset manual edge creation states
     setNewEdgeTargetId('');
     setNewEdgeType('DEPENDENCY');
     setNewEdgeWeight(1.0);
-  }, [activeNode, resetReport, parentLabel]);
+  }, [activeNode, parentLabel]);
 
-  // Asynchronously trigger file radar when normal activeNode is selected
-  React.useEffect(() => {
-    if (activeNode && !activeNode.id.startsWith('radar-doc-')) {
-      getFileRadar({ nodeId: activeNode.id, nodeLabel: activeNode.label });
-    }
-  }, [activeNode, getFileRadar]);
 
-  const rawWikiText = React.useMemo(() => {
-    if (!wikiBlocks || wikiBlocks.length === 0) return '';
-    return extractRawTextFromBlocks(wikiBlocks);
-  }, [wikiBlocks]);
 
   // 자카드 유사도 및 부분 일치 기반 노드 간 유사도 연산
   const calculateNodeSimilarity = React.useCallback((labelA: string, labelB: string) => {
@@ -299,35 +232,6 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
     setIsCatOpen(false);
   }, [activeNode, setNodeOverride, setActiveNode, initEngine, removeCustomTombstone, engineRef]);
 
-  const handleGenerateReport = () => {
-    if (!activeNode) return;
-    reportMut.mutate({
-      nodeId: activeNode.id,
-      nodeLabel: activeNode.label,
-      wikiText: rawWikiText,
-      budgetData: catStats ? {
-        total: catStats.totalBudget,
-        executed: catStats.spent,
-        remaining: catStats.remaining,
-        rate: Math.round(catStats.usageRate)
-      } : undefined,
-      tasks: matchedTasks.map(t => ({
-        title: t.title || (t as any).text || '',
-        isCompleted: (t.status as any) === '완료' || (t.status as any) === 'DONE' || (t.status as any) === 'done' || (t as any).isCompleted || false
-      })),
-      files: (radarData?.files || []).map(f => ({
-        displayName: f.displayName,
-        summary: f.summary
-      }))
-    }, {
-      onSuccess: () => {
-        setIsReportModalOpen(true);
-      },
-      onError: (err: any) => {
-        alert(`보고서 생성 중 오류 발생: ${err.message}`);
-      }
-    });
-  };
 
   const handleRecordToNotebookLM = async (phones: string[], emails: string[]) => {
     if (!activeNode || isRecording) return;
@@ -423,7 +327,16 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
 
   React.useEffect(() => {
     if (engineRef.current) {
-      setEngineNodes(engineRef.current.nodes || []);
+      const rawNodes = engineRef.current.nodes || [];
+      const uniqueNodes: OrbitalNode[] = [];
+      const seenIds = new Set<string>();
+      rawNodes.forEach((n: OrbitalNode) => {
+        if (!seenIds.has(n.id)) {
+          seenIds.add(n.id);
+          uniqueNodes.push(n);
+        }
+      });
+      setEngineNodes(uniqueNodes);
       if (activeNode) {
         const edges = engineRef.current.getConnectedEdges ? engineRef.current.getConnectedEdges(activeNode.id) : [];
         setConnectedEdges(edges || []);
@@ -529,129 +442,6 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
         <div className="flex-1 overflow-y-auto custom-scrollbar" style={{ maxHeight: isOverlay ? '45vh' : 'auto' }}>
                 {activeNode ? (
                   (() => {
-                    const isRadarDoc = activeNode.id.startsWith('radar-doc-');
-                    if (isRadarDoc) {
-                      const meta = activeNode.meta;
-                      const summary = meta?.summary || [];
-                      const contacts = meta?.contacts || [];
-                      const displayName = activeNode.label.replace('📄 ', '');
-                      
-                      return (
-                        <div className="p-4.5 flex flex-col gap-4 animate-slide-up-fade">
-                          {/* Title area */}
-                          <div className="flex items-center gap-3.5 bg-gradient-to-r from-cyan-500/5 to-blue-500/5 p-4 rounded-2xl border border-cyan-500/15 shadow-2xs">
-                            <div className="w-11 h-11 rounded-xl shrink-0 flex items-center justify-center bg-cyan-500 text-white text-base font-bold shadow-md">
-                              📄
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <h4 className="font-bold text-[14px] text-slate-800 leading-snug truncate" title={displayName}>
-                                {displayName}
-                              </h4>
-                              <span className="text-[9.5px] font-bold text-cyan-600 bg-cyan-500/10 border border-cyan-500/15 px-2 py-0.5 rounded-md mt-1 inline-block uppercase tracking-wider">
-                                시맨틱 파일 레이더
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* 3-Line Summary */}
-                          <div className="flex flex-col gap-2">
-                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center px-1 gap-1.5">
-                              <Bot size={13} className="text-cyan-500 animate-pulse" /> AI 3줄 요약
-                            </div>
-                            <div className="flex flex-col gap-2.5 bg-slate-500/5 border border-slate-200/40 rounded-2xl p-4 shadow-2xs">
-                              {summary.map((line: string, idx: number) => (
-                                <div key={idx} className="flex gap-2.5 items-start">
-                                  <span className="shrink-0 w-5 h-5 rounded-full bg-cyan-500/10 text-cyan-700 font-bold text-[9.5px] flex items-center justify-center border border-cyan-500/15">
-                                    {idx + 1}
-                                  </span>
-                                  <p className="text-[11px] font-semibold text-slate-600 leading-relaxed">
-                                    {line}
-                                  </p>
-                                </div>
-                              ))}
-                              {summary.length === 0 && (
-                                <p className="text-[11px] font-semibold text-slate-500 italic">요약이 존재하지 않습니다.</p>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Key Contacts */}
-                          <div className="flex flex-col gap-2">
-                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center px-1 gap-1.5">
-                              <Phone size={13} className="text-cyan-500" /> 실무 사업 담당자
-                            </div>
-                            <div className="flex flex-col gap-2">
-                              {contacts.map((contact: any, idx: number) => (
-                                <div key={idx} className="flex items-center justify-between bg-white/60 dark:bg-slate-850/60 hover:bg-white dark:hover:bg-slate-850 p-3 rounded-2xl border border-slate-200/30 dark:border-slate-800/40 text-[11px] font-semibold text-slate-700 dark:text-slate-350 shadow-2xs transition-all duration-150">
-                                  <div className="min-w-0 flex-1">
-                                    <div className="flex items-center gap-2 mb-0.5">
-                                      <span className="font-bold text-slate-800 dark:text-white text-[11.5px]">{contact.name || '미상'}</span>
-                                      <span className="text-[9.5px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 rounded-md">
-                                        {contact.role || '담당자'}
-                                      </span>
-                                    </div>
-                                    <span className="text-slate-500 dark:text-slate-400 font-mono text-[10.5px]">{contact.phone || '번호 없음'}</span>
-                                  </div>
-                                  {contact.phone && (
-                                    <div className="flex gap-1.5">
-                                      <button
-                                        onClick={() => {
-                                          navigator.clipboard.writeText(contact.phone);
-                                          alert('전화번호가 클립보드에 복사되었습니다.');
-                                        }}
-                                        className="px-2.5 py-1.5 bg-slate-100 border border-slate-200 text-slate-600 hover:bg-slate-200 rounded-lg text-[10px] font-bold cursor-pointer transition-all shadow-3xs"
-                                      >
-                                        복사
-                                      </button>
-                                      <a
-                                        href={`tel:${contact.phone}`}
-                                        className="px-2.5 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-[10px] font-bold cursor-pointer transition-all shadow-3xs flex items-center gap-1"
-                                      >
-                                        전화
-                                      </a>
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-                              {contacts.length === 0 && (
-                                <p className="text-[11px] font-semibold text-slate-500 italic p-3 bg-slate-500/5 rounded-2xl border border-slate-200/30">
-                                  문서에서 담당자 정보를 식별하지 못했습니다.
-                                </p>
-                              )}
-                              
-                              {contacts.length > 0 && (
-                                <button
-                                  onClick={() => {
-                                    const phones = contacts.map((c: any) => c.phone).filter(Boolean);
-                                    handleRecordToNotebookLM(phones, []);
-                                  }}
-                                  disabled={isRecording}
-                                  className={`mt-2 w-full py-2.5 px-3.5 rounded-xl text-xs font-bold shadow-2xs flex items-center justify-center gap-1.5 transition-all duration-200 cursor-pointer ${
-                                    recordSuccess
-                                      ? 'bg-emerald-500 text-white hover:bg-emerald-600'
-                                      : 'bg-cyan-600 hover:bg-cyan-700 text-white disabled:bg-cyan-400'
-                                  }`}
-                                >
-                                  <Bot size={13} className={isRecording ? "animate-spin" : ""} />
-                                  {isRecording ? '기록 중...' : recordSuccess ? '✓ 노트북 LM 기록 완료!' : '💾 노트북 LM에 담당자 연락처 기록'}
-                                </button>
-                              )}
-
-                              {/* ✨ 이 문서에서 AI 시맨틱 추출 */}
-                              <button
-                                onClick={handleExtractRadarNode}
-                                disabled={isExtractingRadar}
-                                className="mt-2 w-full py-2.5 px-3.5 bg-gradient-to-r from-cyan-600 to-blue-650 hover:opacity-90 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-2xs flex items-center justify-center gap-1.5 transition-all duration-200 cursor-pointer"
-                              >
-                                <Bot size={13} className={isExtractingRadar ? "animate-spin" : ""} />
-                                {isExtractingRadar ? '시맨틱 추출 중...' : '✨ 이 문서에서 AI 시맨틱 추출'}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    }
-
                     return (
                       <div className="p-4.5 flex flex-col gap-4">
                         {/* Group color + label */}
@@ -812,58 +602,7 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                           )}
                         </div>
 
-                        {/* 3. 시맨틱 파일 레이더 수집 문서 */}
-                        <div className="p-3 bg-white/50 border border-slate-200/40 rounded-xl flex flex-col gap-1.5 shadow-3xs">
-                          <div className="flex items-center justify-between text-[11px] font-semibold text-slate-700">
-                            <div className="flex items-center gap-2">
-                              <Radio size={14} className="text-cyan-500 animate-pulse" />
-                              <span>시맨틱 레이더 문서</span>
-                            </div>
-                            <span className="text-[10px] text-cyan-600 font-bold bg-cyan-500/10 px-2 py-0.5 rounded-md">
-                              총 {radarData?.files?.length || 0}건
-                            </span>
-                          </div>
-                          {radarData?.files && radarData.files.length > 0 && (
-                            <div className="flex flex-col gap-1 border-t border-slate-200/20 pt-1.5">
-                              {radarData.files.slice(0, 2).map((f, idx) => (
-                                <div key={idx} className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-500">
-                                  <span className="text-slate-400">📄</span>
-                                  <span className="truncate flex-1" title={f.displayName}>{f.displayName}</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* 📝 행정 보고서 초안 자동 생성 */}
-                      <button
-                        onClick={handleGenerateReport}
-                        disabled={reportMut.isPending}
-                        className="mt-1 w-full py-2.5 px-3 bg-gradient-to-r from-indigo-600 to-blue-650 hover:from-indigo-700 hover:to-blue-700 disabled:from-indigo-400 disabled:to-blue-400 text-white rounded-xl text-[11.5px] font-bold shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer flex items-center justify-center gap-1.5"
-                      >
-                        {reportMut.isPending ? (
-                          <>
-                            <Bot size={14} className="animate-spin text-white" />
-                            <span>AI 보고서 초안 생성 중...</span>
-                          </>
-                        ) : (
-                          <>
-                            <FileText size={14} className="text-white" />
-                            <span>📝 행정 보고서 초안 자동 생성</span>
-                          </>
-                        )}
-                      </button>
-
-                      {/* ✨ AI 시맨틱 추출 */}
-                      <button
-                        onClick={handleExtractNormalNode}
-                        disabled={isExtractingNormal}
-                        className="mt-2 w-full py-2.5 px-3 bg-gradient-to-r from-cyan-600 to-indigo-600 hover:opacity-90 disabled:opacity-50 text-white rounded-xl text-[11.5px] font-bold shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer flex items-center justify-center gap-1.5"
-                      >
-                        <Bot size={14} className={isExtractingNormal ? "animate-spin text-white" : "text-white"} />
-                        <span>{isExtractingNormal ? '시맨틱 추출 중...' : '✨ AI 시맨틱 추출'}</span>
-                      </button>
+                      </div>                      {/* Report generation and semantic extraction removed */}
                     </div>
 
                     {/* 모바일 다이렉트 연락처 카드 */}
@@ -1248,8 +987,8 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                                   <div className="flex flex-col gap-1.5 max-h-[120px] overflow-y-auto custom-scrollbar">
                                     {connectedEdges
                                       .filter(item => item.edge.source === activeNode.id)
-                                      .map(({ edge, otherNode }) => (
-                                        <div key={otherNode.id} className="flex items-center justify-between gap-2 p-1.5 bg-white/40 dark:bg-slate-900/40 rounded-xl hover:bg-slate-100/50 dark:hover:bg-slate-800/50 border border-slate-150/40 transition-all">
+                                      .map(({ edge, otherNode }, idx) => (
+                                        <div key={`${otherNode.id}-${edge.type}-${idx}`} className="flex items-center justify-between gap-2 p-1.5 bg-white/40 dark:bg-slate-900/40 rounded-xl hover:bg-slate-100/50 dark:hover:bg-slate-800/50 border border-slate-150/40 transition-all">
                                           <span className="text-[10.5px] font-semibold truncate text-slate-700 dark:text-slate-350 flex-1">
                                             → {otherNode.label} <span className="text-[8px] text-indigo-500 font-bold bg-indigo-500/5 px-1 rounded ml-1">{EDGE_TYPE_LABELS[edge.type]} ({edge.weight})</span>
                                           </span>
@@ -1289,8 +1028,8 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                                   <div className="flex flex-col gap-1.5 max-h-[120px] overflow-y-auto custom-scrollbar">
                                     {connectedEdges
                                       .filter(item => item.edge.target === activeNode.id)
-                                      .map(({ edge, otherNode }) => (
-                                        <div key={otherNode.id} className="flex items-center justify-between gap-2 p-1.5 bg-white/40 dark:bg-slate-900/40 rounded-xl hover:bg-slate-100/50 dark:hover:bg-slate-800/50 border border-slate-150/40 transition-all">
+                                      .map(({ edge, otherNode }, idx) => (
+                                        <div key={`${otherNode.id}-${edge.type}-${idx}`} className="flex items-center justify-between gap-2 p-1.5 bg-white/40 dark:bg-slate-900/40 rounded-xl hover:bg-slate-100/50 dark:hover:bg-slate-800/50 border border-slate-150/40 transition-all">
                                           <span className="text-[10.5px] font-semibold truncate text-slate-700 dark:text-slate-350 flex-1">
                                             ← {otherNode.label} <span className="text-[8px] text-cyan-650 font-bold bg-cyan-500/5 px-1 rounded ml-1">{EDGE_TYPE_LABELS[edge.type]} ({edge.weight})</span>
                                           </span>
@@ -1651,60 +1390,6 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
   return (
     <>
       {renderNodeDetails(isOverlay)}
-
-      {isReportModalOpen && reportMut.data && (
-        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in pointer-events-auto animate-duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-[720px] max-h-[85vh] flex flex-col overflow-hidden animate-scale-up animate-duration-200">
-            {/* Header */}
-            <div className="px-5 py-4 border-b border-slate-200/80 bg-slate-50 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Bot size={18} className="text-indigo-600" />
-                <h3 className="font-bold text-[14.5px] text-slate-800">행정 보고서 초안 기안서</h3>
-              </div>
-              <button 
-                onClick={() => setIsReportModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-200/50 rounded-lg transition-all cursor-pointer"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 custom-scrollbar">
-              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm font-semibold text-slate-700 text-[12px] leading-relaxed select-text whitespace-pre-wrap font-sans">
-                {reportMut.data.content}
-              </div>
-              <p className="text-[10px] text-slate-400 font-bold mt-4 text-center">
-                ※ 위 초안은 AI에 의해 자동 취합·작성되었으며, 로컬 디스크 `scratch/{reportMut.data.fileName}` 경로에 영구 저장되었습니다.
-              </p>
-            </div>
-
-            {/* Footer Actions */}
-            <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex justify-end gap-2">
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(reportMut.data.content);
-                  setCopiedReport(true);
-                  setTimeout(() => setCopiedReport(false), 2000);
-                }}
-                className={`px-4 py-2 rounded-xl text-xs font-bold shadow-2xs transition-all cursor-pointer ${
-                  copiedReport 
-                    ? 'bg-emerald-500 text-white hover:bg-emerald-600'
-                    : 'bg-indigo-600 hover:bg-indigo-700 text-white'
-                }`}
-              >
-                {copiedReport ? '✓ 복사 완료!' : '📋 클립보드 복사'}
-              </button>
-              <button
-                onClick={() => setIsReportModalOpen(false)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 transition-all cursor-pointer"
-              >
-                닫기
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 });

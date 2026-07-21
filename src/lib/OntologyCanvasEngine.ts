@@ -97,8 +97,8 @@ export class OntologyCanvasEngine {
 
   // Reusable sort buffers (avoid per-frame allocation)
   private sortedNodes: OrbitalNode[] = [];
-  private canvasW = 0;
-  private canvasH = 0;
+  public canvasW = 0;
+  public canvasH = 0;
   private hasNodeMoved = false;
   private physicsTickCounter = 0;
 
@@ -114,8 +114,28 @@ export class OntologyCanvasEngine {
     collapsedNodesKey: string;
     isInteractive: boolean;
   };
+  private activeLayersKey = '';
+  private collapsedNodesKey = '';
+  private lastActiveLayers: Set<number> | null = null;
+  private isCollapsedNodesDirty = true;
+  public isPaused: boolean = false;
 
+  public pause(): void {
+    this.isPaused = true;
+  }
 
+  public resume(): void {
+    this.isPaused = false;
+    this.wakeUp();
+  }
+
+  public freeze(): void {
+    this.isPaused = true;
+    for (const node of this.nodes) {
+      node.vx = 0;
+      node.vy = 0;
+    }
+  }
 
   public wakeUp(): void {
     this.physicsFrameCount = 0;
@@ -251,6 +271,7 @@ export class OntologyCanvasEngine {
       const N = catNodes.length;
       const randomRingOffset = Math.random() * Math.PI * 2;
       catNodes.forEach((node, i) => {
+        if (this.nodeMap.has(node.id)) return;
         let angle = (2 * Math.PI * i / N) + randomRingOffset;
         
         // 이전 엔진 상태 백업이 있다면 카테고리 기둥도 각도를 복원해야 합니다! (NaN 오염 방지)
@@ -309,6 +330,7 @@ export class OntologyCanvasEngine {
         const startAngle = N <= 1 ? parentAngle : parentAngle - maxSpan / 2;
 
         groupNodes.forEach((node, gIdx) => {
+          if (this.nodeMap.has(node.id)) return;
           let angle = startAngle + (gIdx * angleStep);
           // 기존에 공전 중이던 위치(각도)가 있다면 그대로 유지시켜 화면 중심 재정렬로 인한 순간이동 애니메이션 차단 (NaN 오염 방지)
           const preData = previousNodeMap.get(node.id);
@@ -340,6 +362,7 @@ export class OntologyCanvasEngine {
     // Fallback for isolated orphans or cycles (so no nodes visually vanish)
     leavesByParent.forEach((leaves) => {
       leaves.forEach(node => {
+        if (this.nodeMap.has(node.id)) return;
         let angle = Math.random() * Math.PI * 2;
         const preData = previousNodeMap.get(node.id);
         if (preData && typeof preData.orbitAngle === 'number' && !isNaN(preData.orbitAngle)) {
@@ -370,6 +393,7 @@ export class OntologyCanvasEngine {
           this.collapsedNodeIds.add(n.id);
         }
       });
+      this.isCollapsedNodesDirty = true;
     }
 
     // 중요도(renderSize) 내림차순으로 정렬된 노드 리스트 캐싱
@@ -797,6 +821,7 @@ export class OntologyCanvasEngine {
   }
 
   tick(): boolean {
+    if (this.isPaused) return false;
     let isDirty = false;
 
     // LERP 상태나 카메라 모션이 존재하는지 확인
@@ -931,8 +956,16 @@ export class OntologyCanvasEngine {
                            Math.abs(this.targetZoom - this.zoom) > 0.005;
     const isInteractive = this.isDragging || isCameraMoving || this.physicsFrameCount < 120;
 
-    const activeLayersKey = activeLayers ? Array.from(activeLayers).sort().join(',') : '';
-    const collapsedNodesKey = Array.from(this.collapsedNodeIds).sort().join(',');
+    if (activeLayers !== this.lastActiveLayers) {
+      this.activeLayersKey = activeLayers ? Array.from(activeLayers).sort().join(',') : '';
+      this.lastActiveLayers = activeLayers || null;
+    }
+    if (this.isCollapsedNodesDirty) {
+      this.collapsedNodesKey = Array.from(this.collapsedNodeIds).sort().join(',');
+      this.isCollapsedNodesDirty = false;
+    }
+    const activeLayersKey = this.activeLayersKey;
+    const collapsedNodesKey = this.collapsedNodesKey;
 
     if (this.lastLayoutInputs && this.lastLayoutInputs.activeLayersKey !== activeLayersKey) {
       this.isTopologyDirty = true;
@@ -1221,6 +1254,7 @@ export class OntologyCanvasEngine {
             const descendants = getDescendants(hit.id);
             descendants.forEach(d => this.collapsedNodeIds.delete(d));
          }
+         this.isCollapsedNodesDirty = true;
          this.topologyDirty = true;
          this.isTopologyDirty = true;
       } else {
@@ -1251,6 +1285,7 @@ export class OntologyCanvasEngine {
 
   expandAll(): void {
     this.collapsedNodeIds.clear();
+    this.isCollapsedNodesDirty = true;
     this.layoutWorldGeometryDirty = true;
     this.topologyDirty = true;
     this.isTopologyDirty = true;
@@ -1278,6 +1313,7 @@ export class OntologyCanvasEngine {
          }
        }
     }
+    this.isCollapsedNodesDirty = true;
     this.layoutWorldGeometryDirty = true;
     this.topologyDirty = true;
     this.isTopologyDirty = true;

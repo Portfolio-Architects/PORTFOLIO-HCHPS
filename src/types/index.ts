@@ -147,6 +147,13 @@ export interface Project {
   checklistItems: ChecklistItem[];
   createdAt: string;
   updatedAt: string;
+  target?: string;
+  budget?: string;
+  location?: string;
+  staff?: string;
+  performance?: string;
+  futurePlans?: string;
+  timeline?: string;
 }
 
 // ============ Document Generator Module ============
@@ -164,7 +171,7 @@ export interface DocumentEntry {
   status: 'draft' | 'ready' | 'done'; // 상태
 }
 
-export type ModuleType = 'workspace' | 'mindmap' | 'dashboard' | 'law';
+export type ModuleType = 'workspace' | 'mindmap' | 'dashboard' | 'project';
 
 // ============ Weekly Scheduler Module ============
 export type ScheduleType = 'security' | 'meeting' | 'education' | 'other';

@@ -11,6 +11,7 @@ import { useProjects } from '@/hooks/useProjects';
 import { useSignal } from '@/hooks/useSignal';
 import { useScheduleAlerts } from '@/hooks/useScheduleAlerts';
 import { useNotificationAlerts } from '@/hooks/useNotificationAlerts';
+import { useFreezeDetector } from '@/hooks/useFreezeDetector';
 import { Sidebar } from '@/components/Sidebar';
 
 const emptySubscribe = () => () => {};
@@ -210,70 +211,19 @@ function WorkspaceViewSkeleton() {
   );
 }
 
-function LawSystemPageSkeleton() {
+function ProjectManagementPageSkeleton() {
   return (
-    <div className="w-full flex flex-col gap-6 animate-pulse">
-      {/* Title Header */}
-      <div className="flex flex-col gap-1 text-left">
-        <div className="w-64 h-8 bg-slate-200 dark:bg-slate-700 rounded-lg" />
-        <div className="w-80 h-3 bg-slate-200/60 dark:bg-slate-700/60 rounded" />
+    <div className="w-full h-full flex gap-6 animate-pulse p-6 bg-slate-50/50">
+      <div className="w-[360px] bg-white rounded-2xl border border-slate-200/80 p-4 flex flex-col gap-4">
+        <div className="w-32 h-6 bg-slate-200 rounded" />
+        <div className="w-full h-24 bg-slate-100 rounded-xl" />
+        <div className="w-full h-24 bg-slate-100 rounded-xl" />
+        <div className="w-full h-24 bg-slate-100 rounded-xl" />
       </div>
-
-      {/* Tab Navigation */}
-      <div className="flex border-b border-slate-200 gap-1 pb-px">
-        <div className="w-40 h-11 bg-slate-200 dark:bg-slate-700 rounded-t-lg" />
-        <div className="w-40 h-11 bg-slate-200 dark:bg-slate-700 rounded-t-lg" />
-        <div className="w-40 h-11 bg-slate-200 dark:bg-slate-700 rounded-t-lg" />
-      </div>
-
-      {/* Main Panel Content Skeleton */}
-      <div className="bg-slate-100/60 dark:bg-slate-800/40 border border-slate-200/40 dark:border-slate-800 rounded-[2rem] p-6 shadow-xs flex flex-col gap-6">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-200/40 dark:border-slate-800 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 bg-slate-200 dark:bg-slate-700 rounded-2xl" />
-            <div className="flex flex-col gap-2">
-              <div className="w-64 h-5 bg-slate-200 dark:bg-slate-700 rounded" />
-              <div className="w-80 h-3 bg-slate-200 dark:bg-slate-700 rounded" />
-            </div>
-          </div>
-          <div className="w-28 h-6 bg-slate-200 dark:bg-slate-700 rounded-full" />
-        </div>
-
-        {/* Target Selector Tabs */}
-        <div className="flex bg-slate-200/40 dark:bg-slate-700/20 p-1.5 rounded-2xl gap-1">
-          <div className="flex-1 h-9 bg-slate-200 dark:bg-slate-700 rounded-xl" />
-          <div className="flex-1 h-9 bg-slate-200 dark:bg-slate-700 rounded-xl" />
-          <div className="flex-1 h-9 bg-slate-200 dark:bg-slate-700 rounded-xl" />
-        </div>
-
-        {/* Search Input Area */}
-        <div className="flex gap-2">
-          <div className="flex-grow h-12 bg-slate-200 dark:bg-slate-700 rounded-2xl" />
-          <div className="w-24 h-12 bg-slate-200 dark:bg-slate-700 rounded-2xl" />
-        </div>
-
-        {/* Recommendation Chips */}
-        <div className="flex flex-wrap gap-2">
-          <div className="w-28 h-7 bg-slate-200 dark:bg-slate-700 rounded-full" />
-          <div className="w-28 h-7 bg-slate-200 dark:bg-slate-700 rounded-full" />
-          <div className="w-28 h-7 bg-slate-200 dark:bg-slate-700 rounded-full" />
-          <div className="w-28 h-7 bg-slate-200 dark:bg-slate-700 rounded-full" />
-        </div>
-
-        {/* Search Results Skeleton */}
-        <div className="flex flex-col gap-3 mt-4">
-          <div className="border border-slate-200/40 dark:border-slate-800 rounded-2xl p-4 flex flex-col gap-2">
-            <div className="w-3/4 h-5 bg-slate-200 dark:bg-slate-700 rounded" />
-            <div className="w-full h-4 bg-slate-200/50 dark:bg-slate-750 rounded" />
-            <div className="w-1/2 h-4 bg-slate-200/50 dark:bg-slate-750 rounded" />
-          </div>
-          <div className="border border-slate-200/40 dark:border-slate-800 rounded-2xl p-4 flex flex-col gap-2">
-            <div className="w-3/4 h-5 bg-slate-200 dark:bg-slate-700 rounded" />
-            <div className="w-full h-4 bg-slate-200/50 dark:bg-slate-750 rounded" />
-            <div className="w-1/2 h-4 bg-slate-200/50 dark:bg-slate-750 rounded" />
-          </div>
-        </div>
+      <div className="flex-1 bg-white rounded-2xl border border-slate-200/80 p-6 flex flex-col gap-6">
+        <div className="w-48 h-8 bg-slate-200 rounded" />
+        <div className="w-full h-32 bg-slate-100 rounded-xl" />
+        <div className="w-full h-64 bg-slate-100 rounded-xl" />
       </div>
     </div>
   );
@@ -339,9 +289,9 @@ const WorkspaceView = dynamic(() => import('@/components/WorkspaceView').then(mo
   loading: () => <WorkspaceViewSkeleton />
 });
 
-const LawSystemPage = dynamic(() => import('@/components/law/LawSystemPage'), {
+const ProjectManagementPage = dynamic(() => import('@/components/project/ProjectManagementPage'), {
   ssr: false,
-  loading: () => <LawSystemPageSkeleton />
+  loading: () => <ProjectManagementPageSkeleton />
 });
 import { AlertTriangle, RefreshCw, Sparkles, X } from 'lucide-react';
 import { useSecurityLock } from '@/hooks/useSecurityLock';
@@ -349,9 +299,8 @@ const SecurityLockScreen = dynamic(() => import('@/components/SecurityLockScreen
   ssr: false,
   loading: () => null
 });
-import { useGlobalSearch } from '@/hooks/useGlobalSearch';
 
-const SearchResultModal = dynamic(() => import('@/components/SearchResultModal').then(mod => mod.SearchResultModal), {
+const AppLogModal = dynamic(() => import('@/components/AppLogModal').then(mod => mod.AppLogModal), {
   ssr: false,
   loading: () => null
 });
@@ -399,6 +348,17 @@ class MindMapErrorBoundary extends React.Component<
   }
 }
 
+const EMPTY_AI_CONTEXT = {
+  signals: [],
+  budgetEntries: [],
+  budgetCategories: [],
+  customNodes: [],
+  customEdges: [],
+  deletedEdges: [],
+  overrides: {},
+  keywordMap: {}
+};
+
 interface ProtectedAppProps {
   appMode: 'HCHPS' | 'VITAL';
   onModeChange: (mode: 'HCHPS' | 'VITAL') => void;
@@ -410,9 +370,10 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
     dashboard: true,
     mindmap: false,
     workspace: false,
-    law: false,
+    project: false,
   });
   const [isQuickInputOpen, setIsQuickInputOpen] = useState(false);
+  const [isLogsOpen, setIsLogsOpen] = useState(false);
   const [buttonBottom, setButtonBottom] = useState<number | null>(null);
   // Hooks
   const { tasks, updateTask, stats: taskStats } = useTasks();
@@ -423,25 +384,29 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
   const { entries: signalEntries, addSignal, deleteSignal, updateSignalKeywords, keywordMap } = useSignal();
   const scheduleAlerts = useScheduleAlerts(tasks, meetings);
   useNotificationAlerts(scheduleAlerts);
+  useFreezeDetector(activeModule);
 
-  const { searchModalOpen, searchQuery, searchResults, closeSearchModal, handleGlobalSearch } = useGlobalSearch();
-  const { mergedKeywordMap, mergedEntries } = useMergedSignals(signalEntries, keywordMap, tasks, projects, meetings, budgetEntries, inventoryItems);
-  const { customNodes, customEdges, deletedEdges, overrides } = useGraphCustomization(activeModule === 'mindmap');
+  const isMergedSignalsEnabled = !isInitializingGlobal && (activeModule === 'mindmap' || isQuickInputOpen);
+  const { mergedKeywordMap, mergedEntries } = useMergedSignals(signalEntries, keywordMap, tasks, projects, meetings, budgetEntries, inventoryItems, isMergedSignalsEnabled);
+  const { customNodes, customEdges, deletedEdges, overrides } = useGraphCustomization(!isInitializingGlobal && activeModule === 'mindmap');
 
   const actualBudgetEntries = useMemo(() => budgetEntries.filter(e => !e.isPlanned), [budgetEntries]);
   const handleGetCategoryStats = useCallback((id: string) => getCategoryStats(id, true), [getCategoryStats]);
   const handleCloseQuickInput = useCallback(() => setIsQuickInputOpen(false), []);
   const handleToggleQuickInput = useCallback(() => setIsQuickInputOpen(prev => !prev), []);
-  const aiContextData = useMemo(() => ({
-    signals: mergedEntries,
-    budgetEntries: budgetEntries,
-    budgetCategories: budgetCategories,
-    customNodes,
-    customEdges,
-    deletedEdges,
-    overrides,
-    keywordMap: mergedKeywordMap
-  }), [mergedEntries, budgetEntries, budgetCategories, customNodes, customEdges, deletedEdges, overrides, mergedKeywordMap]);
+  const aiContextData = useMemo(() => {
+    if (!isQuickInputOpen) return EMPTY_AI_CONTEXT;
+    return {
+      signals: mergedEntries,
+      budgetEntries: budgetEntries,
+      budgetCategories: budgetCategories,
+      customNodes,
+      customEdges,
+      deletedEdges,
+      overrides,
+      keywordMap: mergedKeywordMap
+    };
+  }, [isQuickInputOpen, mergedEntries, budgetEntries, budgetCategories, customNodes, customEdges, deletedEdges, overrides, mergedKeywordMap]);
 
 
 
@@ -460,17 +425,17 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
     const triggerPreload = (module: ModuleType) => {
       if (module === 'mindmap') import('@/components/MindMap3D');
       else if (module === 'workspace') import('@/components/WorkspaceView');
-      else if (module === 'law') import('@/components/law/LawSystemPage');
+      else if (module === 'project') import('@/components/project/ProjectManagementPage');
       console.log(`[Watcher Preload] Background caching initialized for: ${module}`);
     };
 
     const startStaggeredSequence = () => {
-      // 1.5초 후 마인드맵 로드
-      timers.push(window.setTimeout(() => triggerPreload('mindmap'), 1500));
-      // 3.5초 후 예산 대조보드 로드
-      timers.push(window.setTimeout(() => triggerPreload('workspace'), 3500));
-      // 5.5초 후 법령/지침 표준 시스템 로드
-      timers.push(window.setTimeout(() => triggerPreload('law'), 5500));
+      // 3.5초 후 마인드맵 번들 로드 (새로고침 초기 렌더링 렉 완벽 차단)
+      timers.push(window.setTimeout(() => triggerPreload('mindmap'), 3500));
+      // 5.5초 후 예산 대조보드 로드
+      timers.push(window.setTimeout(() => triggerPreload('workspace'), 5500));
+      // 7.5초 후 사업관리 페이지 로드
+      timers.push(window.setTimeout(() => triggerPreload('project'), 7500));
     };
 
     let idleCallbackId: number | null = null;
@@ -602,7 +567,7 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
     
     // Minimum horizontal swipe distance
     if (Math.abs(distance) > 60) {
-      const order: ModuleType[] = ['dashboard', 'workspace', 'mindmap', 'law'];
+      const order: ModuleType[] = ['dashboard', 'workspace', 'mindmap', 'project'];
       const currentIndex = order.indexOf(activeModule);
       
       if (distance > 0 && currentIndex < order.length - 1) {
@@ -667,7 +632,7 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
         appMode={appMode}
         onModeChange={onModeChange}
         onPreloadModule={preloadModule}
-        onSearch={handleGlobalSearch}
+        onOpenLogs={() => setIsLogsOpen(true)}
       />
 
       <main id="main-scroll-container" className="flex-1 pb-32 sm:pb-8 overflow-y-auto custom-scrollbar">
@@ -688,8 +653,8 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
                         ? '마인드맵' 
                         : activeModule === 'workspace' 
                         ? '예산관리' 
-                        : activeModule === 'law' 
-                        ? '법령/지침' 
+                        : activeModule === 'project' 
+                        ? '사업관리' 
                         : ''
                     }`
                 }
@@ -762,10 +727,10 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
               </div>
             )}
 
-            {/* Law & Ordinance Guidelines */}
-            {visitedModules.law && (
-              <div className={activeModule === 'law' ? 'block' : 'hidden'}>
-                <LawSystemPage />
+            {/* Project Management */}
+            {visitedModules.project && (
+              <div className={activeModule === 'project' ? 'block' : 'hidden'}>
+                <ProjectManagementPage />
               </div>
             )}
           </div>
@@ -784,25 +749,27 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
         </div>
       </main>
 
-      <SearchResultModal 
-        isOpen={searchModalOpen}
-        onClose={closeSearchModal}
-        query={searchQuery}
-        results={searchResults}
-        appMode={appMode}
-      />
+      {isLogsOpen && (
+        <AppLogModal 
+          isOpen={isLogsOpen}
+          onClose={() => setIsLogsOpen(false)}
+          appMode={appMode}
+        />
+      )}
 
       {/* Floating LLM Button & Popover */}
       <div 
         className="fixed bottom-24 sm:bottom-8 right-4 sm:right-8 z-50 flex flex-col items-end gap-3"
         style={buttonBottom !== null ? { bottom: `${buttonBottom}px` } : undefined}
       >
-        <AIAssistantModal 
-          isOpen={isQuickInputOpen} 
-          onClose={handleCloseQuickInput}
-          contextData={aiContextData}
-          appMode={appMode}
-        />
+        {isQuickInputOpen && (
+          <AIAssistantModal 
+            isOpen={isQuickInputOpen} 
+            onClose={handleCloseQuickInput}
+            contextData={aiContextData}
+            appMode={appMode}
+          />
+        )}
         <button
           onClick={handleToggleQuickInput}
           className={`p-4 rounded-full shadow-xl transition-all duration-300 hover:scale-105 active:scale-95 flex items-center justify-center ${

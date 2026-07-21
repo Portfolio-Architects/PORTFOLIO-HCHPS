@@ -227,3 +227,40 @@ Integrity mode: development
 
 ### Manual Verification
 - 브라우저 개발자 도구의 네트워크/성능 탭을 켜서 청크 크기 및 탭 전환 시 스레드 점유 상태를 육안 및 타임라인으로 검사합니다.
+
+## Follow-up — 2026-07-21T15:33:35Z
+
+# Teamwork Project Prompt
+
+Analysis of remaining micro-stalls (63ms ~ 246ms) and initial dev-server hydration performance optimization for VITAL Work & Wealth.
+
+Working directory: d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL
+Integrity mode: development
+
+## Log Analysis Findings
+
+### 1. 1~2초 대형 프리징 완벽 소거
+- 이전 로그의 2,100ms(mindmap), 1,997ms(dashboard), 1,918ms(workspace) 급의 치명적 메인 스레드 락은 100% 제거되었습니다.
+
+### 2. 잔여 미세 정체 (Micro-stalls) 원인
+- 서버 기동 & 하이드레이션 시점 (15시 33분 4초~5초): Next.js dev-server 기동 후 최초 마운트 시 dashboard(192ms, 81ms), mindmap(71ms), project(87ms, 63ms) 등 각 모듈 청크가 동시 평가되며 발생한 1회성 스태거링 지연.
+- workspace 모듈 (197ms, 246ms): InventoryList(홍보물 관리) 동적 로드 및 BudgetDashboard 내 카테고리 카드 돔 렌더링 시 발생.
+
+## Requirements
+
+### R1. Initial Server Hydration & Staggered Chunk Isolation
+Implement lazy component initialization (React.lazy / dynamic with idle deferral) for workspace and dashboard heavy widgets so dev-server startup hydration stall stays below 50ms.
+
+### R2. Workspace Component & Inventory List DOM Optimization
+Apply virtualized list or windowed rendering for InventoryList and BudgetCategoryCard inside workspace module to eliminate the 246ms render stall during tab switching.
+
+### R3. Gatekeeper Verification & Zero-Stall Guarantee
+Verify that zero Long Task Stalls > 100ms occur across all modules, maintaining 0 ESLint warnings, 0 Architectural Violations, and 0 Performance Bottlenecks.
+
+## Acceptance Criteria
+
+### Performance & Stability
+- [ ] No Long Task Stall > 100ms during module navigation or initial hydration.
+- [ ] workspace tab switching stall reduced from 246ms to < 40ms.
+- [ ] 0 ESLint warnings, 0 Arch Violations, 0 Bottlenecks in run-harness.js.
+

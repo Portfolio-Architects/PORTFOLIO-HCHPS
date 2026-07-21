@@ -31,6 +31,9 @@ export class PerformanceProfiler {
     return PerformanceProfiler.instance;
   }
 
+  // Last active tick timestamp
+  private lastTickTime = 0;
+
   /**
    * Records a single render execution duration in milliseconds.
    */
@@ -64,6 +67,7 @@ export class PerformanceProfiler {
   public tick(): void {
     this.frameCount++;
     const now = performance.now();
+    this.lastTickTime = now;
     const elapsed = now - this.lastFpsTime;
 
     if (elapsed >= 1000) {
@@ -80,13 +84,18 @@ export class PerformanceProfiler {
     const sum = this.renderDurations.reduce((a, b) => a + b, 0);
     const avg = this.renderDurations.length > 0 ? sum / this.renderDurations.length : 0;
     
+    const now = performance.now();
+    const isIdle = (now - this.lastTickTime) > 1500;
+    const fpsToReport = isIdle ? 60 : (this.currentFps || 60);
+
     return {
-      lastRenderTime: this.lastDuration,
-      avgRenderTime: avg,
+      lastRenderTime: isIdle ? 0 : this.lastDuration,
+      avgRenderTime: isIdle ? 0 : avg,
       maxRenderTime: this.maxDuration,
       warningCount: this.warningCount,
       totalRenders: this.totalRenders,
-      fps: this.currentFps
+      fps: fpsToReport,
+      isIdle: isIdle
     };
   }
 

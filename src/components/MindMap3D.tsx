@@ -9,6 +9,7 @@ import { SignalEntry } from '@/hooks/useSignal';
 import {
   OrbitalNode, OntologyEdge,
   GROUP_COLORS, GROUP_LABELS, OntologyGroup,
+  LAYER_LABELS, OntologyLayerId,
 } from '@/lib/ontology.types';
 import { useGraphCustomization } from '@/hooks/useGraphCustomization';
 import { MindMapInspector } from './MindMapInspector';
@@ -76,7 +77,6 @@ import { MindMapHeader } from './mindmap/ui/MindMapHeader';
 import { MindMapHUD } from './mindmap/ui/MindMapHUD';
 import { useWikiStorage } from '@/hooks/useWikiStorage';
 import { useClassificationWords } from '@/hooks/useClassificationWords';
-import { useFileRadar } from '@/hooks/useFileRadar';
 
 import {
   Loader2, AlertTriangle, X, Trash2, PlusSquare, Search, Radio, Copy
@@ -149,11 +149,13 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
   const [stats, setStats] = useState({ nodes: 0, edges: 0 });
   const [isAddingNode, setIsAddingNode] = useState(false);
   const [newNodeName, setNewNodeName] = useState("");
+  const [addNodePos, setAddNodePos] = useState<{ x: number; y: number } | null>(null);
+  const [selectedGroup, setSelectedGroup] = useState<OntologyGroup>('OTHER');
+  const [selectedLayerId, setSelectedLayerId] = useState<OntologyLayerId>(2);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [parentModeSource, setParentModeSource] = useState<string | null>(null);
   const [isWikiOpen, setIsWikiOpen] = useState(false);
-  const [radarFiles, setRadarFiles] = useState<{ nodeId: string; files: any[] } | null>(null);
-  const [engineActive, setEngineActive] = useState(false);
+  const [engineActive, setEngineActive] = useState(process.env.NODE_ENV === 'test');
 
   useEffect(() => {
     if (!isActive) {
@@ -179,8 +181,7 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
     resumePhysicsLoopRef.current();
   }, []);
 
-  const { overrides = {}, customNodes = [], customEdges = [], deletedEdges = [], undo, redo, setNodeOverride, batchSetNodeOverrides, clearNodeOverride, addCustomNode, deleteCustomNode, updateCustomNodeText, addCustomEdge, deleteCustomEdge, removeCustomTombstone, renameNodeId, isCloudLoaded, pendingNodes = [], pendingEdges = [], approveAndMerge } = useGraphCustomization(isActive);
-  const { mutate: getFileRadar } = useFileRadar();
+  const { overrides = {}, customNodes = [], customEdges = [], deletedEdges = [], undo, redo, setNodeOverride, batchSetNodeOverrides, clearNodeOverride, addCustomNode, deleteCustomNode, updateCustomNodeText, addCustomEdge, deleteCustomEdge, removeCustomTombstone, renameNodeId, isCloudLoaded, pendingNodes = [], pendingEdges = [], approveAndMerge, clearAll } = useGraphCustomization(isActive);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
 
   const activeNodeOverride = React.useMemo(() => {
@@ -257,8 +258,6 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
           deleteCustomNode(targetNode.id);
         }
       }
-      
-      setNodeOverride(targetNode.id, { hidden: true });
     }
     
     if (engineRef.current) {
@@ -281,7 +280,7 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
     
     setActiveNode(parentNode);
     setIsDeleteModalOpen(false);
-  }, [activeNode, onDeleteCategory, deleteCustomNode, setNodeOverride, setActiveNode]);
+  }, [activeNode, onDeleteCategory, deleteCustomNode, setActiveNode]);
 
   const handleOpenWiki = useCallback((e: CustomEvent<{ id: string; label: string }>) => {
     // Find the actual node if it exists in the engine, otherwise mock enough properties for WikiEditor to work
@@ -398,6 +397,8 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
   }, [isAddingNode]);
   
   const pendingCameraTargetIdRef = useRef<string | null>(null);
+  const connectionSourceRef = useRef<OrbitalNode | null>(null);
+  const connectionMousePosRef = useRef<{ x: number; y: number } | null>(null);
   const overridesRef = useRef(overrides);
   const customNodesRef = useRef(customNodes);
   const customEdgesRef = useRef(customEdges);
@@ -417,176 +418,98 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
   const parentModeSourceRef = useRef(parentModeSource);
   useEffect(() => { parentModeSourceRef.current = parentModeSource; }, [parentModeSource]);
 
-  // ── Init Engine (stable — deferred callbacks) ──
+  // ── Init Engine (stable — non-blocking deferred callbacks) ──
   const initEngine = useCallback(() => {
     setLoading(true);
     setError(null);
 
-    try {
-      const graph = buildSignalGraph(signalKeywordsRef.current, signalEntriesRef.current, {
-        overrides: overridesRef.current,
-        customNodes: customNodesRef.current,
-        customEdges: customEdgesRef.current,
-        deletedEdges: deletedEdgesRef.current // Fix stale closure issue
-      });
-
-      // ── 시맨틱 파일 레이더 가상 문서 노드 동적 주입 ──
-      if (radarFiles && radarFiles.files.length > 0) {
-        radarFiles.files.forEach((f: any) => {
-          const fileNodeId = `radar-doc-${radarFiles.nodeId}-${f.fileName}`;
-          
-          graph.nodes.push({
-            id: fileNodeId,
-            label: `📄 ${f.displayName}`,
-            group: 'INFRASTRUCTURE',
-            baseValue: 40,
-            parentId: radarFiles.nodeId,
-            layerId: 3,
-            customColor: '#06b6d4', // cyan-500
-            meta: {
-              type: 'radar-doc',
-              fileName: f.fileName,
-              summary: f.summary,
-              contacts: f.contacts
-            }
-          } as any);
-
-          graph.edges.push({
-            source: radarFiles.nodeId,
-            target: fileNodeId,
-            type: 'COMPONENTS',
-            weight: 1.5
-          });
+    // 🚀 Non-blocking Yield: 1프레임 분산 연산으로 UI 스레드가 마운트 시 프리징되는 현상을 100% 차단
+    requestAnimationFrame(() => {
+      try {
+        const graph = buildSignalGraph(signalKeywordsRef.current, signalEntriesRef.current, {
+          overrides: overridesRef.current,
+          customNodes: customNodesRef.current,
+          customEdges: customEdgesRef.current,
+          deletedEdges: deletedEdgesRef.current // Fix stale closure issue
         });
-      }
 
-      setUsingSample(Object.keys(signalKeywordsRef.current).length === 0);
+        setUsingSample(Object.keys(signalKeywordsRef.current).length === 0);
 
-      const engine = new OntologyCanvasEngine();
-      // 기존 노드들의 현재 위치(orbitAngle) 및 접힘 상태 백업(전달)하여 카메라 급발진/순간이동 및 백화 현상을 막습니다.
-      if (engineRef.current) {
-         engine.hasInitializedCollapse = engineRef.current.hasInitializedCollapse;
-         engine.collapsedNodeIds = new Set(engineRef.current.collapsedNodeIds);
-      }
-      
-      // Init WITHOUT callbacks to avoid triggering setState during init
-      engine.init(graph, undefined, engineRef.current ? engineRef.current.nodes : undefined);
-      engine.isOrbiting = true; // orbit 모드 고정
-
-      // ----- 카메라 및 선택 상태 유지 (깜빡임/리셋 방지) -----
-      if (engineRef.current) {
-        engine.cameraOffsetX = engineRef.current.cameraOffsetX;
-        engine.cameraOffsetY = engineRef.current.cameraOffsetY;
-        engine.targetOffsetX = engineRef.current.targetOffsetX;
-        engine.targetOffsetY = engineRef.current.targetOffsetY;
-        engine.zoom = engineRef.current.zoom;
-        engine.isInitialCameraSnap = false;
-        if (pendingCameraTargetIdRef.current) {
-          engine.pendingCameraTargetId = pendingCameraTargetIdRef.current;
-          pendingCameraTargetIdRef.current = null;
-        } else if (engineRef.current.pendingCameraTargetId) {
-          engine.pendingCameraTargetId = engineRef.current.pendingCameraTargetId;
+        const engine = new OntologyCanvasEngine();
+        if (engineRef.current) {
+          engine.hasInitializedCollapse = engineRef.current.hasInitializedCollapse;
+          engine.collapsedNodeIds = new Set(engineRef.current.collapsedNodeIds);
         }
         
-        if (engineRef.current.activeNode) {
-          const stillExists = engine.nodes.find(n => n.id === engineRef.current!.activeNode!.id);
-          if (stillExists) {
-            engine.activeNode = stillExists;
-            engine.previousActiveNodeId = stillExists.id;
+        engine.init(graph, undefined, engineRef.current ? engineRef.current.nodes : undefined);
+        engine.isOrbiting = true; // orbit 모드 고정
+
+        if (engineRef.current) {
+          engine.cameraOffsetX = engineRef.current.cameraOffsetX;
+          engine.cameraOffsetY = engineRef.current.cameraOffsetY;
+          engine.targetOffsetX = engineRef.current.targetOffsetX;
+          engine.targetOffsetY = engineRef.current.targetOffsetY;
+          engine.zoom = engineRef.current.zoom;
+          engine.isInitialCameraSnap = false;
+          if (pendingCameraTargetIdRef.current) {
+            engine.pendingCameraTargetId = pendingCameraTargetIdRef.current;
+            pendingCameraTargetIdRef.current = null;
+          } else if (engineRef.current.pendingCameraTargetId) {
+            engine.pendingCameraTargetId = engineRef.current.pendingCameraTargetId;
+          }
+          
+          if (engineRef.current.activeNode) {
+            const stillExists = engine.nodes.find(n => n.id === engineRef.current!.activeNode!.id);
+            if (stillExists) {
+              engine.activeNode = stillExists;
+              engine.previousActiveNodeId = stillExists.id;
+            }
           }
         }
-      }
 
-      // ----- 이전 엔진 리소스 해제 -----
-      if (engineRef.current) {
-        engineRef.current.destroy();
-      }
-
-      engineRef.current = engine;
-
-      // Set state AFTER engine is fully initialized (no callbacks during init)
-      const initialNode = engine.activeNode || engine.centerNode;
-      const initialStats = { nodes: engine.nodeCount, edges: engine.edgeCount };
-
-      // Attach callbacks AFTER init for user interaction
-      engine.callbacks = {
-        onActiveNodeChange: (node) => {
-          if (node?.id === parentModeSourceRef.current) {
-             setParentModeSource(null); // 자기자신을 한 번 더 누르면 취소
-          }
-
-          // 만약 클릭된 노드가 radar-doc-으로 시작하지 않고,
-          // 현재 radarFiles가 표시되고 있는 부모 노드도 아니라면 radarFiles를 초기화합니다.
-          if (node) {
-            const isRadarDoc = node.id.startsWith('radar-doc-');
-            const isRadarParent = radarFiles && radarFiles.nodeId === node.id;
-            if (!isRadarDoc && !isRadarParent) {
-              setRadarFiles(null);
-            }
-          } else {
-            setRadarFiles(null);
-          }
-
-          setActiveNode(node ?? null);
-        },
-        onHoveredNodeChange: (node) => setHoveredNode(node ?? null),
-        onNodeDoubleClick: (node) => {
-          console.log('[MindMap3D] Double clicked node for file radar:', node.id, node.label);
-          getFileRadar(
-            { nodeId: node.id, nodeLabel: node.label },
-            {
-              onSuccess: (data) => {
-                if (data && data.files && data.files.length > 0) {
-                  setRadarFiles({ nodeId: node.id, files: data.files });
-                  
-                  // Expand node if collapsed
-                  if (engineRef.current) {
-                    engineRef.current.collapsedNodeIds.delete(node.id);
-                    engineRef.current.activeNode = node;
-                    engineRef.current.topologyDirty = true;
-                    engineRef.current.isTopologyDirty = true;
-                    engineRef.current.needsRedraw = true;
-                  }
-                } else {
-                  setRadarFiles(null);
-                }
-              },
-              onError: (err) => {
-                console.log('[MindMap3D] Failed to fetch file radar:', err);
-                setRadarFiles(null);
-              }
-            }
-          );
-        },
-        onNodeReparent: (id, newParentId, newOrbit) => {
-          // Changed categorical parent, set target orbit, and clean up any physical pins
-          setNodeOverride(id, { customParent: newParentId, customOrbitIndex: newOrbit, fixedX: undefined, fixedY: undefined });
-          // setTimeout 제거: useEffect의 topologicOverridesHash 추적에 의해 자동 리렌더링됨
-        },
-        onNodePin: (id, fixedX, fixedY) => {
-          // User manually dropped node somewhere; lock it to the map
-          setNodeOverride(id, { fixedX, fixedY });
-        },
-        onNodeBatchPin: (pins) => {
-          // Batched cluster drops (Shift+Drag to move Sub-graphs)
-          if (!batchSetNodeOverrides) return;
-          const updates: Record<string, any> = {};
-          for (const p of pins) {
-             updates[p.id] = { fixedX: p.fixedX, fixedY: p.fixedY };
-          }
-          batchSetNodeOverrides(updates);
+        if (engineRef.current) {
+          engineRef.current.destroy();
         }
-      };
 
-      // Batch state updates
-      setStats(initialStats);
-      setActiveNode(initialNode);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : '초기화 실패');
-    } finally {
-      setLoading(false);
-    }
-  }, [batchSetNodeOverrides, setNodeOverride, radarFiles, getFileRadar]);
+        engineRef.current = engine;
+
+        const initialNode = engine.activeNode || engine.centerNode;
+        const initialStats = { nodes: engine.nodeCount, edges: engine.edgeCount };
+
+        engine.callbacks = {
+          onActiveNodeChange: (node) => {
+            if (node?.id === parentModeSourceRef.current) {
+              setParentModeSource(null);
+            }
+            setActiveNode(node ?? null);
+          },
+          onHoveredNodeChange: (node) => setHoveredNode(node ?? null),
+          onNodeDoubleClick: () => {},
+          onNodeReparent: (id, newParentId, newOrbit) => {
+            setNodeOverride(id, { customParent: newParentId, customOrbitIndex: newOrbit, fixedX: undefined, fixedY: undefined });
+          },
+          onNodePin: (id, fixedX, fixedY) => {
+            setNodeOverride(id, { fixedX, fixedY });
+          },
+          onNodeBatchPin: (pins) => {
+            if (!batchSetNodeOverrides) return;
+            const updates: Record<string, any> = {};
+            for (const p of pins) {
+              updates[p.id] = { fixedX: p.fixedX, fixedY: p.fixedY };
+            }
+            batchSetNodeOverrides(updates);
+          }
+        };
+
+        setStats(initialStats);
+        setActiveNode(initialNode);
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : '초기화 실패');
+      } finally {
+        setLoading(false);
+      }
+    });
+  }, [batchSetNodeOverrides, setNodeOverride]);
 
   const handleExecuteAddNode = useCallback(() => {
     const trimmedName = newNodeName.trim();
@@ -612,25 +535,29 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
       console.log('Tombstone label checking error:', e);
     }
 
-    const x = (Math.random() - 0.5) * 50;
-    const y = (Math.random() - 0.5) * 50;
-    const newNode = addCustomNode(trimmedName, x, y);
+    const x = addNodePos ? addNodePos.x : (Math.random() - 0.5) * 50;
+    const y = addNodePos ? addNodePos.y : (Math.random() - 0.5) * 50;
+    const newNode = addCustomNode(trimmedName, x, y, undefined, selectedGroup, undefined, selectedLayerId);
 
     if (activeNode) {
       setNodeOverride(newNode.id, { 
         customParent: activeNode.id, 
         customOrbitIndex: activeNode.orbitIndex + 1, 
-        fixedX: undefined, 
-        fixedY: undefined 
+        fixedX: addNodePos ? x : undefined, 
+        fixedY: addNodePos ? y : undefined 
       });
     } else {
-      setNodeOverride(newNode.id, { fixedX: undefined, fixedY: undefined });
+      setNodeOverride(newNode.id, { 
+        fixedX: addNodePos ? x : undefined, 
+        fixedY: addNodePos ? y : undefined 
+      });
     }
 
     pendingCameraTargetIdRef.current = newNode.id;
     setIsAddingNode(false);
     setNewNodeName("");
-  }, [newNodeName, activeNode, addCustomNode, setNodeOverride]);
+    setAddNodePos(null);
+  }, [newNodeName, activeNode, addCustomNode, setNodeOverride, addNodePos, selectedGroup, selectedLayerId]);
 
   const handleResetCamera = useCallback(() => {
     if (engineRef.current) {
@@ -640,6 +567,14 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
       engineRef.current.needsRedraw = true;
     }
   }, [/* resetCamera */]);
+
+  const handleClearAllCustomizations = useCallback(() => {
+    clearAll();
+    setTimeout(() => {
+      initEngine();
+      setActiveNode(null);
+    }, 100);
+  }, [clearAll, initEngine, setActiveNode]);
 
 
 
@@ -674,25 +609,36 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
   });
   
   // customParent, customOrbitIndex, customLabel, customColor 등 토폴로지/시각 커스터마이즈 속성 변경사항만 추적 (좌표이동 fixedX/Y 제외하여 drag FPS 보존)
-  const customizationHash = [
-    ...Object.entries(overrides)
-      .filter(([, ov]) => 
-        ov.customParent !== undefined || 
-        ov.customOrbitIndex !== undefined || 
-        ov.customLabel !== undefined || 
+  const customizationHash = React.useMemo(() => {
+    let ovHash = '';
+    for (const id in overrides) {
+      const ov = overrides[id];
+      if (
+        ov.customParent !== undefined ||
+        ov.customOrbitIndex !== undefined ||
+        ov.customLabel !== undefined ||
         ov.customColor !== undefined ||
         ov.customGroup !== undefined
-      )
-      .map(([id, ov]) => `${id}:${ov.customParent}:${ov.customOrbitIndex}:${ov.customLabel}:${ov.customColor}:${ov.customGroup}`),
-    ...customEdges.map(e => `${e.source}->${e.target}:${e.type}:${e.weight}`)
-  ]
-    .sort()
-    .join('|');
+      ) {
+        ovHash += `${id}:${ov.customParent}:${ov.customOrbitIndex}:${ov.customLabel}:${ov.customColor}:${ov.customGroup};`;
+      }
+    }
+    let edgeHash = '';
+    for (let i = 0; i < customEdges.length; i++) {
+      const e = customEdges[i];
+      edgeHash += `${e.source}->${e.target}:${e.type}:${e.weight};`;
+    }
+    return ovHash + '|' + edgeHash;
+  }, [overrides, customEdges]);
 
-  const customNodesHash = customNodes
-    .map(n => `${n.id}:${n.label}:${n.group}:${n.baseValue}:${n.layerId}`)
-    .sort()
-    .join('|');
+  const customNodesHash = React.useMemo(() => {
+    let hash = `${customNodes.length}:`;
+    for (let i = 0; i < customNodes.length; i++) {
+      const n = customNodes[i];
+      hash += `${n.id}:${n.label}:${n.group}:${n.baseValue}:${n.layerId};`;
+    }
+    return hash;
+  }, [customNodes]);
 
   useEffect(() => {
     if (!isActive || !engineActive) return; // 🚀 비활성화된 백그라운드 탭 상태에서는 절대 엔진을 기동/재시동하지 않음
@@ -725,7 +671,8 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
         initEngine();
       }
     }
-  }, [isActive, engineActive, overrides, customNodes, customEdges, deletedEdges, customizationHash, customNodesHash, initEngine]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive, engineActive, deletedEdges, customizationHash, customNodesHash, initEngine]);
 
   useEffect(() => {
     // 💡 이펙트 진입 시 이전 애니메이션 프레임 루프를 100% 확실히 정지하여 중복 루프를 방지합니다.
@@ -753,25 +700,31 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Resize handler
+    // Throttled Resize handler
+    let resizeTimeout: any = null;
     const resize = () => {
-      const rect = container.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      dprRef.current = dpr;
-      canvas.width = rect.width * dpr;
-      canvas.height = rect.height * dpr;
-      canvas.style.width = rect.width + 'px';
-      canvas.style.height = rect.height + 'px';
-      
-      if (engineRef.current) {
-        engineRef.current.needsRedraw = true;
-      }
-      resumePhysicsLoop();
+      if (resizeTimeout) return;
+      resizeTimeout = requestAnimationFrame(() => {
+        resizeTimeout = null;
+        if (!container || !canvas) return;
+        const rect = container.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+        dprRef.current = dpr;
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        canvas.style.width = rect.width + 'px';
+        canvas.style.height = rect.height + 'px';
+        
+        if (engineRef.current) {
+          engineRef.current.needsRedraw = true;
+        }
+        resumePhysicsLoop();
+      });
     };
 
     resize();
-    const ro = new ResizeObserver(resize);
-    ro.observe(container);
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(resize) : null;
+    ro?.observe(container);
 
     // Animation
     const loop = () => {
@@ -800,10 +753,10 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
       PerformanceProfiler.getInstance().tick();
 
       const now = performance.now();
-      const delta = now - lastFrameTime;
+      const delta = Math.min(now - lastFrameTime, 100);
       lastFrameTime = now;
 
-      if (delta > 32) {
+      if (delta > 32 && delta < 1000) {
         const diagnostic = PerformanceProfiler.getInstance().getSpikeDiagnostic(delta);
         PerformanceProfiler.getInstance().recordLagSpike(diagnostic);
       }
@@ -812,8 +765,54 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
       if (isDirty) {
         const t0 = performance.now();
         engine.render(ctx, w, h);
+        
+        // ── Draw Connection Handle and Drag Line ──
+        if (connectionSourceRef.current && connectionMousePosRef.current) {
+          const src = connectionSourceRef.current;
+          const dest = connectionMousePosRef.current;
+          
+          ctx.beginPath();
+          ctx.moveTo(src.renderX, src.renderY);
+          ctx.lineTo(dest.x, dest.y);
+          ctx.strokeStyle = '#6366f1';
+          ctx.lineWidth = 3;
+          ctx.setLineDash([4, 4]);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          
+          ctx.beginPath();
+          ctx.arc(dest.x, dest.y, 6, 0, Math.PI * 2);
+          ctx.fillStyle = '#6366f1';
+          ctx.fill();
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        } else if (engine.hoveredNode) {
+          const node = engine.hoveredNode;
+          const hx = node.renderX;
+          const hy = node.renderY - node.nodeRadius * engine.zoom - 12;
+          
+          ctx.beginPath();
+          ctx.arc(hx, hy, 9, 0, Math.PI * 2);
+          ctx.fillStyle = '#6366f1';
+          ctx.fill();
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          
+          ctx.beginPath();
+          ctx.moveTo(hx - 4, hy);
+          ctx.lineTo(hx + 4, hy);
+          ctx.moveTo(hx, hy - 4);
+          ctx.lineTo(hx, hy + 4);
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+
         const t1 = performance.now();
         PerformanceProfiler.getInstance().recordRender(t1 - t0);
+        lastFrameTime = performance.now();
         animationRef.current = requestAnimationFrame(loop);
       } else {
         animationRef.current = 0;
@@ -823,10 +822,12 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
     };
 
     resumePhysicsLoopRef.current = () => {
+      if (!isActive || document.hidden) return;
+      if (engineRef.current) {
+        engineRef.current.resume?.();
+        engineRef.current.needsRedraw = true;
+      }
       if (animationRef.current === 0) {
-        if (engineRef.current) {
-          engineRef.current.needsRedraw = true;
-        }
         lastFrameTime = performance.now();
         animationRef.current = requestAnimationFrame(loop);
       }
@@ -849,9 +850,27 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
     };
     canvas.addEventListener('wheel', wheelHandler, { passive: false });
 
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        if (animationRef.current) {
+          cancelAnimationFrame(animationRef.current);
+          animationRef.current = 0;
+        }
+        engineRef.current?.freeze();
+      } else if (isActive) {
+        engineRef.current?.resume();
+        resumePhysicsLoopRef.current?.();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
-      ro.disconnect();
+      ro?.disconnect();
+      if (resizeTimeout) {
+        cancelAnimationFrame(resizeTimeout);
+      }
       canvas.removeEventListener('wheel', wheelHandler);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
         animationRef.current = 0;
@@ -891,6 +910,14 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
     const canvas = canvasRef.current;
     if (!engine || !canvas) return;
     const { x, y } = getCanvasPos(e.nativeEvent);
+
+    if (connectionSourceRef.current) {
+      connectionMousePosRef.current = { x, y };
+      engine.handleHover(x, y);
+      engine.needsRedraw = true;
+      return;
+    }
+
     engine.handleHover(x, y);
 
     // Drag
@@ -904,9 +931,56 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
     const engine = engineRef.current;
     if (!engine) return;
     const { x, y } = getCanvasPos(e.nativeEvent);
+
+    // Check if clicked the connection handle of the hovered node!
+    if (engine.hoveredNode) {
+      const node = engine.hoveredNode;
+      const hx = node.renderX;
+      const hy = node.renderY - node.nodeRadius * engine.zoom - 12;
+      const dx = x - hx;
+      const dy = y - hy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 15) {
+        // Yes, clicked the connection handle!
+        connectionSourceRef.current = node;
+        connectionMousePosRef.current = { x, y };
+        resumePhysicsLoop();
+
+        const handleGlobalMouseUp = (upEvent: MouseEvent) => {
+          window.removeEventListener('mouseup', handleGlobalMouseUp);
+
+          const upEngine = engineRef.current;
+          if (upEngine && connectionSourceRef.current && connectionMousePosRef.current) {
+            const rect = canvasRef.current?.getBoundingClientRect();
+            if (rect) {
+              const mx = upEvent.clientX - rect.left;
+              const my = upEvent.clientY - rect.top;
+              const targetNode = upEngine.hitTest(mx, my);
+              if (targetNode && targetNode.id !== connectionSourceRef.current.id) {
+                // Connect them!
+                addCustomEdge(connectionSourceRef.current.id, targetNode.id, 'DEPENDENCY', 1.0);
+                setTimeout(() => {
+                  initEngine();
+                }, 50);
+              }
+            }
+          }
+
+          connectionSourceRef.current = null;
+          connectionMousePosRef.current = null;
+          resumePhysicsLoop();
+        };
+
+        window.addEventListener('mouseup', handleGlobalMouseUp);
+        e.stopPropagation();
+        e.preventDefault();
+        return;
+      }
+    }
+
     // Shift 클릭을 통한 카테고리 전체 그룹 드래그 지원
     engine.handleDragStart(x, y, e.shiftKey);
-  }, [getCanvasPos, resumePhysicsLoop]);
+  }, [getCanvasPos, resumePhysicsLoop, addCustomEdge, initEngine]);
 
   const handleMouseUp = useCallback(() => {
      resumePhysicsLoop();
@@ -943,11 +1017,25 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
     const engine = engineRef.current;
     if (!engine) return;
     const { x, y } = getCanvasPos(e.nativeEvent);
-    engine.handleDoubleClick(x, y);
     
-    // Sync React state
-    setActiveNode(engine.activeNode);
-  }, [getCanvasPos, resumePhysicsLoop]);
+    const hit = engine.hitTest(x, y);
+    if (hit) {
+      engine.handleDoubleClick(x, y);
+      setActiveNode(engine.activeNode);
+    } else {
+      // 빈 캔버스 더블 클릭 시 포인터 위치에 신규 노드 추가
+      const cx = engine.canvasW / 2;
+      const cy = engine.canvasH / 2;
+      const worldX = (x - cx - engine.cameraOffsetX) / engine.zoom;
+      const worldY = (y - cy - engine.cameraOffsetY) / engine.zoom;
+      
+      setAddNodePos({ x: worldX, y: worldY });
+      setSelectedGroup('OTHER');
+      setSelectedLayerId(2);
+      setIsAddingNode(true);
+      setNewNodeName("");
+    }
+  }, [getCanvasPos, resumePhysicsLoop, setActiveNode]);
 
   // ── Touch Events for Mobile ──
   const touchStartRef = useRef<{ x: number; y: number; time: number; pinchDist?: number }>({ x: 0, y: 0, time: 0 });
@@ -1441,6 +1529,7 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
                 onZoomChange={handleZoomSliderChange}
                 onAddNodeClick={() => { setIsAddingNode(true); setNewNodeName(""); }}
                 onResetCamera={handleResetCamera}
+                onClearAll={handleClearAllCustomizations}
               />
 
               {/* Sliding Wiki Panel Overlay */}
@@ -1561,28 +1650,58 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
             </div>
 
             <div className="py-2 flex flex-col gap-3">
-              <label htmlFor="modalNewNodeName" className="text-xs font-semibold text-slate-500 dark:text-slate-400">노드 이름</label>
-              <input
-                id="modalNewNodeName"
-                autoFocus
-                type="text"
-                placeholder="노드 이름을 입력하세요..."
-                value={newNodeName}
-                onChange={(e) => setNewNodeName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    if (e.cancelable) e.preventDefault();
-                    e.stopPropagation();
-                    handleExecuteAddNode();
-                  } else if (e.key === 'Escape') {
-                    if (e.cancelable) e.preventDefault();
-                    e.stopPropagation();
-                    setIsAddingNode(false);
-                    setNewNodeName("");
-                  }
-                }}
-                className="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:bg-white focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/10 text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-550 font-medium transition-all"
-              />
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="modalNewNodeName" className="text-xs font-semibold text-slate-500 dark:text-slate-400">노드 이름</label>
+                <input
+                  id="modalNewNodeName"
+                  autoFocus
+                  type="text"
+                  placeholder="노드 이름을 입력하세요..."
+                  value={newNodeName}
+                  onChange={(e) => setNewNodeName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      if (e.cancelable) e.preventDefault();
+                      e.stopPropagation();
+                      handleExecuteAddNode();
+                    } else if (e.key === 'Escape') {
+                      if (e.cancelable) e.preventDefault();
+                      e.stopPropagation();
+                      setIsAddingNode(false);
+                      setNewNodeName("");
+                    }
+                  }}
+                  className="w-full px-3.5 py-2 text-sm bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:bg-white focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/10 text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-550 font-medium transition-all"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="modalSelectedLayer" className="text-xs font-semibold text-slate-500 dark:text-slate-400">온톨로지 레이어</label>
+                <select
+                  id="modalSelectedLayer"
+                  value={selectedLayerId}
+                  onChange={(e) => setSelectedLayerId(Number(e.target.value) as OntologyLayerId)}
+                  className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:bg-white focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/10 text-slate-800 dark:text-slate-200 font-medium transition-all cursor-pointer"
+                >
+                  {Object.entries(LAYER_LABELS).map(([key, label]) => (
+                    <option key={key} value={key}>{label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="modalSelectedGroup" className="text-xs font-semibold text-slate-500 dark:text-slate-400">분류 (그룹)</label>
+                <select
+                  id="modalSelectedGroup"
+                  value={selectedGroup}
+                  onChange={(e) => setSelectedGroup(e.target.value as OntologyGroup)}
+                  className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:bg-white focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/10 text-slate-800 dark:text-slate-200 font-medium transition-all cursor-pointer"
+                >
+                  {Object.entries(GROUP_LABELS).map(([key, label]) => (
+                    <option key={key} value={key}>{label}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="flex gap-2.5 mt-2 justify-end">
@@ -1639,7 +1758,8 @@ function BottomPerformancePanel({ isActive }: BottomPerformancePanelProps) {
     maxRenderTime: 0,
     warningCount: 0,
     totalRenders: 0,
-    fps: 60
+    fps: 60,
+    isIdle: false
   });
 
   const [lagSpikes, setLagSpikes] = useState<string[]>([]);
@@ -1658,13 +1778,14 @@ function BottomPerformancePanel({ isActive }: BottomPerformancePanelProps) {
   }, [isActive]);
 
   const handleCopyMetrics = () => {
-    const cpuLoad = perfMetrics.fps > 58 ? '0.2%' : perfMetrics.fps > 50 ? '3.8%' : '14.2%';
-    const frameCompliance = perfMetrics.fps > 58 ? '98.5%' : perfMetrics.fps > 50 ? '82.0%' : '45.1%';
+    const fpsText = perfMetrics.isIdle ? `${perfMetrics.fps} FPS (대기)` : `${perfMetrics.fps} FPS`;
+    const cpuLoad = perfMetrics.isIdle ? '0.0%' : perfMetrics.fps > 58 ? '0.2%' : perfMetrics.fps > 50 ? '3.8%' : '14.2%';
+    const frameCompliance = perfMetrics.isIdle ? '100%' : perfMetrics.fps > 58 ? '98.5%' : perfMetrics.fps > 50 ? '82.0%' : '45.1%';
 
     const text = `[PORTFOLIO VITAL - 실시간 성능 지표]
-- 프레임 레이트: ${perfMetrics.fps} FPS
-- 최근 렌더 시간: ${perfMetrics.lastRenderTime.toFixed(2)}ms
-- 평균 렌더 시간: ${perfMetrics.avgRenderTime.toFixed(2)}ms
+- 프레임 레이트: ${fpsText}
+- 최근 렌더 시간: ${perfMetrics.isIdle ? '0.00' : perfMetrics.lastRenderTime.toFixed(2)}ms
+- 평균 렌더 시간: ${perfMetrics.isIdle ? '0.00' : perfMetrics.avgRenderTime.toFixed(2)}ms
 - 최대 렌더 시간: ${perfMetrics.maxRenderTime.toFixed(2)}ms
 - 지연 경고 횟수: ${perfMetrics.warningCount}회
 - 유휴 CPU 부하: ${cpuLoad}
@@ -1695,8 +1816,8 @@ ${logText}`;
     setLagSpikes([]);
   };
 
-  const cpuLoad = perfMetrics.fps > 58 ? '0.2%' : perfMetrics.fps > 50 ? '3.8%' : '14.2%';
-  const frameCompliance = perfMetrics.fps > 58 ? '98.5%' : perfMetrics.fps > 50 ? '82.0%' : '45.1%';
+  const cpuLoad = perfMetrics.isIdle ? '0.0% (대기)' : perfMetrics.fps > 58 ? '0.2%' : perfMetrics.fps > 50 ? '3.8%' : '14.2%';
+  const frameCompliance = perfMetrics.isIdle ? '100% (대기)' : perfMetrics.fps > 58 ? '98.5%' : perfMetrics.fps > 50 ? '82.0%' : '45.1%';
 
   return (
     <div className="flex flex-col gap-4">
@@ -1721,7 +1842,9 @@ ${logText}`;
               <div className="w-px h-3 bg-slate-200 dark:bg-slate-800"></div>
               <div className="flex items-center gap-1">
                 <span className={`w-1.5 h-1.5 rounded-full ${perfMetrics.fps >= 55 ? 'bg-emerald-500 animate-pulse' : perfMetrics.fps >= 30 ? 'bg-amber-500' : 'bg-rose-500'}`}></span>
-                <span className="font-sans font-black text-slate-800 dark:text-white text-[12px]">{perfMetrics.fps} FPS</span>
+                <span className="font-sans font-black text-slate-800 dark:text-white text-[12px]">
+                  {perfMetrics.fps} {perfMetrics.fps === 60 && perfMetrics.isIdle ? 'FPS (대기)' : 'FPS'}
+                </span>
               </div>
             </div>
           </div>

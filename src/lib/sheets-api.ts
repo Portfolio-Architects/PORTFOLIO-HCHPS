@@ -45,36 +45,12 @@ const clientCache = new Map<string, CacheEntry>();
 
 export async function readSheet<T>(sheetName: string): Promise<T[]> {
   try {
-    let newMeta: { mtime: number; size: number } | null = null;
     const cached = clientCache.get(sheetName);
     const now = Date.now();
 
-    // 8초 캐시 가드: 메타체크를 수행한 지 8초 미만이고 캐시가 존재하면 즉각 반환하여 RTT 단축
-    if (cached && cached.lastMetaCheck && (now - cached.lastMetaCheck) < 8000) {
+    // 5분 캐시 가드: 캐시가 존재하고 5분 미만 경과했으면 네트워크 RTT 및 JSON 파싱 없이 즉각 반환
+    if (cached && cached.lastMetaCheck && (now - cached.lastMetaCheck) < 300000) {
       return cached.data as T[];
-    }
-
-    try {
-      const metaRes = await fetch(`${API_BASE}?sheet=${encodeURIComponent(sheetName)}&meta=true&_t=${Date.now()}`, {
-        headers: { 
-          ...getAuthHeaders(),
-          'Cache-Control': 'no-cache, no-store, must-revalidate'
-        },
-        cache: 'no-store'
-      });
-      if (metaRes.ok) {
-        const metaJson = await metaRes.json();
-        if (metaJson.success && metaJson.data) {
-          const { mtime, size } = metaJson.data;
-          newMeta = { mtime, size };
-          if (cached && cached.mtime === mtime && cached.size === size) {
-            cached.lastMetaCheck = Date.now();
-            return cached.data as T[];
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('[sheets-api] Meta check failed, falling back to full fetch:', e);
     }
 
     let url = `${API_BASE}?sheet=${encodeURIComponent(sheetName)}&_t=${Date.now()}`;
@@ -238,8 +214,8 @@ export async function readSheet<T>(sheetName: string): Promise<T[]> {
       }
     }
     const finalData = validRows as T[];
-    const mtime = json.mtime || (newMeta ? newMeta.mtime : Date.now());
-    const size = json.size || (newMeta ? newMeta.size : 0);
+    const mtime = json.mtime || Date.now();
+    const size = json.size || 0;
     clientCache.set(sheetName, {
       mtime,
       size,

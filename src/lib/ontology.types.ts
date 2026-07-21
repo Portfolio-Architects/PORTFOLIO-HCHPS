@@ -147,6 +147,15 @@ export interface OrbitalNode extends OntologyNode {
   _cachedTemplate?: HTMLCanvasElement;
   _cachedTemplateColor?: string;
   _cachedTemplateCluster?: boolean;
+  _collisionW?: number;
+  _collisionH?: number;
+  _isCollisionFixed?: boolean;
+  _renormFrame?: number;
+  _themeColorId?: number;
+  _themeColor?: string;
+  _computedDotRadius?: number;
+  _isLODDot?: boolean;
+  _localZoom?: number;
 }
 
 // ============ Edge ============

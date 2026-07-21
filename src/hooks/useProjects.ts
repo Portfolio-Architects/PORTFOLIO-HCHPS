@@ -43,45 +43,51 @@ export function useProjects() {
 
   const addChecklistItem = useCallback((projectId: string, text: string) => {
     const item: ChecklistItem = { id: generateId(), text, completed: false };
-    setProjects(prev => prev.map(p => p.id === projectId
-      ? { ...p, checklistItems: [...p.checklistItems, item], updatedAt: new Date().toISOString() }
-      : p
-    ));
-    // Sync entire checklistItems array for this project
-    const project = projects.find(p => p.id === projectId);
-    if (project) {
-      syncUpdate(projectId, { checklistItems: [...project.checklistItems, item] as unknown as Project['checklistItems'], updatedAt: new Date().toISOString() });
+    let updatedChecklist: ChecklistItem[] = [];
+    setProjects(prev => prev.map(p => {
+      if (p.id === projectId) {
+        updatedChecklist = [...p.checklistItems, item];
+        return { ...p, checklistItems: updatedChecklist, updatedAt: new Date().toISOString() };
+      }
+      return p;
+    }));
+    if (updatedChecklist.length > 0) {
+      syncUpdate(projectId, { checklistItems: updatedChecklist as unknown as Project['checklistItems'], updatedAt: new Date().toISOString() });
     }
     return item;
-  }, [setProjects, projects, syncUpdate]);
+  }, [setProjects, syncUpdate]);
 
   const toggleChecklistItem = useCallback((projectId: string, itemId: string) => {
-    setProjects(prev => prev.map(p => p.id === projectId
-      ? { ...p, checklistItems: p.checklistItems.map(i => i.id === itemId ? { ...i, completed: !i.completed } : i), updatedAt: new Date().toISOString() }
-      : p
-    ));
-    const project = projects.find(p => p.id === projectId);
-    if (project) {
-      const updated = project.checklistItems.map(i => i.id === itemId ? { ...i, completed: !i.completed } : i);
-      syncUpdate(projectId, { checklistItems: updated as unknown as Project['checklistItems'], updatedAt: new Date().toISOString() });
+    let updatedChecklist: ChecklistItem[] = [];
+    setProjects(prev => prev.map(p => {
+      if (p.id === projectId) {
+        updatedChecklist = p.checklistItems.map(i => i.id === itemId ? { ...i, completed: !i.completed } : i);
+        return { ...p, checklistItems: updatedChecklist, updatedAt: new Date().toISOString() };
+      }
+      return p;
+    }));
+    if (updatedChecklist.length > 0) {
+      syncUpdate(projectId, { checklistItems: updatedChecklist as unknown as Project['checklistItems'], updatedAt: new Date().toISOString() });
     }
-  }, [setProjects, projects, syncUpdate]);
+  }, [setProjects, syncUpdate]);
 
   const deleteChecklistItem = useCallback((projectId: string, itemId: string) => {
-    setProjects(prev => prev.map(p => p.id === projectId
-      ? { ...p, checklistItems: p.checklistItems.filter(i => i.id !== itemId), updatedAt: new Date().toISOString() }
-      : p
-    ));
-    const project = projects.find(p => p.id === projectId);
-    if (project) {
-      const updated = project.checklistItems.filter(i => i.id !== itemId);
-      syncUpdate(projectId, { checklistItems: updated as unknown as Project['checklistItems'], updatedAt: new Date().toISOString() });
+    let updatedChecklist: ChecklistItem[] = [];
+    setProjects(prev => prev.map(p => {
+      if (p.id === projectId) {
+        updatedChecklist = p.checklistItems.filter(i => i.id !== itemId);
+        return { ...p, checklistItems: updatedChecklist, updatedAt: new Date().toISOString() };
+      }
+      return p;
+    }));
+    if (updatedChecklist.length > 0) {
+      syncUpdate(projectId, { checklistItems: updatedChecklist as unknown as Project['checklistItems'], updatedAt: new Date().toISOString() });
     }
-  }, [setProjects, projects, syncUpdate]);
+  }, [setProjects, syncUpdate]);
 
   const getProjectProgress = useCallback((projectId: string) => {
     const project = projects.find(p => p.id === projectId);
-    if (!project || project.checklistItems.length === 0) return 0;
+    if (!project || !project.checklistItems || project.checklistItems.length === 0) return 0;
     const completed = project.checklistItems.filter(i => i.completed).length;
     return Math.round((completed / project.checklistItems.length) * 100);
   }, [projects]);

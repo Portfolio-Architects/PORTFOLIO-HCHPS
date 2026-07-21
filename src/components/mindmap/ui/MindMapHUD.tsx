@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Printer, Maximize2, Minimize2, PlusSquare, RotateCcw } from 'lucide-react';
+import { Printer, Maximize2, Minimize2, PlusSquare, RotateCcw, Trash2 } from 'lucide-react';
 import { OrbitalNode, GROUP_COLORS, OntologyGroup } from '@/lib/ontology.types';
 
 interface MindMapHUDProps {
@@ -13,6 +13,7 @@ interface MindMapHUDProps {
   onPrintPdf: () => void;
   onAddNodeClick?: () => void;
   onResetCamera?: () => void;
+  onClearAll?: () => void;
   zoomSliderRef: React.RefObject<HTMLInputElement | null>;
   zoomLabelRef: React.RefObject<HTMLSpanElement | null>;
   onZoomChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
@@ -27,6 +28,7 @@ export const MindMapHUD = React.memo(function MindMapHUD({
   onPrintPdf,
   onAddNodeClick,
   onResetCamera,
+  onClearAll,
   zoomSliderRef,
   zoomLabelRef,
   onZoomChange
@@ -104,9 +106,17 @@ export const MindMapHUD = React.memo(function MindMapHUD({
           />
         </div>
 
+        {onClearAll && (
+          <button
+            onClick={onClearAll}
+            className="bg-white/80 backdrop-blur-md rounded-lg p-2.5 shadow-sm border border-slate-200/50 hover:bg-rose-50 hover:text-rose-600 cursor-pointer text-gray-500 transition-colors flex items-center justify-center"
+            title="마인드맵 편집 내용 전체 초기화"
+          >
+            <Trash2 size={18} />
+          </button>
+        )}
 
-
-        <div className="w-px h-6 bg-slate-300/40 mx-1"></div>
+        {onClearAll && <div className="w-px h-6 bg-slate-300/40 mx-1"></div>}
 
         {/* PDF Print/Export */}
         <button

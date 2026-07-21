@@ -6,7 +6,6 @@ import { PartialBlock } from '@blocknote/core';
 import { useCreateBlockNote, SuggestionMenuController, getDefaultReactSlashMenuItems, DefaultReactSuggestionItem } from '@blocknote/react';
 import { BlockNoteView } from '@blocknote/mantine';
 import { askLlamaStream } from '@/lib/llm-client';
-import { useGraphCustomization } from '@/hooks/useGraphCustomization';
 
 import '@blocknote/mantine/style.css';
 
@@ -61,12 +60,16 @@ export function WikiEditor(props: WikiEditorProps) {
   const { nodeId, nodeTitle, initialBlocks, onChange, onClose } = props;
 
   const wikiSyncMutation = useWikiSync();
-  const [isDark, setIsDark] = useState(false);
+  const [isDark, setIsDark] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+    return false;
+  });
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const media = window.matchMedia('(prefers-color-scheme: dark)');
-      setIsDark(media.matches);
       const listener = (e: MediaQueryListEvent) => setIsDark(e.matches);
       media.addEventListener('change', listener);
       return () => media.removeEventListener('change', listener);
@@ -91,31 +94,6 @@ export function WikiEditor(props: WikiEditorProps) {
   }, [editor, initialBlocks]);
 
   const [lastSavedMsg, setLastSavedMsg] = useState('');
-  const [isExtracting, setIsExtracting] = useState(false);
-  const { addPendingSuggestions } = useGraphCustomization();
-
-  const handleExtractSemantic = async () => {
-    setIsExtracting(true);
-    try {
-      const docText = await editor.blocksToMarkdownLossy(editor.document);
-      const fullText = `${nodeTitle}\n\n${docText}`;
-      
-      const { extractSemanticGraph } = await import('@/lib/engine/ontology-extractor');
-      const result = await extractSemanticGraph(fullText);
-
-      if (result && result.nodes) {
-        await addPendingSuggestions(result.nodes, result.edges || []);
-        alert(`시맨틱 추출 성공: ${result.nodes.length}개의 노드 및 ${result.edges?.length || 0}개의 관계가 검토 후보에 추가되었습니다.`);
-      } else {
-        alert('추출된 노드가 없습니다.');
-      }
-    } catch (err: any) {
-      // console.error(err);
-      alert(`시맨틱 추출 실패: ${err.message}`);
-    } finally {
-      setIsExtracting(false);
-    }
-  };
 
   return (
     <div className="flex flex-col h-full bg-white dark:bg-slate-950 relative">
@@ -135,14 +113,6 @@ export function WikiEditor(props: WikiEditorProps) {
               {lastSavedMsg}
             </span>
           )}
-
-          <button
-            onClick={handleExtractSemantic}
-            disabled={isExtracting}
-            className="px-3.5 py-1.5 bg-gradient-to-r from-indigo-650 to-blue-650 hover:opacity-90 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-sm transition-all duration-200 cursor-pointer flex items-center gap-1 shrink-0"
-          >
-            {isExtracting ? '추출 중...' : '✨ AI 시맨틱 추출'}
-          </button>
 
           {onClose && (
             <button 

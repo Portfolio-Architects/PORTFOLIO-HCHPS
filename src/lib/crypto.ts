@@ -1,7 +1,15 @@
 let masterKey: CryptoKey | null = null;
 let sessionAuthToken: string | null = null;
 
-const SALT = new TextEncoder().encode('HCHPS-E2EE-SALT');
+const getEncoder = () => {
+  if (typeof TextEncoder !== 'undefined') return new TextEncoder();
+  // Fallback for Node/Jest environment if global.TextEncoder is not set yet
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { TextEncoder: NodeTextEncoder } = require('util');
+  return new NodeTextEncoder();
+};
+
+const SALT = getEncoder().encode('HCHPS-E2EE-SALT');
 
 export const initCryptoContext = async (pin: string) => {
   const encoder = new TextEncoder();

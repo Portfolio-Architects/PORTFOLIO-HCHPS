@@ -3,7 +3,27 @@
 import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { BudgetCategory, BudgetEntry, InventoryItem, StockChange } from '@/types';
-import { BudgetDashboard } from '@/components/budget/BudgetDashboard';
+function BudgetDashboardSkeleton() {
+  return (
+    <div className="w-full space-y-6 animate-pulse">
+      <div className="h-10 bg-slate-200/60 dark:bg-slate-800/40 rounded-xl w-48" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="h-36 bg-slate-200/60 dark:bg-slate-800/40 rounded-[2rem]" />
+        ))}
+      </div>
+      <div className="h-64 bg-slate-200/60 dark:bg-slate-800/40 rounded-[2rem]" />
+    </div>
+  );
+}
+
+const BudgetDashboard = dynamic(
+  () => import('@/components/budget/BudgetDashboard').then((mod) => mod.BudgetDashboard),
+  {
+    ssr: false,
+    loading: () => <BudgetDashboardSkeleton />,
+  }
+);
 import { CategoryStats } from '@/hooks/useBudget';
 
 const InventoryList = dynamic(

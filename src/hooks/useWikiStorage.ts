@@ -27,6 +27,29 @@ export function getCanonicalWikiId(nodeId: string): string {
   return nodeId;
 }
 
+let cachedMapStoreRaw: string | null = null;
+let cachedMapStoreParsed: any = null;
+
+function getParsedMapStore(): any {
+  if (typeof window === 'undefined') return null;
+  const raw = localStorage.getItem('hchps-map-customization');
+  if (!raw) {
+    cachedMapStoreRaw = null;
+    cachedMapStoreParsed = null;
+    return null;
+  }
+  if (raw === cachedMapStoreRaw && cachedMapStoreParsed !== null) {
+    return cachedMapStoreParsed;
+  }
+  try {
+    cachedMapStoreRaw = raw;
+    cachedMapStoreParsed = JSON.parse(raw);
+    return cachedMapStoreParsed;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * 특정 노드(nodeId)에 해당하는 위키(에디터 블록 구조)를
  * localStorage 및 클라우드(KV)와 동기화하는 훅
@@ -101,10 +124,8 @@ export function useWikiStorage(
     // 5W1H 실시간(JIT) 마이그레이션 - 문서 열람 시점에 병합
     let originalCustomNodeId: string | null = null;
     try {
-      const mapStore = localStorage.getItem('hchps-map-customization');
-      if (mapStore) {
-        const data = JSON.parse(mapStore);
-        
+      const data = getParsedMapStore();
+      if (data) {
         // 데이터 노드와 겹치는 기존 화이트보드 커스텀 노드가 있었는지 식별
         if (nodeLabel) {
           originalCustomNodeId = findOriginalCustomNodeId(data, nodeLabel);

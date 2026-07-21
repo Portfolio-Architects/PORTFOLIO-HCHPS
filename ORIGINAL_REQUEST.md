@@ -89,3 +89,35 @@ Integrity mode: development
 
 ### Manual Verification
 - 브라우저 개발자 도구의 네트워크/성능 탭을 켜서 청크 크기 및 탭 전환 시 스레드 점유 상태를 육안 및 타임라인으로 검사합니다.
+
+## Follow-up — 2026-07-21T01:21:59Z
+
+Execute a comprehensive performance optimization across the VITAL web application to achieve ultra-fast tab switching (<50ms) and zero rendering lag by scoping top-level hooks, pausing non-active 3D WebGL render loops, caching physics calculations, and optimizing DB polling intervals.
+
+Working directory: d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL
+Integrity mode: development
+
+## Requirements
+
+### R1. Top-Level Hook Scoping & Conditional Computing
+- Update `ProtectedApp` in `src/app/page.tsx` so heavy hooks (`useMergedSignals`, `useGraphCustomization`) pause execution and skip calculations when their target view (e.g. `mindmap`) is not active.
+- Memoize `aiContextData` and signal extraction results to completely avoid re-computation during tab switches.
+
+### R2. 3D WebGL Frame Pause & Physics Freezing
+- Update `OntologyRenderer.tsx` and `MindMap3D.tsx` to immediately pause the `requestAnimationFrame` physics loop and freeze node positions when the user navigates away from the mindmap tab.
+- Instantly resume rendering upon tab activation without triggering a whiplash/re-simulation lag spike.
+
+### R3. DB Polling & React Query Refetch Optimization
+- Update `useGraphCustomization.ts` to suspend the 10-second `readSheet('MAP_CUSTOMIZATION')` polling loop when the mindmap tab is inactive or hidden (`document.visibilityState === 'hidden'`).
+- Ensure React Query refetching for `useTasks`, `useBudget`, `useInventory`, etc., is debounced and cached cleanly.
+
+### R4. Integrity & Automated Verification
+- Ensure `npx tsc --noEmit` and `node scripts/run-harness.js` complete with 0 errors, 0 warnings, 0 architectural violations, and 0 performance bottlenecks.
+
+## Acceptance Criteria
+
+### Performance & Responsiveness
+- [ ] Tab switching between Dashboard, Workspace, MindMap, and Projects responds in under 50ms without UI freezing.
+- [ ] Moving away from the 3D MindMap tab completely halts its CPU/GPU physics loop.
+- [ ] `node scripts/run-harness.js` passes with 0 errors, 0 warnings, 0 violations, and 0 bottlenecks.
+

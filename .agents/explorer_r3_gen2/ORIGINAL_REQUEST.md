@@ -1,0 +1,2 @@
+## 2026-07-16T14:26:21Z
+Investigate src/components/MindMapInspector.tsx and src/components/MindMap3D.tsx to see if all manual Node/Edge CRUD UI requirements (Objectives 1-5 in SCOPE.md) are fully met, properly hooked up to useGraphCustomization.ts, and work seamlessly. Document findings in detail (especially any bugs, missing fields, or UI/UX issues) in .agents/explorer_r3_gen2/analysis.md. Provide a clear recommendation on what (if anything) needs to be modified or fixed.

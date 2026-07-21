@@ -77,6 +77,7 @@ export interface NodeOverride {
   isHighlighted?: boolean | null;
   isCompleted?: boolean | null;
   hidden?: boolean | null;
+  hideDefaultGraph?: boolean | null;
   useCustomContext?: boolean | null;
   customContextText?: string | null;
   story5W1H?: {
@@ -617,6 +618,8 @@ export function useGraphCustomization(enabled = true) {
           const m = ydoc.getMap(name);
           Array.from(m.keys()).forEach(k => m.delete(k));
         });
+        // Set hideDefaultGraph: true on root-HCHPS override
+        ydoc.getMap('overrides').set('root-HCHPS', { hideDefaultGraph: true });
       });
     }
   }, [ydoc]);
@@ -685,14 +688,14 @@ export function useGraphCustomization(enabled = true) {
 
   // 자동 클라우드 백업 (디바운스 2500ms)
   useEffect(() => {
-    if (!cloudFetched.current || isSyncing.current) return;
+    if (!enabled || !cloudFetched.current || isSyncing.current) return;
     const timer = setTimeout(() => {
       syncToCloud(true).then(() => {
         console.log('[Auto-Save] MindMap configuration uploaded to cloud.');
       });
     }, 2500);
     return () => clearTimeout(timer);
-  }, [data, syncToCloud]);
+  }, [enabled, data, syncToCloud]);
 
   // 10초 간격 백엔드 로컬 DB 실시간 폴링 및 Yjs CRDT 실시간 병합 대신,
   // AI 추출 후보를 감지하여 pendingNodes / pendingEdges 버퍼 상태로 필터링 수집
@@ -700,71 +703,103 @@ export function useGraphCustomization(enabled = true) {
     if (!enabled || !isCloudLoaded) return;
 
     activePollCount++;
-    
-    if (!activePollInterval) {
-      console.info('[Watcher Poll] Starting global singleton polling loop.');
 
-      const runPoll = async () => {
-        try {
-          const { readSheet } = await import('@/lib/sheets-api');
-          const rows = await readSheet<MapCustomizationData & { id: string }>('MAP_CUSTOMIZATION');
+    const runPoll = async () => {
+      if (!enabled || (typeof document !== 'undefined' && document.visibilityState === 'hidden')) {
+        return;
+      }
+      try {
+        const { readSheet } = await import('@/lib/sheets-api');
+        const rows = await readSheet<MapCustomizationData & { id: string }>('MAP_CUSTOMIZATION');
+        
+        if (rows && rows.length > 0 && rows[0].id === 'singleton') {
+          const dbData = rows[0];
           
-          if (rows && rows.length > 0 && rows[0].id === 'singleton') {
-            const dbData = rows[0];
-            
-            const customNodesMap = globalYDoc.getMap('customNodesMap') as Y.Map<OntologyNode>;
-            const customEdgesMap = globalYDoc.getMap('customEdgesMap') as Y.Map<OntologyEdge>;
-            const deletedEdgesMap = globalYDoc.getMap('deletedEdgesMap') as Y.Map<boolean>;
+          const customNodesMap = globalYDoc.getMap('customNodesMap') as Y.Map<OntologyNode>;
+          const customEdgesMap = globalYDoc.getMap('customEdgesMap') as Y.Map<OntologyEdge>;
+          const deletedEdgesMap = globalYDoc.getMap('deletedEdgesMap') as Y.Map<boolean>;
 
-            const reviewedNodeIds = new Set(getReviewedNodeIds());
-            const reviewedEdgeKeys = new Set(getReviewedEdgeKeys());
+          const reviewedNodeIds = new Set(getReviewedNodeIds());
+          const reviewedEdgeKeys = new Set(getReviewedEdgeKeys());
 
-            const newPendingNodes: OntologyNode[] = [];
-            if (dbData.customNodes) {
-              dbData.customNodes.forEach((n: OntologyNode) => {
-                if (!customNodesMap.has(n.id) && !reviewedNodeIds.has(n.id) && !recentlyDeletedNodes.has(n.id)) {
-                  newPendingNodes.push(n);
-                }
-              });
-            }
+          const newPendingNodes: OntologyNode[] = [];
+          if (dbData.customNodes) {
+            dbData.customNodes.forEach((n: OntologyNode) => {
+              if (!customNodesMap.has(n.id) && !reviewedNodeIds.has(n.id) && !recentlyDeletedNodes.has(n.id)) {
+                newPendingNodes.push(n);
+              }
+            });
+          }
 
-            const newPendingEdges: OntologyEdge[] = [];
-            if (dbData.customEdges) {
-              dbData.customEdges.forEach((e: OntologyEdge) => {
-                const k = `${e.source}|||${e.target}`;
-                const r = `${e.target}|||${e.source}`;
-                
-                if (recentlyDeletedNodes.has(e.source) || recentlyDeletedNodes.has(e.target)) {
-                  return;
-                }
+          const newPendingEdges: OntologyEdge[] = [];
+          if (dbData.customEdges) {
+            dbData.customEdges.forEach((e: OntologyEdge) => {
+              const k = `${e.source}|||${e.target}`;
+              const r = `${e.target}|||${e.source}`;
+              
+              if (recentlyDeletedNodes.has(e.source) || recentlyDeletedNodes.has(e.target)) {
+                return;
+              }
 
-                if (
-                  !customEdgesMap.has(k) && !customEdgesMap.has(r) && 
-                  !reviewedEdgeKeys.has(k) && !reviewedEdgeKeys.has(r) &&
-                  !deletedEdgesMap.has(k) && !deletedEdgesMap.has(r)
-                ) {
-                  newPendingEdges.push(e);
-                }
-              });
-            }
+              if (
+                !customEdgesMap.has(k) && !customEdgesMap.has(r) && 
+                !reviewedEdgeKeys.has(k) && !reviewedEdgeKeys.has(r) &&
+                !deletedEdgesMap.has(k) && !deletedEdgesMap.has(r)
+              ) {
+                newPendingEdges.push(e);
+              }
+            });
+          }
 
+          const isNodesSame = globalPendingNodes.length === newPendingNodes.length &&
+                              globalPendingNodes.every((n, i) => n.id === newPendingNodes[i].id);
+          const isEdgesSame = globalPendingEdges.length === newPendingEdges.length &&
+                              globalPendingEdges.every((e, i) => `${e.source}|||${e.target}` === `${newPendingEdges[i].source}|||${newPendingEdges[i].target}`);
+          if (!isNodesSame || !isEdgesSame) {
             setGlobalPending(newPendingNodes, newPendingEdges);
           }
-        } catch (err) {
-          console.error('[Watcher Poll Error] Failed to auto-sync watcher DB:', err);
         }
-      };
+      } catch (err) {
+        console.error('[Watcher Poll Error] Failed to auto-sync watcher DB:', err);
+      }
+    };
 
-      runPoll();
+    const startOrResetInterval = () => {
+      if (activePollInterval) {
+        clearInterval(activePollInterval);
+        activePollInterval = null;
+      }
       activePollInterval = setInterval(() => {
         if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
           return;
         }
         runPoll();
       }, 10000);
+    };
+
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible' && enabled) {
+        runPoll();
+        startOrResetInterval();
+      }
+    };
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
+
+    if (!activePollInterval) {
+      console.info('[Watcher Poll] Starting global singleton polling loop.');
+      if (typeof document === 'undefined' || document.visibilityState !== 'hidden') {
+        runPoll();
+      }
+      startOrResetInterval();
     }
 
     return () => {
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
       activePollCount--;
       if (activePollCount <= 0 && activePollInterval) {
         console.info('[Watcher Poll] Stopping global singleton polling loop.');

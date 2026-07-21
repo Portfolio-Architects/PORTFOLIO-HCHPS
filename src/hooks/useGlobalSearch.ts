@@ -7,9 +7,8 @@ export function useGlobalSearch() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
 
-  const handleGlobalSearch = (query: string) => {
+  const handleGlobalSearch = async (query: string) => {
     setSearchQuery(query);
-    const results: SearchResultItem[] = [];
     
     // 제거할 특수문자들 (?, /) 을 지우고 실제 검색할 단어만 추출
     const cleanQuery = query.replace(/^[/?]+|[/?]+$/g, '').trim().toLowerCase();
@@ -49,10 +48,20 @@ export function useGlobalSearch() {
       mapData = JSON.parse(localStorage.getItem('hchps-map-customization') || '{}') as MapCustomizationData;
     } catch {}
 
-    // 1. Search Wiki Storage
+    const wikiKeys: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (key && key.startsWith('HCHPS-Wiki-')) {
+        wikiKeys.push(key);
+      }
+    }
+
+    const results: SearchResultItem[] = [];
+    const chunkSize = 15;
+    
+    for (let i = 0; i < wikiKeys.length; i += chunkSize) {
+      const chunk = wikiKeys.slice(i, i + chunkSize);
+      for (const key of chunk) {
         try {
           const blocks = JSON.parse(localStorage.getItem(key) || '[]');
           const text = extractTextFromBlocks(blocks);
@@ -60,19 +69,16 @@ export function useGlobalSearch() {
           
           let nodeLabel = nodeId;
           if (mapData) {
-            // 1. 커스텀 노드인지 확인
             const cNode = mapData.customNodes?.find((n) => n.id === nodeId);
             if (cNode && cNode.label) nodeLabel = cNode.label;
             
-            // 2. 오버라이드된 이름이 있다면 최우선
             const overrideLabel = mapData.overrides?.[nodeId]?.customLabel;
             if (overrideLabel) nodeLabel = overrideLabel;
           }
 
-          // fallback for auto-generated signal nodes (leaf-tag-XX-LABEL or tag-LABEL)
           if (nodeLabel === nodeId) {
             const parts = nodeId.split('-');
-            nodeLabel = parts[parts.length - 1]; // fallback to the last part
+            nodeLabel = parts[parts.length - 1];
           }
           
           const searchableText = `${nodeLabel}\n${text}`;
@@ -87,6 +93,10 @@ export function useGlobalSearch() {
         } catch (e) {
           console.error('[Search Debug] error parsing wiki blocks', e);
         }
+      }
+      // Yield to event loop between chunks to keep UI responsive
+      if (i + chunkSize < wikiKeys.length) {
+        await new Promise(r => setTimeout(r, 0));
       }
     }
 

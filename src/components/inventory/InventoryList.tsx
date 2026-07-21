@@ -1,12 +1,89 @@
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { InventoryItem, StockChange } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Modal } from '@/components/ui/modal';
 import { Plus, Pencil, Trash2, ArrowUp, ArrowDown, Package, Search } from 'lucide-react';
 
-// ============ Locally Isolated Inventory Item Card (React.memo to bypass redundant VDOM reconciliation) ============
+// ============ Responsive Column Detector ============
+function useColumnCount() {
+  const [cols, setCols] = useState(3);
+  useEffect(() => {
+    const updateCols = () => {
+      const w = window.innerWidth;
+      if (w < 640) setCols(1);
+      else if (w < 1024) setCols(2);
+      else setCols(3);
+    };
+    updateCols();
+    window.addEventListener('resize', updateCols, { passive: true });
+    return () => window.removeEventListener('resize', updateCols);
+  }, []);
+  return cols;
+}
+
+// ============ Zero-Dependency Window Virtualizer Hook ============
+function useVirtualGrid({
+  totalRows,
+  estimatedRowHeight = 265,
+  overscan = 2,
+  containerRef
+}: {
+  totalRows: number;
+  estimatedRowHeight?: number;
+  overscan?: number;
+  containerRef: React.RefObject<HTMLDivElement | null>;
+}) {
+  const [scrollTop, setScrollTop] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(800);
+  const [containerOffsetTop, setContainerOffsetTop] = useState(0);
+
+  useEffect(() => {
+    const scrollParent = document.getElementById('main-scroll-container') || window;
+    
+    const updateMetrics = () => {
+      if (!containerRef.current) return;
+      const containerRect = containerRef.current.getBoundingClientRect();
+
+      if (scrollParent === window) {
+        setScrollTop(window.scrollY);
+        setViewportHeight(window.innerHeight);
+        setContainerOffsetTop(containerRect.top + window.scrollY);
+      } else {
+        const el = scrollParent as HTMLElement;
+        const elRect = el.getBoundingClientRect();
+        setScrollTop(el.scrollTop);
+        setViewportHeight(el.clientHeight);
+        setContainerOffsetTop(containerRect.top - elRect.top + el.scrollTop);
+      }
+    };
+
+    updateMetrics();
+    scrollParent.addEventListener('scroll', updateMetrics, { passive: true });
+    window.addEventListener('resize', updateMetrics, { passive: true });
+    
+    return () => {
+      scrollParent.removeEventListener('scroll', updateMetrics);
+      window.removeEventListener('resize', updateMetrics);
+    };
+  }, [containerRef]);
+
+  const relativeScrollTop = Math.max(0, scrollTop - containerOffsetTop);
+
+  const startRowIndex = Math.max(0, Math.floor(relativeScrollTop / estimatedRowHeight) - overscan);
+  const endRowIndex = Math.min(
+    totalRows,
+    Math.ceil((relativeScrollTop + viewportHeight) / estimatedRowHeight) + overscan
+  );
+
+  const topPadding = startRowIndex * estimatedRowHeight;
+  const bottomPadding = Math.max(0, (totalRows - endRowIndex) * estimatedRowHeight);
+
+  return { startRowIndex, endRowIndex, topPadding, bottomPadding };
+}
+
+// ============ Locally Isolated Inventory Item Card ============
 const InventoryItemCard = React.memo(({
   item,
   history,
@@ -39,12 +116,11 @@ const InventoryItemCard = React.memo(({
               {item.category && <span className="inline-block mt-1 text-[11px] font-semibold text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-lg">{item.category}</span>}
             </div>
             <div className="flex gap-1 shrink-0">
-              <button onClick={() => onEdit(item)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 cursor-pointer transition-colors"><Pencil size={12} /></button>
-              <button onClick={() => onDelete(itemId)} className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 cursor-pointer transition-colors"><Trash2 size={12} /></button>
+              <button onClick={() => onEdit(item)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 cursor-pointer transition-colors" title="수정"><Pencil size={12} /></button>
+              <button onClick={() => onDelete(itemId)} className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 cursor-pointer transition-colors" title="삭제"><Trash2 size={12} /></button>
             </div>
           </div>
           
-          {/* Stock Display & Signal LED */}
           <div className="flex items-center justify-between bg-slate-50/50 rounded-2xl p-4 mb-4 border border-slate-100/50">
             <div className="flex flex-col">
               <span className="text-[12px] text-slate-500 font-semibold mb-0.5">현재 재고</span>
@@ -60,7 +136,6 @@ const InventoryItemCard = React.memo(({
         </div>
 
         <div>
-          {/* Stock Adjust Buttons */}
           <div className="flex gap-2">
             <button onClick={() => onAdjust(item, '1')} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-emerald-55 hover:bg-emerald-100/80 text-emerald-700 text-xs font-bold border border-emerald-100 transition-colors cursor-pointer shadow-3xs">
               <ArrowUp size={12} /> 입고
@@ -70,7 +145,6 @@ const InventoryItemCard = React.memo(({
             </button>
           </div>
 
-          {/* Timeline History */}
           {history.length > 0 && (
             <div className="mt-4 pt-3 border-t border-slate-100 space-y-1.5">
               <div className="text-[10px] text-slate-400 font-semibold tracking-wider uppercase mb-1">최근 변동 이력</div>
@@ -94,7 +168,6 @@ const InventoryItemCard = React.memo(({
 });
 InventoryItemCard.displayName = 'InventoryItemCard';
 
-
 // ============ Main Inventory List Component ============
 export function InventoryList({ items, addItem, updateItem, deleteItem, adjustStock, getItemHistory }: {
   items: InventoryItem[];
@@ -114,9 +187,11 @@ export function InventoryList({ items, addItem, updateItem, deleteItem, adjustSt
   const [adjChange, setAdjChange] = useState('');
   const [adjReason, setAdjReason] = useState('');
 
-  // Search & Category Filters State
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const cols = useColumnCount();
 
   const inputClass = "w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-500 transition-all font-medium";
 
@@ -131,11 +206,18 @@ export function InventoryList({ items, addItem, updateItem, deleteItem, adjustSt
     resetForm();
   };
 
+  const closeAdjustModal = useCallback(() => {
+    setShowAdjustModal(false);
+    setSelectedItem(null);
+    setAdjChange('');
+    setAdjReason('');
+  }, []);
+
   const handleAdjust = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedItem || !adjChange) return;
     adjustStock(selectedItem.id, Number(adjChange), adjReason || (Number(adjChange) > 0 ? '입고' : '출고'));
-    setShowAdjustModal(false); setAdjChange(''); setAdjReason('');
+    closeAdjustModal();
   };
 
   const resetForm = () => {
@@ -160,7 +242,6 @@ export function InventoryList({ items, addItem, updateItem, deleteItem, adjustSt
     deleteItem(id);
   }, [deleteItem]);
 
-  // Get unique categories for quick filter
   const uniqueCategories = useMemo(() => {
     const cats = new Set<string>();
     items.forEach(item => {
@@ -169,7 +250,6 @@ export function InventoryList({ items, addItem, updateItem, deleteItem, adjustSt
     return Array.from(cats);
   }, [items]);
 
-  // Filtered items list
   const filteredItems = useMemo(() => {
     const query = (searchQuery || '').toLowerCase();
     return items.filter(item => {
@@ -182,15 +262,35 @@ export function InventoryList({ items, addItem, updateItem, deleteItem, adjustSt
     });
   }, [items, searchQuery, selectedCategory]);
 
-  // Pre-calculate history statistics Map to resolve nested O(N) loop call during render
-  const itemHistoryMap = useMemo(() => {
+  const itemRows = useMemo(() => {
+    const rows: InventoryItem[][] = [];
+    for (let i = 0; i < filteredItems.length; i += cols) {
+      rows.push(filteredItems.slice(i, i + cols));
+    }
+    return rows;
+  }, [filteredItems, cols]);
+
+  const { startRowIndex, endRowIndex, topPadding, bottomPadding } = useVirtualGrid({
+    totalRows: itemRows.length,
+    estimatedRowHeight: 265,
+    overscan: 2,
+    containerRef
+  });
+
+  const visibleRows = useMemo(() => {
+    return itemRows.slice(startRowIndex, endRowIndex);
+  }, [itemRows, startRowIndex, endRowIndex]);
+
+  const visibleItemHistoryMap = useMemo(() => {
     const map = new Map<string, StockChange[]>();
-    for (const item of items) {
-      const itemId = item.id || '';
-      map.set(itemId, (getItemHistory(itemId) || []).slice(0, 3));
+    for (const row of visibleRows) {
+      for (const item of row) {
+        const itemId = item.id || '';
+        map.set(itemId, (getItemHistory(itemId) || []).slice(0, 3));
+      }
     }
     return map;
-  }, [items, getItemHistory]);
+  }, [visibleRows, getItemHistory]);
 
   return (
     <div className="space-y-5">
@@ -204,7 +304,6 @@ export function InventoryList({ items, addItem, updateItem, deleteItem, adjustSt
         </button>
       </div>
 
-      {/* Search & Category Filter Section */}
       <div className="glass-panel rounded-[2rem] p-5 shadow-2xs border border-white/20 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="relative flex-1">
           <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
@@ -261,21 +360,35 @@ export function InventoryList({ items, addItem, updateItem, deleteItem, adjustSt
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredItems.map(item => {
-            const itemId = item.id || '';
-            const history = itemHistoryMap.get(itemId) || [];
-            return (
-              <InventoryItemCard 
-                key={itemId}
-                item={item}
-                history={history}
-                onEdit={openEdit}
-                onDelete={handleDeleteItem}
-                onAdjust={openAdjust}
-              />
-            );
-          })}
+        <div ref={containerRef} className="w-full">
+          {topPadding > 0 && <div style={{ height: `${topPadding}px` }} aria-hidden="true" />}
+          
+          <div className="space-y-4">
+            {visibleRows.map((row, idx) => {
+              const rowIndex = startRowIndex + idx;
+              const rowKey = row[0]?.id || rowIndex;
+              return (
+                <div key={rowKey} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {row.map(item => {
+                    const itemId = item.id || '';
+                    const history = visibleItemHistoryMap.get(itemId) || [];
+                    return (
+                      <InventoryItemCard 
+                        key={itemId}
+                        item={item}
+                        history={history}
+                        onEdit={openEdit}
+                        onDelete={handleDeleteItem}
+                        onAdjust={openAdjust}
+                      />
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+
+          {bottomPadding > 0 && <div style={{ height: `${bottomPadding}px` }} aria-hidden="true" />}
         </div>
       )}
 
@@ -307,7 +420,7 @@ export function InventoryList({ items, addItem, updateItem, deleteItem, adjustSt
       </Modal>
 
       {/* Adjust Modal */}
-      <Modal isOpen={showAdjustModal} onClose={() => setShowAdjustModal(false)} title={`재고 조정 — ${selectedItem?.name}`} size="sm">
+      <Modal isOpen={showAdjustModal} onClose={closeAdjustModal} title={`재고 조정 — ${selectedItem?.name}`} size="sm">
         <form onSubmit={handleAdjust} className="space-y-4">
           <div className="text-center text-sm text-slate-500">현재 재고: <span className="font-bold text-slate-800">{selectedItem?.currentStock} {selectedItem?.unit}</span></div>
           <div>

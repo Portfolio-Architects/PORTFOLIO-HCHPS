@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { ModuleType } from '@/types';
-import { Archive, Zap, LayoutDashboard, Scale, Search } from 'lucide-react';
+import { Archive, Zap, LayoutDashboard, FolderGit2, Terminal } from 'lucide-react';
 
 interface TopNavProps {
   activeModule: ModuleType;
@@ -11,26 +11,18 @@ interface TopNavProps {
   appMode: 'HCHPS' | 'VITAL';
   onModeChange: (mode: 'HCHPS' | 'VITAL') => void;
   onPreloadModule?: (module: ModuleType) => void;
-  onSearch?: (query: string) => void;
+  onOpenLogs?: () => void;
 }
 
 const navItems: { id: ModuleType; label: string; icon: React.ElementType }[] = [
   { id: 'dashboard', label: '대시보드', icon: LayoutDashboard },
   { id: 'workspace', label: '예산관리', icon: Archive },
   { id: 'mindmap', label: '마인드맵', icon: Zap },
-  { id: 'law', label: '법령/지침', icon: Scale },
+  { id: 'project', label: '사업관리', icon: FolderGit2 },
 ];
 
-export function Sidebar({ activeModule, onModuleChange, appMode, onPreloadModule, onSearch }: TopNavProps) {
-  const [searchVal, setSearchVal] = useState('');
+export function Sidebar({ activeModule, onModuleChange, appMode, onPreloadModule, onOpenLogs }: TopNavProps) {
   const activeLabel = navItems.find((i) => i.id === activeModule)?.label;
-
-  const handleSearchSubmit = () => {
-    if (searchVal.trim() && onSearch) {
-      onSearch(searchVal.trim());
-      setSearchVal(''); // 모달이 뜬 뒤 입력창을 초기화
-    }
-  };
 
   return (
     <>
@@ -74,25 +66,18 @@ export function Sidebar({ activeModule, onModuleChange, appMode, onPreloadModule
               </nav>
             </div>
 
-            {/* Right side: Global Search Input */}
-            <div className="flex items-center gap-2 max-w-[240px] w-full pr-1.5">
-              <div className="relative w-full">
-                <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
-                  <Search size={13} />
-                </span>
-                <input
-                  type="text"
-                  placeholder="지식 & 파일 본문 검색..."
-                  value={searchVal}
-                  onChange={e => setSearchVal(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      handleSearchSubmit();
-                    }
-                  }}
-                  className="w-full pl-8.5 pr-3 py-1.5 bg-slate-500/5 hover:bg-slate-500/8 focus:bg-white border border-slate-200/40 focus:border-indigo-500/80 rounded-full text-[12px] font-semibold text-slate-800 placeholder:text-slate-400/80 outline-none transition-all focus:shadow-[0_0_12px_rgba(99,102,241,0.12)]"
-                />
-              </div>
+            {/* Right side: App Daemon Logs Tab */}
+            <div className="flex items-center gap-2 max-w-[200px] w-full pr-1.5">
+              <button
+                onClick={onOpenLogs}
+                className="w-full flex items-center justify-between px-3 py-1.5 bg-slate-500/5 hover:bg-slate-500/8 border border-slate-200/40 rounded-full text-[11px] font-semibold text-slate-500 hover:text-slate-800 transition-all select-none cursor-pointer"
+              >
+                <div className="flex items-center gap-2 truncate">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="truncate">구동 로그 기록</span>
+                </div>
+                <Terminal size={12} className="text-slate-400" />
+              </button>
             </div>
 
           </div>

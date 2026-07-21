@@ -111,8 +111,13 @@
    - 최적화에 성공한 구조적 패턴은 `AGENTS.md` 및 프롬프트 룰에 자율적으로 병합(Evolution)시켜 향후 생성되는 컴포넌트가 해당 고성능 아키텍처를 기본 탑재하도록 유도합니다.
 
 ## 5. 최신 동기화된 마일스톤 (Synced Milestones Log)
-- **최신 동기화 일자:** 2026-07-16
+- **최신 동기화 일자:** 2026-07-21
 - **동기화된 마일스톤:**
+  - R3: Final Gatekeeper Verification & Zero-Stall Guarantee 패치 (2026-07-21)
+  - R2: Workspace Component & Inventory List DOM Optimization 패치 (2026-07-21)
+  - R1: Initial Server Hydration & Staggered Chunk Isolation 패치 (2026-07-21)
+  - 강남 AI 메디헬스 센터 조성 사업 프로젝트 데이터 수입 및 사업관리 탭 등록 패치 (2026-07-21)
+  - 3D 마인드맵 렌더링 속도 및 GC 렉 최적화 (2026-07-16)
   - 주소록 컴포넌트(ContactsBox.tsx) startEdit useCallback 메모이제이션 패치 (2026-07-16)
   - R1/R2/R3 기능 통합 검증 및 최종 빌드 무결성 수립 패치 (2026-07-16)
   - 3D 마인드맵 렌더링 성능 최적화 패치 (2026-07-16)
@@ -120,9 +125,4 @@
   - Next.js Lazy Loading 및 skeleton UI 적용 패치 (2026-07-16)
   - React.memo 렌더링 차단 및 주간 일정/마인드맵 최적화 패치 (2026-07-16)
   - [자율 개선] 성능 최적화 및 console spams 제거 패치 (2026-07-16)
-  - [자율 개선] 성능 최적화 및 console spams 제거 패치 (2026-07-16)
-  - [자율 개선] 성능 최적화 및 console spams 제거 패치 (2026-07-16)
-  - [자율 개선] 성능 최적화 및 console spams 제거 패치 (2026-07-16)
-  - [자율 개선] 성능 최적화 및 console spams 제거 패치 (2026-07-16)
-  - [자율 개선] 성능 최적화 및 console spams 제거 패치 (2026-07-16)
-  - 그 외 과거 누적 마일스톤 총 139건 통합 요약 (초기 ~ 2026-07-15 이전 패치 내역)
+  - 그 외 과거 누적 마일스톤 총 144건 통합 요약 (초기 ~ 2026-07-16 이전 패치 내역)

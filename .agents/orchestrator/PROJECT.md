@@ -1,22 +1,18 @@
-# Project: VITAL Web Application Performance Optimization
+# Project: VITAL Web Application Performance Optimization (Phase 2026-07-21)
 
 ## Architecture
-- **Model**: Local file-based storage (`data/*.json`) loaded via `src/app/api/data/route.ts` as SSOT. Yjs CRDT is used for collaborative sync with a PartyKit backend.
+- **Model**: Local file-based storage (`data/*.json`) loaded via `src/app/api/data/route.ts` as SSOT. `localStorage` is volatile offline cache.
 - **View (UI)**:
-  - `src/app/page.tsx`: Entry point containing the modules.
-  - `src/components/dashboard/`: Dashboard subcomponents.
-  - `src/components/budget/BudgetDashboard.tsx`: Budget Management UI.
-  - `src/components/inventory/InventoryList.tsx`: Promotion Material Inventory UI.
-  - `src/components/MindMap3D.tsx`: 3D Force-Directed Mindmap component.
+  - `src/app/page.tsx`: Entry point containing ProtectedApp and heavy workspace/dashboard modules.
+  - `src/components/dashboard/`: Dashboard subcomponents (MetricsOverview, RecentActivities, QuickActions, etc.).
+  - `src/components/workspace/`: Workspace components including InventoryList, BudgetCategoryCard, Tasks, etc.
+  - `src/components/MindMap3D.tsx`: 3D WebGL Mindmap component.
 - **Controller (Hooks)**:
-  - `src/hooks/useTasks.ts`, `src/hooks/useBudget.ts`, etc. (React Query queries and mutations).
+  - `src/hooks/`: React Query custom hooks (`useTasks`, `useBudget`, `useInventory`, etc.).
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|---|---|---|---|
-| 1 | explorer_analysis | Analyze codebase for performance bottlenecks and propose optimization | None | DONE |
-| 2 | r1_initial_loading | Implement dynamic lazy loading and splash optimization | M1 | DONE |
-| 3 | r2_tab_switching | Prevent tab UI freeze using memoization and useCallback | M2 | IN_PROGRESS |
-| 4 | r3_mindmap_optimization | Optimize 3D mindmap rendering and GC (pooling, cached math) | M3 | PLANNED |
-| 5 | r4_api_fetching_cache | Configure React Query cache and stale times for hooks | M4 | PLANNED |
-| 6 | final_verification | Run build/lint, run tests, update report, run sync-rules | M5 | PLANNED |
+| 1 | M1_hydration_lazy | Initial Server Hydration & Staggered Chunk Isolation (React.lazy/dynamic with idle deferral in page.tsx / widgets) | None | DONE |
+| 2 | M2_dom_virtualization | Workspace Component & Inventory List DOM Optimization (virtualized/windowed rendering for InventoryList & BudgetCategoryCard) | M1 | DONE |
+| 3 | M3_gatekeeper_harness | Gatekeeper Verification & Zero-Stall Guarantee (tsc, run-harness.js, Engineering Report & sync-rules) | M2 | DONE |

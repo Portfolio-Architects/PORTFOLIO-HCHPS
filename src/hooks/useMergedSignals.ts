@@ -2,6 +2,9 @@ import { useMemo } from 'react';
 import { extractKeywords, SignalEntry } from '@/hooks/useSignal';
 import { Task, Project, Meeting, BudgetEntry, InventoryItem } from '@/types';
 
+const EMPTY_KEYWORD_MAP: Record<string, number> = {};
+const EMPTY_MERGED_ENTRIES: SignalEntry[] = [];
+
 export function useMergedSignals(
   signalEntries: SignalEntry[],
   keywordMap: Record<string, number>,
@@ -9,10 +12,12 @@ export function useMergedSignals(
   projects: Project[],
   meetings: Meeting[],
   budgetEntries: BudgetEntry[],
-  inventoryItems: InventoryItem[]
+  inventoryItems: InventoryItem[],
+  enabled: boolean = true
 ) {
   // ── Merge keywords from ALL Modules into Signal Map (Brain Dump) ──
   const mergedKeywordMap = useMemo(() => {
+    if (!enabled) return EMPTY_KEYWORD_MAP;
     const map: Record<string, number> = { ...keywordMap };
     
     const extractAndAdd = (text: string, tags: string[] = []) => {
@@ -33,9 +38,10 @@ export function useMergedSignals(
     for (const i of inventoryItems) extractAndAdd(i.name + ' ' + i.category);
 
     return map;
-  }, [keywordMap, tasks, projects, meetings, budgetEntries, inventoryItems]);
+  }, [enabled, keywordMap, tasks, projects, meetings, budgetEntries, inventoryItems]);
 
   const mergedEntries = useMemo(() => {
+    if (!enabled) return EMPTY_MERGED_ENTRIES;
     const buildEntry = (idPrefix: string, id: string, text: string, keywordsSource: string, tags: string[], createdAt: string, category: string) => ({
       id: `${idPrefix}-${id}`,
       text,
@@ -56,7 +62,8 @@ export function useMergedSignals(
     // Sort by createdAt descending
     const all = [...sigMap, ...taskMap, ...projectMap, ...meetingMap, ...budgetMap, ...inventoryMap];
     return all.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [signalEntries, tasks, projects, meetings, budgetEntries, inventoryItems]);
+  }, [enabled, signalEntries, tasks, projects, meetings, budgetEntries, inventoryItems]);
 
   return { mergedKeywordMap, mergedEntries };
 }
+
