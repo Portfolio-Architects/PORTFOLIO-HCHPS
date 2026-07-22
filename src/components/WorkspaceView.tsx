@@ -26,16 +26,59 @@ const BudgetDashboard = dynamic(
 );
 import { CategoryStats } from '@/hooks/useBudget';
 
+function InventoryListSkeleton() {
+  return (
+    <div className="space-y-5 animate-pulse">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="h-7 bg-slate-200/60 dark:bg-slate-800/40 rounded-lg w-32" />
+        <div className="h-10 bg-slate-200/60 dark:bg-slate-800/40 rounded-xl w-28" />
+      </div>
+      <div className="glass-panel rounded-[2rem] p-5 border border-slate-200/60 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="h-10 bg-slate-200/60 dark:bg-slate-800/40 rounded-xl flex-1" />
+        <div className="flex gap-1.5 items-center">
+          <div className="h-8 bg-slate-200/60 dark:bg-slate-800/40 rounded-lg w-12" />
+          <div className="h-8 bg-slate-200/60 dark:bg-slate-800/40 rounded-lg w-16" />
+          <div className="h-8 bg-slate-200/60 dark:bg-slate-800/40 rounded-lg w-16" />
+        </div>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="glass-panel rounded-[2rem] border border-slate-200/60 p-5 h-[245px] flex flex-col justify-between">
+            <div>
+              <div className="flex justify-between items-start mb-3">
+                <div className="space-y-2">
+                  <div className="h-5 bg-slate-200/60 dark:bg-slate-800/40 rounded w-28" />
+                  <div className="h-4 bg-slate-200/60 dark:bg-slate-800/40 rounded w-16" />
+                </div>
+                <div className="flex gap-1">
+                  <div className="h-6 w-6 bg-slate-200/60 dark:bg-slate-800/40 rounded-lg" />
+                  <div className="h-6 w-6 bg-slate-200/60 dark:bg-slate-800/40 rounded-lg" />
+                </div>
+              </div>
+              <div className="h-16 bg-slate-100/70 dark:bg-slate-800/30 rounded-2xl p-4 mb-4 border border-slate-100/50 flex items-center justify-between">
+                <div className="space-y-1">
+                  <div className="h-3 bg-slate-200/60 dark:bg-slate-800/40 rounded w-14" />
+                  <div className="h-6 bg-slate-200/60 dark:bg-slate-800/40 rounded w-20" />
+                </div>
+                <div className="h-6 bg-slate-200/60 dark:bg-slate-800/40 rounded-xl w-16" />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <div className="h-8 bg-slate-200/60 dark:bg-slate-800/40 rounded-xl flex-1" />
+              <div className="h-8 bg-slate-200/60 dark:bg-slate-800/40 rounded-xl flex-1" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const InventoryList = dynamic(
   () => import('@/components/inventory/InventoryList').then((mod) => mod.InventoryList),
   {
     ssr: false,
-    loading: () => (
-      <div className="flex flex-col items-center justify-center py-16 text-slate-500 gap-3 bg-white/60 border border-slate-200/60 rounded-[2rem] shadow-3xs">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-        <span className="text-xs font-semibold text-slate-500">홍보물 관리 화면을 로드하는 중...</span>
-      </div>
-    ),
+    loading: () => <InventoryListSkeleton />,
   }
 );
 

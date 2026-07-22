@@ -87,129 +87,6 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
     }
   }, [budgetCategories, budgetEntries, selectedProject, detailedProjects]);
 
-  // 항상 모든 사업을 표시하기 위한 독립된 데이터 (아코디언용)
-  const allBreakdownData = useMemo(() => {
-    // Pre-group categories by detailedProject in O(C)
-    const catsByDetailedProject: Record<string, BudgetCategory[]> = {};
-    detailedProjects.forEach(dp => {
-      catsByDetailedProject[dp] = [];
-    });
-    budgetCategories.forEach(c => {
-      if (c.detailedProject && catsByDetailedProject[c.detailedProject]) {
-        catsByDetailedProject[c.detailedProject].push(c);
-      }
-    });
-
-    // Aggregate entry sums by category ID in O(E)
-    const executedByCatId: Record<string, number> = {};
-    const executedNoIssuanceByCatId: Record<string, number> = {};
-    const plannedByCatId: Record<string, number> = {};
-    
-    budgetCategories.forEach(c => {
-      executedByCatId[c.id] = 0;
-      executedNoIssuanceByCatId[c.id] = 0;
-      plannedByCatId[c.id] = 0;
-    });
-
-    budgetEntries.forEach(e => {
-      if (executedByCatId[e.categoryId] !== undefined) {
-        if (!e.isPlanned && e.actionType !== 'settle') {
-          // total executed
-          if (e.actionType === 'transfer') {
-            executedByCatId[e.categoryId] -= e.amount;
-          } else {
-            executedByCatId[e.categoryId] += e.amount;
-          }
-          // executed excluding issuance
-          if (e.actionType !== 'issuance') {
-            if (e.actionType === 'transfer') {
-              executedNoIssuanceByCatId[e.categoryId] -= e.amount;
-            } else {
-              executedNoIssuanceByCatId[e.categoryId] += e.amount;
-            }
-          }
-        } else if (e.isPlanned) {
-          // planned
-          plannedByCatId[e.categoryId] += e.amount;
-        }
-      }
-    });
-
-    const projectsData = detailedProjects.map(dp => {
-      const cats = catsByDetailedProject[dp] || [];
-      const total = cats.reduce((s, c) => s + c.totalBudget, 0);
-      const executed = cats.reduce((s, c) => s + (executedByCatId[c.id] || 0), 0);
-      const rate = total > 0 ? (executed / total) * 100 : 0;
-      
-      const remaining = Math.max(0, total - executed);
-      const recommendedMonthly = Math.round(remaining / 6);
-      const historicalMonthly = Math.round(executed / 5);
-
-      // 이 세부사업의 가계획 총합
-      const plannedInProject = cats.reduce((s, c) => s + (plannedByCatId[c.id] || 0), 0);
-
-      // 이 세부사업의 가상 조정액 총합
-      let virtualAdjustmentInProject = 0;
-      cats.forEach(cat => {
-        let catVirtualAdjustment = 0;
-        if (cat.subItems) {
-          cat.subItems.forEach(sub => {
-            const hasCalcs = sub.calculations && sub.calculations.length > 0;
-            if (hasCalcs) {
-              sub.calculations?.forEach(calc => {
-                if (typeof calc.virtualAdjustment === 'number') {
-                  catVirtualAdjustment += calc.virtualAdjustment;
-                }
-              });
-            } else {
-              if (typeof sub.virtualAdjustment === 'number') {
-                catVirtualAdjustment += sub.virtualAdjustment;
-              }
-            }
-          });
-        }
-
-        // 개별 카테고리(통계목) 단위의 실제 집행액 계산 (단순 한도 배정인 issuance 교부 건은 제외)
-        const catExecuted = executedNoIssuanceByCatId[cat.id] || 0;
-        virtualAdjustmentInProject += Math.max(catExecuted, catVirtualAdjustment);
-      });
-
-      // 미설계 잔액 = 남은예산 - 가계획 - 가상조정액
-      const unplannedRemaining = remaining - plannedInProject - virtualAdjustmentInProject;
-      
-      let burnStatus: 'ACCELERATE' | 'DECELERATE' | 'OPTIMAL' = 'OPTIMAL';
-      const diffAmount = recommendedMonthly - historicalMonthly;
-      
-      if (executed > 0) {
-        if (recommendedMonthly > 1.15 * historicalMonthly) {
-          burnStatus = 'ACCELERATE';
-        } else if (recommendedMonthly < 0.85 * historicalMonthly) {
-          burnStatus = 'DECELERATE';
-        }
-      } else {
-        if (remaining > 0) {
-          burnStatus = 'ACCELERATE';
-        }
-      }
-      
-      return { 
-        name: dp, 
-        total, 
-        executed, 
-        rate,
-        remaining,
-        unplannedRemaining,
-        plannedInProject,
-        virtualAdjustmentInProject,
-        recommendedMonthly,
-        historicalMonthly,
-        burnStatus,
-        diffAmount
-      };
-    });
-    return projectsData.sort((a, b) => a.name.localeCompare(b.name));
-  }, [budgetCategories, budgetEntries, detailedProjects]);
-
 
   // Monthly Execution Trend Analysis & Target Spend-down Planner
   const { 
@@ -426,7 +303,6 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
     executionRate,
     pieData,
     breakdownData,
-    allBreakdownData,
     monthlyExecutionData,
     maxSpendMonth,
     avgMonthlySpend,

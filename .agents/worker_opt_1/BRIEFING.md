@@ -1,57 +1,49 @@
-# BRIEFING — 2026-07-15T02:29:00Z
+# BRIEFING — 2026-07-22T01:49:00Z
 
 ## Mission
-Implement and verify all performance optimizations (initial load, API speed, tab interaction responsiveness) and strict type safety fixes.
+Execute full implementation of R1, R2, R3, R4, R5 requirements for PORTFOLIO VITAL: Dashboard layout optimization, WeeklyScheduler migration to Project Management Page, Interactive UX enhancements (Modal + D&D), Multi-view support (Week, Month, Timetable), and Harness Verification / Report Sync.
 
 ## 🔒 My Identity
-- Archetype: worker_opt_1
+- Archetype: implementer / qa / specialist
 - Roles: implementer, qa, specialist
 - Working directory: d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\worker_opt_1
-- Original parent: 13e574f3-56ec-4380-adf2-b4c42e161458
-- Milestone: Performance Optimization
+- Original parent: abd93e83-754f-45e3-85ab-e2f4a8d541e0 (also requested update to e3ee9654-827a-45fd-a187-0fb5b00cf5cb)
+- Milestone: R1-R5 WeeklyScheduler Optimization & Migration
 
 ## 🔒 Key Constraints
-- CODE_ONLY network mode: No external network access.
-- strictly follow FSD / MVC architectures.
-- Do not bypass Zod validations.
+- Minimal change principle.
+- Strict layout compliance & 0 CLS layout shift.
+- Real implementation (no cheating, no hardcoding, real state updates to CRDT/JSON backend).
+- `node scripts/run-harness.js` must pass with 0 errors, 0 warnings.
+- `npm run build` must pass.
+- Update `PORTFOLIO VITAL - Engineering Report.md` and run `node scripts/sync-rules.js`.
 
 ## Current Parent
-- Conversation ID: 4585c323-d58e-452b-a630-f063db86d9eb
-- Updated: 2026-07-15T02:29:00Z
+- Conversation ID: abd93e83-754f-45e3-85ab-e2f4a8d541e0 / e3ee9654-827a-45fd-a187-0fb5b00cf5cb
+- Updated: 2026-07-22T01:49:00Z
 
 ## Task Summary
-- **What to build**: Perform optimizations across pages, API routes, Yjs sheets synchronization, 3D mindmap rendering, inspect panel, and budget stats query. Fix strict type checks.
-- **Success criteria**: Next.js production build compiler builds successfully with 0 type errors. Diagnostics reports 0 architecture violations and 0 performance bottlenecks.
-- **Interface contracts**: PROJECT.md
-
-## Key Decisions Made
-- Used dynamic imports (`ssr: false`) for lock screen, mindmap, and wiki editor components to improve initial paint time.
-- Implemented lazy background preloading of major tab views to improve transition responsiveness.
-- Added a 60ms batching holding lock in the local data api storage file read/write logic to prevent redundant file operations.
-- Separated intensive Sheets-API / Yjs sync transactions from the main HTTP response flow by running them in asynchronous timeouts.
-- Optimized 3D MindMap text measurement calculations by caching canvas measurements, eliminating frame-by-frame GC allocations.
-- Optimized budget category calculations from O(N) array scans to O(1) direct cached map lookup.
-- Implemented Lazy Conditional Rendering in `PolicyGroupCard` to avoid mounting DOM elements of collapsed sections.
-- Patched event listener wrapper types and type definitions in `bypass-unload.ts` and `sheets-api.ts` to satisfy strict TypeScript compilers.
+- **What to build**:
+  1. R1: Remove `WeeklyScheduler` from `PortfolioDashboardView.tsx`, update `PortfolioDashboardViewSkeleton` in `src/app/page.tsx`.
+  2. R2: Dynamically import `WeeklyScheduler` in `ProjectManagementPage.tsx` and add Tab Switcher ('overview' | 'scheduler').
+  3. R3: Add interactive UX (cell click create/edit modal, HTML5 drag & drop rescheduling) in `WeeklyScheduler.tsx`.
+  4. R4: Multi-view support ('week' | 'month' | 'timetable') in `WeeklyScheduler.tsx`.
+  5. R5: Run harness & build verification, append patch details to Engineering Report, and run sync-rules script.
 
 ## Change Tracker
-- **Files modified**:
-  - `src/app/page.tsx`
-  - `src/app/api/data/route.ts`
-  - `src/lib/sheets-api.ts`
-  - `src/components/MindMap3D.tsx`
-  - `src/components/MindMapInspector.tsx`
-  - `src/hooks/useBudget.ts`
-  - `src/components/budget/ui/PolicyGroupCard.tsx`
-  - `src/lib/bypass-unload.ts`
-- **Build status**: PASS
+- **Files modified**: TBD
+- **Build status**: TBD
 - **Pending issues**: None
 
 ## Quality Status
-- **Build/test result**: PASS (Next.js build succeeded, 0 errors)
-- **Lint status**: 3 warnings, 0 errors
-- **Tests added/modified**: Static code diagnostics and Zod verification run.
+- **Build/test result**: Pending
+- **Lint status**: Pending
+- **Tests added/modified**: TBD
+
+## Loaded Skills
+- None
 
 ## Artifact Index
-- `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\PORTFOLIO VITAL - Engineering Report.md` — Logs of engineering changes.
-- `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\AGENTS.md` — Synchronized rules manifest.
+- `.agents/worker_opt_1/ORIGINAL_REQUEST.md` — Original prompt request
+- `.agents/worker_opt_1/BRIEFING.md` — Agent briefing & state
+- `.agents/worker_opt_1/progress.md` — Liveness heartbeat & progress log

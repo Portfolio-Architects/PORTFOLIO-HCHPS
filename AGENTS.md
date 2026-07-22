@@ -3,16 +3,16 @@
 
 ## 1. 시스템 온톨로지 (M-V-C)
 이 저장소는 MVC 온톨로지가 혼합된 수정된 FSD(Feature-Sliced Design) 아키텍처를 엄격하게 따릅니다:
-- **모델 (스토리지)**: `src/app/api/data/route.ts` (로컬 PC 디스크 `data/*.json`)가 단일 진실 공급원(SSOT)입니다. `localStorage`는 오직 휘발성 오프라인 캐시 역할만 수행하며 절대 주 데이터 소스로 사용되지 않습니다.
-- **뷰 (UI)**: `src/components/dashboard` 및 기능별 컴포넌트들입니다. 엄격한 TailwindCSS 스타일링을 적용합니다.
-- **컨트롤러 (Hooks)**: 데이터 페칭 및 뮤테이션은 반드시 `src/hooks/` 내부의 React Query(예: `useTasks`, `useBudget`)를 통해서만 수행되어야 합니다. 컴포넌트 내에서의 직접적인 API 호출은 엄격히 금지됩니다.
+- **모델 (스토리지)**: `src/app/api/data/route.ts` (로컬 PC 디스크 `data/*.json`)가 단일 진실 공급원(SSOT)입니다. 최근 20개 변경 이력 자동 백업 및 60ms 디바운스 쓰기를 보장합니다. `localStorage`는 오직 휘발성 오프라인 캐시 역할만 수행하며 절대 주 데이터 소스로 사용되지 않습니다.
+- **뷰 (UI)**: `src/components/dashboard` 및 기능별 서브 컴포넌트(41개 UI 모듈)입니다. React 19.2.7 및 TailwindCSS v4 표준 고대비 다크 테마 시스템을 적용합니다.
+- **컨트롤러 (Hooks)**: 데이터 페칭 및 뮤테이션은 반드시 `src/hooks/` 내부의 React Query 커스텀 훅(예: `useTasks`, `useBudget`, `useInventory`)을 통해서만 수행되어야 합니다. 컴포넌트 내에서의 직접적인 fetch/API 호출은 엄격히 금지됩니다.
+- **실시간 CRDT & 영속성**: PartyKit + Yjs CRDT 세션 및 `y-indexeddb`를 결합하여 다중 디바이스 간 오프라인 지원 및 실시간 무충돌 상태 동기화를 구현합니다.
 
 ## 2. AI 에이전트 행동 수칙 (Rules of Engagement)
 
 ### A. 데이터 불변성 및 암호화
 1. **로컬 성능 최적화를 위한 E2EE 바이패스**: 로컬 개발 및 오프라인 전용 앱 특성에 맞게 새로고침 로딩 속도를 극대화하기 위해, E2EE 암호화 연산은 완전히 비활성화(Bypass)하고 평문(Plain Text) JSON 형식으로 디스크에 직접 읽고 씁니다.
 2. **좀비 데이터 방지 (Tombstones)**: 로컬 파일 시스템은 결과적 일관성 이슈가 없으나, 다중 인스턴스 동기화 복원력을 위해 삭제된 데이터가 부활하는 것을 막고자 전역 툼스톤 배열(localStorage의 `hchps-global-tombstones`)을 활용해야 합니다.
-
 
 ### B. 시끄러운 실패 (Loud Failures - 안전장치 메커니즘)
 코드를 뮤테이션하려다 Zod 스키마 검증 오류가 발생하면, 시스템이 경고를 발생시킬 것입니다 (`[HARNESS ZOD ERROR]`). 
@@ -65,6 +65,20 @@
      * **4단계 (한글(HWPX) 표준 준거 지침 준수)**:
        - HWPX 파일 변환 및 마크다운 기획 시, 반드시 [hwp_generation_guidelines.md](file:///C:/Users/user/.gemini/antigravity/brain/dd5595a2-5ca7-474f-b260-2c04417f5905/hwp_generation_guidelines.md)에 정립된 문서 유형별 레이아웃(정책/상황/회의/행사), 용지 여백(위/아래 15mm, 좌/우 20mm), 서체 크기(대제목 22pt, 일반 15pt, 참고 13pt), 다단계 항목 기호 분류(`Ⅰ.` -> `가.` -> `1)` -> `가)`), 2타 띄기 규칙(기호 후, 붙임 후, "끝." 앞) 및 문장부호 표기법(날짜, 시간, 금액, 낫표 구분)을 철저히 준수해야 합니다.
 
+### I. 서버 하이드레이션 및 청크 격리 규격 (Initial Server Hydration & Staggered Chunk Isolation)
+1. **Dynamic Import 필수 적용**: Next.js SSR 하이드레이션 불일치를 영구 차단하고 초기 JavaScript 청크 용량을 줄이기 위해 대용량 컴포넌트(`MindMap3D`, `PortfolioDashboardView`, `WorkspaceView`, `ProjectManagementPage`, `SecurityLockScreen`, `AppLogModal`, `AIAssistantModal` 등)는 반드시 `dynamic(() => import(...), { ssr: false })`로 동적 임포트합니다.
+2. **Skeleton UI 가드 배치**: 동적 임포트 시 레이아웃 시프트(CLS)를 예방하기 위해 실치수 규격의 고대비 뼈대 컴포넌트(`WeeklySchedulerSkeleton`, `MindMap3DSkeleton` 등)를 fallback으로 구현해야 합니다.
+3. **Staggered Chunk Preloading**: 초기 하이드레이션 마운트 완료 후 비동기 번들 프리로딩을 진행할 때, 메인 스레드 프리징을 막기 위해 `requestIdleCallback` 내에서 순차 지연 타이머(3.5s, 5.5s, 7.5s 등)를 적용합니다.
+
+### J. 백그라운드 탭 렌더링/폴링 일시 중지 및 Zero-Stall 규격 (Zero-Stall & Visibility Pause Standards)
+1. **탭 이탈 시 렌더링 & 폴링 일시 중지**: `document.hidden` 또는 탭 블러 시 DB 와처 폴링, 3D WebGL 물리 시뮬레이션 틱(`isPaused`), 및 React Query 백그라운드 리패치(`refetchIntervalInBackground: false`, `refetchOnWindowFocus: false`)를 완전 차단하여 Long Task stall 0ms를 보장합니다.
+2. **탭 복귀 시 안전성 보장 (Whiplash 방지)**: 탭이 `'visible'` 상태로 복귀할 때 0ms 즉각 재개하되, delta 타임스탬프 간격을 `Math.min(now - lastFrameTime, 100)`으로 클램핑하여 물리 충돌 발산 및 순간 이동 현상을 격리 차단합니다.
+
+### K. UI 가상화 및 DOM 렌더링 재구성 보장 (Virtualization & DOM Reconciliation Guard)
+1. **윈도잉 가상화 적용**: 대용량 목록 및 타일 그리드(예: `InventoryList.tsx`)는 `useVirtualGrid` 등 Zero-Dependency 윈도윈 가상화 훅을 사용하여 상/하단 스페이서 높이만 유지하고 가시 영역의 DOM 노드만 렌더링합니다.
+2. **안정적인 React Key 부여**: 가상화 목록이나 정렬 가능한 카드에는 배열 인덱스 키 사용을 엄격히 금지하고, 무작위 DOM 파괴를 막기 위해 객체의 고유 ID (`key={item.id}`)를 필수 부여합니다.
+3. **Props 메모이제이션 및 단일 경로 전달**: `React.memo`, `useCallback`, `useMemo`를 활성화하여 부모의 임시 상태 변화가 하부 카드 및 3D 시뮬레이션 캔버스 전체 리렌더링을 일으키지 않도록 $O(1)$ 범위로 스코프를 차단합니다.
+
 ## 3. 다중 에이전트 파이프라인 맵
 - `src/lib/agents/planner.ts`: 작업 분해 및 컨텍스트 검색.
 - `src/lib/agents/generator.ts`: 실행 및 코드 합성.
@@ -110,9 +124,18 @@
    - 최적화 패치 전후의 Next.js 빌드 청크 용량, 프레임 레이트(Target 60 FPS), API 응답 시간 변화를 수치화하여 분석합니다.
    - 최적화에 성공한 구조적 패턴은 `AGENTS.md` 및 프롬프트 룰에 자율적으로 병합(Evolution)시켜 향후 생성되는 컴포넌트가 해당 고성능 아키텍처를 기본 탑재하도록 유도합니다.
 
+### 4-4. Gatekeeper 검증 및 Zero-Stall 보증 규격 (Gatekeeper & Zero-Stall Standards)
+1. **전역 0-Stall 검증 조건**:
+   - `npx tsc --noEmit` (TypeScript 컴파일 0 오류)
+   - `node scripts/run-harness.js` (Zod 스키마 0 오류, ESLint 0 오류/경고, MVC 온톨로지 위반 0건)
+   - Long Task Stall (> 100ms) 0건 달성 및 유지.
+2. **자동화 검증 스위트 동기화**:
+   - 무인 자율 구동 시 위 3개 검증 스위트를 통과한 변경 건만 자율 배포(Auto-Merge)되며, 패치 완료 시 `node scripts/sync-rules.js`를 구동하여 `AGENTS.md` 하단 마일스톤 로그를 100% 최신 상태로 유지합니다.
+
 ## 5. 최신 동기화된 마일스톤 (Synced Milestones Log)
-- **최신 동기화 일자:** 2026-07-21
+- **최신 동기화 일자:** 2026-07-22
 - **동기화된 마일스톤:**
+  - [Zero-Stall Optimization] dashboard 및 workspace UI Thread Stall 제거 & 백그라운드 탭 pause 규격 준수 패치 (2026-07-22)
   - R3: Final Gatekeeper Verification & Zero-Stall Guarantee 패치 (2026-07-21)
   - R2: Workspace Component & Inventory List DOM Optimization 패치 (2026-07-21)
   - R1: Initial Server Hydration & Staggered Chunk Isolation 패치 (2026-07-21)
@@ -124,5 +147,4 @@
   - 법령/지침 표준 시스템 구축 및 홍보물(Inventory) 탭 통합 패치 (2026-07-16)
   - Next.js Lazy Loading 및 skeleton UI 적용 패치 (2026-07-16)
   - React.memo 렌더링 차단 및 주간 일정/마인드맵 최적화 패치 (2026-07-16)
-  - [자율 개선] 성능 최적화 및 console spams 제거 패치 (2026-07-16)
-  - 그 외 과거 누적 마일스톤 총 144건 통합 요약 (초기 ~ 2026-07-16 이전 패치 내역)
+  - 그 외 과거 누적 마일스톤 총 145건 통합 요약 (초기 ~ 2026-07-16 이전 패치 내역)

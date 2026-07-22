@@ -1,18 +1,18 @@
-## 2026-07-21T15:34:29Z
+## 2026-07-22T04:53:32Z
 
-You are Explorer 3 for Milestone 1: Initial Server Hydration & Staggered Chunk Isolation.
-Working directory: d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/.agents/teamwork_preview_explorer_m1_3
+You are an Explorer subagent for PORTFOLIO - VITAL (Milestone 1 - Explorer 3).
+Your working directory is: d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\teamwork_preview_explorer_m1_3
 
-Task:
-Investigate `src/app/page.tsx`, `src/components/dashboard/`, `src/components/workspace/`, and heavy widget imports for R1 performance optimization.
+Task Objective:
+Analyze System-wide Zero-Stall & Background Tab Pause & Hydration Isolation compliance across the entire codebase (AGENTS.md Sec. 2-I & Sec. 2-J).
 
-Target Goal:
-Implement lazy component initialization (React.lazy / dynamic with idle deferral) for workspace and dashboard heavy widgets so dev-server startup hydration stall stays below 50ms.
+Key Investigation Points:
+1. Scan DB watcher polling, 3D simulation ticks, and React Query hooks (`useQuery`, custom hooks in `src/hooks/`) for background tab pause (`refetchIntervalInBackground: false`, `refetchOnWindowFocus: false`, `document.hidden` pause).
+2. Scan frame delta calculations across animation loops and physics ticks for delta clamping `Math.min(now - lastFrameTime, 100)`.
+3. Audit all heavy components listed in AGENTS.md Sec. 2-I (`MindMap3D`, `PortfolioDashboardView`, `WorkspaceView`, `ProjectManagementPage`, `SecurityLockScreen`, `AppLogModal`, `AIAssistantModal`) to confirm `dynamic(() => import(...), { ssr: false })` and presence of high-contrast Skeleton UI guards (`WeeklySchedulerSkeleton`, `MindMap3DSkeleton`, etc.).
+4. Verify harness check behavior in `scripts/run-harness.js` for Zod, ESLint, and MVC ontology rules.
 
-Steps:
-1. Create your working directory if needed, initialize your BRIEFING.md and progress.md.
-2. Read and analyze the component tree and hydration hooks in `src/app/page.tsx` and child widgets.
-3. Assess how hydration stalls (>50ms) can occur on dev-server startup and how lazy initialization (e.g., wrapping non-critical widgets in requestIdleCallback / dynamic deferral components) will eliminate startup hydration stalls.
-4. Formulate a detailed, concrete fix strategy for staggered chunk isolation and lazy component initialization.
-5. Write your analysis report to `d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL/.agents/teamwork_preview_explorer_m1_3/analysis.md` and `handoff.md`.
-6. Send a message to parent with summary and file path when complete.
+Instructions:
+- Read files using `view_file` or `grep_search`. Do NOT edit source code files.
+- Document detailed findings and proposed fix strategies in `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\teamwork_preview_explorer_m1_3\analysis.md` and `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\teamwork_preview_explorer_m1_3\handoff.md`.
+- Send message back to parent orchestrator when complete.

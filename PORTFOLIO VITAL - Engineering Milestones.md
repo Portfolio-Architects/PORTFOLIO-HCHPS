@@ -2,6 +2,12 @@
 
 ## 8. 최근 엔지니어링 마일스톤 (요약)
 
+### [Zero-Stall Optimization] dashboard 및 workspace UI Thread Stall 제거 & 백그라운드 탭 pause 규격 준수 패치 (2026-07-22)
+* **Zero-Stall Optimization**:
+  - **R1 (UI Thread Stall Isolation)**: `areInventoryItemCardPropsEqual` custom prop comparator for `InventoryItemCard`, `useVirtualGrid` rAF throttling & offset caching, `usePortfolioAnalytics` dead-weight removal, `useGoogleSheet` callback memoization, `PortfolioDashboardView` key fix.
+  - **R2 (Zero-Stall & Background Tab Pause)**: `refetchOnWindowFocus: false` & `refetchIntervalInBackground: false` in data hooks, `MindMap3D` physics freeze & 33.3ms delta clamping.
+  - **R3 (Dynamic Imports & Skeleton UI Guards)**: Conditional modal tree in `page.tsx` & `BudgetDashboard`, `InventoryListSkeleton` in `WorkspaceView`, dynamic sub-modals in `MindMap3D`.
+
 ### R3: Final Gatekeeper Verification & Zero-Stall Guarantee 패치 (2026-07-21)
 * **Final Gatekeeper Verification & Zero-Stall Guarantee**:
   - Achieved 0 Long Task stalls > 100ms, 0 TypeScript compiler errors (`npx tsc --noEmit`), 0 Zod schema validation errors, and 0 ESLint errors/warnings across all 112 modules.

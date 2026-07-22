@@ -1,52 +1,56 @@
-# BRIEFING — 2026-07-15T11:46:09+09:00
+# BRIEFING — 2026-07-22T02:04:15Z
 
 ## Mission
-Fix critical Next.js build-time issue in `src/app/api/data/route.ts` where the Watcher Daemon (`startWatcherDaemon()`) is executed during Next.js build-time.
+Fix Timezone Date Formatting Defect in `src/components/dashboard/WeeklyScheduler.tsx`.
 
 ## 🔒 My Identity
-- Archetype: teamwork_preview_worker
+- Archetype: worker_opt_2 (teamwork_preview_worker)
 - Roles: implementer, qa, specialist
 - Working directory: d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\worker_opt_2
-- Original parent: 13e574f3-56ec-4380-adf2-b4c42e161458
-- Milestone: Fix build-time watcher daemon issue
+- Original parent: e3ee9654-827a-45fd-a187-0fb5b00cf5cb / abd93e83-754f-45e3-85ab-e2f4a8d541e0
+- Milestone: Timezone Date Formatting Defect Fix
 
 ## 🔒 Key Constraints
-- CODE_ONLY network mode: no external website/service access, no curl/wget targeting external URLs.
-- Write only to own folder `.agents/worker_opt_2/` for metadata.
-- Do not cheat, do not hardcode test results.
-- Keep BRIEFING.md updated under ~100 lines.
+- Fix all `.toISOString().split('T')[0]` occurrences in `WeeklyScheduler.tsx` using local `formatDateStr` helper.
+- Verify consistency across Views & Modals (ScheduleModal, Week view, Month view, Timetable view).
+- Harness check `node scripts/run-harness.js` and build `npm run build` must have 0 errors, 0 warnings.
+- Update `PORTFOLIO VITAL - Engineering Report.md` under Patch History.
+- Run `node scripts/sync-rules.js` to synchronize `AGENTS.md`.
+- Document all edits in `changes.md` and write `handoff.md`.
+- Send completion report back to parent.
 
 ## Current Parent
-- Conversation ID: 13e574f3-56ec-4380-adf2-b4c42e161458
-- Updated: yes
+- Conversation ID: e3ee9654-827a-45fd-a187-0fb5b00cf5cb
+- Updated: 2026-07-22T02:04:15Z
 
 ## Task Summary
-- **What to build**: Next.js build-time check in `src/app/api/data/route.ts` to bypass starting the watcher daemon.
-- **Success criteria**: 
-  - `node scripts/run-harness.js` reports 0 warnings, 0 violations, and 0 bottlenecks. (Pass)
-  - `npm run build` succeeds 100%. (Pass)
-  - `PORTFOLIO VITAL - Engineering Report.md` updated. (Pass)
-  - `node scripts/sync-rules.js` executed. (Pass)
-- **Interface contracts**: `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\AGENTS.md`
-- **Code layout**: FSD style: Model, View, Controller.
-
-## Key Decisions Made
-- Added a Next.js build phase detector checking `process.env.NEXT_PHASE` and `process.env.NEXT_IS_BUILDING` inside `src/app/api/data/route.ts` before triggering the watcher daemon.
-
-## Artifact Index
-- d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\PORTFOLIO VITAL - Engineering Report.md
-- d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\PORTFOLIO VITAL - Engineering Milestones.md
-- d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\AGENTS.md
+- **What to build**: Replaced all 8 occurrences of `.toISOString().split('T')[0]` with `formatDateStr` in `src/components/dashboard/WeeklyScheduler.tsx`.
+- **Success criteria**: Zero timezone offset bugs on local dates, harness and build pass cleanly (0 errors, 0 warnings), docs updated, sync script run.
+- **Code layout**: `src/components/dashboard/WeeklyScheduler.tsx`
 
 ## Change Tracker
-- **Files modified**: `src/app/api/data/route.ts`, `PORTFOLIO VITAL - Engineering Report.md`, `PORTFOLIO VITAL - Engineering Milestones.md`, `AGENTS.md`
-- **Build status**: Pass
+- **Files modified**:
+  - `src/components/dashboard/WeeklyScheduler.tsx` — Replaced `.toISOString().split('T')[0]` with `formatDateStr(d)` helper
+  - `PORTFOLIO VITAL - Engineering Report.md` — Added patch history entry
+  - `AGENTS.md` — Synced via `node scripts/sync-rules.js`
+- **Build status**: PASS (harness 0 errors, `npm run build` PASS)
 - **Pending issues**: None
 
 ## Quality Status
-- **Build/test result**: Pass
-- **Lint status**: 0 warnings, 0 violations, 0 bottlenecks
-- **Tests added/modified**: None
+- **Build/test result**: PASS
+- **Lint status**: 0 warnings, 0 violations
+- **Tests added/modified**: Verified via harness and production build
 
 ## Loaded Skills
-- None loaded yet
+- None
+
+## Key Decisions Made
+- Implemented `formatDateStr(d: Date): string` local date formatter helper in `WeeklyScheduler.tsx` to format `YYYY-MM-DD` based on local year, month, and day without UTC conversion shifts (-1 day shift in positive timezones like KST UTC+9).
+- Handled `startDate` parsing in `schedulesByDayMap` by ensuring local time parsing (`${startDate}T00:00:00`).
+
+## Artifact Index
+- `.agents/worker_opt_2/ORIGINAL_REQUEST.md` — Original user request
+- `.agents/worker_opt_2/BRIEFING.md` — Briefing document
+- `.agents/worker_opt_2/progress.md` — Progress tracker
+- `.agents/worker_opt_2/changes.md` — Detailed changes log
+- `.agents/worker_opt_2/handoff.md` — Handoff report

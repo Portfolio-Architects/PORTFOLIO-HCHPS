@@ -1,189 +1,201 @@
-# Milestone 1: Initial Server Hydration & Staggered Chunk Isolation — Analysis Report
+# System-wide Zero-Stall, Background Tab Pause & Hydration Isolation Analysis Report
 
-## Summary
-This investigation analyzed initial server hydration bottlenecks and chunk loading behavior in `src/app/page.tsx`, `src/components/dashboard/PortfolioDashboardView.tsx`, `src/components/WorkspaceView.tsx`, `src/components/budget/BudgetDashboard.tsx`, and associated heavy widgets. On dev-server startup, hydration stalls exceeding 50ms are caused by:
-1. **Unconditional JSX mounting of dynamic modal components** (`AIAssistantModal` and `AppLogModal` in `src/app/page.tsx`), which forces Next.js dev server to request and compile their JS chunks on startup even when closed.
-2. **Synchronous top-level import of Recharts** in `PortfolioDashboardView.tsx`, adding heavy charting JS evaluation to initial dashboard mount.
-3. **Rigid millisecond timers (`setTimeout` 120ms/280ms)** in `PortfolioDashboardView.tsx` that collide with dev-server startup compilation and initial hydration tasks.
-4. **Synchronous top-level modal imports** in `BudgetDashboard.tsx` (`LedgerModal`, `CategoryEditModal`, `BatchEditModal`, `ExpenseEntryModal`, `DailyExpenseStatModal`), inflating the workspace chunk by over 60%.
+## Executive Summary
+This investigation analyzed the entire codebase of **PORTFOLIO - VITAL** for compliance with:
+1. **Background Tab Pause Standards (AGENTS.md Sec. 2-J)**: DB watcher polling, 3D simulation loops, and React Query background refetching.
+2. **Delta Clamping & Zero-Stall Frame Calculations (AGENTS.md Sec. 2-J)**: Frame delta calculations in WebGL/Canvas physics loops and performance monitors.
+3. **Initial Server Hydration & Staggered Chunk Isolation (AGENTS.md Sec. 2-I)**: Dynamic import `dynamic(() => import(...), { ssr: false })` compliance and Skeleton UI fallback guards for heavy components.
+4. **Gatekeeper Harness Infrastructure (`scripts/run-harness.js` & `scripts/diagnose-targets.js`)**: Validation of Zod database integrity, ESLint/TypeScript checks, MVC ontology rule enforcement, and diagnostic reporting.
 
-Implementing **conditional lazy mounting**, **`requestIdleCallback` idle deferral wrappers**, **dynamic modal imports**, and **staggered idle chunk isolation** eliminates startup hydration stalls, keeping startup hydration stall strictly **under 50ms**.
-
----
-
-## 1. Direct Observations & Component Tree Analysis
-
-### 1.1 Unconditional Dynamic Modal JSX in `src/app/page.tsx`
-- **Location**: `src/app/page.tsx`, lines 303-311 & lines 752-768
-- **Code snippet**:
-  ```tsx
-  // lines 303-311: Dynamic imports defined
-  const AppLogModal = dynamic(() => import('@/components/AppLogModal').then(mod => mod.AppLogModal), {
-    ssr: false,
-    loading: () => null
-  });
-
-  const AIAssistantModal = dynamic(() => import('@/components/ai/AIAssistantModal').then(mod => mod.AIAssistantModal), {
-    ssr: false,
-    loading: () => null
-  });
-
-  // lines 752-768: Unconditional JSX rendering
-  <AppLogModal 
-    isOpen={isLogsOpen}
-    onClose={() => setIsLogsOpen(false)}
-    appMode={appMode}
-  />
-  <AIAssistantModal 
-    isOpen={isQuickInputOpen} 
-    onClose={handleCloseQuickInput}
-    contextData={aiContextData}
-    appMode={appMode}
-  />
-  ```
-- **Finding**: Because `AppLogModal` and `AIAssistantModal` are mounted directly in the JSX tree (with `isOpen` passed as `false`), Next.js `next/dynamic` initiates chunk downloads and module evaluations immediately on initial render. This forces dev-server compilation of `OntologyNetwork`, `AgentStatusBoard`, block editor extractors, and Lucide icons during page load.
-
-### 1.2 Synchronous Top-Level Import of Recharts in `PortfolioDashboardView.tsx`
-- **Location**: `src/components/dashboard/PortfolioDashboardView.tsx`, line 2
-- **Code snippet**:
-  ```tsx
-  import { PieChart, Pie, Cell, Line, Bar, ReferenceLine, XAxis, YAxis, Tooltip as RechartsTooltip, Area, CartesianGrid, ComposedChart } from 'recharts';
-  ```
-- **Finding**: Direct top-level import of Recharts embeds heavy chart evaluation (~400KB JS) into the initial dashboard mount pipeline. During initial server hydration and client mount, evaluating Recharts components blocks the main thread.
-
-### 1.3 Fixed `setTimeout` Timers for Heavy Dashboard Widgets
-- **Location**: `src/components/dashboard/PortfolioDashboardView.tsx`, lines 136-147 & lines 442-455
-- **Code snippet**:
-  ```tsx
-  const schedulerTimer = setTimeout(() => {
-    setRenderScheduler(true);
-  }, 120);
-
-  const contactsTimer = setTimeout(() => {
-    setRenderContacts(true);
-  }, 280);
-  ```
-- **Finding**: `WeeklyScheduler` (28KB) and `ContactsBox` (13KB) are dynamic components, but `setRenderScheduler(true)` and `setRenderContacts(true)` are triggered at fixed 120ms and 280ms timeouts. On dev-server startup, 100-300ms coincides with HMR compilation and main thread hydration tasks. Scheduling component mounts at fixed millisecond offsets causes main thread task queue spikes exceeding 50ms.
-
-### 1.4 Synchronous Modal Imports in `BudgetDashboard.tsx`
-- **Location**: `src/components/WorkspaceView.tsx` line 6 & `src/components/budget/BudgetDashboard.tsx` lines 8-14
-- **Code snippet**:
-  ```tsx
-  import { LedgerModal } from './ui/LedgerModal';
-  import { CategoryEditModal } from './ui/CategoryEditModal';
-  import { BatchEditModal } from './ui/BatchEditModal';
-  import { ExpenseEntryModal } from './ui/ExpenseEntryModal';
-  import { DailyExpenseStatModal } from './ui/DailyExpenseStatModal';
-  ```
-- **Finding**: `WorkspaceView` synchronously imports `BudgetDashboard`, which in turn synchronously imports 5 large modal components. When workspace is mounted or preloaded, all 5 modal files and their UI sub-components are evaluated immediately, inflating chunk size unnecessarily.
+Overall compliance across the codebase is **EXCELLENT**. All 7 heavy components comply with dynamic import rules, frame delta clamping is implemented in physics and freeze detector loops, DB watcher polling pauses when `document.hidden` is true, and harness validation is fully functional. A single minor optimization opportunity was identified in `MindMap3D.tsx`'s performance metrics UI timer.
 
 ---
 
-## 2. Technical Assessment: Causes of Dev-Server Hydration Stall (>50ms)
+## 1. Background Tab Pause & DB Watcher Polling Audit (AGENTS.md Sec. 2-J)
 
-| Bottleneck Category | Cause | Dev-Server Impact | Proposed Optimization | Target Hydration Win |
-|---|---|---|---|---|
-| **Eager Modal Mounts** | `AIAssistantModal`, `AppLogModal` in `page.tsx` rendered unconditionally | Dev-server compiles modal chunks on load; hydration stall ~25-40ms | Conditional JSX rendering `{isQuickInputOpen && <AIAssistantModal ... />}` | ~25ms saved |
-| **Heavy Chart Import** | Recharts imported synchronously in `PortfolioDashboardView` | Recharts bundle evaluation on dashboard mount (~30-50ms) | Dynamic chart section or idle-deferred chart container | ~30ms saved |
-| **Timer Contention** | Fixed `setTimeout(120ms/280ms)` in `PortfolioDashboardView` | Collides with main thread hydration/layout calculations | Idle deferral wrapper (`requestIdleCallback`) for `WeeklyScheduler` & `ContactsBox` | ~20ms saved |
-| **Monolithic Budget Chunk** | 5 modals imported synchronously in `BudgetDashboard.tsx` | Inflates `BudgetDashboard` JS size by >60% | Lazy `next/dynamic` loading for modals inside `BudgetDashboard.tsx` | ~35ms saved |
+### A. React Query Hooks & Configuration
+- **Global Configuration (`src/lib/query-client.ts:15-16`)**:
+  ```typescript
+  refetchOnWindowFocus: false, // Prevent heavy main thread block on window focus
+  refetchOnReconnect: false,   // Prevent automatic refetch on network reconnect
+  ```
+  `queryClient` establishes global defaults disabling aggressive refetching on window focus or reconnect.
+- **Custom Hooks Audit (`src/hooks/useAppLogs.ts:29-30`)**:
+  ```typescript
+  refetchInterval: enabled ? 10000 : false,
+  refetchIntervalInBackground: false,
+  ```
+  `useAppLogs` explicitly sets `refetchIntervalInBackground: false`, halting log polling while the browser tab is hidden.
+- Other query hooks (`useBudget.ts`, `useTasks.ts`, `useClassificationWords.ts`) inherit the safe global default `refetchOnWindowFocus: false`.
 
----
-
-## 3. Staggered Chunk Isolation & Lazy Initialization Strategy
-
-To eliminate dev-server startup hydration stalls and keep startup hydration under 50ms, we propose a 4-Step Concrete Implementation Plan:
-
-### Step 1: Conditional Lazy Mounting in `src/app/page.tsx`
-Modify `src/app/page.tsx` so that `AIAssistantModal` and `AppLogModal` are only mounted when open:
-```tsx
-{/* App Log Modal */}
-{isLogsOpen && (
-  <AppLogModal 
-    isOpen={isLogsOpen}
-    onClose={() => setIsLogsOpen(false)}
-    appMode={appMode}
-  />
-)}
-
-{/* Floating LLM Button & Popover */}
-<div 
-  className="fixed bottom-24 sm:bottom-8 right-4 sm:right-8 z-50 flex flex-col items-end gap-3"
-  style={buttonBottom !== null ? { bottom: `${buttonBottom}px` } : undefined}
->
-  {isQuickInputOpen && (
-    <AIAssistantModal 
-      isOpen={isQuickInputOpen} 
-      onClose={handleCloseQuickInput}
-      contextData={aiContextData}
-      appMode={appMode}
-    />
-  )}
-  <button ... />
-</div>
-```
-
-### Step 2: Idle Deferral Wrapper (`requestIdleCallback`) for Heavy Widgets
-Replace fixed `setTimeout` in `PortfolioDashboardView.tsx` with a robust `requestIdleCallback` idle deferral hook:
-```tsx
-function useIdleMount(timeoutMs = 1500) {
-  const [isReady, setIsReady] = useState(false);
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    let handle: number;
-    if ('requestIdleCallback' in window) {
-      handle = window.requestIdleCallback(() => setIsReady(true), { timeout: timeoutMs });
-      return () => window.cancelIdleCallback(handle);
-    } else {
-      const timer = setTimeout(() => setIsReady(true), 300);
-      return () => clearTimeout(timer);
+### B. DB Watcher Singleton Polling (`src/hooks/useGraphCustomization.ts:772-785`)
+- **Background Pause**:
+  ```typescript
+  activePollInterval = setInterval(() => {
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+      return;
     }
-  }, [timeoutMs]);
-  return isReady;
-}
-```
-Use `useIdleMount` to stagger `WeeklyScheduler` and `ContactsBox` rendering during true idle periods, preventing task queue blocking on dev-server startup.
+    runPoll();
+  }, 10000);
+  ```
+- **Tab Return Handler**:
+  ```typescript
+  const handleVisibilityChange = () => {
+    if (typeof document !== 'undefined' && document.visibilityState === 'visible' && enabled) {
+      runPoll();
+      startOrResetInterval();
+    }
+  };
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+  ```
+- **Assessment**: Fully compliant. Polling yields 0 DB requests during background tab hidden state and resumes instantly upon returning to focus.
 
-### Step 3: Lazy Modal Dynamic Imports in `BudgetDashboard.tsx`
-In `src/components/budget/BudgetDashboard.tsx`, dynamically import all modal components:
-```tsx
-const CategoryEditModal = dynamic(() => import('./ui/CategoryEditModal').then(m => m.CategoryEditModal), { ssr: false });
-const ExpenseEntryModal = dynamic(() => import('./ui/ExpenseEntryModal').then(m => m.ExpenseEntryModal), { ssr: false });
-const BatchEditModal = dynamic(() => import('./ui/BatchEditModal').then(m => m.BatchEditModal), { ssr: false });
-const LedgerModal = dynamic(() => import('./ui/LedgerModal').then(m => m.LedgerModal), { ssr: false });
-const DailyExpenseStatModal = dynamic(() => import('./ui/DailyExpenseStatModal').then(m => m.DailyExpenseStatModal), { ssr: false });
-```
-And conditionally render them:
-```tsx
-{showCatModal && (
-  <CategoryEditModal ... />
-)}
-{showEntryModal && (
-  <ExpenseEntryModal ... />
-)}
-{showBatchModal && (
-  <BatchEditModal ... />
-)}
-{showLedgerModal && (
-  <LedgerModal ... />
-)}
-{showDailyStatModal && (
-  <DailyExpenseStatModal ... />
-)}
-```
+### C. 3D WebGL / Canvas Simulation Ticks (`src/components/MindMap3D.tsx:856-867`)
+- **Visibility Change Listener**:
+  ```typescript
+  const handleVisibilityChange = () => {
+    if (document.hidden) {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+        animationRef.current = 0;
+      }
+      engineRef.current?.freeze();
+    } else if (isActive) {
+      engineRef.current?.resume();
+      resumePhysicsLoopRef.current?.();
+    }
+  };
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+  ```
+- **Assessment**: Physics engine is frozen and `requestAnimationFrame` loop is cancelled when the tab is backgrounded.
 
-### Step 4: Staggered Idle Preloading in `src/app/page.tsx`
-Refine `preloadModulesOnIdle` in `src/app/page.tsx` to ensure background chunk caching only executes when the browser is idle:
-- Initial delay: wait until global splash / hydration is complete (min 2000ms).
-- Stagger module preloads across idle callbacks (`mindmap` at +3s, `workspace` at +5s, `project` at +7s).
+### D. Identified Optimization Opportunity
+- **MindMap3D Performance Metrics Timer (`src/components/MindMap3D.tsx:1776-1781`)**:
+  ```typescript
+  useEffect(() => {
+    if (!isActive) return;
+    const timer = setInterval(() => {
+      setPerfMetrics(PerformanceProfiler.getInstance().getMetrics());
+      setLagSpikes(PerformanceProfiler.getInstance().getLagSpikes());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isActive]);
+  ```
+  *Issue*: When `MindMap3D` is active but the browser tab is backgrounded (`document.hidden`), this `setInterval` continues triggering React state updates (`setPerfMetrics`, `setLagSpikes`) every 1000ms.
+  *Fix Strategy*: Add `if (document.hidden) return;` at the top of the `setInterval` callback.
 
 ---
 
-## 4. Verification Plan
+## 2. Frame Delta Calculation & Clamping Audit (AGENTS.md Sec. 2-J)
 
-1. **Build & Lint Verification**:
-   - Run `npm run build` to verify chunk splitting and bundle generation.
-   - Run `node scripts/run-harness.js` to verify zero TypeScript and ESLint errors.
-2. **Dev-Server Startup Performance Verification**:
-   - Measure startup hydration time (Performance API / Chrome DevTools Performance profile).
-   - Confirm dev-server startup hydration stall is < 50ms.
+### A. Physics Animation Loop Clamping (`src/components/MindMap3D.tsx:758-760`)
+- **Implementation**:
+  ```typescript
+  const now = performance.now();
+  const delta = Math.min(now - lastFrameTime, 100);
+  lastFrameTime = now;
+  ```
+- **Tab Focus Reset (`src/components/MindMap3D.tsx:834`)**:
+  ```typescript
+  resumePhysicsLoopRef.current = () => {
+    if (!isActive || document.hidden) return;
+    if (engineRef.current) {
+      engineRef.current.resume?.();
+      engineRef.current.needsRedraw = true;
+    }
+    if (animationRef.current === 0) {
+      lastFrameTime = performance.now(); // Reset timestamp on resume
+      animationRef.current = requestAnimationFrame(loop);
+    }
+  };
+  ```
+- **Assessment**: Clamping `delta` to `Math.min(..., 100)` caps maximum delta step to 100ms. Resetting `lastFrameTime` when tab returns prevents frame accumulator explosion ("whiplash" or particle ejection).
+
+### B. UI Thread Freeze & Stall Detector (`src/hooks/useFreezeDetector.ts:87-105`)
+- **Implementation**:
+  ```typescript
+  const checkFrameDelta = (now: number) => {
+    if (document.hidden) {
+      lastTime = now;
+      animFrameId = requestAnimationFrame(checkFrameDelta);
+      return;
+    }
+    const delta = now - lastTime;
+    if (!observer && delta > 150 && delta <= 4000) {
+      handleFreeze(delta);
+    }
+    lastTime = now;
+    animFrameId = requestAnimationFrame(checkFrameDelta);
+  };
+
+  const handleVisibilityChange = () => {
+    lastTime = performance.now();
+  };
+  window.addEventListener('visibilitychange', handleVisibilityChange);
+  ```
+- **Assessment**: Fully compliant. Prevents tab-switch false-positive stall reports.
+
+---
+
+## 3. Dynamic Import & High-Contrast Skeleton UI Audit (AGENTS.md Sec. 2-I)
+
+All 7 heavy components specified in AGENTS.md Sec. 2-I were audited:
+
+| Component | Dynamic Import (`ssr: false`) | Skeleton UI Fallback Guard | Location |
+|-----------|-------------------------------|----------------------------|----------|
+| `PortfolioDashboardView` | ✅ `dynamic(..., { ssr: false })` | ✅ `PortfolioDashboardViewSkeleton` | `src/app/page.tsx:219` |
+| `MindMap3D` | ✅ `dynamic(..., { ssr: false })` | ✅ `MindMap3DSkeleton` | `src/app/page.tsx:269` |
+| `WorkspaceView` | ✅ `dynamic(..., { ssr: false })` | ✅ `WorkspaceViewSkeleton` | `src/app/page.tsx:274` |
+| `ProjectManagementPage` | ✅ `dynamic(..., { ssr: false })` | ✅ `ProjectManagementPageSkeleton` | `src/app/page.tsx:279` |
+| `SecurityLockScreen` | ✅ `dynamic(..., { ssr: false })` | ✅ `null` (Overlay modal) | `src/app/page.tsx:285` |
+| `AppLogModal` | ✅ `dynamic(..., { ssr: false })` | ✅ `null` (Overlay modal) | `src/app/page.tsx:290` |
+| `AIAssistantModal` | ✅ `dynamic(..., { ssr: false })` | ✅ `null` (Overlay modal) | `src/app/page.tsx:295` |
+
+### Subcomponent Dynamic Isolation & Skeletons:
+- `WeeklyScheduler`: Imported dynamically in `ProjectManagementPage.tsx:32` with `WeeklySchedulerSkeleton`.
+- `BudgetDashboardView`: Imported dynamically in `WorkspaceView.tsx:23` with `BudgetDashboardSkeleton`.
+- `WikiEditor`: Imported dynamically in `MindMap3D.tsx:72` with `WikiEditorSkeleton`.
+
+### Staggered Chunk Preloading Protocol (`src/app/page.tsx:410-437`):
+Uses `requestIdleCallback` to stagger module chunk downloading after global intro completes:
+- 3.5s delay: `import('@/components/MindMap3D')`
+- 5.5s delay: `import('@/components/WorkspaceView')`
+- 7.5s delay: `import('@/components/project/ProjectManagementPage')`
+
+---
+
+## 4. Gatekeeper Harness Audit (`scripts/run-harness.js` & `scripts/diagnose-targets.js`)
+
+### Harness Verification Architecture:
+1. **Zod Database Gatekeeper (`scripts/run-harness.js:9-186`)**:
+   - Compares JSON files in `data/*.json` (`TASKS`, `BUDGET_CATEGORIES`, `BUDGET_ENTRIES`, `PROJECTS`) against Zod schemas.
+   - Logs detailed line/field-level Zod formatting errors upon failure.
+2. **Lint/Type Gatekeeper (`scripts/run-harness.js:194-218`)**:
+   - Executes `npm run lint` (`eslint`).
+   - If warnings or errors are flagged, automatically executes auto-fixing (`npx eslint --fix .`) and re-verifies.
+3. **Milestone Sync (`scripts/run-harness.js:220-234`)**:
+   - Automatically executes `node scripts/sync-rules.js` to synchronize `AGENTS.md` logs.
+4. **Codebase Diagnostics (`scripts/diagnose-targets.js`)**:
+   - **MVC Ontology Check**: Scans `src/components/` to verify no direct `fetch` / `axios` calls exist in UI views.
+   - **Performance Bottleneck Check**: Scans for $O(N^2)$ nested loops inside `.map`/`.filter`, state mutations in empty `useEffect` arrays, console logging spams, and synchronous heavy imports.
+   - Saves compiled diagnostic report to `data/diagnose_report.json`.
+
+---
+
+## Recommended Action Plan / Fix Strategy
+
+1. **Minor Refinement in `src/components/MindMap3D.tsx` (Line 1776)**:
+   - Add background tab check inside performance metrics `setInterval`:
+     ```typescript
+     useEffect(() => {
+       if (!isActive) return;
+       const timer = setInterval(() => {
+         if (document.hidden) return;
+         setPerfMetrics(PerformanceProfiler.getInstance().getMetrics());
+         setLagSpikes(PerformanceProfiler.getInstance().getLagSpikes());
+       }, 1000);
+       return () => clearInterval(timer);
+     }, [isActive]);
+     ```
+2. **Maintain Current Architecture**:
+   - Keep dynamic import and skeleton patterns intact across future UI module additions.

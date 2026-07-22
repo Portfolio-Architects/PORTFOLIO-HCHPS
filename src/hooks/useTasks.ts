@@ -80,6 +80,8 @@ export function useTasks() {
     queryKey: ['TASKS'],
     queryFn: () => readSheet<Task>('TASKS'),
     staleTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
+    refetchIntervalInBackground: false,
   });
 
   const addTaskMut = useMutation({

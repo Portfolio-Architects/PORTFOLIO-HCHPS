@@ -37,12 +37,16 @@ export function useBudget() {
     queryKey: ['BUDGET_CATEGORIES'],
     queryFn: () => readSheet<BudgetCategory>('BUDGET_CATEGORIES'),
     staleTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
+    refetchIntervalInBackground: false,
   });
 
   const { data: entries = [], isLoading: entryLoading } = useQuery({
     queryKey: ['BUDGET_ENTRIES'],
     queryFn: () => readSheet<BudgetEntry>('BUDGET_ENTRIES'),
     staleTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
+    refetchIntervalInBackground: false,
   });
 
   // Deduplicate categories based on a composite key to prevent double-counting

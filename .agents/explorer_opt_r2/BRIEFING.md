@@ -1,44 +1,39 @@
-# BRIEFING — 2026-07-16T10:52:00+09:00
+# BRIEFING — 2026-07-22T01:49:00Z
 
 ## Mission
-Analyze static import patterns for heavy components (MindMap3D, WeeklyScheduler, WikiEditor), design dynamic import wrappers with `{ ssr: false }` and loading placeholders to optimize FCP and CLS.
+Investigate `src/components/project/ProjectManagementPage.tsx` and related components for R2 migration (migrating Schedule Planner into Project Management module and integrating project schedule data).
 
 ## 🔒 My Identity
-- Archetype: explorer
-- Roles: Teamwork explorer
+- Archetype: teamwork_preview_explorer
+- Roles: Explorer / Analyst
 - Working directory: d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\explorer_opt_r2
-- Original parent: cd53f6a5-33fc-4a9f-afd8-3fdda3a0de24
-- Milestone: R2 (Lazy Loading & FCP Analysis)
+- Original parent: abd93e83-754f-45e3-85ab-e2f4a8d541e0 / e3ee9654-827a-45fd-a187-0fb5b00cf5cb
+- Milestone: R2 Project Management Schedule Planner Integration
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement code changes.
-- Analyze import patterns for heavy components (MindMap3D, WeeklyScheduler, WikiEditor).
-- Design dynamic import wrappers with `{ ssr: false }` and loading placeholders.
-- Write findings to d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\explorer_opt_r2\analysis.md.
-- Respond with a summary and send message to parent when done.
+- Read-only investigation — do NOT implement code changes directly in source code files.
+- Deliver analysis, proposals, diff patch / proposed changes in analysis.md and handoff.md.
+- Ensure compliance with AGENTS.md hydration & staggered chunk rules.
 
 ## Current Parent
-- Conversation ID: cd53f6a5-33fc-4a9f-afd8-3fdda3a0de24
-- Updated: 2026-07-16T10:55:00+09:00
+- Conversation ID: abd93e83-754f-45e3-85ab-e2f4a8d541e0 / e3ee9654-827a-45fd-a187-0fb5b00cf5cb
+- Updated: 2026-07-22T01:49:00Z
 
 ## Investigation State
-- **Explored paths**:
-  - `src/components/MindMap3D.tsx`
-  - `src/components/dashboard/WeeklyScheduler.tsx`
-  - `src/components/WikiEditor.tsx`
-  - `src/components/dashboard/PortfolioDashboardView.tsx`
-  - `src/app/page.tsx`
+- **Explored paths**: `src/components/project/ProjectManagementPage.tsx`, `src/components/dashboard/WeeklyScheduler.tsx`, `src/components/dashboard/PortfolioDashboardView.tsx`, `src/hooks/useSchedules.ts`, `src/hooks/useProjects.ts`, `src/types/index.ts`.
 - **Key findings**:
-  - `WikiEditor` is statically imported inside `MindMap3D.tsx`, leaking heavy BlockNote/Mantine dependencies (~350KB+ gzip) into the initial load of the 3D Mindmap.
-  - `WeeklyScheduler` is loaded dynamically but its fallback height (`h-[300px]`) does not match the actual component height (`h-[620px]`), causing CLS of ~320px.
-  - Props are completely safe to pass dynamically; no refs require forwarding.
-- **Unexplored areas**: None. Investigation complete.
+  - `ProjectManagementPage.tsx` has 2 columns: Project list sidebar + Detail panel.
+  - Recommended tab structure inside Right Detail Panel: `activeTab: 'overview' | 'schedule'`.
+  - Schedule Planner component `WeeklyScheduler` should be dynamically imported with `ssr: false` and `WeeklySchedulerSkeleton`.
+  - Project schedule data integration: project timeline banner, auto-populated project staff/notes in schedule registration form.
+- **Unexplored areas**: None.
 
 ## Key Decisions Made
-- Decided to wrap `WikiEditor` with dynamic client-side loading (`ssr: false`) inside `MindMap3D.tsx`.
-- Designed HTML/Tailwind skeleton loaders for all three components to eliminate CLS and improve FCP transitions.
+- Formulated tab switcher UI specification and full proposed diff patch in `analysis.md` and `handoff.md`.
 
 ## Artifact Index
-- d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\explorer_opt_r2\analysis.md — Deep analysis and refactoring proposal for heavy components.
-- d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\explorer_opt_r2\handoff.md — Standard 5-component handoff report.
-
+- `.agents/explorer_opt_r2/ORIGINAL_REQUEST.md` — Original request text
+- `.agents/explorer_opt_r2/BRIEFING.md` — Briefing index
+- `.agents/explorer_opt_r2/progress.md` — Liveness heartbeat
+- `.agents/explorer_opt_r2/analysis.md` — Detailed analysis report & code diff proposal
+- `.agents/explorer_opt_r2/handoff.md` — 5-component handoff report

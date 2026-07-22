@@ -1141,8 +1141,6 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                                       deleteCustomNode(targetNode.id);
                                     }
                                   }
-                                  
-                                  setNodeOverride(targetNode.id, { hidden: true });
                                 }
 
                                 if (engineRef.current) {

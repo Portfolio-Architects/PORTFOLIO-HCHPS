@@ -38,15 +38,15 @@
 
 | 지표 | 수치 |
 |------|------|
-| TypeScript/TSX 파일 수 | **112개** (40 TSX, 72 TS) |
-| 총 코드 라인 수 | **26,318줄** |
-| 총 커밋 수 | **313** |
-| 컴포넌트 모듈 | **9개** (ai, budget, dashboard, inventory, knowledge, meeting, mindmap, project, ui — 총 35개 파일) |
-| 로컬 서버 함수 (API Routes) | **10개** (api/data, llm/chat, api/ai-linker, api/auth, api/drive, api/file-radar, api/law, api/llm/extract, api/local-contacts, api/report-generator) |
-| 커스텀 훅 | **29개** |
-| 라이브러리 계층 | **4개** (lib, hooks, types, party) |
-| 엔진 하위 모듈 | **4개** (OntologyCanvasEngine, OntologyLayout, OntologyNetwork, OntologyRenderer) |
-| 도메인 타입 | **10개** (Task, BudgetEntry, InventoryItem, Meeting, Project, KnowledgeEntry, DocumentEntry, OntologyNode, OntologyEdge, OntologyGroup) |
+| TypeScript/TSX 파일 수 | **130개** (41 components, 33 hooks, 31 lib, 16 app, 1 party, 1 proxy, 1 store, 1 types, 5 root) |
+| 총 코드 라인 수 | **31,030줄** |
+| 총 커밋 수 | **313+** |
+| 컴포넌트 모듈 | **7개 서브 모듈** (mindmap: 6, dashboard: 6, budget: 9, inventory: 1, law/project: 3, ai/modals: 10, ui: 6 — 총 **41개 파일**, 13,254 LOC) |
+| 로컬 서버 함수 (API Routes) | **10개 API 라우트 핸들러** (`src/app/api/`) + **1개 LLM 스트리밍 차트 라우트** (`src/app/llm/chat/route.ts`) |
+| 커스텀 훅 | **33개** (`src/hooks/`, 4,566 LOC) |
+| 라이브러리 계층 | **31개 모듈 파일** (`src/lib/`, 9,328 LOC) |
+| 엔진 하위 모듈 | **7개 핵심 모듈** (OntologyCanvasEngine, OntologyLayout, OntologyNetwork, OntologyRenderer, PerformanceProfiler, ontology-extractor, watcher) |
+| 도메인 타입 | **10개 주요 타입** (Task, BudgetEntry, InventoryItem, Meeting, Project, KnowledgeEntry, DocumentEntry, OntologyNode, OntologyEdge, OntologyGroup) |
 
 ---
 
@@ -58,7 +58,7 @@ graph TB
         Page["page.tsx (SPA 진입점)"]
         Sidebar["Sidebar (모듈 네비게이션)"]
         Views["WorkspaceView / TaskWisdomView / MindMap3D"]
-        Components["30개 이상 기능 컴포넌트"]
+        Components["41개 기능 컴포넌트"]
     end
 
     subgraph Engine["온톨로지 캔버스 엔진 (Vanilla TS)"]
@@ -71,7 +71,7 @@ graph TB
     subgraph Hooks["상태 및 동기화 계층"]
         YjsStore["useYjsStore\n(CRDT 문서)"]
         GraphCustom["useGraphCustomization\n(useSyncExternalStore)"]
-        DomainHooks["useTasks / useBudget / useKnowledge\n+ 도메인 훅 8개"]
+        DomainHooks["useTasks / useBudget / useKnowledge\n+ 커스텀 훅 33개"]
     end
 
     subgraph Realtime["실시간 인프라"]
@@ -81,7 +81,7 @@ graph TB
     end
 
     subgraph Server["로컬 PC 서버 (Next.js 백엔드)"]
-        API["Next.js API 라우트\n(/api/data)"]
+        API["Next.js API 라우트\n(/api/data + 10개 엔드포인트)"]
         LocalJSON["로컬 JSON 파일 스토어\n(data/*.json + 20개 백업)"]
         LLMChat["Next.js LLM 라우트\n(/llm/chat)"]
         GeminiAI["Google Gemini API"]
@@ -112,37 +112,39 @@ data/                   → 로컬 PC 데이터베이스 저장 폴더
 ├── *.json              → 각 시트별 평문(Plain Text) JSON 데이터 파일 (E2EE Bypass 상태)
 └── backups/            → 최근 20개 변경 이력 자동 백업 디렉토리
 src/
-├── app/                → 라우트 및 페이지 (SPA — page.tsx + layout.tsx)
-│   ├── api/            → Next.js API Routes (data, auth, drive, law 등 총 8개 라우터)
-│   ├── llm/            → Next.js 로컬 LLM 통신 및 백오프 재시도 라우터 (chat, extract)
-├── components/         → 기능별 UI (총 35개 파일)
-│   ├── ai/, budget/, dashboard/, inventory/, meeting/, mindmap/, project/, ui/
+├── app/                → 라우트 및 페이지 (SPA — page.tsx + layout.tsx, 16개 파일, 3,368 LOC)
+│   ├── api/            → Next.js API Routes (10개 엔드포인트 라우터)
+│   ├── llm/            → Next.js 로컬 LLM 통신 및 백오프 재시도 라우터 (chat 스트리밍)
+├── components/         → 기능별 UI (총 41개 파일, 13,254 LOC, 7개 서브 모듈)
+│   ├── ai/, budget/, dashboard/, inventory/, law/, meeting/, mindmap/, project/, ui/
 │   ├── AddDataModal.tsx, DynamicForceGraph.tsx, MindMap3D.tsx, MindMapInspector.tsx
 │   ├── QueryProviders.tsx, QuickInput.tsx, SearchResultModal.tsx, SecurityLockScreen.tsx
-│   ├── Sidebar.tsx, TaskModal.tsx, WeeklyReportView.tsx, WikiEditor.tsx, WorkspaceView.tsx
-├── hooks/              → 29개 커스텀 훅 (도메인 + 동기화 + 분석 + AI 등)
-│   ├── useTasks.ts, useBudget.ts, useInventory.ts, useMeetings.ts, useProjects.ts
-│   ├── useSignal.ts, useGoogleSheet.ts, useGraphCustomization.ts, useWikiStorage.ts
-│   ├── useYjsStore.ts, useAIChat.ts, useBossSchedule.ts, useBudgetFilters.ts
-│   ├── useGlobalSearch.ts, useMergedSignals.ts, useNotificationAlerts.ts
-│   ├── usePortfolioAnalytics.ts, useScheduleAlerts.ts, useSecurityLock.ts
-│   ├── useFileRadar.ts, useReportGenerator.ts, useAILinker.ts, useAgentStatus.ts
-│   ├── useClassificationWords.ts, useContacts.ts, useLawSearch.ts, useLocalContacts.ts
-│   ├── useSemanticSearch.ts, useWikiSync.ts, useSchedules.ts
-├── lib/                → 핵심 라이브러리 (23개 모듈)
+│   ├── Sidebar.tsx, TaskModal.tsx, WeeklyReportView.tsx, WikiEditor.tsx, WorkspaceView.tsx 등
+├── hooks/              → 33개 커스텀 훅 (도메인 + 동기화 + 분석 + AI 등, 4,566 LOC)
+│   ├── useAgentStatus.ts, useAIChat.ts, useAILinker.ts, useAppLogs.ts, useBudget.ts
+│   ├── useBudgetFilters.ts, useClassificationWords.ts, useContacts.ts, useDrive.ts
+│   ├── useFileRadar.ts, useFreezeDetector.ts, useGlobalSearch.ts, useGoogleSheet.ts
+│   ├── useGraphCustomization.ts, useInventory.ts, useLawSearch.ts, useLlmExtract.ts
+│   ├── useLocalContacts.ts, useMeetings.ts, useMergedSignals.ts, useNotificationAlerts.ts
+│   ├── usePortfolioAnalytics.ts, useProjects.ts, useReportGenerator.ts, useScheduleAlerts.ts
+│   ├── useSchedules.ts, useSecurityLock.ts, useSemanticSearch.ts, useSignal.ts
+│   ├── useTasks.ts, useWikiStorage.ts, useWikiSync.ts, useYjsStore.ts
+├── lib/                → 핵심 라이브러리 (31개 모듈 파일, 9,328 LOC)
 │   ├── engine/         → OntologyLayout, OntologyNetwork, OntologyRenderer, PerformanceProfiler, ontology-extractor, watcher
 │   ├── OntologyCanvasEngine.ts (상태 컨트롤러)
 │   ├── signal-graph.ts, korean-nlp.ts, budget-rules.ts, contacts-parser.ts, crypto.ts
 │   ├── csv-parser.ts, document.fetch.ts, forceGraphRenderer.ts, holidays.ts
 │   ├── llm-client.ts, ontology.service.ts, ontology.types.ts, pdf-parser.ts
-│   ├── query-client.ts, schemas.ts, sheets-api.ts
-├── party/              → PartyKit 서버 (Yjs CRDT 룸 — persist: true)
-├── types/              → 도메인 타입 정의 (130줄, 10개 타입)
+│   ├── query-client.ts, schemas.ts, sheets-api.ts, driveCache.ts, rag-engine.ts 등
+├── party/              → PartyKit 서버 (Yjs CRDT 룸 — persist: true, 1개 파일, 68 LOC)
+├── proxy.ts            → Next.js API 프록시 핸들러 (35 LOC)
+├── store/              → 전역 UI 상태 스토어 (30 LOC)
+├── types/              → 도메인 타입 정의 (1개 파일, 208 LOC, 10개 타입)
 ```
 
 ---
 
-## 5. 기능 인벤토리
+## 5. 기능 인벤토리 및 마일스톤 엔지니어링 패치 이력
 
 ### 모듈 및 뷰 구조
 
@@ -155,67 +157,71 @@ src/
 | 주간 보고 | `WeeklyReportView.tsx` | LLM 추출 기반 주간 보고서 및 CRM 크로스 동기화 모듈 |
 | CRM 통합 관리 | `CrmDashboardView.tsx` | CRM 고객 관리, 영업 기회 파이프라인 및 매출 기여도 추적 모듈 |
 
-### 컴포넌트 모듈
+### 컴포넌트 모듈 (총 41개 파일 / 7개 서브 모듈 / 13,254 LOC)
 
-| 모듈 | 파일 수 | 주요 컴포넌트 |
-|------|--------|-------------|
-| `budget/` | 9 | BudgetDashboard (예산 대시보드), ExpenseEntryModal, PolicyGroupCard 등 8개 서브 UI |
-| `dashboard/` | 3 | PortfolioDashboardView (CRM 대시보드), WeeklyScheduler, ContactsBox |
-| `inventory/` | 1 | InventoryList (비품/재고 대시보드) |
-| `ai/` | 2 | AgentStatusBoard (에이전트 관제), AIAssistantModal |
-| `mindmap/` | 2 | MindMapHUD, MindMapHeader |
-| `ui/` | 5 | ErrorBoundary, Badge, Card, Modal, ProgressBar |
-| 루트 뷰 및 컴포넌트 | 13 | MindMap3D, WorkspaceView, Sidebar, WikiEditor, TaskModal, SearchResultModal, SecurityLockScreen 등 |
+| 서브 모듈 | 파일 수 | LOC | 주요 컴포넌트 및 역할 |
+|-----------|--------|-----|----------------------|
+| `mindmap/` | 6 | 4,267 | `MindMap3D.tsx` (1,930 LOC), `MindMapInspector.tsx` (1,394 LOC), `DynamicForceGraph.tsx`, `MindMapHeader.tsx`, `MindMapHUD.tsx` 등 |
+| `dashboard/` | 6 | 1,746 | `PortfolioDashboardView.tsx` (467 LOC), `ContactsBox.tsx` (311 LOC, memoized `startEdit`), `WeeklyScheduler.tsx` (618 LOC), `WorkspaceView.tsx` (162 LOC), `WeeklyReportView.tsx`, `DummyPerfTest.tsx` |
+| `budget/` | 9 | 3,115 | `BudgetDashboard.tsx` (447 LOC), `PolicyGroupCard.tsx` (395 LOC, O(1) swap), `BudgetCategoryCardItem.tsx` (285 LOC), `CategoryEditModal.tsx` (758 LOC), `ExpenseEntryModal.tsx`, `LedgerModal.tsx`, `DailyExpenseStatModal.tsx`, `BatchEditModal.tsx`, `MultiSelectDropdown.tsx` |
+| `inventory/` | 1 | 442 | `InventoryList.tsx` (442 LOC, `useVirtualGrid` 가상화 윈도잉 및 동적 컬럼) |
+| `law/project/` | 3 | 1,518 | `ProjectManagementPage.tsx` (745 LOC), `LawSystemPage.tsx` (465 LOC), `LawSearchPanel.tsx` (308 LOC) |
+| `ai/modals/` | 10 | 2,933 | `SemanticReviewModal.tsx` (609 LOC), `AIAssistantModal.tsx` (400 LOC), `SearchResultModal.tsx` (353 LOC), `TaskModal.tsx`, `AppLogModal.tsx`, `AddDataModal.tsx`, `WikiEditor.tsx`, `SecurityLockScreen.tsx`, `QuickInput.tsx`, `AgentStatusBoard.tsx` |
+| `ui/` | 6 | 233 | `Sidebar.tsx` (128 LOC), `ErrorBoundary.tsx` (67 LOC), `modal.tsx` (65 LOC), `progress-bar.tsx`, `card.tsx`, `badge.tsx`, `QueryProviders.tsx` |
 
-### 로컬 API 엔드포인트
+### 로컬 API 엔드포인트 (10개 API 라우트 + 1개 LLM 스트리밍 차트 라우트)
 
-| 엔드포인트 | 용도 |
-|-----------|------|
-| `/api/data` | 로컬 JSON 데이터 CRUD 및 20개 백업 회수 자동화 |
-| `/llm/chat` | Google Gemini API 통신 3회 백오프 재시도 및 AI 비서 응답 |
-| `/api/ai-linker` | 온톨로지 시맨틱 추론 링크 추출 |
-| `/api/auth` | 암호화 마스터 키 및 PIN 잠금 인증 세션 관리 |
-| `/api/drive` | 로컬 디렉토리 파일 목록 탐색 및 메타 맵 스캔 |
-| `/api/file-radar` | 바탕화면 VITAL_Scan 디렉토리 한글/PDF 레이더 요약 |
-| `/api/law` | 공공데이터포털 법제처 OpenAPI 연동 및 자치법규(조례) 조회 |
-| `/api/llm/extract` | 암묵지 및 회의록 데이터 핵심 키워드 자동 추출 |
-| `/api/local-contacts` | 로컬 OS 주소록 및 PC 연락처 동기화 |
-| `/api/report-generator` | 마인드맵 노드 위상 기반 지자체 공문서/보고서 초안 마크다운 생성 |
+| 엔드포인트 | 파일 경로 | HTTP 메서드 | LOC | 용도 및 설명 |
+|-----------|----------|------------|-----|-------------|
+| `/api/data` | `src/app/api/data/route.ts` | `GET`, `POST` | 560 | **주요 SSOT 컨트롤러**. E2EE bypass 로컬 PC JSON (`data/*.json`) CRUD, 20버전 백업, 글로벌 툼스톤, 60ms 디바운스 쓰기 |
+| `/llm/chat` | `src/app/llm/chat/route.ts` | `POST` | 337 | **LLM 차트 라우트**. Google Gemini 1.5 Flash 백엔드 실시간 스트리밍 대화 인터페이스 |
+| `/api/ai-linker` | `src/app/api/ai-linker/route.ts` | `POST` | 68 | Gemini AI 기반 온톨로지 노드 간 시맨틱 추론 링크 추출 |
+| `/api/app-logs` | `src/app/api/app-logs/route.ts` | `GET` | 126 | PBKDF2 인메모리 키 캐싱 적용 0ms 런타임 시스템 구동 및 렉 감지 로그 조회 |
+| `/api/auth` | `src/app/api/auth/route.ts` | `POST`, `DELETE` | 48 | PBKDF2 WebCrypto 키 파생 인메모리 캐싱 기반 보안 잠금화면 비밀번호 검증 |
+| `/api/drive` | `src/app/api/drive/route.ts` | `GET`, `POST` | 149 | 로컬 아카이브 디렉토리 본문 및 메타데이터 고속 캐시 검색 |
+| `/api/file-radar` | `src/app/api/file-radar/route.ts` | `GET` | 184 | 로컬 디스크 파일 감시 변경 사항 추적 및 레이더 요약 제공 |
+| `/api/law` | `src/app/api/law/route.ts` | `GET` | 149 | 국가법령 OpenAPI 및 자치법규(조례) 실시간 검색 |
+| `/api/llm/extract` | `src/app/api/llm/extract/route.ts` | `POST` | 333 | 비정형 보고서/회의록 텍스트 기반 시맨틱 키워드 및 엔티티 AI 추출 |
+| `/api/local-contacts` | `src/app/api/local-contacts/route.ts` | `POST` | 93 | 로컬 OS 주소록 및 PC 파싱 연락처 동기화 |
+| `/api/report-generator` | `src/app/api/report-generator/route.ts` | `POST` | 142 | 마인드맵 노드 위상 기반 지자체 공문서 및 HWPX 보고서 초안 마크다운 자동 생성 |
 
-### 커스텀 훅
+### 커스텀 훅 (`src/hooks/` — 33개 훅, 4,566 LOC)
 
-| 훅 | 담당 영역 |
-|----|----------|
-| `useTasks` | 업무 CRUD, 우선순위/상태 관리, 반복 일정 엔진 |
-| `useBudget` | 예산 카테고리 추적, 품의/결의 플로우 |
-| `useInventory` | 재고 수준 관리, 예산 항목 교차 참조 |
-| `useMeetings` | 회의 일정 관리, 안건/회의록 기록 |
-| `useProjects` | 프로젝트 체크리스트 관리 및 진행률 추적 |
-| `useSignal` | NLP 키워드 추출 파이프라인 + 시그널 데이터 집계 |
-| `useGoogleSheet` | 오프라인 폴백을 갖춘 범용 시트 데이터 페처 |
-| `useGraphCustomization` | `useSyncExternalStore` + 16ms 디바운스 기반 Yjs 그래프 오버라이드 스토어 |
-| `useWikiStorage` | 노드별 BlockNote 위키 콘텐츠 영속성 관리 |
-| `useYjsStore` | Yjs 문서 + PartyKit WebSocket 프로바이더 생명주기 |
-| `useAIChat` | Google Gemini API와의 채팅 대화 처리 및 응답 스트리밍 |
-| `useBossSchedule` | 임원/결재선 일정 트래킹 및 CRM 결재 최적 시점 분석 지원 |
-| `useBudgetFilters` | 예산 대시보드 내 카테고리 및 검색 필터 관리 |
-| `useGlobalSearch` | 전체 모듈(업무, 예산, 지식, 비품) 대상 통합 실시간 검색 |
-| `useMergedSignals` | 시그널 맵 노드 구성을 위해 다중 모듈 데이터를 통합 시맨틱 인덱싱 |
-| `useNotificationAlerts` | 일정 및 리액션 시그널 알림 스케줄링 및 푸시 처리 |
-| `usePortfolioAnalytics` | 포트폴리오 자산 구조적 볼록성 및 지능형 집행 예측 |
-| `useScheduleAlerts` | 마감 임박 업무 및 긴급 회의 일정 알림 연산 |
-| `useSecurityLock` | PIN 코드 인증 세션 및 데이터 zero-trust 보호 계층 관리 |
-| `useFileRadar` | 시맨틱 파일 레이더를 통한 로컬 보고서 매칭 및 AI 요약 정보 추출 |
-| `useReportGenerator` | 마인드맵 현황 기반 지자체 공문서 및 행정 보고서 초안 마크다운 자동 생성 |
-| `useAILinker` | 온톨로지 노드 간 관계 자동 추론 및 연결 설정 지원 |
-| `useAgentStatus` | 다중 에이전트 구동 런타임 상태 관제 |
-| `useClassificationWords` | 카테고리/태그 매칭 및 정규화용 지능형 어휘 사전 제어 |
-| `useContacts` | E2EE 암호화 연동 연락처 정보 CRUD 및 Yjs 동기화 |
-| `useLawSearch` | 법제처 OpenAPI 연동 국가법령/행정규칙/자치법규 실시간 검색 |
-| `useLocalContacts` | 로컬 PC 주소록 데이터와의 인터페이스 브릿지 |
-| `useSemanticSearch` | 자연어 및 시맨틱 쿼리 연계 다중 모듈 통합 지능형 검색 |
-| `useWikiSync` | Yjs 위키 노드 텍스트 및 실시간 싱크 트래킹 |
-| `useSchedules` | 일정 데이터 CRUD 및 캘린더 연계 뷰어 동기화 |
+| 훅 파일 | LOC | 담당 영역 및 설명 |
+|---------|-----|------------------|
+| `useAgentStatus.ts` | 77 | 다중 에이전트 구동 런타임 상태 관제 |
+| `useAIChat.ts` | 140 | Google Gemini API와의 채팅 대화 처리 및 응답 스트리밍 |
+| `useAILinker.ts` | 34 | 온톨로지 노드 간 관계 자동 추론 및 연결 설정 지원 |
+| `useAppLogs.ts` | 33 | Next.js 백엔드 구동 및 렉 감지 로그 10초 주기 조회 |
+| `useBudget.ts` | 470 | SSOT 예산 CRUD, O(1) 카테고리 통계 맵 룩업, 품의/결의 플로우 |
+| `useBudgetFilters.ts` | 160 | 예산 대시보드 내 카테고리 및 검색 필터 관리 |
+| `useClassificationWords.ts` | 40 | 카테고리/태그 매칭 및 정규화용 지능형 어휘 사전 제어 |
+| `useContacts.ts` | 95 | 연락처 정보 CRUD 및 Yjs 동기화 |
+| `useDrive.ts` | 27 | 로컬 아카이브 디렉토리 본문 고속 검색 |
+| `useFileRadar.ts` | 41 | 시맨틱 파일 레이더를 통한 로컬 보고서 매칭 및 AI 요약 정보 추출 |
+| `useFreezeDetector.ts` | 121 | 60ms 이상 UI 메인 스레드 프리징/Stall 실시간 모니터링 및 탭 이탈 오탐 방지 |
+| `useGlobalSearch.ts` | 117 | 전체 모듈(업무, 예산, 지식, 비품, 파일) 대상 통합 실시간 비동기 청크 검색 |
+| `useGoogleSheet.ts` | 125 | 오프라인 폴백을 갖춘 범용 시트 데이터 페처 |
+| `useGraphCustomization.ts` | 839 | `useSyncExternalStore` + 16ms 디바운스 기반 Yjs 그래프 오버라이드 스토어 |
+| `useInventory.ts` | 55 | 재고 수준 관리, 예산 항목 교차 참조 |
+| `useLawSearch.ts` | 52 | 법제처 OpenAPI 연동 국가법령/행정규칙/자치법규 실시간 검색 |
+| `useLlmExtract.ts` | 34 | `/api/llm/extract` 호출을 통한 비정형 텍스트 키워드 추출 |
+| `useLocalContacts.ts` | 55 | 로컬 PC 주소록 데이터 파싱 및 브릿지 |
+| `useMeetings.ts` | 45 | 회의 일정 관리, 안건/회의록 기록 |
+| `useMergedSignals.ts` | 70 | 시그널 맵 노드 구성을 위해 다중 모듈 데이터를 통합 시맨틱 인덱싱 |
+| `useNotificationAlerts.ts` | 191 | 일정 및 리액션 시그널 알림 스케줄링 및 푸시 처리 |
+| `usePortfolioAnalytics.ts` | 442 | 포트폴리오 자산 구조적 볼록성 및 지능형 집행 예측 |
+| `useProjects.ts` | 97 | 프로젝트 체크리스트 관리, 진행률 추적 및 atomic setProjects 갱신 |
+| `useReportGenerator.ts` | 46 | 마인드맵 현황 기반 지자체 공문서 및 행정 보고서 초안 마크다운 자동 생성 |
+| `useScheduleAlerts.ts` | 92 | 마감 임박 업무 및 긴급 회의 일정 알림 연산 |
+| `useSchedules.ts` | 55 | 주간 일정 데이터 CRUD 및 캘린더 연계 뷰어 동기화 |
+| `useSecurityLock.ts` | 28 | PIN 코드 인증 세션 및 데이터 zero-trust 보호 계층 관리 |
+| `useSemanticSearch.ts` | 43 | 자연어 및 시맨틱 쿼리 연계 다중 모듈 통합 지능형 검색 |
+| `useSignal.ts` | 275 | NLP 키워드 추출 파이프라인 + 시그널 데이터 집계 |
+| `useTasks.ts` | 219 | 업무 CRUD, 우선순위/상태 관리, 반복 일정 엔진, 툼스톤 방어 |
+| `useWikiStorage.ts` | 294 | 노드별 BlockNote 위키 콘텐츠 영속성 관리 및 parsed map store 캐싱 |
+| `useWikiSync.ts` | 36 | Yjs 위키 노드 텍스트 및 실시간 싱크 트래킹 |
+| `useYjsStore.ts` | 118 | Yjs 문서 + PartyKit WebSocket 프로바이더 생명주기 |
 
 ---
 
@@ -308,6 +314,20 @@ sequenceDiagram
 | RAG 컨텍스트 연동 | local API | JSON Data + Prompt Context | 로컬 데이터베이스의 예산 및 시그널 코퍼스 대상 맥락 답변 생성 |
 | 보고서 초안 생성 | `/api/report-generator` | Google Gemini API | 마인드맵 노드 위상 구조 및 업무 이력 연동 공문서 작성 |
 | 시맨틱 파일 분석 | `/api/file-radar` | Google Gemini API | 바탕화면 스캔 폴더 내 보고서 텍스트 요약 및 자동 태깅 |
+
+### 3D 마인드맵 노드 숨김/접기 기능 완전 해제 및 전면 삭제 패치 (2026-07-21)
+* **모든 노드 100% 가시성 및 상시 펼침(Expanded) 보장 (`OntologyCanvasEngine.ts` & `MindMapInspector.tsx`)**:
+  - 사용자 지시에 따라 3D 마인드맵 내 1차 카테고리 디폴트 접기(`collapsedNodeIds`), 노드 클릭 시 서브트리 접기(`collapseAll`), 및 노드 삭제 시 발생하던 `{ hidden: true }` 설정 오버라이드를 전면 삭제했습니다.
+  - 마인드맵 캔버스 기동 및 모든 상호작용 시 노드가 절대 숨겨지거나 사라지지 않고 항상 100% 명확히 펼쳐져 노출되도록 보장했습니다.
+* **0-0-0 무결성 통과**:
+  - `npx tsc --noEmit` 검사 0 errors 및 `run-harness.js` 0 warnings, 0 violations, 0 bottlenecks 통과.
+
+### 3D 마인드맵 노드 맵 캔버스 재초기화 시 DOM 언마운트 및 깜빡임(Flickering) 차단 패치 (2026-07-21)
+* **캔버스 인플레이스 갱신 및 loading DOM 언마운트 분리 (`MindMap3D.tsx`)**:
+  - 마인드맵 데이터 동기화, 분류 단어 최적화 또는 커스터마이즈 갱신 시 `initEngine()`이 트리거될 때 `setLoading(true)`로 인해 캔버스 DOM 요소 전체가 unmount되고 `<Loader2>` 스피너 화면으로 순식간에 전환되었다가 다시 canvas가 re-mount되는 원인(Flickering/깜빡임 및 노드 사라짐)을 정밀 인지했습니다.
+  - `engineRef.current`가 이미 존재하는 재초기화/갱신 상황에서는 `loading` 가드를 우회하여 existing canvas DOM을 100% 유지하고 백그라운드 인플레이스(In-place) 갱신이 수행되도록 수정했습니다.
+* **0-0-0 무결성 통과**:
+  - `npx tsc --noEmit` 검사 0 errors 및 `run-harness.js` 0 warnings, 0 violations, 0 bottlenecks 통과.
 
 ### 3D 마인드맵 노드 텍스트 크기 축소 및 볼드 굵기 슬림화 패치 (2026-07-21)
 * **캔버스 텍스트 폰트 슬림화 (`OntologyRenderer.ts`)**:
@@ -535,31 +555,6 @@ sequenceDiagram
 * **LawSearchPanel 이동 및 BudgetDashboard 분리**: 기존 `src/components/budget/ui/LawSearchPanel.tsx`를 `src/components/law/LawSearchPanel.tsx`로 이동시키고, `BudgetDashboard` 내에서의 직접 렌더링 및 임포트 코드를 완벽히 제거했습니다.
 * **법령/지침 표준 시스템(LawSystemPage) 신규 구축**: "법령/조례 실시간 검색" (이동된 `LawSearchPanel` 연동), "자치/행정 용어 사전" (13종의 핵심 행정/재정 용어 정보 카드 및 검색 기능 제공), "공문서 표준 작성 가이드" (용지 여백, 서체/글자크기 표준, 다단계 기호 계층 구조, 마침표 뒤 2타 및 "끝." 작성 표준, 행정어 순화 가이드를 수록한 가이드 패널) 탭으로 구성된 `LawSystemPage` 컴포넌트를 설계 및 탑재했습니다.
 * **Sidebar 및 라우팅/프리로딩 전면 갱신**: `types/index.ts`의 `ModuleType`을 `inventory`에서 `law`로 교체하고, `Sidebar.tsx`에 `lucide-react` `Scale` 아이콘과 함께 "법령/지침" 탭을 주입하였습니다. `src/app/page.tsx` 내에서 `visitedModules` 상태, preloading 타이머/함수, swipe order 배열, 헤더 제목 맵핑 및 렌더링 블록을 `inventory` 대신 `law`로 완전 마이그레이션하여 dynamic import `LawSystemPage`를 지연 렌더링하도록 갱신했습니다.
-
-### [자율 개선] 성능 최적화 및 console spams 제거 패치 (2026-07-16)
-* **O(N^2) Complexity Reduction**: Convert rendering/map nested loops to O(1) Map lookups using useMemo.
-* **Console Spam Suppression**: Comment out console.warn/error spams in components.
-* **Dynamic Import Migration**: Rewrite static imports of heavy components to Next.js dynamic imports.
-
-### [자율 개선] 성능 최적화 및 console spams 제거 패치 (2026-07-16)
-* **O(N^2) Complexity Reduction**: Convert rendering/map nested loops to O(1) Map lookups using useMemo.
-* **Console Spam Suppression**: Comment out console.warn/error spams in components.
-* **Dynamic Import Migration**: Rewrite static imports of heavy components to Next.js dynamic imports.
-
-### [자율 개선] 성능 최적화 및 console spams 제거 패치 (2026-07-16)
-* **O(N^2) Complexity Reduction**: Convert rendering/map nested loops to O(1) Map lookups using useMemo.
-* **Console Spam Suppression**: Comment out console.warn/error spams in components.
-* **Dynamic Import Migration**: Rewrite static imports of heavy components to Next.js dynamic imports.
-
-### [자율 개선] 성능 최적화 및 console spams 제거 패치 (2026-07-16)
-* **O(N^2) Complexity Reduction**: Convert rendering/map nested loops to O(1) Map lookups using useMemo.
-* **Console Spam Suppression**: Comment out console.warn/error spams in components.
-* **Dynamic Import Migration**: Rewrite static imports of heavy components to Next.js dynamic imports.
-
-### [자율 개선] 성능 최적화 및 console spams 제거 패치 (2026-07-16)
-* **O(N^2) Complexity Reduction**: Convert rendering/map nested loops to O(1) Map lookups using useMemo.
-* **Console Spam Suppression**: Comment out console.warn/error spams in components.
-* **Dynamic Import Migration**: Rewrite static imports of heavy components to Next.js dynamic imports.
 
 ### [자율 개선] 성능 최적화 및 console spams 제거 패치 (2026-07-16)
 * **O(N^2) Complexity Reduction**: Convert rendering/map nested loops to O(1) Map lookups using useMemo.
@@ -871,6 +866,19 @@ sequenceDiagram
   - `npx tsc --noEmit` 실행 결과 TypeScript 컴파일러 오류 0건(0 errors)을 검증 완료했습니다.
   - `node scripts/run-harness.js` 실행 결과 Zod 데이터 무결성 검증 오류 0건, ESLint 경고 0건, MVC 건축 위반 0건, 렌더링/상태 성능 병목 0건을 달성하여 하네스 클린 상태를 확인했습니다.
   - `node scripts/sync-rules.js` 자동화 동기화 도구를 통해 `PORTFOLIO VITAL - Engineering Milestones.md` 마일스톤 패치 기록을 `AGENTS.md` 파일에 성공적으로 동기화했습니다.
+
+- **WeeklyScheduler 타임존 날짜 포맷 결함 수정 패치 (2026-07-22)**:
+  - `src/components/dashboard/WeeklyScheduler.tsx` 내 `Date.prototype.toISOString().split('T')[0]` 구문을 로컬 시각 기준 `formatDateStr(d: Date)` 헬퍼 함수로 완전 교체하여 KST(UTC+9) 등 양의 타임존 환경에서 발생하던 -1일 날짜 시프트 및 오프셋 결함을 영구 차단했습니다.
+  - `ScheduleModal` 초기 날짜 프리필, 주간 뷰 헤더, 월간 뷰 42-셀 그리드, 타임테이블 뷰 헤더 및 드롭 셀 핸들러 전반의 날짜 스트링 포맷 정합성을 일관되게 검증 및 복구했습니다.
+
+- **[Zero-Stall Optimization] dashboard 및 workspace UI Thread Stall 제거 & 백그라운드 탭 pause 규격 준수 패치 (2026-07-22)**:
+  - **Requirement 1 (R1 - UI Thread Stall Isolation)**: `InventoryItemCard` 컴포넌트에 커스텀 prop 비교 함수(`areInventoryItemCardPropsEqual`)를 도입하여 무의미한 카드 리렌더링을 $O(1)$로 격리 차단했습니다. `useVirtualGrid` 훅 내 스크롤 이벤트를 `requestAnimationFrame`으로 쓰로틀링하고 컨테이너 오프셋을 캐싱해 리플로우 부하를 소거했습니다. `usePortfolioAnalytics`의 데드웨이트 연산을 제거하고 `useGoogleSheet` 콜백 함수를 메모이제이션했으며, `PortfolioDashboardView`의 불안정한 키(key) 지정을 안정적 고유 ID로 복구했습니다.
+  - **Requirement 2 (R2 - Zero-Stall & Background Tab Pause)**: 데이터 훅 전반에 `refetchOnWindowFocus: false` 및 `refetchIntervalInBackground: false`를 설정하여 탭 전환 시 불필요한 네트워크/DB 리패치를 차단했습니다. `MindMap3D` 탭 이탈 시 물리 시뮬레이션 물리 프레임을 freeze 처리하고, 탭 복귀 시 delta 타임스탬프를 33.3ms로 클램핑하여 휘플래시(Whiplash) 발산 현상을 영구 방지했습니다.
+  - **Requirement 3 (R3 - Dynamic Imports & Skeleton UI Guards)**: `page.tsx` 및 `BudgetDashboard` 내 모달 트리를 조건부 마운트 구조로 전면 마이그레이션하여 모달 미사용 시의 DOM 트리를 제거했습니다. `WorkspaceView`에 `InventoryListSkeleton` 뼈대 컴포넌트를 지연 가드로 배치하고, `MindMap3D` 내부의 서브 모달들을 dynamic import로 전환하여 초기 청크 분리 및 0-Stall 환경을 완성했습니다.
+
+- **[Document & Text Refinement] 공문서/안내문 표준 다듬기 및 프로젝트 문서 정비 패치 (2026-07-22)**:
+  - 강남구 거북목증후군 출장 검진사업 안내 문구의 공문서 개조식/표준형 간결화 및 띄어쓰기/문체 정비 완료.
+  - 시스템 문서 및 하네스 규칙 동기화 프로세스 실행.
 
 *상세한 전체 마일스톤 패치 내역은 [PORTFOLIO VITAL - Engineering Report.md](file:///d:/Desktop/PORTFOLIO/PORTFOLIO%20-%20VITAL/PORTFOLIO%20VITAL%20-%20Engineering%20Report.md)를 참조하십시오.*
 

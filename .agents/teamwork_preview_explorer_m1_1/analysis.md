@@ -1,261 +1,107 @@
-# Milestone 1: Initial Server Hydration & Staggered Chunk Isolation — Detailed Technical Analysis Report
+# Portfolio Dashboard UI Thread Stall Analysis Report
 
-**Author**: Explorer 1  
-**Target Milestone**: Milestone 1 (R1 Performance Optimization)  
-**Goal**: Implement lazy component initialization (`React.lazy` / `next/dynamic` with idle deferral and suspense) for workspace and dashboard heavy widgets to maintain dev-server startup hydration stall strictly below 50ms.
+**Target Module**: `src/components/dashboard/*`, `PortfolioDashboardView.tsx`, and related hooks (`usePortfolioAnalytics`, `useContacts`, `useBudget`, `useTasks`).  
+**Investigator**: Explorer 1 (Milestone 1 - Subagent)  
+**Date**: 2026-07-22  
+**Status**: Completed (Read-Only Analysis)
 
 ---
 
 ## 1. Executive Summary
 
-During initial server hydration and page mount (`src/app/page.tsx`), the application currently loads several large component trees synchronously or eagerly upon tab resolution. Although Next.js `dynamic()` is used at top-level in `src/app/page.tsx`, nested components—most notably `BudgetDashboard` inside `WorkspaceView.tsx` and 5 heavy modals inside `BudgetDashboard.tsx`—are imported synchronously. 
+An investigation was conducted on the `dashboard` module to identify the root causes of main UI thread stalls (reported up to 2,836ms). Analysis revealed five distinct architectural and performance bottlenecks contributing to long tasks:
 
-Furthermore, charting libraries (`recharts` in `PortfolioDashboardView.tsx`) and heavy state initialization run layout measurements (`ResizeObserver`) synchronously upon component mounting.
-
-By implementing **Staggered Chunk Isolation** and **Idle-Deferred Dynamic Loading** for:
-1. `BudgetDashboard` inside `WorkspaceView.tsx`
-2. Interactive modals inside `BudgetDashboard.tsx` (`LedgerModal`, `CategoryEditModal`, `BatchEditModal`, `ExpenseEntryModal`, `DailyExpenseStatModal`)
-3. Chart rendering in `PortfolioDashboardView.tsx` via `requestIdleCallback` / `requestAnimationFrame`
-4. Module background preloader refinement in `src/app/page.tsx`
-
-We can reduce initial JavaScript evaluation and hydration CPU stall from ~140ms down to **< 35ms**, achieving the target goal of **< 50ms**.
+1. **Window Focus Refetch Storm (AGENTS.md Sec. 2-J Violation)**: Query hooks (`useBudget`, `useTasks`, etc.) do not disable `refetchOnWindowFocus`. Returning to the tab triggers simultaneous background fetches, decryption/Zod validation, and top-level React state updates, freezing the main thread.
+2. **Dead Weight Calculation in `usePortfolioAnalytics` (AGENTS.md Sec. 4-3 Violation)**: `usePortfolioAnalytics.ts` calculates a 120-line complex breakdown array (`allBreakdownData`) on every category/entry update, despite `PortfolioDashboardView` never consuming or displaying it.
+3. **Broken Component Memoization in `ContactsBox` (AGENTS.md Sec. 2-K Violation)**: `useSheetCrud` in `useGoogleSheet.ts` returns unmemoized CRUD helper functions on every render, invalidating `useCallback` references in `useContacts` and breaking `React.memo(ContactCard)`.
+4. **Unstable React Keys in Render Lists (AGENTS.md Sec. 2-K Violation)**: `PortfolioDashboardView.tsx` renders `breakdownData` using array index `key={idx}`, triggering complete DOM node destruction and reconstruction during updates.
+5. **Recharts Tooltip & Render Overhead**: Inline JSX element creation for Recharts tooltips (`content={<CustomPieTooltip />}`) and un-throttled ResizeObserver state updates force frequent SVG layout re-computations.
 
 ---
 
-## 2. Detailed Findings & Evidence Chain
+## 2. Component Architecture & Dependency Map
 
-### Finding 1: Synchronous `BudgetDashboard` Import in `WorkspaceView.tsx`
-- **File**: `src/components/WorkspaceView.tsx` (Lines 6, 111-124)
-- **Observation**:
-  Line 6: `import { BudgetDashboard } from '@/components/budget/BudgetDashboard';`
-  Line 111: `<BudgetDashboard ... />` is rendered synchronously when `activeTab === 'budget'`.
-- **Evidence**:
+```
+src/app/page.tsx (ProtectedApp)
+├── Query Hooks (useBudget, useTasks, useMeetings, useProjects, useSignal)
+├── PortfolioDashboardView (dynamic import with ssr: false + PortfolioDashboardViewSkeleton)
+│   ├── usePortfolioAnalytics(budgetCategories, budgetEntries)
+│   │   ├── Computes totals, pieData, breakdownData
+│   │   ├── Computes monthlyExecutionData (linear regression, target burn-down)
+│   │   └── [DEAD WEIGHT] Computes allBreakdownData (unused by dashboard)
+│   ├── Recharts (PieChart, ComposedChart, Tooltips)
+│   └── ContactsBox (dynamic import with ssr: false + Spinner Fallback)
+│       └── useContacts() -> useGoogleSheet('CONTACTS') -> ContactCard (React.memo)
+```
+
+---
+
+## 3. Root Cause Analysis of 2,836ms UI Thread Stall
+
+### Cause 1: Window Focus Refetch Storm (AGENTS.md Sec. 2-J)
+- **Location**: `src/hooks/useBudget.ts` (lines 36-46), `src/hooks/useTasks.ts` (lines 79-83), `src/hooks/useMeetings.ts`, `src/hooks/useProjects.ts`.
+- **Mechanism**: TanStack Query defaults `refetchOnWindowFocus: true`. When a user switches tabs or returns to the application window, all queries execute parallel network requests to `/api/data`.
+- **Impact**: Upon response, `readSheet` in `src/lib/sheets-api.ts` parses JSON, executes E2EE decryption, runs Zod schema validation (`getDomainSchema`), and updates query state. This triggers cascading re-renders of `ProtectedApp` and all child components, causing a JS thread freeze up to 2,836ms.
+
+### Cause 2: Dead Weight Computation in `usePortfolioAnalytics` (AGENTS.md Sec. 4-3)
+- **Location**: `src/hooks/usePortfolioAnalytics.ts` (lines 91-211).
+- **Mechanism**: `allBreakdownData` is computed inside a large `useMemo` block that iterates through all detailed projects, categories, sub-items, calculations, planned entries, and virtual adjustments.
+- **Impact**: `PortfolioDashboardView.tsx` (lines 119-132) does NOT destructure or use `allBreakdownData`. Every time budget entries or categories update, CPU cycles and memory allocations are wasted calculating data for non-dashboard views, leading to Garbage Collection (GC) pressure and main-thread lag.
+
+### Cause 3: Ineffective `React.memo` on `ContactCard` (AGENTS.md Sec. 2-K)
+- **Location**: `src/hooks/useGoogleSheet.ts` (line 101) & `src/hooks/useContacts.ts` (lines 81-85).
+- **Mechanism**: `useSheetCrud` returns an object `{ syncAdd, syncUpdate, syncDelete }` created inline during every execution. In `useContacts.ts`, `deleteContact` depends on `syncDelete`.
+- **Impact**: Because `syncDelete` reference changes on every render of `ContactsBox`, `deleteContact` reference changes as well. When passed to `<ContactCard onDelete={deleteContact} />`, `React.memo` fails equality check, forcing all contact cards to re-render on every state change.
+
+### Cause 4: Array Index Key Anti-Pattern (AGENTS.md Sec. 2-K)
+- **Location**: `src/components/dashboard/PortfolioDashboardView.tsx` (line 215).
+- **Code Snippet**:
   ```tsx
-  // src/components/WorkspaceView.tsx
-  import { BudgetDashboard } from '@/components/budget/BudgetDashboard'; // <- Static import forces full BudgetDashboard chunk into WorkspaceView
+  {breakdownData.map((item, idx) => (
+    <div key={idx} className="...">
   ```
-- **Impact**: When `WorkspaceView` chunk is fetched or executed, `BudgetDashboard` (20KB+ source, 10+ sub-components, complex filtering logic) is evaluated immediately, even before the user interacts with budget views.
+- **Impact**: React uses `key={idx}` to track list items. When selecting a specific project from the dropdown filter or updating data, React cannot correlate items by identity, resulting in full DOM element teardown and re-creation.
 
-### Finding 2: Unconditionally Imported Heavy Modals in `BudgetDashboard.tsx`
-- **File**: `src/components/budget/BudgetDashboard.tsx` (Lines 8-14)
-- **Observation**:
+### Cause 5: Inline Tooltip JSX & ResizeObserver Re-renders (AGENTS.md Sec. 2-K)
+- **Location**: `src/components/dashboard/PortfolioDashboardView.tsx` (lines 199 & 367).
+- **Code Snippet**:
   ```tsx
-  import { MultiSelectDropdown } from './ui/MultiSelectDropdown';
-  import { PolicyGroupCard } from './ui/PolicyGroupCard';
-  import { LedgerModal } from './ui/LedgerModal';
-  import { CategoryEditModal } from './ui/CategoryEditModal';
-  import { BatchEditModal } from './ui/BatchEditModal';
-  import { ExpenseEntryModal } from './ui/ExpenseEntryModal';
-  import { DailyExpenseStatModal } from './ui/DailyExpenseStatModal';
+  <RechartsTooltip content={<CustomPieTooltip />} />
+  <RechartsTooltip content={<CustomComposedTooltip chartType={chartType} isHchps={isHchps} />} />
   ```
-  Lines 359-412 render `<CategoryEditModal>`, `<BatchEditModal>`, `<ExpenseEntryModal>`, `<LedgerModal>`, `<DailyExpenseStatModal>` unconditionally in the JSX tree (controlling visibility via `isOpen` boolean props).
-- **Evidence**:
-  Modals account for over 50% of `BudgetDashboard` AST size and sub-dependencies. They are hidden by default (`isOpen={false}`) during initial hydration, yet their component code and sub-hooks are fully loaded into memory.
-
-### Finding 3: Recharts Chart Mount & Layout Recalculation Stall in `PortfolioDashboardView.tsx`
-- **File**: `src/components/dashboard/PortfolioDashboardView.tsx` (Lines 150-170, 234-253, 400-435)
-- **Observation**:
-  `PieChart` and `ComposedChart` from `recharts` are rendered immediately when `isMounted` becomes true (line 134: `setIsMounted(true)` in `useEffect`).
-  `ResizeObserver` on `chartContainerRef` triggers immediate `requestAnimationFrame` width recalculation during initial render:
-  ```tsx
-  const observer = new ResizeObserver((entries) => {
-    ...
-    animFrame = requestAnimationFrame(() => {
-      setChartWidth(prev => ...);
-    });
-  });
-  ```
-- **Impact**: Synchronous layout measurement during initial hydration blocks the main thread for 40-80ms while computing SVG bounding boxes.
-
-### Finding 4: Sub-Widget Timer-Based Deferral Inefficiencies in `PortfolioDashboardView.tsx`
-- **File**: `src/components/dashboard/PortfolioDashboardView.tsx` (Lines 136-147)
-- **Observation**:
-  ```tsx
-  const schedulerTimer = setTimeout(() => {
-    setRenderScheduler(true);
-  }, 120);
-
-  const contactsTimer = setTimeout(() => {
-    setRenderContacts(true);
-  }, 280);
-  ```
-- **Impact**: Using arbitrary fixed `setTimeout` delays (120ms, 280ms) can still trigger layout shifts or coincide with hydration frames on low-end hardware. Replacing these with `requestIdleCallback` ensures widgets mount only when the CPU is genuinely idle.
+- **Impact**: Passing new JSX elements (`<CustomPieTooltip />`) on every render forces Recharts internals to unmount and remount tooltip wrappers during chart interactions and mouse moves.
 
 ---
 
-## 3. Concrete Fix Strategy & Proposed Implementation
+## 4. Compliance Verification Matrix (AGENTS.md Rules)
 
-### Proposal 1: Dynamic Import for `BudgetDashboard` in `WorkspaceView.tsx`
-
-Replace static import with `next/dynamic` and a skeleton fallback:
-
-```tsx
-// src/components/WorkspaceView.tsx
-import dynamic from 'next/dynamic';
-
-function BudgetDashboardSkeleton() {
-  return (
-    <div className="w-full space-y-6 animate-pulse">
-      <div className="h-10 bg-slate-200/60 dark:bg-slate-800/40 rounded-xl w-48" />
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="h-36 bg-slate-200/60 dark:bg-slate-800/40 rounded-[2rem]" />
-        ))}
-      </div>
-      <div className="h-64 bg-slate-200/60 dark:bg-slate-800/40 rounded-[2rem]" />
-    </div>
-  );
-}
-
-const BudgetDashboard = dynamic(
-  () => import('@/components/budget/BudgetDashboard').then((mod) => mod.BudgetDashboard),
-  {
-    ssr: false,
-    loading: () => <BudgetDashboardSkeleton />,
-  }
-);
-```
-
----
-
-### Proposal 2: Conditional Dynamic Modals in `BudgetDashboard.tsx`
-
-Convert modal imports to `next/dynamic` components loaded on-demand:
-
-```tsx
-// src/components/budget/BudgetDashboard.tsx
-import dynamic from 'next/dynamic';
-
-const CategoryEditModal = dynamic(
-  () => import('./ui/CategoryEditModal').then(mod => mod.CategoryEditModal),
-  { ssr: false }
-);
-
-const BatchEditModal = dynamic(
-  () => import('./ui/BatchEditModal').then(mod => mod.BatchEditModal),
-  { ssr: false }
-);
-
-const ExpenseEntryModal = dynamic(
-  () => import('./ui/ExpenseEntryModal').then(mod => mod.ExpenseEntryModal),
-  { ssr: false }
-);
-
-const LedgerModal = dynamic(
-  () => import('./ui/LedgerModal').then(mod => mod.LedgerModal),
-  { ssr: false }
-);
-
-const DailyExpenseStatModal = dynamic(
-  () => import('./ui/DailyExpenseStatModal').then(mod => mod.DailyExpenseStatModal),
-  { ssr: false }
-);
-```
-
-Furthermore, wrap JSX modal renders with boolean checks:
-```tsx
-{showCatModal && (
-  <CategoryEditModal
-    isOpen={showCatModal}
-    onClose={() => ...}
-    ...
-  />
-)}
-```
-This guarantees zero modal JS chunk execution until the user explicitly opens a modal.
-
----
-
-### Proposal 3: Idle-Deferred Sub-Widget Mounting in `PortfolioDashboardView.tsx`
-
-Upgrade timer-based deferred loading to `requestIdleCallback` with fallback:
-
-```tsx
-// src/components/dashboard/PortfolioDashboardView.tsx
-useEffect(() => {
-  setIsMounted(true);
-
-  let idleCallbackId1: number | null = null;
-  let idleCallbackId2: number | null = null;
-  let timer1: NodeJS.Timeout | null = null;
-  let timer2: NodeJS.Timeout | null = null;
-
-  if ('requestIdleCallback' in window) {
-    idleCallbackId1 = window.requestIdleCallback(() => setRenderScheduler(true), { timeout: 300 });
-    idleCallbackId2 = window.requestIdleCallback(() => setRenderContacts(true), { timeout: 600 });
-  } else {
-    timer1 = setTimeout(() => setRenderScheduler(true), 120);
-    timer2 = setTimeout(() => setRenderContacts(true), 280);
-  }
-
-  return () => {
-    if (idleCallbackId1 && 'cancelIdleCallback' in window) window.cancelIdleCallback(idleCallbackId1);
-    if (idleCallbackId2 && 'cancelIdleCallback' in window) window.cancelIdleCallback(idleCallbackId2);
-    if (timer1) clearTimeout(timer1);
-    if (timer2) clearTimeout(timer2);
-  };
-}, []);
-```
-
----
-
-### Proposal 4: Refined Staggered Preloading in `src/app/page.tsx`
-
-Ensure preloading uses non-blocking idle scheduling and does not trigger hydration locks:
-
-```tsx
-// src/app/page.tsx
-const preloadModulesOnIdle = useCallback(() => {
-  if (typeof window === 'undefined' || isInitializingGlobal) return null;
-  
-  const triggerPreload = (module: ModuleType) => {
-    if (module === 'mindmap') import('@/components/MindMap3D');
-    else if (module === 'workspace') import('@/components/WorkspaceView');
-    else if (module === 'project') import('@/components/project/ProjectManagementPage');
-  };
-
-  const schedulePreload = (module: ModuleType, delayMs: number) => {
-    if ('requestIdleCallback' in window) {
-      return window.requestIdleCallback(() => {
-        setTimeout(() => triggerPreload(module), delayMs);
-      }, { timeout: delayMs + 2000 });
-    } else {
-      return setTimeout(() => triggerPreload(module), delayMs);
-    }
-  };
-
-  const timer1 = schedulePreload('mindmap', 3000);
-  const timer2 = schedulePreload('workspace', 5000);
-  const timer3 = schedulePreload('project', 7000);
-
-  return { timer1, timer2, timer3 };
-}, [isInitializingGlobal]);
-```
-
----
-
-## 4. Expected Performance Gains
-
-| Metric | Current Baseline | Post-Optimization Target | Improvement |
+| Rule Section | Description | Status | Details |
 |---|---|---|---|
-| **Dev Server Hydration Stall** | ~140ms - 180ms | **< 35ms** | **~78% reduction** |
-| **Initial JS Chunk Bundle (Home)** | ~480KB | **~260KB** | **~45% chunk isolation** |
-| **First Contentful Paint (FCP)** | 0.9s | **< 0.4s** | **2.25x faster** |
-| **Tab Switch Latency (Workspace)** | ~90ms | **< 15ms** | **6x smoother** |
+| **Sec. 2-I** | SSR Hydration & Dynamic Imports | **PASS** | `PortfolioDashboardView` uses `dynamic(..., { ssr: false })` with `PortfolioDashboardViewSkeleton`. `ContactsBox` uses dynamic import. |
+| **Sec. 2-J** | Zero-Stall & Tab Visibility Pause | **FAIL** | Queries in `useBudget`, `useTasks` lack `refetchOnWindowFocus: false`, triggering multi-query refetch stalls upon window focus. |
+| **Sec. 2-K** | React Key Stability & Memoization | **FAIL** | `breakdownData` uses `key={idx}`. `useSheetCrud` reference instability invalidates `ContactCard` `React.memo`. |
+| **Sec. 4-3** | Complexity & Dead-Weight Removal | **FAIL** | Heavy `allBreakdownData` calculation runs inside `usePortfolioAnalytics` despite being unused by `PortfolioDashboardView`. |
 
 ---
 
-## 5. Risk Assessment & Mitigations
+## 5. Proposed Fix Strategies (Action Plan for Implementer)
 
-1. **Hydration Mismatch Risk**: None. All lazy components specify `ssr: false` and render matching skeleton loaders during initial SSR/client mount phase.
-2. **Flash of Unstyled Content (FOUC)**: Mitigated by providing styled Tailwind CSS skeleton loaders that match exact dimensions of the target widgets (`PortfolioDashboardViewSkeleton`, `WorkspaceViewSkeleton`, `BudgetDashboardSkeleton`).
-3. **Zod Validation Harness Compatibility**: Harness script `scripts/run-harness.js` tests data schema and types; lazy loading components does not alter any data flow or Zod schema expectations.
+### Strategy 1: Disable Refetch on Window Focus in Data Hooks
+- **Action**: Add `{ refetchOnWindowFocus: false, refetchIntervalInBackground: false }` to options in `useQuery` calls across `useBudget.ts`, `useTasks.ts`, `useMeetings.ts`, `useProjects.ts`, `useSignal.ts`.
+- **Target File**: `src/hooks/useBudget.ts`, `src/hooks/useTasks.ts`, etc.
 
----
+### Strategy 2: Remove Unused `allBreakdownData` from `usePortfolioAnalytics`
+- **Action**: Remove `allBreakdownData` from `usePortfolioAnalytics.ts` (or extract it into a separate dedicated hook `useWorkspaceAnalytics.ts` for `WorkspaceView`).
+- **Target File**: `src/hooks/usePortfolioAnalytics.ts`
 
-## 6. Next Steps for Implementer
+### Strategy 3: Stabilize `useSheetCrud` Callback References
+- **Action**: Wrap the return value of `useSheetCrud` in `useMemo` (or wrap `syncAdd`, `syncUpdate`, `syncDelete` in `useCallback`) in `src/hooks/useGoogleSheet.ts`.
+- **Target File**: `src/hooks/useGoogleSheet.ts`
 
-1. Apply `dynamic()` dynamic import for `BudgetDashboard` in `src/components/WorkspaceView.tsx`.
-2. Apply `dynamic()` dynamic imports for modals in `src/components/budget/BudgetDashboard.tsx` and wrap renders with conditional flags.
-3. Update `requestIdleCallback` sub-widget deferral in `src/components/dashboard/PortfolioDashboardView.tsx`.
-4. Run `node scripts/run-harness.js` to verify Zod schema integrity, TypeScript compilation, and linting.
+### Strategy 4: Fix Array Index Keys in `PortfolioDashboardView.tsx`
+- **Action**: Replace `key={idx}` in `breakdownData.map` with `key={item.formationItem ? `${item.formationItem}-${item.name}` : item.name}`.
+- **Target File**: `src/components/dashboard/PortfolioDashboardView.tsx` (line 215)
+
+### Strategy 5: Memoize Recharts Tooltips
+- **Action**: Pass memoized tooltip render functions or stable components to `RechartsTooltip`.
+- **Target File**: `src/components/dashboard/PortfolioDashboardView.tsx`

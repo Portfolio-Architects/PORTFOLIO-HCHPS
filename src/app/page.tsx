@@ -95,19 +95,6 @@ function PortfolioDashboardViewSkeleton() {
           </div>
         </div>
       </div>
-      {/* Weekly Scheduler Skeleton */}
-      <div className="bg-slate-100/60 dark:bg-slate-800/40 rounded-[2rem] p-8 border border-slate-200/40 dark:border-slate-800 h-[620px] flex flex-col justify-between mt-6">
-        <div className="w-48 h-6 bg-slate-200 dark:bg-slate-700 rounded-lg" />
-        <div className="grid grid-cols-7 gap-4 flex-grow mt-6">
-          <div className="bg-slate-200/30 dark:bg-slate-700/20 rounded-xl" />
-          <div className="bg-slate-200/30 dark:bg-slate-700/20 rounded-xl" />
-          <div className="bg-slate-200/30 dark:bg-slate-700/20 rounded-xl" />
-          <div className="bg-slate-200/30 dark:bg-slate-700/20 rounded-xl" />
-          <div className="bg-slate-200/30 dark:bg-slate-700/20 rounded-xl" />
-          <div className="bg-slate-200/30 dark:bg-slate-700/20 rounded-xl" />
-          <div className="bg-slate-200/30 dark:bg-slate-700/20 rounded-xl" />
-        </div>
-      </div>
     </div>
   );
 }
@@ -417,11 +404,13 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
     });
   }, []);
 
-  const preloadModulesOnIdle = useCallback(() => {
+  const preloadModulesOnIdle = useCallback((): { timers: number[]; idleCallbackId: number | null } | null => {
     if (typeof window === 'undefined' || isInitializingGlobal) return null;
     
-    // Staggered Preloading: 전역 인트로가 완전히 걷힌 후 세 개의 무거운 모듈 마운트를 시간 차를 두고 조용히 쪼개서 기동
+    // Staggered Preloading: 전역 인트로가 완전히 걷힌 후 세 개의 무거운 모듈 마운트를 requestIdleCallback을 사용하여 시간 차(3.5s, 5.5s, 7.5s)를 두고 조용히 쪼개서 기동
     const timers: number[] = [];
+    let idleCallbackId: number | null = null;
+
     const triggerPreload = (module: ModuleType) => {
       if (module === 'mindmap') import('@/components/MindMap3D');
       else if (module === 'workspace') import('@/components/WorkspaceView');
@@ -429,23 +418,20 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
       console.log(`[Watcher Preload] Background caching initialized for: ${module}`);
     };
 
-    const startStaggeredSequence = () => {
-      // 3.5초 후 마인드맵 번들 로드 (새로고침 초기 렌더링 렉 완벽 차단)
-      timers.push(window.setTimeout(() => triggerPreload('mindmap'), 3500));
-      // 5.5초 후 예산 대조보드 로드
-      timers.push(window.setTimeout(() => triggerPreload('workspace'), 5500));
-      // 7.5초 후 사업관리 페이지 로드
-      timers.push(window.setTimeout(() => triggerPreload('project'), 7500));
+    const scheduleModule = (module: ModuleType, delayMs: number) => {
+      const timerId = window.setTimeout(() => {
+        if ('requestIdleCallback' in window) {
+          idleCallbackId = window.requestIdleCallback(() => triggerPreload(module));
+        } else {
+          triggerPreload(module);
+        }
+      }, delayMs);
+      timers.push(timerId);
     };
 
-    let idleCallbackId: number | null = null;
-    if ('requestIdleCallback' in window) {
-      idleCallbackId = window.requestIdleCallback(() => {
-        startStaggeredSequence();
-      });
-    } else {
-      startStaggeredSequence();
-    }
+    scheduleModule('mindmap', 3500);
+    scheduleModule('workspace', 5500);
+    scheduleModule('project', 7500);
 
     return { timers, idleCallbackId };
   }, [isInitializingGlobal]);
@@ -462,8 +448,9 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
     return () => {
       if (idleTimer) {
         if (typeof window !== 'undefined') {
-          if (idleTimer.idleCallbackId && 'cancelIdleCallback' in window && typeof idleTimer.idleCallbackId === 'number') {
-            window.cancelIdleCallback(idleTimer.idleCallbackId);
+          const cbId = (idleTimer as { idleCallbackId?: number | null }).idleCallbackId;
+          if (cbId && 'cancelIdleCallback' in window && typeof cbId === 'number') {
+            window.cancelIdleCallback(cbId);
           }
           if (idleTimer.timers && Array.isArray(idleTimer.timers)) {
             idleTimer.timers.forEach(t => clearTimeout(t));

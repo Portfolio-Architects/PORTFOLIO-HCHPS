@@ -450,7 +450,8 @@
       }
     ],
     "fundingSource": "특별교부세 (100.00%)",
-    "formationItem": "201 일반운영비"
+    "formationItem": "201 일반운영비",
+    "_enc": "{\"name\":\"201-01 사무관리비\",\"totalBudget\":17339000,\"color\":\"#047857\",\"policyProject\":\"건강도시 조성\",\"unitProject\":\"건강생활 실천사업\",\"detailedProject\":\"강남체력인증센터 운영\",\"statItem\":\"201-01 사무관리비\",\"formationItem\":\"201 일반운영비\",\"fundingSource\":\"특별교부세 (100.00%)\",\"fundingSplits\":[{\"source\":\"특별교부세\",\"amount\":17339000}],\"subItems\":[{\"id\":\"id_81c42892a26c\",\"prefix\":\"1)\",\"name\":\"사무용품 및 소모품 구매\",\"calculation\":\"17,339,000\",\"amount\":17339000,\"isCustomFunding\":false,\"isLocked\":false,\"virtualAdjustment\":0,\"note\":\"\"}],\"budgetType\":\"본예산\"}"
   },
   {
     "id": "mnrcir0v0gtfi55ks",
@@ -534,7 +535,8 @@
       }
     ],
     "fundingSource": "특별교부세 (100.00%)",
-    "formationItem": "405 자산취득비"
+    "formationItem": "405 자산취득비",
+    "_enc": "{\"name\":\"405-01 자산및물품취득비\",\"totalBudget\":70232000,\"color\":\"#047857\",\"policyProject\":\"건강도시 조성\",\"unitProject\":\"건강생활 실천사업\",\"detailedProject\":\"강남체력인증센터 운영\",\"statItem\":\"405-01 자산및물품취득비\",\"formationItem\":\"405 자산취득비\",\"fundingSource\":\"특별교부세 (100.00%)\",\"fundingSplits\":[{\"source\":\"특별교부세\",\"amount\":70232000}],\"subItems\":[{\"id\":\"id_2bb4f5d42503\",\"prefix\":\"1)\",\"name\":\"사무집기 및 측정장비 등\",\"calculation\":\"70,232,000원*1식=\",\"amount\":70232000,\"isCustomFunding\":false,\"isLocked\":false,\"virtualAdjustment\":0,\"note\":\"\"}],\"budgetType\":\"본예산\"}"
   },
   {
     "id": "mnrcir0voap2bpm8z",

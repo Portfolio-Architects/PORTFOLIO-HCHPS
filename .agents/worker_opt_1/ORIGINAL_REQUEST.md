@@ -1,68 +1,49 @@
-## 2026-07-15T02:14:30Z
+## 2026-07-22T01:48:54Z
+You are worker_opt_1, a teamwork_preview_worker subagent.
+Your working directory is `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\worker_opt_1`. Create this folder if it does not exist and store your `BRIEFING.md`, `progress.md`, `changes.md`, and `handoff.md` there.
 
-You are a teamwork_preview_worker. Your working directory is d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\worker_opt_1.
-Your mission is to implement all optimization proposals for initial loading (R1), API speed (R2), and tab transition/interaction responsiveness (R3), and verify that all tests and harnesses pass.
+MANDATORY INTEGRITY WARNING:
+DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results, create dummy/facade implementations, or circumvent the intended task. A Forensic Auditor will independently verify your work. Integrity violations WILL be detected and your work WILL be rejected.
 
-Here are the specific implementation details:
+Objective:
+Execute the full implementation of R1, R2, R3, R4, and R5 requirements for PORTFOLIO VITAL:
 
-1. **src/app/page.tsx**:
-   - Convert `SecurityLockScreen` to a dynamic import with `ssr: false` and `loading: () => null`.
-   - In `preloadModulesOnIdle`'s `triggerPreload`, instead of setting `visitedModules` to `true`, trigger the dynamic imports directly in the background:
-     ```typescript
-     if (module === 'mindmap') import('@/components/MindMap3D');
-     else if (module === 'workspace') import('@/components/WorkspaceView');
-     else if (module === 'inventory') import('@/components/inventory/InventoryList');
-     ```
-   - In `handleModuleChange` and `handleOpenWiki` (and any other place where the active module transitions), set the visited module to `true` (e.g. `setVisitedModules(prev => prev[module] ? prev : { ...prev, [module]: true })`).
-   - Memoize functions/callbacks passed to child components. Wrap them in `useCallback` or `useMemo` where they are inline inside rendering.
+1. **R1. Main Page Dashboard Layout Optimization (`src/components/dashboard/PortfolioDashboardView.tsx` & `src/app/page.tsx`)**:
+   - In `PortfolioDashboardView.tsx`:
+     - Remove `WeeklyScheduler` dynamic import, `WeeklySchedulerSkeleton`, `renderScheduler` state, `deferIdle` call for scheduler, and the bottom `<WeeklyScheduler />` rendering container.
+     - Clean up layout container to maintain executive dashboard aesthetic (Budget Allocation cards, Monthly Budget Execution chart, and ContactsBox).
+     - Keep `tasks?: Task[]` in `DashboardProps` interface for backward compatibility.
+   - In `src/app/page.tsx`:
+     - Update `PortfolioDashboardViewSkeleton` to remove the 620px WeeklyScheduler skeleton block so skeleton height matches updated dashboard layout (0 CLS layout shift).
 
-2. **src/app/api/data/route.ts**:
-   - In the GET method, read `clientMtime` and `clientSize` query parameters (as numbers).
-   - Fetch the stats of the sheet file using `await fs.stat(filePath)`.
-   - If `clientMtime` and `clientSize` match the file's stats (`stats.mtimeMs` and `stats.size`), return a JSON block `{ success: true, notModified: true, mtime: stats.mtimeMs, size: stats.size }`.
-   - Otherwise, fetch the data and return it along with `mtime: stats.mtimeMs` and `size: stats.size` in the JSON response: `{ success: true, data, mtime: stats.mtimeMs, size: stats.size }`.
+2. **R2. Migration to Project Management Page (`src/components/project/ProjectManagementPage.tsx`)**:
+   - Import `WeeklyScheduler` dynamically (`dynamic(() => import('@/components/dashboard/WeeklyScheduler').then(mod => mod.WeeklyScheduler), { ssr: false, loading: () => <WeeklySchedulerSkeleton /> })`).
+   - Add tab switcher at the top of `ProjectManagementPage.tsx` header bar:
+     - `activeTab: 'overview' | 'scheduler'` (default `'overview'`).
+     - Tab buttons: "사업/프로젝트 개요" (FolderGit2 icon) and "통합 일정 플래너" (Calendar icon).
+   - When `activeTab === 'scheduler'`, render the integrated `<WeeklyScheduler />` full width/height inside `ProjectManagementPage.tsx`.
 
-3. **src/lib/sheets-api.ts**:
-   - In `readSheet`, send `clientMtime` and `clientSize` query parameters in the fetch URL if `cached` exists:
-     ```typescript
-     let url = `${API_BASE}?sheet=${encodeURIComponent(sheetName)}&_t=${Date.now()}`;
-     if (cached && cached.mtime && cached.size) {
-       url += `&clientMtime=${cached.mtime}&clientSize=${cached.size}`;
-     }
-     ```
-   - If the API returns `notModified: true`, update `cached.lastMetaCheck = Date.now()` and return the cached data immediately.
-   - If E2EE bypass is active (e.g., E2EE plain text mode), parse rows synchronously, bypassing the `async/Promise.all` decryption mapping.
-   - Update `clientCache.set` when new data is returned using the server's `mtime` and `size`.
-   - In `writeData`, instead of calling `clientCache.delete`, implement a write-through cache by updating the cache in-place (updating `cached.data` and metadata `mtime` and `size` returned by the server) to avoid refetches.
-   - Wrap `localStorage.setItem` for fallback in `setTimeout` to run it asynchronously.
+3. **R3. Interactive UX Enhancements (`src/components/dashboard/WeeklyScheduler.tsx`)**:
+   - **Cell Direct Click Creation/Edit Modal**:
+     - Clicking any date/time cell in Week, Month, or Timetable views opens a Schedule Modal (`ScheduleModal`).
+     - Prefill modal form with selected date (`YYYY-MM-DD`), `startTime` (e.g., `"10:00"`), `endTime` (`"11:00"`), default `type` (`"meeting"`), `title`, and `description`.
+     - Submitting form calls `addSchedule` or `updateSchedule` from `useSchedules.ts`.
+     - Clicking an existing schedule card opens the modal prefilled for editing/deleting.
+   - **HTML5 Drag & Drop Rescheduling**:
+     - Make schedule cards draggable (`draggable={true}`, `onDragStart={(e) => ...}`). Pass schedule ID and duration in `e.dataTransfer`.
+     - Add `onDragOver={(e) => e.preventDefault()}` and `onDrop={(e) => ...}` to date/time cells.
+     - On drop, parse target date & target start time, calculate updated `endTime` preserving duration, and invoke `updateSchedule(id, { date, startTime, endTime })`. State updates optimistically and persists to CRDT/JSON backend.
 
-4. **src/components/MindMap3D.tsx**:
-   - Export the component with `areMindMap3DPropsEqual` memo comparator passed to `React.memo`:
-     `export const MindMap3D = React.memo(function MindMap3D(...) { ... }, areMindMap3DPropsEqual);`
-   - Remove top-level subscriptions to `useTasks` and `useBudget`.
-   - Remove props `matchedCat`, `catStats`, `matchedTasks` from `MindMap3D` rendering `MindMapInspector`.
-   - Pass `isActive` to `useGraphCustomization`: `useGraphCustomization(isActive)`.
-   - Implement idle physics loop sleep: pause/cancel animation frame `requestAnimationFrame` when the layout settles (physics is not dirty), and resume it on interaction events (mouse, touch, wheel, drag, zoom).
+4. **R4. Multi-View Support (`src/components/dashboard/WeeklyScheduler.tsx`)**:
+   - Add view mode switcher header tabs: `viewMode: 'week' | 'month' | 'timetable'` (default `'week'`).
+   - **Week View ('week')**: 7-day column view showing schedules per day with drag & drop & cell click.
+   - **Month View ('month')**: 42-day monthly calendar grid with date header, day number, compact schedule pills, drag & drop across days, and cell click to add schedule.
+   - **Timetable View ('timetable')**: 14-hour matrix (08:00 to 20:00) showing hourly slot rows, exact time positioning of schedules, slot drag & drop, and slot direct click.
 
-5. **src/components/MindMapInspector.tsx**:
-   - Import `useTasks` from `@/hooks/useTasks` and `useBudget` from `@/hooks/useBudget`.
-   - Declare `useTasks` and `useBudget` inside `MindMapInspector`.
-   - Calculate `matchedCat`, `catStats`, and `matchedTasks` using `useMemo` inside `MindMapInspector` (based on the same logic previously in `MindMap3D`).
-   - Remove `matchedCat`, `catStats`, `matchedTasks` from `MindMapInspectorProps` and from the props destructured at the top of the component.
+5. **R5. Harness Verification, Report Update & Rule Sync**:
+   - Run `node scripts/run-harness.js` and `npm run build` using `run_command` tool. Ensure 0 errors, 0 warnings.
+   - Append patch details to `PORTFOLIO VITAL - Engineering Report.md` under Patch History.
+   - Run `node scripts/sync-rules.js` to update `AGENTS.md` milestone log.
 
-6. **src/hooks/useBudget.ts**:
-   - Optimize `getCategoryStats` by looking up the total budget directly from the cached category stats:
-     ```typescript
-     const remaining = cached.totalBudget - cached.spent - cached.locked; 
-     const usageRate = cached.totalBudget > 0 ? (cached.spent / cached.totalBudget) * 100 : 0;
-     ```
-     This completely removes the `uniqueCategories.find` array lookup.
-
-7. **src/components/budget/ui/PolicyGroupCard.tsx**:
-   - Implement lazy conditional rendering for collapsed policy groups: `{ (hidePolicyHeader || isOpen) && groupedByDetail.map(...) }` so children are not mounted when closed.
-   - Implement lazy conditional rendering for category details: `{ expandedCats[cat.id] && ( ... ) }` so category details are not mounted when collapsed.
-
-8. **Verification**:
-   - Run the static analysis harness: `node scripts/run-harness.js` and verify it reports 0 warnings, 0 violations, and 0 bottlenecks.
-   - Run the compiler build: `npm run build` and ensure Next.js build compiles successfully.
-   - Update `PORTFOLIO VITAL - Engineering Report.md` and run `node scripts/sync-rules.js` to update `AGENTS.md`.
+Document all changes made in `.agents/worker_opt_1/changes.md` and write `.agents/worker_opt_1/handoff.md`.
+Send a completion report message back to parent (Conv ID: `e3ee9654-827a-45fd-a187-0fb5b00cf5cb`).

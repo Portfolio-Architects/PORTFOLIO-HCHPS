@@ -41,8 +41,9 @@ function useVirtualGrid({
 
   useEffect(() => {
     const scrollParent = document.getElementById('main-scroll-container') || window;
-    
-    const updateMetrics = () => {
+    let rafId: number | null = null;
+
+    const updateOffsetAndMetrics = () => {
       if (!containerRef.current) return;
       const containerRect = containerRef.current.getBoundingClientRect();
 
@@ -59,13 +60,31 @@ function useVirtualGrid({
       }
     };
 
-    updateMetrics();
-    scrollParent.addEventListener('scroll', updateMetrics, { passive: true });
-    window.addEventListener('resize', updateMetrics, { passive: true });
+    const handleScroll = () => {
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        if (scrollParent === window) {
+          setScrollTop(window.scrollY);
+        } else {
+          const el = scrollParent as HTMLElement;
+          setScrollTop(el.scrollTop);
+        }
+      });
+    };
+
+    const handleResize = () => {
+      updateOffsetAndMetrics();
+    };
+
+    updateOffsetAndMetrics();
+    scrollParent.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('resize', handleResize, { passive: true });
     
     return () => {
-      scrollParent.removeEventListener('scroll', updateMetrics);
-      window.removeEventListener('resize', updateMetrics);
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      scrollParent.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('resize', handleResize);
     };
   }, [containerRef]);
 
@@ -84,7 +103,49 @@ function useVirtualGrid({
 }
 
 // ============ Locally Isolated Inventory Item Card ============
-const InventoryItemCard = React.memo(({
+function areInventoryItemCardPropsEqual(
+  prevProps: {
+    item: InventoryItem;
+    history: StockChange[];
+    onEdit: (item: InventoryItem) => void;
+    onDelete: (id: string) => void;
+    onAdjust: (item: InventoryItem, defaultChange: string) => void;
+  },
+  nextProps: {
+    item: InventoryItem;
+    history: StockChange[];
+    onEdit: (item: InventoryItem) => void;
+    onDelete: (id: string) => void;
+    onAdjust: (item: InventoryItem, defaultChange: string) => void;
+  }
+) {
+  if (prevProps.onEdit !== nextProps.onEdit) return false;
+  if (prevProps.onDelete !== nextProps.onDelete) return false;
+  if (prevProps.onAdjust !== nextProps.onAdjust) return false;
+
+  const pItem = prevProps.item;
+  const nItem = nextProps.item;
+  if (
+    pItem.id !== nItem.id ||
+    pItem.name !== nItem.name ||
+    pItem.category !== nItem.category ||
+    pItem.currentStock !== nItem.currentStock ||
+    pItem.unit !== nItem.unit
+  ) {
+    return false;
+  }
+
+  const pHist = prevProps.history;
+  const nHist = nextProps.history;
+  if (pHist.length !== nHist.length) return false;
+  for (let i = 0; i < pHist.length; i++) {
+    if (pHist[i].id !== nHist[i].id || pHist[i].change !== nHist[i].change) return false;
+  }
+
+  return true;
+}
+
+const InventoryItemCardComponent = ({
   item,
   history,
   onEdit,
@@ -165,7 +226,9 @@ const InventoryItemCard = React.memo(({
       </CardContent>
     </Card>
   );
-});
+};
+
+export const InventoryItemCard = React.memo(InventoryItemCardComponent, areInventoryItemCardPropsEqual);
 InventoryItemCard.displayName = 'InventoryItemCard';
 
 // ============ Main Inventory List Component ============

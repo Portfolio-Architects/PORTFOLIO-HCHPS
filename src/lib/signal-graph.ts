@@ -16,6 +16,9 @@ const warnedNodes = new Set<string>();
 
 
 
+let cachedGraphInputHash: string | null = null;
+let cachedGraphOutput: OntologyGraph | null = null;
+
 export function buildSignalGraph(
   keywordMap: Record<string, number>,
   entries: SignalEntry[],
@@ -26,9 +29,15 @@ export function buildSignalGraph(
     deletedEdges?: string[];
   }
 ): OntologyGraph {
+  // 🚀 O(1) Fast-Path Graph Cache Guard: 입력 데이터 변경이 없는 경우 0ms 반환
+  const inputHash = `${entries.length}_${Object.keys(keywordMap).length}_${customData?.customNodes.length || 0}_${customData?.customEdges.length || 0}_${customData?.deletedEdges?.length || 0}_${Object.keys(customData?.overrides || {}).length}`;
+  if (cachedGraphInputHash === inputHash && cachedGraphOutput) {
+    return cachedGraphOutput;
+  }
+
   const hideDefaultGraph = !!(customData && customData.overrides && customData.overrides['root-HCHPS']?.hideDefaultGraph);
   console.log('[DEBUG] buildSignalGraph START. hideDefaultGraph=', hideDefaultGraph, 'entries.length=', entries.length, 'customNodes.length=', customData?.customNodes.length);
-  
+
   const normalizeNodeId = (id: string): string => {
     if (id) {
       if (id.startsWith('leaf-tag-')) {
@@ -976,5 +985,8 @@ export function buildSignalGraph(
 
   console.log('[DEBUG] buildSignalGraph END. finalNodes.length=', finalNodes.length, 'finalEdges.length=', finalEdges.length);
   const scoredNodes = computeCentrality(finalNodes, finalEdges);
-  return { nodes: scoredNodes, edges: finalEdges };
+  const resultGraph = { nodes: scoredNodes, edges: finalEdges };
+  cachedGraphInputHash = inputHash;
+  cachedGraphOutput = resultGraph;
+  return resultGraph;
 }

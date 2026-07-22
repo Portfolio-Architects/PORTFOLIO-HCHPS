@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { readSheet, addRow, updateRow, deleteRow } from '@/lib/sheets-api';
 
 /**
@@ -120,5 +120,5 @@ export function useSheetCrud<T extends { id: string }>(sheetName: string) {
     await deleteRow(sheetName, id);
   }, [sheetName]);
 
-  return { syncAdd, syncUpdate, syncDelete };
+  return useMemo(() => ({ syncAdd, syncUpdate, syncDelete }), [syncAdd, syncUpdate, syncDelete]);
 }

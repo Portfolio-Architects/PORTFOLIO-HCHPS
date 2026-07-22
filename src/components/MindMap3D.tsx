@@ -12,9 +12,17 @@ import {
   LAYER_LABELS, OntologyLayerId,
 } from '@/lib/ontology.types';
 import { useGraphCustomization } from '@/hooks/useGraphCustomization';
-import { MindMapInspector } from './MindMapInspector';
-import { SemanticReviewModal } from './SemanticReviewModal';
 import dynamic from 'next/dynamic';
+
+const MindMapInspector = dynamic(
+  () => import('./MindMapInspector').then((mod) => mod.MindMapInspector),
+  { ssr: false }
+);
+
+const SemanticReviewModal = dynamic(
+  () => import('./SemanticReviewModal').then((mod) => mod.SemanticReviewModal),
+  { ssr: false }
+);
 
 function WikiEditorSkeleton() {
   return (
@@ -160,10 +168,19 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
   useEffect(() => {
     if (!isActive) {
       setEngineActive(false);
+      engineRef.current?.freeze();
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+        animationRef.current = 0;
+      }
       return;
     }
     const timer = setTimeout(() => {
       setEngineActive(true);
+      engineRef.current?.resume();
+      if (resumePhysicsLoopRef.current) {
+        resumePhysicsLoopRef.current();
+      }
     }, 150);
     return () => clearTimeout(timer);
   }, [isActive]);
@@ -420,7 +437,10 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
 
   // ── Init Engine (stable — non-blocking deferred callbacks) ──
   const initEngine = useCallback(() => {
-    setLoading(true);
+    // 🚀 노드 맵 깜빡임(Flicker) 차단: 엔진이 이미 존재할 때는 loading 상태로 캔버스 DOM을 언마운트하지 않고 인플레이스 갱신합니다.
+    if (!engineRef.current) {
+      setLoading(true);
+    }
     setError(null);
 
     // 🚀 Non-blocking Yield: 1프레임 분산 연산으로 UI 스레드가 마운트 시 프리징되는 현상을 100% 차단
@@ -681,7 +701,7 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
       animationRef.current = 0;
     }
 
-    if (loading || error || !isCloudLoaded || !isActive || !engineActive) {
+    if ((loading && !engineRef.current) || error || !isCloudLoaded || !isActive || !engineActive) {
       // 조건 불만족으로 복귀하더라도 항상 정리할 수 있는 최소한의 리턴 함수를 제공합니다.
       return () => {
         if (animationRef.current) {
@@ -753,7 +773,10 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
       PerformanceProfiler.getInstance().tick();
 
       const now = performance.now();
-      const delta = Math.min(now - lastFrameTime, 100);
+      if (now - lastFrameTime > 100) {
+        lastFrameTime = now - 16.6;
+      }
+      const delta = Math.min(now - lastFrameTime, 33.3);
       lastFrameTime = now;
 
       if (delta > 32 && delta < 1000) {
@@ -812,7 +835,6 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
 
         const t1 = performance.now();
         PerformanceProfiler.getInstance().recordRender(t1 - t0);
-        lastFrameTime = performance.now();
         animationRef.current = requestAnimationFrame(loop);
       } else {
         animationRef.current = 0;
@@ -1290,7 +1312,7 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
   };
 
   // ── Loading / Error States ──
-  if (loading || !isCloudLoaded) {
+  if ((loading && !engineRef.current) || (!isCloudLoaded && !engineRef.current)) {
     return (
       <div className="flex flex-col items-center justify-center h-[660px] gap-4">
         <Loader2 size={32} className="animate-spin text-[var(--color-primary)]" />

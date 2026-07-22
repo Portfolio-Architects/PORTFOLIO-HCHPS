@@ -1,10 +1,12 @@
-# Progress - 2026-07-15T11:46:09+09:00
+# Progress Log - worker_opt_2
 
-Last visited: 2026-07-15T11:46:09+09:00
+Last visited: 2026-07-22T02:04:15Z
 
-## Done
-- Modified `src/app/api/data/route.ts` to implement Next.js build phase check, bypassing starting the watcher daemon during build time.
-- Ran static analysis harness: `node scripts/run-harness.js` (0 warnings, 0 violations, 0 bottlenecks).
-- Ran production build: `npm run build` (successful compilation).
-- Updated `PORTFOLIO VITAL - Engineering Report.md` and `PORTFOLIO VITAL - Engineering Milestones.md`.
-- Ran `node scripts/sync-rules.js` to update `AGENTS.md` with the new milestone.
+- [x] Initialized workspace and briefing
+- [x] Inspect `src/components/dashboard/WeeklyScheduler.tsx` for `.toISOString().split('T')[0]` and local date usage
+- [x] Implement `formatDateStr` helper and replace all 8 `.toISOString().split('T')[0]` occurrences
+- [x] Check ScheduleModal, Week View, Month View, Timetable View consistency
+- [x] Run harness `node scripts/run-harness.js` (0 errors, 0 warnings) and build `npm run build` (PASS)
+- [x] Update `PORTFOLIO VITAL - Engineering Report.md` and run `node scripts/sync-rules.js`
+- [x] Write `changes.md` and `handoff.md`
+- [x] Notify parent agent

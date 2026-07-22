@@ -384,15 +384,10 @@ export class OntologyCanvasEngine {
     }
     this.callbacks.onActiveNodeChange?.(this.activeNode);
 
-    // 사용자의 요청에 따라: 초기 로딩 및 렌더 속도 극대화를 위해 1차 카테고리(orbitIndex === 1) 노드들을 기본적으로 접힌(collapsed) 상태로 설정하여 로드를 대폭 단축
+    // 🚀 노드 숨기기/접기 기능 전면 삭제: 모든 노드가 100% 항상 펼쳐진(Expanded) 상태를 유지합니다.
     if (!this.hasInitializedCollapse && this.nodes.length > 0) {
       this.hasInitializedCollapse = true;
       this.collapsedNodeIds.clear();
-      this.nodes.forEach(n => {
-        if (n.orbitIndex === 1) {
-          this.collapsedNodeIds.add(n.id);
-        }
-      });
       this.isCollapsedNodesDirty = true;
     }
 
@@ -1293,26 +1288,8 @@ export class OntologyCanvasEngine {
   }
 
   collapseAll(): void {
-    if (!this.centerNode) return;
+    // 🚀 노드 숨기기/접기 기능 전면 삭제: 항상 100% 노드 전체 전개 상태 유지
     this.collapsedNodeIds.clear();
-    
-    // 1차 카테고리들(centerChildren)을 모두 찾아 그 녀석들을 닫는다. (2차, 3차 숨김)
-    const treeChildrenMap = OntologyLayout.lastTreeChildrenMap;
-    const centerChildren = treeChildrenMap.get(this.centerNode.id) || [];
-    
-    for (const childId of centerChildren) {
-       this.collapsedNodeIds.add(childId);
-       
-       // 모든 자손들도 다 닫힘 상태로 세팅 (다시 열 때 서브트리가 닫혀있도록)
-       const q = [childId];
-       while(q.length > 0) {
-         const curr = q.shift()!;
-         this.collapsedNodeIds.add(curr);
-         for (const kid of treeChildrenMap.get(curr) || []) {
-            q.push(kid);
-         }
-       }
-    }
     this.isCollapsedNodesDirty = true;
     this.layoutWorldGeometryDirty = true;
     this.topologyDirty = true;

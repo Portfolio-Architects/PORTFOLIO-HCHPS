@@ -1,280 +1,257 @@
-# R2: Lazy Loading & FCP Analysis Report
+# R2 Project Management Schedule Planner Migration & Integration Analysis
+
+**Author**: `explorer_opt_r2` (Teamwork Explorer)  
+**Date**: 2026-07-22  
+**Target File**: `src/components/project/ProjectManagementPage.tsx`  
+**Related Components**: `src/components/dashboard/WeeklyScheduler.tsx`, `src/hooks/useSchedules.ts`, `src/hooks/useProjects.ts`
+
+---
 
 ## 1. Executive Summary
 
-An investigation into the import patterns of the heavy dashboard components (`MindMap3D`, `WeeklyScheduler`, `WikiEditor`) reveals that while some components are loaded dynamically at the top level, nested static imports and layout-mismatched fallbacks introduce bundle bloat and layout shifts:
-- **`WikiEditor` (WYSIWYG Editor)** is statically imported inside `MindMap3D.tsx`. Since `WikiEditor` pulls in the entire `@blocknote` core, react, and mantine libraries, loading the 3D Mindmap forces the client to download these heavy rich-text libraries even if the wiki drawer is never opened.
-- **`WeeklyScheduler`** is dynamically imported, but its loading placeholder has a height of `300px`, whereas the loaded component stands at `620px` on desktop. This causes a significant Cumulative Layout Shift (CLS) of ~320px upon chunk load.
-- **`MindMap3D`** is dynamically loaded, but its placeholder does not match the dashboard styling or the HUD layout, leading to minor CLS and visual jarring.
+The objective of R2 is to integrate the **Schedule Planner (일정 플래너)** into the **Project Management (`ProjectManagementPage.tsx`)** module. 
+Currently:
+- `ProjectManagementPage.tsx` features a 2-column layout (Left Sidebar: Project List, Right Panel: Project Details containing parameters grid, checklist, achievements, future plans, and associated tasks).
+- `WeeklyScheduler.tsx` lives under `src/components/dashboard/` and manages weekly schedule entries (`security`, `meeting`, `education`, `other`) using `useSchedules()`.
 
-Refactoring these imports to fully deferred `next/dynamic` wrappers with matching skeleton loaders will isolate third-party dependencies (Mantine, BlockNote) and eliminate CLS.
-
----
-
-## 2. Analysis of Target Components & Import Patterns
-
-### A. MindMap3D (`src/components/MindMap3D.tsx`)
-- **Import Locations:**
-  - `src/app/page.tsx:35` (Dynamic, `ssr: false`, loading placeholder of `h-[660px]`).
-  - `src/components/dashboard/DummyPerfTest.tsx:3` (Dynamic, `ssr: false`, no custom fallback).
-  - `src/app/page.tsx:179` (Preloaded dynamically: `if (module === 'mindmap') import('@/components/MindMap3D');`).
-- **Dependencies:**
-  - Standard React, custom canvas engine `OntologyCanvasEngine` (pure HTML5 2D Canvas rendering with orbital mathematics, zero external heavy 3D graph libraries).
-  - **Critical Leak:** `import { WikiEditor } from './WikiEditor';` (Line 14) is a static import. This pulls the heavy `@blocknote` suite into the `MindMap3D` bundle chunk.
-- **Props Signature:**
-  ```typescript
-  interface MindMap3DProps {
-    signalKeywords: Record<string, number>;
-    signalEntries: SignalEntry[];
-    onAddSignal: (text: string) => void;
-    onDeleteSignal?: (id: string) => void;
-    onUpdateKeywords?: (id: string, keywords: string[]) => void;
-    onRenameCategory?: (oldName: string, newName: string) => void;
-    onDeleteCategory?: (name: string) => void;
-    isActive?: boolean;
-  }
-  ```
-- **Dynamic Prop Safety:** All props are callback functions, standard strings/objects, or primitive state flags. Next.js dynamic import wrapper handles these correctly. No react `ref` properties are exposed by `MindMap3DProps`, so no ref-forwarding wrapper is necessary.
-
-### B. WeeklyScheduler (`src/components/dashboard/WeeklyScheduler.tsx`)
-- **Import Locations:**
-  - `src/components/dashboard/PortfolioDashboardView.tsx:7` (Dynamic, `ssr: false`, loading height `h-[300px]`).
-- **Dependencies:**
-  - `lucide-react` (icons), `useSchedules` custom hook, types from `@/types`. No heavy calendar grid libraries (e.g., FullCalendar or big-calendar) are imported.
-- **Props Signature:**
-  - `React.FC` / Empty (`{}`).
-- **Dynamic Prop Safety:** Fully safe as it does not accept props.
-- **CLS Bottleneck:** The current fallback is a simple spinner card with `h-[300px]`, while the fully loaded component is `h-[620px]` on desktop, creating a shift of over 300px.
-
-### C. WikiEditor (`src/components/WikiEditor.tsx`)
-- **Import Locations:**
-  - **Statically imported** in `src/components/MindMap3D.tsx:14`.
-- **Dependencies:**
-  - `@blocknote/core`
-  - `@blocknote/react`
-  - `@blocknote/mantine`
-  - `@blocknote/mantine/style.css`
-  - `@/lib/llm-client` (for AI context continuation via Llama 3.1)
-  *Total bundle size impact: ~350KB+ gzip due to Mantine CSS/JS, ProseMirror, and BlockNote core utilities.*
-- **Props Signature:**
-  ```typescript
-  interface WikiEditorProps {
-    nodeId: string;
-    nodeTitle: string;
-    initialBlocks?: PartialBlock[];
-    onChange?: (blocks: PartialBlock[]) => void;
-    onClose?: () => void;
-    addCustomEdge?: (source: string, target: string) => void;
-  }
-  ```
-- **Dynamic Prop Safety:** Fully safe. The component is instantiated in `MindMap3D.tsx` with a key: `<WikiEditor key={activeNode.id} ... />`. This ensures proper React mount lifecycles when switching nodes, and the dynamic import's chunk loader will update dynamically with the matching active node props.
+This analysis provides the complete design, code mapping, tab navigation architecture, schedule data integration, and exact proposed modifications adhering strictly to AGENTS.md hydration and performance rules.
 
 ---
 
-## 3. Bundle Bloat & Third-Party Dependency Analysis
+## 2. Component Inspection & Line-by-Line Mapping
 
-The following third-party dependencies are the main drivers of the bundle weight:
-1. **BlockNote & Mantine:** Rich text libraries containing virtual DOM mapping, complex ProseMirror operations, and layout frameworks. Statically importing these forces the initial download of their script and stylesheets.
-2. **Yjs & CRDT Infrastructure:** Though managed via dynamic context, Yjs and PartyKit dependencies are isolated to hooks (`useYjsStore.ts` and `useGraphCustomization.ts`). We must maintain client-only executions (`ssr: false`) to prevent SSR mismatches since these hooks depend on browser APIs (`window`, `localStorage`, `indexedDB`).
+### A. `src/components/project/ProjectManagementPage.tsx`
+- **Lines 1–12**: Imports (`useProjects`, `useTasks`, `Project`, `ChecklistItem`, `Task`, `lucide-react` icons).
+- **Lines 14–56**: Main component `ProjectManagementPage()` initialization, hook hooks (`useProjects`, `useTasks`), local state for modal dialogs (`isAddingProject`, `isEditingProject`, `isAddingTask`), project form state, checklist text state, selected project memoization (`selectedProject`).
+- **Lines 82–196**: Project CRUD event handlers (`handleCreateProject`, `handleUpdateProject`, `handleDeleteProject`, `handleAddChecklist`, `handleCreateAssociatedTask`, `handleToggleTaskStatus`).
+- **Lines 191–206**: `associatedTasks` and `progressMap` memoizations.
+- **Lines 207–300**: Main container div and **Left Column Sidebar (`w-full md:w-[360px]`)**: displays project list, search/selection handlers, progress bars, edit/delete buttons.
+- **Lines 302 border/panel**: **Right Column Panel**: Currently renders only the detailed project view when `selectedProject` is non-null or an empty state when no project is selected.
+  - **Lines 306–321**: Project Header (color dot, name, description).
+  - **Lines 324–429**: Left Sub-panel (Project attributes grid: Target, Budget, Location, Staff, Timeline + Checklist items list & add form).
+  - **Lines 432–520**: Right Sub-panel (Achievements text box, Future Plans text box + Associated Tasks list & task assignment modal trigger).
+- **Lines 536–741**: Modals (`isAddingProject`, `isEditingProject`, `isAddingTask`).
+
+### B. `src/components/dashboard/WeeklyScheduler.tsx`
+- **Lines 1–87**: `ScheduleForm` component (isolated form memoized with `React.memo` for registering new schedules).
+- **Lines 100–376**: `ScheduleItem` memoized component (renders single schedule card with color coding by type, person badge, note tooltip, and delete action).
+- **Lines 380–618**: `WeeklySchedulerComponent` wrapped with `React.memo` as `WeeklyScheduler`. Uses `useSchedules()` hook, calculates `weekDays` array, filters schedules by date range, and renders the 7-day calendar grid.
+
+### C. `src/hooks/useSchedules.ts`
+- Provides `schedules`, `loading`, `addSchedule`, `updateSchedule`, `deleteSchedule`, `getSchedulesForDate`.
+- `Schedule` type fields: `id`, `date`, `endDate`, `startTime`, `endTime`, `title`, `type` (`'security' | 'meeting' | 'education' | 'other'`), `person`, `notes`, `createdAt`, `updatedAt`.
 
 ---
 
-## 4. Proposed Refactoring & Wrapper Design
+## 3. Architecture & Tab Navigation Structure
 
-To resolve these issues, we propose implementing Next.js dynamic import wrappers with matching visual skeleton fallbacks to prevent CLS.
+Currently, `ProjectManagementPage.tsx` lacks a top tab switcher for switching views within a project or across the project management module. 
 
-### A. Refactoring WikiEditor in MindMap3D.tsx
-To defer loading `@blocknote` and `mantine` libraries until the wiki sidebar is actually toggled open:
-
-#### Proposed Changes in `src/components/MindMap3D.tsx`:
-
-1. Replace static import:
-   ```typescript
-   // Remove this line:
-   // import { WikiEditor } from './WikiEditor';
-   ```
-2. Add dynamic import wrapper at module level:
-   ```typescript
-   import dynamic from 'next/dynamic';
-
-   const WikiEditor = dynamic(() => import('./WikiEditor').then(mod => mod.WikiEditor), {
-     ssr: false,
-     loading: () => <WikiEditorSkeleton />
-   });
-   ```
-
-#### WikiEditor Loading Skeleton UI Design:
+### Proposed Tab Navigation Architecture:
+We introduce an **Active Tab State** in `ProjectManagementPage.tsx`:
 ```tsx
-function WikiEditorSkeleton() {
-  return (
-    <div className="absolute top-0 right-0 h-full bg-white z-[120] shadow-xl border-l border-slate-200 w-full md:w-[450px] lg:w-[500px] flex flex-col animate-pulse">
-      {/* Header Skeleton */}
-      <div className="shrink-0 pt-6 px-8 pb-4 border-b border-slate-100 flex justify-between items-start">
-        <div className="flex flex-col gap-2">
-          <div className="w-20 h-3.5 bg-slate-200 rounded" />
-          <div className="w-48 h-6 bg-slate-200 rounded" />
-        </div>
-        <div className="w-8 h-8 bg-slate-200 rounded-full" />
-      </div>
-
-      {/* Editor Content Body Skeleton */}
-      <div className="flex-1 p-8 flex flex-col gap-6 overflow-y-auto">
-        <div className="w-32 h-8 bg-slate-200 rounded-md" />
-        
-        <div className="space-y-4">
-          <div className="w-full h-4 bg-slate-200 rounded" />
-          <div className="w-11/12 h-4 bg-slate-200 rounded" />
-          <div className="w-10/12 h-4 bg-slate-200 rounded" />
-        </div>
-
-        <div className="w-44 h-6 bg-slate-200 rounded-md mt-4" />
-        
-        <div className="space-y-3 pl-4">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-slate-200 rounded-full" />
-            <div className="w-5/6 h-3 bg-slate-200 rounded" />
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-slate-200 rounded-full" />
-            <div className="w-4/5 h-3 bg-slate-200 rounded" />
-          </div>
-        </div>
-
-        <div className="flex-1 flex flex-col items-center justify-center gap-3 py-10">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-          <span className="text-xs text-slate-400 font-bold">블록 에디터 리소스를 불러오는 중...</span>
-        </div>
-      </div>
-    </div>
-  );
-}
+export type ProjectTabType = 'overview' | 'schedule';
+const [activeTab, setActiveTab] = useState<ProjectTabType>('overview');
 ```
 
+#### Placement Options:
+1. **Right Panel Header Tab Navigation Bar** (Recommended):
+   - Located directly below or alongside the Project Header inside the Right Panel (`selectedProject` detail view).
+   - Allows switching between:
+     - **`[FolderGit2] 사업 개요 및 세부 현황` (Overview)**: Displays attributes, checklist, achievements, future plans, and tasks.
+     - **`[Calendar] 일정 플래너` (Schedule Planner)**: Displays the weekly schedule planner view.
+
+2. **Global Project Management Module Tab Bar**:
+   - Placed above the 2-column layout or inside the main header.
+   - `overview`: 2-column project list + detail view.
+   - `schedule`: Full-width or sidebar-assisted Schedule Planner integrating project schedules.
+
 ---
 
-### B. Optimizing WeeklyScheduler Fallback in PortfolioDashboardView.tsx
-To eliminate the layout shift (~320px), we propose a custom skeleton dashboard scheduler card.
+## 4. Schedule Data & Project Integration Strategy
 
-#### Proposed Changes in `src/components/dashboard/PortfolioDashboardView.tsx`:
+When the user switches to the **'일정 플래너' (Schedule Planner)** tab in `ProjectManagementPage.tsx`:
 
-1. Replace the current `WeeklyScheduler` dynamic definition:
-   ```typescript
-   const WeeklyScheduler = dynamic(() => import('./WeeklyScheduler').then(mod => mod.WeeklyScheduler), {
-     ssr: false,
-     loading: () => <WeeklySchedulerSkeleton />
-   });
+1. **Project-Contextual Schedule Filtering**:
+   - If a project is selected (`selectedProjectId`), the Schedule Planner can highlight schedules associated with the project's staff (`selectedProject.staff`) or project category.
+   - An optional filter toggle: `"전체 일정 보기" (View All)` vs `"현재 사업 일정만 보기" (View Current Project Schedules)`.
+
+2. **Auto-Populating Schedule Registration Form**:
+   - When registering a new schedule while inside a project view, the `person` field defaults to `selectedProject.staff` (e.g. "홍길동 팀장"), and `notes` defaults to `[사업: selectedProject.name]`.
+
+3. **Project Timeline & Milestones Integration**:
+   - Displays project key timeline (`selectedProject.timeline`) as a banner above the weekly grid so team members can align weekly tasks with overall project deadlines.
+
+---
+
+## 5. Hydration & Staggered Chunk Compliance (AGENTS.md Rules)
+
+To strictly comply with **AGENTS.md Rule 2-I (Hydration & Chunk Isolation)** and **Rule 2-J (Zero-Stall)**:
+
+1. **Dynamic Import**:
+   `WeeklyScheduler` component MUST be dynamically imported with `ssr: false`:
+   ```tsx
+   const WeeklyScheduler = dynamic(
+     () => import('../dashboard/WeeklyScheduler').then(mod => mod.WeeklyScheduler),
+     {
+       ssr: false,
+       loading: () => <WeeklySchedulerSkeleton />
+     }
+   );
    ```
 
-#### WeeklyScheduler Loading Skeleton UI Design:
+2. **Skeleton Fallback Component (`WeeklySchedulerSkeleton`)**:
+   Must render an exact real-dimension placeholder (height ~620px, high-contrast skeleton blocks with `animate-pulse`) to prevent Cumulative Layout Shift (CLS) during hydration and tab switching.
+
+3. **Staggered Preloading / Idle Callback**:
+   - When `ProjectManagementPage` mounts, schedule bundle preloading can be deferred using `requestIdleCallback` (with fallback to `setTimeout` 3.5s) so main thread hydration remains 100% smooth.
+
+4. **Memoization**:
+   - Tab switching handlers and sub-views wrapped with `useCallback` / `useMemo` to maintain $O(1)$ response time.
+
+---
+
+## 6. Proposed Code Modifications (Diff Patch Proposal)
+
+### Proposed Changes to `src/components/project/ProjectManagementPage.tsx`:
+
 ```tsx
+// 1. Add imports
+import dynamic from 'next/dynamic';
+import { Calendar, LayoutGrid, ... } from 'lucide-react';
+
+// 2. Add Skeleton Component for WeeklyScheduler
 function WeeklySchedulerSkeleton() {
   return (
-    <div className="glass-panel rounded-[2rem] p-8 shadow-2xs border border-white/20 h-[620px] animate-pulse flex flex-col gap-6">
-      {/* Header Placeholder */}
-      <div className="flex justify-between items-center pb-6 border-b border-slate-200/50">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 bg-slate-200/60 rounded-2xl" />
-          <div className="flex flex-col gap-2">
-            <div className="w-44 h-5 bg-slate-200/60 rounded" />
-            <div className="w-64 h-3 bg-slate-200/40 rounded" />
-          </div>
-        </div>
-        <div className="w-48 h-8 bg-slate-200/50 rounded-xl" />
+    <div className="bg-slate-50/50 rounded-2xl p-6 border border-slate-200/60 h-[600px] animate-pulse flex flex-col gap-4">
+      <div className="flex justify-between items-center pb-4 border-b border-slate-200">
+        <div className="w-48 h-6 bg-slate-200 rounded-lg" />
+        <div className="w-36 h-8 bg-slate-200 rounded-xl" />
       </div>
-
-      {/* Grid Layout Placeholder */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 flex-1 min-h-0">
-        {/* Left Form Skeleton */}
-        <div className="xl:col-span-3 flex flex-col gap-4 border-r border-slate-200/30 pr-6">
-          <div className="w-24 h-4 bg-slate-200/60 rounded" />
-          <div className="w-full h-10 bg-slate-200/40 rounded-xl" />
-          <div className="w-32 h-4 bg-slate-200/60 rounded" />
-          <div className="w-full h-10 bg-slate-200/40 rounded-xl" />
-          <div className="flex gap-2">
-            <div className="w-1/2 h-10 bg-slate-200/40 rounded-xl" />
-            <div className="w-1/2 h-10 bg-slate-200/40 rounded-xl" />
-          </div>
-          <div className="w-full h-24 bg-slate-200/40 rounded-xl mt-auto" />
-        </div>
-
-        {/* Right Weekly Grid Skeleton */}
-        <div className="xl:col-span-9 grid grid-cols-7 gap-3 h-full">
-          {Array.from({ length: 7 }).map((_, idx) => (
-            <div key={idx} className="flex flex-col bg-slate-100/40 border border-slate-200/30 rounded-2xl p-3 gap-3 h-full">
-              <div className="flex items-center justify-between border-b border-slate-200/30 pb-2">
-                <div className="w-6 h-4 bg-slate-200/60 rounded" />
-                <div className="w-4 h-4 bg-slate-200/60 rounded-full" />
-              </div>
-              <div className="flex-1 flex flex-col gap-2 justify-center items-center">
-                <div className="w-8 h-8 bg-slate-200/40 rounded-full" />
-                <div className="w-10 h-2 bg-slate-200/30 rounded" />
-              </div>
-            </div>
+      <div className="grid grid-cols-12 gap-4 flex-1">
+        <div className="col-span-3 bg-slate-200/60 rounded-xl h-full" />
+        <div className="col-span-9 grid grid-cols-7 gap-2 h-full">
+          {Array.from({ length: 7 }).map((_, i) => (
+            <div key={i} className="bg-slate-200/50 rounded-xl h-full" />
           ))}
         </div>
       </div>
     </div>
   );
 }
-```
 
----
+// 3. Dynamic import of WeeklyScheduler
+const WeeklyScheduler = dynamic(
+  () => import('../dashboard/WeeklyScheduler').then(mod => mod.WeeklyScheduler),
+  {
+    ssr: false,
+    loading: () => <WeeklySchedulerSkeleton />
+  }
+);
 
-### C. Optimizing MindMap3D Fallback in page.tsx
-To ensure a matching dark visual styling and concentric orbital layouts that mimic the 3D canvas before it renders.
+// 4. In ProjectManagementPage component state:
+export type ProjectTabType = 'overview' | 'schedule';
 
-#### Proposed Changes in `src/app/page.tsx`:
+export default function ProjectManagementPage() {
+  const [activeTab, setActiveTab] = useState<ProjectTabType>('overview');
 
-1. Replace the current `MindMap3D` dynamic definition:
-   ```typescript
-   const MindMap3D = dynamic(() => import('@/components/MindMap3D').then(mod => mod.MindMap3D), {
-     ssr: false,
-     loading: () => <MindMap3DSkeleton />
-   });
-   ```
+  // ... (existing code)
 
-#### MindMap3D Loading Skeleton UI Design:
-```tsx
-function MindMap3DSkeleton() {
   return (
-    <div className="flex flex-col h-[660px] w-full bg-slate-950 border border-slate-800 rounded-3xl p-6 relative overflow-hidden animate-pulse">
-      {/* Top HUD Skeleton */}
-      <div className="flex justify-between items-center mb-6 z-10">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-slate-800 rounded-xl" />
-          <div className="flex flex-col gap-2">
-            <div className="w-36 h-5 bg-slate-800 rounded" />
-            <div className="w-48 h-3 bg-slate-800 rounded" />
-          </div>
+    <div className="flex h-full bg-slate-50/50 p-4 md:p-6 overflow-hidden">
+      <div className="flex flex-col md:flex-row w-full max-w-[1700px] mx-auto gap-6 h-full">
+        
+        {/* Left Column: Project List Sidebar */}
+        <div className="w-full md:w-[360px] shrink-0 bg-white rounded-2xl border border-slate-200/80 shadow-sm flex flex-col h-full overflow-hidden">
+          {/* Sidebar Header & List (unchanged) */}
         </div>
-        <div className="w-24 h-9 bg-slate-800 rounded-xl" />
-      </div>
 
-      {/* Orbit Visualization Mockup */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <div className="w-[100px] h-[100px] border border-slate-800/60 rounded-full" />
-        <div className="absolute w-[240px] h-[240px] border border-slate-800/40 rounded-full" />
-        <div className="absolute w-[380px] h-[380px] border border-slate-800/20 rounded-full" />
-        <div className="absolute w-[500px] h-[500px] border border-slate-800/10 rounded-full" />
-      </div>
+        {/* Right Column: Project Details Panel */}
+        <div className="flex-1 bg-white rounded-2xl border border-slate-200/80 shadow-sm flex flex-col h-full overflow-hidden">
+          {selectedProject ? (
+            <div className="flex flex-col h-full overflow-hidden">
+              {/* Project Header + Tab Selector Bar */}
+              <div className="p-5 border-b border-slate-100 flex flex-col gap-3 shrink-0 bg-slate-50/20">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span 
+                      className="w-3.5 h-3.5 rounded-full shrink-0" 
+                      style={{ backgroundColor: selectedProject.color }} 
+                    />
+                    <h1 className="text-lg font-black text-slate-800 leading-snug">
+                      {selectedProject.name}
+                    </h1>
+                  </div>
 
-      {/* Center Status Loader */}
-      <div className="flex-1 flex flex-col items-center justify-center gap-4 z-10">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-500"></div>
-        <div className="text-center">
-          <p className="text-sm font-semibold text-slate-400">3D 마인드맵 시각화 엔진을 구축하는 중...</p>
-          <p className="text-[11px] text-slate-600 mt-1">네트워크 분석 및 실시간 궤도 매핑 준비 중</p>
+                  {/* Tab Navigation Buttons */}
+                  <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/60">
+                    <button
+                      onClick={() => setActiveTab('overview')}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer border-0 ${
+                        activeTab === 'overview'
+                          ? 'bg-white text-blue-600 shadow-xs'
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      <LayoutGrid size={14} />
+                      <span>사업 개요 및 실무</span>
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('schedule')}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer border-0 ${
+                        activeTab === 'schedule'
+                          ? 'bg-white text-blue-600 shadow-xs'
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      <Calendar size={14} />
+                      <span>일정 플래너</span>
+                    </button>
+                  </div>
+                </div>
+
+                {selectedProject.description && (
+                  <p className="text-xs text-slate-500 leading-relaxed max-w-[90%] whitespace-pre-wrap pl-6">
+                    {selectedProject.description}
+                  </p>
+                )}
+              </div>
+
+              {/* Tab Content View Switching */}
+              {activeTab === 'overview' ? (
+                /* Panels split: Left (Attributes & Checklist), Right (Achievements & Tasks) */
+                <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
+                  {/* Existing Overview Panels */}
+                </div>
+              ) : (
+                /* Integrated Schedule Planner Tab Content */
+                <div className="flex-1 p-5 overflow-y-auto custom-scrollbar">
+                  {/* Project Context Banner */}
+                  <div className="mb-4 p-3 bg-blue-50/50 border border-blue-100 rounded-xl flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Calendar size={16} className="text-blue-600" />
+                      <span className="text-xs font-extrabold text-slate-700">
+                        {selectedProject.name} 주간 세부 수행 일정
+                      </span>
+                    </div>
+                    {selectedProject.timeline && (
+                      <span className="text-[11px] font-bold text-blue-600">
+                        사업 기한: {selectedProject.timeline}
+                      </span>
+                    )}
+                  </div>
+                  
+                  {/* Dynamically Loaded Weekly Scheduler */}
+                  <WeeklyScheduler />
+                </div>
+              )}
+
+            </div>
+          ) : (
+            /* Empty State */
+          )}
         </div>
-      </div>
 
-      {/* Bottom HUD HUD Placeholder */}
-      <div className="absolute bottom-6 left-6 right-6 flex justify-between items-center z-10">
-        <div className="flex gap-2">
-          <div className="w-10 h-10 bg-slate-800 rounded-xl" />
-          <div className="w-10 h-10 bg-slate-800 rounded-xl" />
-        </div>
-        <div className="w-40 h-8 bg-slate-800 rounded-lg" />
-        <div className="w-24 h-10 bg-slate-800 rounded-xl" />
       </div>
     </div>
   );
@@ -283,7 +260,11 @@ function MindMap3DSkeleton() {
 
 ---
 
-## 5. Summary of Recommended Actions
-1. **WikiEditor Wrapper:** Replace the static import of `WikiEditor` in `MindMap3D.tsx` with a dynamic import `{ ssr: false }`. Integrate the `WikiEditorSkeleton` loading component.
-2. **WeeklyScheduler Fallback:** Update the dynamic fallback in `PortfolioDashboardView.tsx` from `h-[300px]` spinner to `WeeklySchedulerSkeleton` layout to avoid CLS.
-3. **MindMap3D Fallback:** Update the dynamic fallback in `page.tsx` to `MindMap3DSkeleton` to matches the orbital aesthetics and UI heights.
+## 7. Verification Method
+
+1. **Static Analysis & Type Checks**:
+   `npx tsc --noEmit`
+2. **Harness & Rule Compliance**:
+   `node scripts/run-harness.js`
+3. **Dynamic Hydration Verification**:
+   Ensure `WeeklyScheduler` only loads on demand when navigating to the '일정 플래너' tab or asynchronously without SSR mismatch errors.

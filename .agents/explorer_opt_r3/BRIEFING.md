@@ -1,35 +1,35 @@
-# BRIEFING — 2026-07-16T10:53:30+09:00
+# BRIEFING — 2026-07-22T10:48:40Z
 
 ## Mission
-Analyze target dashboard/mindmap components for unnecessary re-renderings, recommend memoization, and design a staggered preloading sequence.
+Investigate `WeeklyScheduler.tsx`, `useSchedules.ts`, `schemas.ts`, and schedule components for R3 (cell click modal & DND rescheduling) and R4 (multi-view support: Week / Month / Timetable).
 
 ## 🔒 My Identity
-- Archetype: Explorer
-- Roles: Read-only investigation: analyze problems, synthesize findings, produce structured reports
+- Archetype: explorer
+- Roles: read-only investigation, code analysis, design proposal
 - Working directory: d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\explorer_opt_r3
-- Original parent: cd53f6a5-33fc-4a9f-afd8-3fdda3a0de24
-- Milestone: Performance Optimization (R3)
+- Original parent: e3ee9654-827a-45fd-a187-0fb5b00cf5cb (Subagent caller ID: abd93e83-754f-45e3-85ab-e2f4a8d541e0)
+- Milestone: R3 & R4 Interactive UX & Multi-View Scheduler
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement
-- CODE_ONLY network mode: no external HTTP/client queries
-- Keep briefing under 100 lines and use append-only rules for locked sections
+- Read-only investigation — do NOT implement directly in src/
+- Strictly adhere to AGENTS.md rules (MVC, Zero-Stall, Zod validations, React Query hooks)
+- Document detailed findings in analysis.md and handoff.md
 
 ## Current Parent
-- Conversation ID: cd53f6a5-33fc-4a9f-afd8-3fdda3a0de24
-- Updated: 2026-07-16T10:53:30+09:00
+- Conversation ID: abd93e83-754f-45e3-85ab-e2f4a8d541e0
+- Updated: 2026-07-22T10:48:40Z
 
 ## Investigation State
-- **Explored paths**: PortfolioDashboardView.tsx, WeeklyScheduler.tsx, MindMap3D.tsx, MindMapInspector.tsx, ContactsBox.tsx, DummyPerfTest.tsx
-- **Key findings**: Identified missing `React.memo` custom comparator in `MindMap3D.tsx` (causes canvas redraws on unrelated state changes), lack of memoization on scheduler cards/contact list items, and lack of staggered rendering sequence for dynamic components causing UI stutters on dashboard mount.
+- **Explored paths**: `src/components/dashboard/WeeklyScheduler.tsx`, `src/hooks/useSchedules.ts`, `src/lib/schemas.ts`, `src/types/index.ts`, `src/components/dashboard/PortfolioDashboardView.tsx`
+- **Key findings**: Detailed R3 direct cell click modal handler & HTML5 DND rescheduling protocol; Detailed R4 multi-view (Week, Month, Timetable) tab control & rendering architecture. Verified Zod schema safety.
 - **Unexplored areas**: None. Investigation complete.
 
 ## Key Decisions Made
-- Setup BRIEFING.md and ORIGINAL_REQUEST.md.
-- Wrote detailed analysis report in `analysis.md` and handoff report in `handoff.md`.
+- Completed detailed analysis (`analysis.md`) and handoff report (`handoff.md`).
 
 ## Artifact Index
-- d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\explorer_opt_r3\task.md — Task description
-- d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\explorer_opt_r3\ORIGINAL_REQUEST.md — Timestamped user request
-- d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\explorer_opt_r3\analysis.md — Findings and recommendations
-- d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\explorer_opt_r3\handoff.md — 5-Component handoff report
+- `.agents/explorer_opt_r3/ORIGINAL_REQUEST.md` — Original request
+- `.agents/explorer_opt_r3/BRIEFING.md` — Briefing document
+- `.agents/explorer_opt_r3/progress.md` — Progress tracker
+- `.agents/explorer_opt_r3/analysis.md` — In-depth technical analysis
+- `.agents/explorer_opt_r3/handoff.md` — 5-component handoff report

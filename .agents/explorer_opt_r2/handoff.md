@@ -1,65 +1,54 @@
-# Handoff Report: Lazy Loading & FCP Analysis (R2)
+# Handoff Report — explorer_opt_r2
 
 ## 1. Observation
-We observed the following files and lines:
-- **`src/components/MindMap3D.tsx:14`**: `import { WikiEditor } from './WikiEditor';` (static import of `WikiEditor`).
-- **`src/components/WikiEditor.tsx:5-7`**: 
-  ```typescript
-  import { PartialBlock } from '@blocknote/core';
-  import { useCreateBlockNote, SuggestionMenuController, getDefaultReactSlashMenuItems, DefaultReactSuggestionItem } from '@blocknote/react';
-  import { BlockNoteView } from '@blocknote/mantine';
-  ```
-- **`src/components/dashboard/PortfolioDashboardView.tsx:7-15`**:
-  ```typescript
-  const WeeklyScheduler = dynamic(() => import('./WeeklyScheduler').then(mod => mod.WeeklyScheduler), {
-    ssr: false,
-    loading: () => (
-      <div className="flex flex-col items-center justify-center py-20 gap-4 glass-panel rounded-[2rem] p-8 shadow-2xs border border-white/20 h-[300px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-        <p className="text-sm text-slate-500 font-bold">주간 플래너를 로드하는 중...</p>
-      </div>
-    )
-  });
-  ```
-- **`src/app/page.tsx:35-43`**:
-  ```typescript
-  const MindMap3D = dynamic(() => import('@/components/MindMap3D').then(mod => mod.MindMap3D), {
-    ssr: false,
-    loading: () => (
-      <div className="flex flex-col items-center justify-center h-[660px] gap-4">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-        <p className="text-sm text-slate-500 font-bold">3D 마인드맵 엔진을 로드하는 중...</p>
-      </div>
-    )
-  });
-  ```
+
+- **Target Component**: `src/components/project/ProjectManagementPage.tsx` (Total lines: 745).
+- **Source Schedule Component**: `src/components/dashboard/WeeklyScheduler.tsx` (Total lines: 618, exported as `WeeklyScheduler = React.memo(...)`).
+- **Hook & Storage**: `src/hooks/useSchedules.ts` (manages `Schedule` objects with fields: `id`, `date`, `endDate`, `startTime`, `endTime`, `title`, `type`, `person`, `notes`).
+- **Current `ProjectManagementPage.tsx` Layout**:
+  - Left column: Project list sidebar (`w-[360px]`, lines 211–299).
+  - Right column: Project details panel (lines 302–531).
+  - Currently lacks top tab bar or section switcher; directly renders attribute grid, checklist, achievements, future plans, and associated tasks.
+- **Rules Compliance Check (AGENTS.md)**:
+  - Rule 2-I (Server Hydration & Staggered Chunk): Requires dynamic imports (`ssr: false`) and custom Skeleton fallbacks for major component additions.
+  - Rule 2-J (Zero-Stall): Tab state and data lookups must maintain $O(1)$ complexity without unnecessary re-fetching on tab switch.
 
 ---
 
 ## 2. Logic Chain
-1. Since **`WikiEditor`** is statically imported inside **`MindMap3D.tsx`**, loading the `MindMap3D` chunk automatically loads the entire `@blocknote` core/react/mantine ecosystem (~350KB+ gzip bundle size). This happens even if the user never clicks on a node to open the sliding wiki edit panel drawer.
-2. Because **`WeeklyScheduler`** has a dynamic loading fallback height of `300px`, whereas the actual scheduler renders with a height of `620px` on desktop, a layout shift (CLS) of ~320px is triggered when the component chunk loads and hydrates in the client.
-3. Similarly, the dynamic loading fallback of **`MindMap3D`** is a simple spinner card that does not visually match the orbital layout of the canvas, which causes a minor visual shift upon hydration.
-4. Converting `WikiEditor` to a client-side deferred dynamic import using `next/dynamic` with `{ ssr: false }` inside `MindMap3D.tsx` will decouple the blocknote library from the mindmap, ensuring it is only fetched on-demand when the wiki drawer opens.
-5. Upgrading the loaders to custom-styled skeletons matching the exact layouts and heights of the target components will eliminate CLS and improve First Contentful Paint (FCP) visual transitions.
-6. The prop signatures of these components do not utilize React `refs` requiring forwarding, which makes dynamic wrapping completely transparent and safe.
+
+1. **Problem**: R2 milestone requires migrating the Schedule Planner (`WeeklyScheduler`) into the Project Management module (`ProjectManagementPage.tsx`) and seamlessly integrating project schedule data.
+2. **Tab Architecture Selection**:
+   - `ProjectManagementPage.tsx` contains right panel detail view when `selectedProject` is set. Adding a header tab selector (`activeTab: 'overview' | 'schedule'`) inside the right panel header (lines 306–321) allows users to toggle seamlessly between:
+     a. **`사업 개요 및 실무` (Overview)**: Attribute grid, checklist, achievements, future plans, associated tasks.
+     b. **`일정 플래너` (Schedule Planner)**: Weekly scheduler view displaying interactive 7-day schedule grid with registration form.
+3. **Data Integration**:
+   - Integrating project context into `WeeklyScheduler`: display project timeline banner (`selectedProject.timeline`) and pre-populate schedule form fields (person: `selectedProject.staff`, notes: `[사업: selectedProject.name]`).
+4. **Hydration & Performance Guard**:
+   - `WeeklyScheduler` must be imported via `dynamic(() => import('../dashboard/WeeklyScheduler').then(m => m.WeeklyScheduler), { ssr: false, loading: () => <WeeklySchedulerSkeleton /> })`.
+   - Creating `WeeklySchedulerSkeleton` (600px height placeholder with pulse animation) prevents layout shifts.
 
 ---
 
 ## 3. Caveats
-- No caveats identified. We did not run a webpack analyzer, but the third-party dependencies are well-known bundle drivers.
+
+- `WeeklyScheduler` is currently also rendered in `PortfolioDashboardView.tsx`. When migrating/integrating it into `ProjectManagementPage.tsx`, we maintain `WeeklyScheduler.tsx` as a re-usable component in `src/components/dashboard/` or re-export it in `src/components/project/`.
+- No direct source code changes were committed to `src/components/project/ProjectManagementPage.tsx` during this exploration turn (read-only constraint). Proposed implementation patch is fully documented in `analysis.md` and this report for implementer agent execution.
 
 ---
 
 ## 4. Conclusion
-Dynamic wrappers with `{ ssr: false }` and matching skeleton interfaces should be implemented to defer `WikiEditor` (and its BlockNote/Mantine dependencies) and prevent layout shifts for the dashboard modules.
+
+- Added tab navigation concept (`activeTab: 'overview' | 'schedule'`) in `ProjectManagementPage.tsx`.
+- Defined dynamic import and skeleton strategy for `WeeklyScheduler`.
+- Documented full proposed patch in `.agents/explorer_opt_r2/analysis.md`.
 
 ---
 
 ## 5. Verification Method
-- **Implementation & Build:** Ensure the proposed dynamic import files compile without errors:
-  ```powershell
-  npm run build
-  ```
-- **FCP and Deferral Verification:** Open the web app in a browser (localhost:3001) with the network tab open. Confirm that the `@blocknote` bundles are not fetched when viewing the 3D Mindmap initially, and are only downloaded when opening the wiki panel overlay.
-- **CLS Verification:** Verify visually that the transition from skeletons to fully loaded components is layout-stable (no size jumps).
+
+To verify the proposed implementation:
+1. Check file existence: `.agents/explorer_opt_r2/analysis.md` and `.agents/explorer_opt_r2/handoff.md`.
+2. Execute build & type check: `npx tsc --noEmit`
+3. Execute harness check: `node scripts/run-harness.js`
+4. In browser, verify tab switching between "사업 개요 및 실무" and "일정 플래너" on project selection with zero CLS or hydration errors.

@@ -121,3 +121,36 @@ Integrity mode: development
 - [ ] Moving away from the 3D MindMap tab completely halts its CPU/GPU physics loop.
 - [ ] `node scripts/run-harness.js` passes with 0 errors, 0 warnings, 0 violations, and 0 bottlenecks.
 
+## Follow-up — 2026-07-22T09:59:14+09:00
+
+PORTFOLIO VITAL 프로젝트의 `PORTFOLIO VITAL - Engineering Report.md` 문서를 최신 코드베이스 통계, 렌더링 성능 지표, 모듈 인벤토리, R1/R2/R3 패치 이력 및 하네스 검증 결과로 종합 고도화하고 `AGENTS.md`와 동기화합니다.
+
+Working directory: d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL
+Integrity mode: development
+
+## Requirements
+
+### R1. 코드베이스 실시간 통계 및 인벤토리 재산출
+코드베이스를 스캔하여 총 TS/TSX 파일 수, 코드 라인 수, 커스텀 훅 목록(29개+), API 라우트 엔드포인트 목록 및 컴포넌트 구조를 정확히 측정하고 `PORTFOLIO VITAL - Engineering Report.md` Section 3 및 Section 5 항목에 반영합니다.
+
+### R2. 엔지니어링 패치 내역 및 마일스톤 정교화
+최근 완료된 R1(하이드레이션 및 청크 격리), R2(가상화 및 DOM 최적화), R3(무충돌 영속성 및 0-Stall 보장), 3D 마인드맵 rendering/GC 최적화, PBKDF2 캐싱 패치 등의 구체적 기술적 원인, 해결 방안, 성과를 챕터별로 정밀하게 작성하고 체계화합니다.
+
+### R3. 하네스 자동 검증 및 무결성 수립
+`npx tsc --noEmit` 및 `node scripts/run-harness.js`를 실행하여 0 compiler errors, 0 lint warnings, 0 architectural violations, 0 performance bottlenecks를 실증적으로 달성합니다.
+
+### R4. 에이전트 매니페스트(AGENTS.md) 자동 동기화
+`node scripts/sync-rules.js` 도구를 실행하여 엔지니어링 리포트의 마일스톤 로그를 `AGENTS.md` 파일 하단에 즉시 자동으로 최신화 동기화합니다.
+
+## Acceptance Criteria
+
+### Engineering Documentation Quality
+- [ ] `PORTFOLIO VITAL - Engineering Report.md` 파일의 모든 통계, 스택 버전, 아키텍처 다이어그램 및 패치 내역이 최신 실측 상태와 100% 일치함
+- [ ] 최근 반영된 R1/R2/R3 지연 예방 및 렌더링 최적화 패치 내역이 빠짐없이 명확하게 기술됨
+
+### Automated Verification
+- [ ] `npx tsc --noEmit` 명령 실행 결과 0 errors 달성
+- [ ] `node scripts/run-harness.js` 실행 결과 0 warnings, 0 violations, 0 bottlenecks 통과
+- [ ] `node scripts/sync-rules.js` 실행 완료 및 `AGENTS.md` 파일 정상 동기화 확인
+
+

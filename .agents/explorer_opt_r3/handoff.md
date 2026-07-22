@@ -1,129 +1,74 @@
-# Handoff Report — Explorer Opt R3
+# Handoff Report: R3 (Interactive UX) & R4 (Multi-View Scheduler)
 
 ## 1. Observation
 
-During our codebase investigation, we examined the following target files:
-- `src/components/dashboard/PortfolioDashboardView.tsx`
-- `src/components/dashboard/WeeklyScheduler.tsx`
-- `src/components/MindMap3D.tsx`
-- `src/components/MindMapInspector.tsx`
+- **Target Files Inspected**:
+  - `src/components/dashboard/WeeklyScheduler.tsx` (618 lines): Currently renders static 7-day columns and side-by-side creation form `ScheduleForm`. Does not contain cell click modal or drag-and-drop rescheduling handlers.
+  - `src/hooks/useSchedules.ts` (55 lines): Exposes `schedules`, `loading`, `addSchedule`, `updateSchedule`, `deleteSchedule`, `getSchedulesForDate`.
+  - `src/lib/schemas.ts` (lines 153-167): Defines `ScheduleSchema` and `ScheduleTypeSchema` with `.catch()` error fallbacks on all fields.
+  - `src/types/index.ts` (lines 176-191): Defines `Schedule` interface and `ScheduleType` union type (`'security' | 'meeting' | 'education' | 'other'`).
+  - `src/components/dashboard/PortfolioDashboardView.tsx` (lines 73-76, 446-450): Dynamic import wrapper for `WeeklyScheduler`.
 
-Specific observations:
-1.  **PortfolioDashboardView (`src/components/dashboard/PortfolioDashboardView.tsx`):**
-    *   Lines 89-100:
-        ```tsx
-        useEffect(() => {
-          if (!isMounted || !chartContainerRef.current) return;
-          
-          const observer = new ResizeObserver((entries) => {
-            if (!entries || entries.length === 0) return;
-            const { width } = entries[0].contentRect;
-            setChartWidth(width);
-          });
-          
-          observer.observe(chartContainerRef.current);
-          return () => observer.disconnect();
-        }, [isMounted]);
-        ```
-    *   Lines 371-374:
-        ```tsx
-        <div className="mt-8 mb-8 flex flex-col gap-8">
-          <WeeklyScheduler />
-          <ContactsBox />
-        </div>
-        ```
-    *   Lines 7-25: Dynamic loading definitions for `WeeklyScheduler` and `ContactsBox` are configured with `ssr: false` but are rendered immediately when the dashboard mounts without staggered delays.
-
-2.  **WeeklyScheduler (`src/components/dashboard/WeeklyScheduler.tsx`):**
-    *   Line 305:
-        ```tsx
-        export const WeeklyScheduler: React.FC = () => {
-        ```
-        The export is a plain function component without `React.memo` wrapping.
-    *   Lines 517-580: Grid items are generated via inline `.map()` mapping over `daySchedules` to draw schedule items directly without a memoized subcomponent:
-        ```tsx
-        daySchedules.map((schedule) => {
-          const config = getTypeConfig(schedule.type);
-
-          return (
-            <div
-              key={schedule.id}
-              className={`group relative flex flex-col p-2.5 border rounded-xl transition-all duration-200 hover:shadow-xs ${config.bg}`}
-              ...
-        ```
-
-3.  **MindMap3D (`src/components/MindMap3D.tsx`):**
-    *   Lines 41-66: `areMindMap3DPropsEqual` is defined:
-        ```tsx
-        function areMindMap3DPropsEqual(prevProps: MindMap3DProps, nextProps: MindMap3DProps) { ... }
-        ```
-    *   Line 70: The component is wrapped in `React.memo` but does **not** specify `areMindMap3DPropsEqual` as the second argument:
-        ```tsx
-        export const MindMap3D = React.memo(function MindMap3D({ signalKeywords, signalEntries, onRenameCategory, onDeleteCategory, isActive = true }: MindMap3DProps) {
-        ```
-        This results in shallow comparison of props, forcing re-renders on any change of `signalKeywords` or `signalEntries` references.
-
-4.  **MindMapInspector (`src/components/MindMapInspector.tsx`):**
-    *   Line 28:
-        ```tsx
-        overrides: Record<string, NodeOverride>;
-        ```
-        The entire overrides dictionary is passed as a prop, causing the inspector to re-render when changes occur to any node on the graph, even if they do not belong to the selected active node.
-    *   Lines 58-59:
-        ```tsx
-        const { tasks = [] } = useTasks();
-        const { categories = [], getCategoryStats } = useBudget();
-        ```
-        These data fetching hooks are directly invoked inside the component, making the component dependent on global task/budget state updates.
+- **Key Findings**:
+  - `useSchedules.ts` already provides `updateSchedule(id, updates)`, which performs optimistic state mutation + CRDT background sync (`syncUpdate`). This is fully ready for drag-and-drop instant persistence.
+  - `ScheduleSchema` in `schemas.ts` tolerates partial updates cleanly with zero Zod validation errors due to `.catch()` default fallbacks.
+  - Current grid columns do not have `onDragOver` or `onDrop` event handlers.
+  - `WeeklyScheduler.tsx` currently only supports single week view.
 
 ---
 
 ## 2. Logic Chain
 
-1.  **Dashboard Rendering Pipeline**:
-    *   `PortfolioDashboardView` handles container resizing using `ResizeObserver` which sets the `chartWidth` state (Observation 1).
-    *   Updating `chartWidth` forces `PortfolioDashboardView` to re-render.
-    *   Because `WeeklyScheduler` and `ContactsBox` are imported dynamically but not wrapped in `React.memo` (Observation 2), they re-render from scratch on every parent update, causing CPU stutters.
-    *   Moreover, rendering both heavy components concurrently on mount blocks the main thread. Dividing their loading using separate delayed state flags will prevent UI freezes.
+1. **Step 1: Cell Click Interaction (R3)**
+   - Observation: Clicking a day header currently only sets the start date on the side form. Empty time slots or day cells cannot be clicked directly to create schedules.
+   - Deduction: Introducing a unified `ScheduleModal` component and `modalState` allows any cell click (`onClick={() => handleCellClick(dateStr, timeStr)}`) to trigger modal creation with prefilled `date`, `startTime`, `endTime` (+1h duration). Card click triggers edit mode.
 
-2.  **Scheduler Optimization**:
-    *   The scheduler lists all schedules in a grid, drawing each schedule item card via inline JSX `.map()` (Observation 2).
-    *   Every week transition or typing input triggers a complete rebuild of these schedule item cards.
-    *   Extracting these cards into a memoized `ScheduleItem` component ensures cards only re-render if their individual schedule attributes change.
+2. **Step 2: Drag & Drop Rescheduling (R3)**
+   - Observation: `ScheduleItem` is a static element. `useSchedules` has `updateSchedule`.
+   - Deduction: Adding `draggable={true}` and `onDragStart` to `ScheduleItem` serializes `{ id, durationMinutes }` into `e.dataTransfer`. Adding `onDragOver`, `onDragLeave`, and `onDrop` to cells extracts target `date` and optional target `startTime`, recalculates `endTime`, and invokes `updateSchedule(id, updates)`. UI updates instantly with zero-stall.
 
-3.  **MindMap Rendering Pipeline**:
-    *   `MindMap3D` fails to pass `areMindMap3DPropsEqual` to its `React.memo` container (Observation 3).
-    *   As a result, it falls back to a default shallow comparison, forcing the canvas simulation engine and WebGL loops to reload or re-evaluate whenever any parent state changes.
-    *   Similarly, `MindMapInspector` re-renders on every customization change due to receiving the entire `overrides` prop (Observation 4).
-    *   Isolating these props to only pass the active node's custom configuration (e.g. `overrides[activeNode.id]`) and separating hooks from presentation will block unnecessary rendering cascades.
+3. **Step 3: Multi-View Support (R4)**
+   - Observation: `WeeklySchedulerComponent` calculates `weekDays` for single week layout.
+   - Deduction: Adding `viewMode: 'week' | 'month' | 'timetable'` state and header tab switcher allows conditional rendering:
+     - `'week'`: 7-day column grid with drag drop & cell click.
+     - `'month'`: 42-day calendar matrix (6 weeks × 7 days) displaying compact schedule pills with cell click & date drag drop.
+     - `'timetable'`: Hourly timeline matrix (08:00–20:00 × 7 days) displaying positioned schedule blocks with time-slot drag drop & slot click.
 
 ---
 
 ## 3. Caveats
 
-*   We analyzed the code statically using read-only techniques. We assumed the performance spikes and re-rendering lag are directly correlated with these component designs, which is a standard pattern in React virtual DOM optimizations.
-*   We did not modify the files, run profile tracing tools in a browser window, or verify the exact frame budget consumption quantitatively, as we are operating under read-only restrictions.
+- **Multi-day schedules (`endDate`)**: When dropping a multi-day schedule on a new start date, `date` should update while preserving the date interval `(endDate - date)` if `endDate` is set.
+- **Drag Feedback in Mobile**: Native HTML5 Drag and Drop is optimized for mouse desktop interactions. For touch devices, cell-click modal popup serves as the primary accessible interaction path.
+- **Time Slot Clamping**: When dragging to late evening slots (e.g. 23:00), `endTime` must clamp to `23:59` to prevent invalid hour wrapping.
 
 ---
 
 ## 4. Conclusion
 
-We conclude that the performance bottleneck is caused by a cascade of unnecessary re-renderings due to:
-1.  Missing custom prop comparison arguments in `React.memo` for `MindMap3D`.
-2.  Unmemoized inline map lists for scheduler cards, contact cards, and inspector panels.
-3.  Lack of staggered DOM rendering gates for widgets that load immediately upon dashboard entry.
-
-Our recommended optimizations (detailed in `analysis.md`) will isolate heavy components, restrict rendering dependencies to active nodes, and stagger mounting tasks to achieve a smooth, stutter-free dashboard experience.
+The design for R3 and R4 is completely mapped out and ready for implementation.
+- All required state hooks, event handlers, and view modes have been designed with full compatibility with existing `useSchedules` hook and Zod `ScheduleSchema`.
+- Implementation requires updating `WeeklyScheduler.tsx` to include `ScheduleModal`, DND handlers, and view components (`WeekView`, `MonthView`, `TimetableMode`).
 
 ---
 
 ## 5. Verification Method
 
-To verify these findings and the proposed optimizations:
-1.  **Inspect files:**
-    *   Confirm line 70 in `src/components/MindMap3D.tsx` is indeed missing the second argument of `React.memo`.
-    *   Confirm lines 371-374 in `src/components/dashboard/PortfolioDashboardView.tsx` render `<WeeklyScheduler />` and `<ContactsBox />` synchronously.
-2.  **Lint and Build verification:**
-    *   Run `npm run lint` and `npm run build` to verify there are no compilation or syntax issues in the target files.
-3.  **Harness and Tests:**
-    *   Run `npm test` to ensure Jest tests pass successfully before applying any structural refactorings.
+To verify the implementation once written by implementer:
+
+1. **Cell Click Verification**:
+   - In Week view: Click any day column empty space → expect `ScheduleModal` to open with date prefilled.
+   - In Timetable view: Click 14:00 slot on Wednesday → expect modal with `date: "YYYY-MM-DD"`, `startTime: "14:00"`, `endTime: "15:00"`.
+   - Click an existing card → expect edit modal to open with schedule details.
+
+2. **Drag & Drop Rescheduling Verification**:
+   - Drag a schedule card from Monday to Wednesday → observe card move immediately and persist date update.
+   - Drag a schedule card from 09:00 slot to 14:00 slot in Timetable view → observe card start time update to 14:00.
+
+3. **Multi-View Tab Switcher Verification**:
+   - Click "월간 보기" tab → expect 42-cell calendar grid with schedule pills.
+   - Click "타임테이블" tab → expect hour-by-hour matrix.
+   - Click "주간 보기" tab → return to 7-day column view.
+
+4. **Zero-Stall Harness Verification**:
+   - Run `node scripts/run-harness.js` and `npx tsc --noEmit` to verify 0 errors, 0 warnings, and zero Zod schema errors.

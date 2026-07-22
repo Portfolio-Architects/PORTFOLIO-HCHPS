@@ -4,12 +4,34 @@ import React, { useState, useMemo } from 'react';
 import { useProjects } from '@/hooks/useProjects';
 import { useTasks } from '@/hooks/useTasks';
 import { Project, ChecklistItem, Task } from '@/types';
+import dynamic from 'next/dynamic';
 import { 
   FolderGit2, Plus, Trash2, CheckCircle2, Circle, Edit2, 
   Calendar, ClipboardList, AlertCircle, Sparkles,
   Target, MapPin, BookOpen,
   CreditCard, UserCheck, BarChart2, Clock
 } from 'lucide-react';
+
+function WeeklySchedulerSkeleton() {
+  return (
+    <div className="w-full h-full min-h-[600px] glass-panel dark:glass-panel-dark rounded-[2rem] p-8 shadow-2xs border border-white/20 dark:border-slate-800 animate-pulse flex flex-col gap-6">
+      <div className="flex justify-between items-center pb-6 border-b border-slate-200/50 dark:border-slate-800">
+        <div className="w-48 h-6 bg-slate-200 dark:bg-slate-700 rounded-lg" />
+        <div className="w-36 h-9 bg-slate-200 dark:bg-slate-700 rounded-xl" />
+      </div>
+      <div className="grid grid-cols-7 gap-4 flex-grow">
+        {Array.from({ length: 7 }).map((_, i) => (
+          <div key={i} className="bg-slate-200/30 dark:bg-slate-700/20 rounded-xl" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const WeeklyScheduler = dynamic(() => import('@/components/dashboard/WeeklyScheduler').then(mod => mod.WeeklyScheduler), {
+  ssr: false,
+  loading: () => <WeeklySchedulerSkeleton />
+});
 
 export default function ProjectManagementPage() {
   const {
@@ -26,6 +48,7 @@ export default function ProjectManagementPage() {
   const { tasks, addTask, updateTask } = useTasks();
 
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'overview' | 'scheduler'>('overview');
   const [isAddingProject, setIsAddingProject] = useState(false);
   const [isEditingProject, setIsEditingProject] = useState(false);
   
@@ -205,8 +228,50 @@ export default function ProjectManagementPage() {
   }, [projects, getProjectProgress]);
 
   return (
-    <div className="flex h-full bg-slate-50/50 p-4 md:p-6 overflow-hidden">
-      <div className="flex flex-col md:flex-row w-full max-w-[1700px] mx-auto gap-6 h-full">
+    <div className="flex flex-col h-full bg-slate-50/50 p-4 md:p-6 overflow-hidden gap-4">
+      {/* Top Header Bar with Tab Switcher */}
+      <div className="flex items-center justify-between bg-white border border-slate-200/80 rounded-2xl px-5 py-3 shadow-xs shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+            <FolderGit2 size={20} />
+          </div>
+          <div>
+            <h1 className="text-base font-extrabold text-slate-800">사업 및 일정 통합 관리 센터</h1>
+            <p className="text-[11px] font-medium text-slate-500">사업 개요 수동 관리 및 통합 일정 플래너를 전용 탭으로 전환하여 조율합니다.</p>
+          </div>
+        </div>
+
+        {/* Tab Buttons */}
+        <div className="flex p-1 bg-slate-100/80 rounded-xl border border-slate-200/60 shrink-0">
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-extrabold transition-all cursor-pointer border-0 ${
+              activeTab === 'overview'
+                ? 'bg-white text-blue-600 shadow-xs'
+                : 'text-slate-500 hover:text-slate-700 bg-transparent'
+            }`}
+          >
+            <FolderGit2 size={15} />
+            <span>사업/프로젝트 개요</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('scheduler')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-extrabold transition-all cursor-pointer border-0 ${
+              activeTab === 'scheduler'
+                ? 'bg-white text-blue-600 shadow-xs'
+                : 'text-slate-500 hover:text-slate-700 bg-transparent'
+            }`}
+          >
+            <Calendar size={15} />
+            <span>통합 일정 플래너</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Main Tab Content */}
+      <div className="flex-1 min-h-0 overflow-hidden">
+        {activeTab === 'overview' ? (
+          <div className="flex flex-col md:flex-row w-full max-w-[1700px] mx-auto gap-6 h-full">
         
         {/* Left Column: Project List Sidebar */}
         <div className="w-full md:w-[360px] shrink-0 bg-white rounded-2xl border border-slate-200/80 shadow-sm flex flex-col h-full overflow-hidden">
@@ -529,7 +594,12 @@ export default function ProjectManagementPage() {
             </div>
           )}
         </div>
-
+      </div>
+    ) : (
+          <div className="w-full h-full overflow-y-auto custom-scrollbar">
+            <WeeklyScheduler />
+          </div>
+        )}
       </div>
 
       {/* Add / Edit Project Dialog Modal */}

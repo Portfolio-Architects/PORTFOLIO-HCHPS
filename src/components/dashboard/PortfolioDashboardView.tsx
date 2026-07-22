@@ -20,60 +20,14 @@ function deferIdle(cb: () => void, timeout: number, fallbackMs: number) {
   };
 }
 
-function WeeklySchedulerSkeleton() {
-  return (
-    <div className="glass-panel dark:glass-panel-dark rounded-[2rem] p-8 shadow-2xs border border-white/20 dark:border-slate-800 h-[620px] animate-pulse flex flex-col gap-6">
-      {/* Header Placeholder */}
-      <div className="flex justify-between items-center pb-6 border-b border-slate-200/50 dark:border-slate-800">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 bg-slate-200/60 dark:bg-slate-800/60 rounded-2xl" />
-          <div className="flex flex-col gap-2">
-            <div className="w-44 h-5 bg-slate-200/60 dark:bg-slate-800/60 rounded" />
-            <div className="w-64 h-3 bg-slate-200/40 dark:bg-slate-800/40 rounded" />
-          </div>
-        </div>
-        <div className="w-48 h-8 bg-slate-200/50 dark:bg-slate-800/50 rounded-xl" />
-      </div>
-
-      {/* Grid Layout Placeholder */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 flex-1 min-h-0">
-        {/* Left Form Skeleton */}
-        <div className="xl:col-span-3 flex flex-col gap-4 border-r border-slate-200/30 dark:border-slate-800/30 pr-6">
-          <div className="w-24 h-4 bg-slate-200/60 dark:bg-slate-800/60 rounded" />
-          <div className="w-full h-10 bg-slate-200/40 dark:bg-slate-800/40 rounded-xl" />
-          <div className="w-32 h-4 bg-slate-200/60 dark:bg-slate-800/60 rounded" />
-          <div className="w-full h-10 bg-slate-200/40 dark:bg-slate-800/40 rounded-xl" />
-          <div className="flex gap-2">
-            <div className="w-1/2 h-10 bg-slate-200/40 dark:bg-slate-800/40 rounded-xl" />
-            <div className="w-1/2 h-10 bg-slate-200/40 dark:bg-slate-800/40 rounded-xl" />
-          </div>
-          <div className="w-full h-24 bg-slate-200/40 dark:bg-slate-800/40 rounded-xl mt-auto" />
-        </div>
-
-        {/* Right Weekly Grid Skeleton */}
-        <div className="xl:col-span-9 grid grid-cols-7 gap-3 h-full">
-          {Array.from({ length: 7 }).map((_, idx) => (
-            <div key={idx} className="flex flex-col bg-slate-100/40 dark:bg-slate-900/40 border border-slate-200/30 dark:border-slate-800/30 rounded-2xl p-3 gap-3 h-full">
-              <div className="flex items-center justify-between border-b border-slate-200/30 dark:border-slate-800/30 pb-2">
-                <div className="w-6 h-4 bg-slate-200/60 dark:bg-slate-800/60 rounded" />
-                <div className="w-4 h-4 bg-slate-200/60 dark:bg-slate-800/60 rounded-full" />
-              </div>
-              <div className="flex-1 flex flex-col gap-2 justify-center items-center">
-                <div className="w-8 h-8 bg-slate-200/40 dark:bg-slate-800/40 rounded-full" />
-                <div className="w-10 h-2 bg-slate-200/30 dark:bg-slate-800/30 rounded" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
+function useIdleMount(fallbackMs = 200) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    const cancel = deferIdle(() => setMounted(true), 400, fallbackMs);
+    return cancel;
+  }, [fallbackMs]);
+  return mounted;
 }
-
-const WeeklyScheduler = dynamic(() => import('./WeeklyScheduler').then(mod => mod.WeeklyScheduler), {
-  ssr: false,
-  loading: () => <WeeklySchedulerSkeleton />
-});
 
 const ContactsBox = dynamic(() => import('./ContactsBox').then(mod => mod.ContactsBox), {
   ssr: false,
@@ -95,7 +49,7 @@ interface DashboardProps {
   appMode?: 'HCHPS' | 'VITAL';
 }
 
-const CustomPieTooltip = ({ active, payload }: any) => {
+const CustomPieTooltip = React.memo(({ active, payload }: any) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     return (
@@ -108,9 +62,10 @@ const CustomPieTooltip = ({ active, payload }: any) => {
     );
   }
   return null;
-};
+});
+CustomPieTooltip.displayName = 'CustomPieTooltip';
 
-const CustomComposedTooltip = ({ active, payload, label, chartType, isHchps }: any) => {
+const CustomComposedTooltip = React.memo(({ active, payload, label, chartType, isHchps }: any) => {
   if (active && payload && payload.length) {
     return (
       <div className="glass-panel dark:glass-panel-dark p-3.5 rounded-xl shadow-xl border border-white/20 dark:border-slate-800 flex flex-col gap-1.5 text-[11px] min-w-[180px]">
@@ -134,7 +89,8 @@ const CustomComposedTooltip = ({ active, payload, label, chartType, isHchps }: a
     );
   }
   return null;
-};
+});
+CustomComposedTooltip.displayName = 'CustomComposedTooltip';
 
 function PortfolioDashboardViewComponent({ budgetCategories, budgetEntries, appMode = 'VITAL' }: DashboardProps) {
   const [chartType, setChartType] = useState<'monthly' | 'cumulative'>('monthly');
@@ -142,14 +98,7 @@ function PortfolioDashboardViewComponent({ budgetCategories, budgetEntries, appM
   const chartContainerRef = React.useRef<HTMLDivElement>(null);
   const [chartWidth, setChartWidth] = useState<number>(0);
 
-  const [renderScheduler, setRenderScheduler] = useState(false);
-  const [renderContacts, setRenderContacts] = useState(false);
-
-  useEffect(() => {
-    const c1 = deferIdle(() => setRenderScheduler(true), 300, 120);
-    const c2 = deferIdle(() => setRenderContacts(true), 600, 280);
-    return () => { c1(); c2(); };
-  }, []);
+  const renderContacts = useIdleMount();
 
   useEffect(() => {
     if (!isMounted || !chartContainerRef.current) return;
@@ -271,7 +220,7 @@ function PortfolioDashboardViewComponent({ budgetCategories, budgetEntries, appM
               <div className="w-full max-w-[380px] flex flex-col gap-4 justify-start min-w-0 max-h-[260px] overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin' }}>
                 {breakdownData.map((item, idx) => (
                 <div 
-                  key={idx} 
+                  key={item.formationItem ? `${item.formationItem}-${item.name}` : item.name} 
                   className="group flex items-center w-full p-2 -ml-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-default min-w-0"
                 >
                   <div className="w-4 h-4 rounded-full shrink-0 mr-3 shadow-sm" style={{ backgroundColor: themeColors[idx % themeColors.length] || '#cbd5e1' }} />
@@ -443,11 +392,6 @@ function PortfolioDashboardViewComponent({ budgetCategories, budgetEntries, appM
       </div>
 
             <div className="mt-8 mb-8 flex flex-col gap-8">
-              {renderScheduler ? (
-                <WeeklyScheduler />
-              ) : (
-                <WeeklySchedulerSkeleton />
-              )}
               {renderContacts ? (
                 <ContactsBox />
               ) : (
