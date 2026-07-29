@@ -1,165 +1,226 @@
-# Requirement 3 (R3) Technical Analysis Report: DB Polling & React Query Refetch Optimization
+# R3 Command Palette (`Ctrl+K` / `Cmd+K`) Technical Exploration & Component Design Analysis
 
-## Executive Summary
-This report analyzes Requirement 3 (R3), focusing on eliminating redundant network requests, optimizing polling loops during tab switching, and establishing clean caching and debouncing defaults for React Query hooks. 
+## 1. Executive Summary & Problem Scope
 
-Key discoveries:
-1. `useGraphCustomization.ts` runs a 10-second polling loop (`readSheet('MAP_CUSTOMIZATION')`) using global singletons. Currently, it fires an immediate fetch on mount even when `document.visibilityState === 'hidden'`, keeps interval timers alive while hidden (returning early inside ticks), and forces up to a 10-second delay before updating state when returning to the tab.
-2. `src/lib/query-client.ts` sets `staleTime` to 5 minutes and `refetchOnWindowFocus` to `false`. However, hooks like `useTasks.ts` and `useBudget.ts` re-declare `staleTime`, while `useAppLogs.ts` polls every 10s without explicit `refetchIntervalInBackground: false`.
-3. A comprehensive refactoring plan suspended polling when `!enabled || document.visibilityState === 'hidden'` and eliminates redundant background timer ticks and tab-switch refetches across the entire system.
+The objective of Mission R3 is to explore, analyze, and design a keyboard-driven **Command Palette (`Ctrl+K` / `Cmd+K`)** for the VITAL / HCHPS application. Currently, navigation across modules (Dashboard, Budget Workspace, 3D MindMap, Project Management) requires mouse clicks on top navigation buttons or mobile docks, and data search is split between specific views (e.g. `SearchResultModal` for wiki/drive content, local filters inside individual tables).
+
+This analysis provides a comprehensive blueprint for implementing `CommandPalette.tsx`, enabling zero-latency global item search and instant keyboard navigation across all core data models (tasks, budget entries, inventory items, contacts, projects) and application views.
 
 ---
 
-## 1. Deep Dive: `useGraphCustomization.ts` Polling Loop (Objective 1)
+## 2. Codebase Investigation Evidence & Findings
 
-### Line Inspection (Lines 64-65, 700-784)
-- **Global singletons** (lines 64-65):
-  ```ts
-  let activePollInterval: ReturnType<typeof setInterval> | null = null;
-  let activePollCount = 0;
+### 2.1 Existing Modal, Dialog, and Overlay Implementations
+
+An exhaustive search across `src/` revealed the existing modal pattern topology:
+
+| Component | File Path | Line Range | Key Overlay Features & Patterns |
+| font-mono | font-mono | font-mono | |
+| `Modal` | `src/components/ui/modal.tsx` | 26–64 | Standard dialog base. Uses `fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop`. Controls `document.body.style.overflow = 'hidden'`. Closes on background click or `X` button. |
+| `SearchResultModal` | `src/components/SearchResultModal.tsx` | 118–143, 169–351 | Integrated search popup. Backdrop: `fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-black/50 backdrop-blur-md`. Features tabbed results (`wiki` vs `file`) and item click handlers. |
+| `AppLogModal` | `src/components/AppLogModal.tsx` | — | System daemon log viewer overlay with dark theme terminal styling. |
+| `AIAssistantModal` | `src/components/ai/AIAssistantModal.tsx` | 262–377 | Floating assistant modal responding to enter/esc keys within input context. |
+
+> **Key Finding**: No global keyboard listener for `Ctrl+K` / `Cmd+K` currently exists in the application codebase. All existing modals rely on explicit button trigger clicks or custom custom events (`wiki:openNode`).
+
+---
+
+### 2.2 Module Navigation Routes & State Architecture
+
+Navigation state management was traced through `src/app/page.tsx` and `src/components/Sidebar.tsx`:
+
+1. **Module Union Type Definition** (`src/types/index.ts:174`):
+   ```typescript
+   export type ModuleType = 'workspace' | 'mindmap' | 'dashboard' | 'project';
+   ```
+
+2. **Active Module State & Switching** (`src/app/page.tsx:355–361`, `529–533`):
+   - `activeModule` state lives in `ProtectedApp` (`src/app/page.tsx:355`).
+   - Switching handler updates `visitedModules` for lazy loading / hydration persistence:
+     ```typescript
+     const handleModuleChange = useCallback((module: ModuleType) => {
+       setActiveModule(module);
+       setVisitedModules(prev => prev[module] ? prev : { ...prev, [module]: true });
+       localStorage.setItem('hchps_active_module', module);
+     }, []);
+     ```
+   - Top Header Navigation (`src/components/Sidebar.tsx:44–66`) renders tab buttons:
+     - `'dashboard'`: "대시보드" (`LayoutDashboard` icon)
+     - `'workspace'`: "예산관리" (`Archive` icon)
+     - `'mindmap'`: "마인드맵" (`Zap` icon)
+     - `'project'`: "사업관리" (`FolderGit2` icon)
+
+3. **External Event Dispatch Navigation**:
+   - `SearchResultModal.tsx:203-207` dispatches `wiki:openNode` custom event.
+   - `page.tsx:573-582` listens to `wiki:openNode` to dynamically switch `activeModule` to `'mindmap'`.
+
+---
+
+### 2.3 Instant Local Data Sources for Cross-Module Item Search
+
+Data hooks operating as local disk SSOT via `src/app/api/data/route.ts` and React Query were analyzed for search fields and action targets:
+
+| Data Type | Primary Hook | Source File | Searchable Fields | Nav Target Module & Action |
+|---|---|---|---|---|
+| **Tasks** | `useTasks()` | `src/hooks/useTasks.ts` | `title`, `description`, `category`, `tags` (array), `dueDate`, `priority`, `status` | Target: `'dashboard'` (opens task item or switches view) |
+| **Budget Items** | `useBudget()` | `src/hooks/useBudget.ts` | `BudgetCategory.name`, `policyProject`, `statItem`; `BudgetEntry.purpose`, `memo`, `docRegNum`, `amount` | Target: `'workspace'` (switches tab, applies category filter) |
+| **Inventory** | `useInventory()` | `src/hooks/useInventory.ts` | `InventoryItem.name`, `category`, `currentStock`, `unit` | Target: `'workspace'` (switches to 홍보물 inventory tab) |
+| **Contacts** | `useContacts()` | `src/hooks/useContacts.ts` | `Contact.name`, `phone`, `email`, `notes` | Target: `'dashboard'` (highlights contact in ContactsBox) |
+| **Projects** | `useProjects()` | `src/hooks/useProjects.ts` | `Project.name`, `description`, `staff`, `location`, `target` | Target: `'project'` (switches to project management view) |
+| **Meetings** | `useMeetings()` | `src/hooks/useMeetings.ts` | `Meeting.title`, `location`, `attendees` (array), `notes` | Target: `'dashboard'` (weekly scheduler view) |
+
+---
+
+## 3. Command Palette Component Design Specification
+
+### 3.1 Global Keyboard Event Listener & Interaction Rules
+
+The command palette must capture keyboard events globally at the `window` level, regardless of active focus (unless typing inside standard modal forms, with `Ctrl+K` taking precedence).
+
+- **Toggle Trigger**: `Ctrl + K` (Windows/Linux) or `Cmd + K` (macOS).
+  ```typescript
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    setIsOpen(prev => !prev);
+  }
   ```
-- **Polling Effect** (lines 702-784):
-  ```ts
-  useEffect(() => {
-    if (!enabled || !isCloudLoaded) return;
+- **Escape Key**: Closes the palette modal when open.
+- **ArrowDown / ArrowUp**: Moves `selectedIndex` between 0 and `filteredItems.length - 1` with auto-scroll into view.
+- **Enter Key**: Triggers the action of `filteredItems[selectedIndex]` and closes palette.
+- **Tab / Shift+Tab**: Trapped inside palette modal elements.
 
-    activePollCount++;
-    
-    if (!activePollInterval) {
-      console.info('[Watcher Poll] Starting global singleton polling loop.');
+---
 
-      const runPoll = async () => { ... };
+### 3.2 Search & Instant Filtering Engine Architecture
 
-      runPoll(); // ISSUE 1: Immediate fetch executed even if tab is hidden!
-      activePollInterval = setInterval(() => {
-        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
-          return; // ISSUE 2: Interval fires every 10s while hidden, burning background CPU cycles.
-        }
-        runPoll();
-      }, 10000);
+A unified search result structure (`CommandPaletteItem`) normalizes all searchable items into a uniform list with category tags and execution handlers:
+
+```typescript
+export type CommandCategory = 'navigation' | 'tasks' | 'budget' | 'inventory' | 'contacts' | 'projects';
+
+export interface CommandPaletteItem {
+  id: string;
+  category: CommandCategory;
+  categoryLabel: string;
+  title: string;
+  subtitle?: string;
+  badge?: string;
+  badgeColor?: string; // e.g. bg-blue-500/20 text-blue-400
+  icon: React.ElementType;
+  keywords?: string[];
+  onSelect: () => void;
+}
+```
+
+#### Matching Algorithm:
+- Multi-token fuzzy query matching: Query `"부엉이 예산"` splits into `["부엉이", "예산"]`.
+- Checks if **all** query tokens match any of `title`, `subtitle`, `categoryLabel`, or `keywords`.
+- Returns grouped results sorted by category priority: **Navigation -> Tasks -> Budget -> Projects -> Inventory -> Contacts**.
+
+---
+
+### 3.3 High-Contrast Dark Theme UI/UX Specification
+
+Compliant with `AGENTS.md` Rule 1 (React 19 & TailwindCSS v4 standards):
+
+- **Backdrop Overlay**: `fixed inset-0 z-[120] bg-black/65 backdrop-blur-md transition-opacity duration-200 flex items-start justify-center pt-[12vh] px-4`
+- **Modal Container**: `w-full max-w-2xl bg-slate-900/95 border border-slate-700/80 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[70vh] text-slate-100`
+- **Search Header Input**:
+  - Icon: `Search` (slate-400)
+  - Input: `w-full bg-transparent px-4 py-4 text-base text-slate-100 placeholder-slate-500 outline-none font-medium`
+  - Keyboard hint badge: `<kbd className="px-2 py-1 bg-slate-800 border border-slate-700 rounded text-[11px] text-slate-400 font-mono">ESC</kbd>`
+- **Category Header**: `px-4 py-1.5 bg-slate-950/60 text-[11px] font-extrabold uppercase tracking-wider text-slate-400 border-y border-slate-800/80 flex items-center gap-1.5`
+- **Result Item Row**:
+  - Regular: `px-4 py-3 flex items-center justify-between cursor-pointer transition-colors border-l-4 border-transparent hover:bg-slate-800/60 text-slate-300`
+  - Active (Keyboard Selected): `bg-blue-600/25 border-l-4 border-blue-500 text-white font-semibold shadow-inner`
+- **Footer Shortcut Legend**: `px-4 py-2 bg-slate-950/80 border-t border-slate-800 text-[11px] text-slate-500 flex items-center justify-between font-medium`
+
+---
+
+### 3.4 Accessibility & Focus Management Specification
+
+1. **Focus Trapping**:
+   - On opening, store `document.activeElement` into `lastFocusedElementRef`.
+   - Shift focus immediately to `inputRef.current`.
+   - On closing, restore focus to `lastFocusedElementRef.current?.focus()`.
+2. **ARIA Compliance Attributes**:
+   - Outer Container: `role="dialog" aria-modal="true" aria-label="Command Palette"`
+   - Search Input: `role="combobox" aria-expanded="true" aria-autocomplete="list" aria-controls="command-palette-list"`
+   - Results Container: `id="command-palette-list" role="listbox"`
+   - Item Row: `role="option" aria-selected={isSelected}`
+
+---
+
+## 4. Proposed Implementation Architecture & Code Patch Proposal
+
+### 4.1 Proposed Component File: `src/components/CommandPalette.tsx`
+
+```tsx
+'use client';
+
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { 
+  Search, LayoutDashboard, Archive, Zap, FolderGit2, 
+  CheckSquare, DollarSign, Box, Phone, Calendar, ArrowRight, CornerDownLeft 
+} from 'lucide-react';
+import { ModuleType, Task, BudgetCategory, BudgetEntry, InventoryItem, Contact, Project, Meeting } from '@/types';
+
+export interface CommandPaletteProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onNavigate: (module: ModuleType) => void;
+  tasks?: Task[];
+  budgetCategories?: BudgetCategory[];
+  budgetEntries?: BudgetEntry[];
+  inventoryItems?: InventoryItem[];
+  contacts?: Contact[];
+  projects?: Project[];
+  meetings?: Meeting[];
+}
+
+// Full self-contained component implementation structure...
+```
+
+### 4.2 Integration Point in `src/app/page.tsx`
+
+Add state & shortcut listener at top level of `ProtectedApp`:
+
+```tsx
+// Inside ProtectedApp component in src/app/page.tsx:
+const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+
+useEffect(() => {
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      setIsCommandPaletteOpen(prev => !prev);
     }
+  };
+  window.addEventListener('keydown', handleKeyDown);
+  return () => window.removeEventListener('keydown', handleKeyDown);
+}, []);
 
-    return () => {
-      activePollCount--;
-      if (activePollCount <= 0 && activePollInterval) {
-        console.info('[Watcher Poll] Stopping global singleton polling loop.');
-        clearInterval(activePollInterval);
-        activePollInterval = null;
-      }
-    };
-  }, [enabled, isCloudLoaded]);
-  ```
-
-### Identified Flaws & Behavior Analysis
-1. **Hidden Mount Issue**: `runPoll()` is invoked unconditionally before `setInterval`. If the tab was loaded in the background or hidden immediately, an unwanted initial HTTP/KV request is made.
-2. **Wasted Background Timers**: Setting a recurring `setInterval(..., 10000)` while hidden continues waking up JavaScript timers every 10 seconds.
-3. **Latency Upon Tab Re-activation**: When the user switches back to the tab (`visibilityState` changes to `'visible'`), polling does NOT run immediately. The user must wait between 0 to 10 seconds for the next interval tick to occur.
-4. **Lack of Central Visibility Event Listener**: There is no window `visibilitychange` listener controlling timer creation and destruction.
-
-### Proposed Solution for `useGraphCustomization.ts`
-Implement a visibility-aware interval management pattern:
-- When tab is `'hidden'` OR `activePollCount <= 0` OR `!enabled`: `stopPolling()` completely destroys `activePollInterval`.
-- When tab transitions to `'visible'` AND `activePollCount > 0`: `startPolling()` triggers `runPoll()` **immediately** and starts the 10-second `setInterval`.
-- Register a global `visibilitychange` event listener while `activePollCount > 0`.
-
-#### Proposed Code Structure for `useGraphCustomization.ts`:
-```ts
-// Global singletons
-let activePollInterval: ReturnType<typeof setInterval> | null = null;
-let activePollCount = 0;
-let visibilityListenerAttached = false;
-
-function stopPolling() {
-  if (activePollInterval) {
-    console.info('[Watcher Poll] Pausing/stopping global singleton polling loop.');
-    clearInterval(activePollInterval);
-    activePollInterval = null;
-  }
-}
-
-function startPolling(runPollFn: () => void) {
-  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
-  if (!activePollInterval) {
-    console.info('[Watcher Poll] Starting/resuming global singleton polling loop.');
-    runPollFn();
-    activePollInterval = setInterval(() => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
-        stopPolling();
-        return;
-      }
-      runPollFn();
-    }, 10000);
-  }
-}
+// Render CommandPalette at the end of JSX tree:
+<CommandPalette
+  isOpen={isCommandPaletteOpen}
+  onClose={() => setIsCommandPaletteOpen(false)}
+  onNavigate={handleModuleChange}
+  tasks={tasks}
+  budgetCategories={budgetCategories}
+  budgetEntries={budgetEntries}
+  inventoryItems={inventoryItems}
+  contacts={contacts}
+  projects={projects}
+  meetings={meetings}
+/>
 ```
 
 ---
 
-## 2. Deep Dive: `QueryClient` Defaults & React Query Hooks (Objective 2)
+## 5. Independent Verification Plan
 
-### Inspection of `src/lib/query-client.ts`
-```ts
-export const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      gcTime: 30 * 60 * 1000,   // 30 minutes
-      retry: (failureCount, error: unknown) => {
-        const errStatus = (error as { status?: number })?.status;
-        if (errStatus === 401 || errStatus === 403) return false;
-        return failureCount < 2;
-      },
-      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
-      refetchOnWindowFocus: false, // Prevents main thread block & background burst on focus
-    },
-    mutations: {
-      retry: 1,
-    }
-  },
-});
-```
-
-### Inspection of Existing Query Hooks
-1. **`useTasks.ts`**:
-   - `queryKey: ['TASKS']`, `staleTime: 1000 * 60 * 5`.
-   - Uses optimistic updates for `addTaskMut`, `updateTaskMut`, `deleteTaskMut`.
-   - Inherits `refetchOnWindowFocus: false` from global defaults.
-2. **`useBudget.ts`**:
-   - `queryKey: ['BUDGET_CATEGORIES']`, `queryKey: ['BUDGET_ENTRIES']`, `staleTime: 1000 * 60 * 5`.
-   - Uses `enqueueKvWrite` queue to serialize writes.
-   - Optimistic cache mutations via `onMutate`.
-3. **`useAppLogs.ts`**:
-   - `queryKey: ['app-logs']`, `refetchInterval: enabled ? 10000 : false`.
-   - Needs explicit `refetchIntervalInBackground: false` to ensure background tabs do not poll app logs.
-4. **`useClassificationWords.ts`**:
-   - `staleTime: Infinity` — excellent for static word dictionary lookup.
-5. **`useGoogleSheet.ts` (`useInventory`, `useContacts`, `useMeetings`, `useProjects`, `useSchedules`)**:
-   - Custom `useState` + `useEffect` hook with `localStorage` hydration and Cloudflare KV sync.
-   - Ensures data is only loaded from KV on mount (`initialLoadDone.current`), avoiding polling overhead.
-
----
-
-## 3. Comprehensive Refetch & Polling Optimization Plan (Objective 3)
-
-### Goal: Zero Redundant Requests During Tab Switching & Debounced/Cached Refetching
-
-| Component / Hook | Problem | Formulated Solution |
-| --- | --- | --- |
-| `useGraphCustomization.ts` | Polling continues on hidden tabs; delay on tab focus | Suspend polling completely when hidden or disabled. Instantly trigger `runPoll()` when tab becomes visible. |
-| `src/lib/query-client.ts` | Default options lack `refetchOnReconnect: false` and `refetchOnMount: false` | Add `refetchOnReconnect: false` to prevent network reconnect request bursts. |
-| `useTasks.ts` & `useBudget.ts` | Manual duplication of `staleTime: 5 * 60 * 1000` | Rely on global `queryClient` default options. Set `refetchOnWindowFocus: false` (already active). Ensure mutations perform clean optimistic updates. |
-| `useAppLogs.ts` | Log polling interval might fire in background | Add `refetchIntervalInBackground: false` to `useQuery`. |
-| `useGoogleSheet.ts` | Potential duplicate loads if `crypto-ready` fires multiple times | Guard load attempts with strict boolean locks and tombstone checking. |
-
----
-
-## 4. Verification Method
-
-1. **Harness Integrity Check**:
-   Run `node scripts/run-harness.js` to ensure ESLint, TypeScript compilation, and Zod schema validations pass without errors.
-2. **Tab Switching & Polling Suspension Verification**:
-   - Open browser developer tools Network tab and console.
-   - Navigate to 3D MindMap / Dashboard.
-   - Switch away to a different browser tab for 30 seconds.
-   - Verify zero HTTP calls (`readSheet` or `/api/app-logs`) are initiated while hidden.
-   - Switch back to the tab: verify `[Watcher Poll]` instantly resumes and fires 1 immediate poll.
+1. **Keyboard Trigger Test**: Press `Ctrl+K` or `Cmd+K` from any view -> verifies palette opens. Press `ESC` -> verifies palette closes and focus restores.
+2. **Instant Search Test**: Type `"부엉이"` or `"예산"` -> verifies matching items across tasks, budget, inventory, contacts, and navigation commands render in < 16ms.
+3. **Keyboard Navigation Test**: Press `ArrowDown` and `ArrowUp` -> verifies item highlight moves smoothly and active item auto-scrolls into viewport.
+4. **Action Execution Test**: Press `Enter` on a navigation or item result -> verifies active module switches to target view and palette closes.
+5. **Static Diagnostics Verification**: Run `npx tsc --noEmit` and `node scripts/run-harness.js` -> verifies 0 TypeScript compilation errors and 0 Zod/harness warnings.

@@ -1,84 +1,75 @@
-# Handoff Report: 3D Mindmap Optimization Analysis (R3)
+# Handoff Report — Requirement R3: Expense Batch Action & Modal UX Optimization
 
 ## 1. Observation
-We inspected `src/lib/OntologyCanvasEngine.ts`, `src/lib/engine/OntologyLayout.ts`, `src/lib/engine/OntologyRenderer.ts`, and `src/components/MindMap3D.tsx` and observed the following code sections causing rendering overhead and GC allocations:
 
-* **Observation A (Spatial Grid Allocations)**: In `src/lib/engine/OntologyRenderer.ts` (lines 970-971), a new `Map` is allocated when `isFastPath` is false:
-  ```typescript
-  const gridCellSize = 120;
-  const spatialGrid = new Map<string, Array<{x1: number, y1: number, x2: number, y2: number}>>();
-  ```
-  And string-based coordinates are allocated inside `getGridKeys` (lines 981-984):
-  ```typescript
-        for (let r = rowStart; r <= rowEnd; r++) {
-          for (let c = colStart; c <= colEnd; c++) {
-            keys.add(`${r},${c}`);
-          }
-        }
-  ```
+Direct observations from examining the codebase:
 
-* **Observation B (Collision Resolution Filter & Map)**: In `src/lib/engine/OntologyLayout.ts` (lines 634-640), an array filter runs on every collision iteration:
-  ```typescript
-      const activeNodes = nodes.filter(n => 
-        !n.layoutHidden && 
-        n.renderX !== -999999 &&
-        n.renderX >= -CULL_MARGIN &&
-        n.renderX <= canvasW + CULL_MARGIN &&
-        n.renderY >= -CULL_MARGIN &&
-        n.renderY <= canvasH + CULL_MARGIN
-      );
-  ```
-  Immediately followed by a `.map` operation allocating object wrappers (`nodeData`) (lines 645-668).
+1. **Expense Entry List & Checkbox State**:
+   - `src/components/budget/ui/PolicyGroupCard.tsx` (lines 451–492): Entries are rendered sequentially without selection checkboxes:
+     ```tsx
+     <div key={entry.id} className="flex items-center text-[15px] group bg-white py-2.5 px-3 rounded-lg border border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-colors relative">
+     ```
+   - `src/types/index.ts` (line 96) & `src/lib/schemas.ts` (line 99): `checked?: boolean` property exists on `BudgetEntry` interface and Zod schema, but UI rendering lacks multi-select checkboxes.
 
-* **Observation C (Renormalization Calculations)**: In `src/lib/engine/OntologyLayout.ts` (lines 527-535), rotation uses `Math.sqrt` and division every frame:
-  ```typescript
-            // Rotate unit vector
-            const nextCos = node.orbitCos * cosS - node.orbitSin * sinS;
-            const nextSin = node.orbitCos * sinS + node.orbitSin * cosS;
-            
-            // Renormalize to completely eliminate rounding error accumulation
-            const len = Math.sqrt(nextCos * nextCos + nextSin * nextSin);
-            node.orbitCos = nextCos / (len || 0.1);
-            node.orbitSin = nextSin / (len || 0.1);
-  ```
+2. **Batch Mutation & Modal Capability**:
+   - `src/components/budget/ui/BatchEditModal.tsx` (lines 15–121): Operates solely on `BudgetCategory[]` for `budgetType` and `fundingSplits`.
+   - `src/hooks/useBudget.ts` (lines 153–183): Only single-item mutations (`updateEntryMut`, `deleteEntryMut`) are exposed. `replaceEntriesMut` (lines 185–196) exists for full array replacement, but no batch entry helper (`batchUpdateEntries`, `batchDeleteEntries`) is currently exported.
 
-* **Observation D (Theme Assignment per Frame)**: In `src/lib/engine/OntologyRenderer.ts` (lines 264-265), theme cascading traverses the entire spanning tree recursively:
-  ```typescript
-  public static render(context: RenderContext): void {
-    // ...
-    this.assignThemes(nodes, centerNode, nodeMap);
-  ```
+3. **Ledger Modal & Expense Entry Modal Operations**:
+   - `src/components/budget/ui/LedgerModal.tsx` (lines 60–210): Renders full-width (4xl) modal with T-account comparison (Left: planned/issuance vs Right: settled actuals).
+   - `src/components/budget/ui/ExpenseEntryModal.tsx` (lines 232–387): Single-entry editing form with validation against budget limits and locked sub-items. Currently operates in isolation from `LedgerModal`.
+
+4. **Category Highlight & Performance Calculations**:
+   - `src/hooks/useBudget.ts` (lines 223–314): `categoryStatsMap` computes category usage, remaining balances, and daily expense stats in an $O(M)$ `useMemo` block.
+   - Cache mutation in `onMutate` (lines 161–166) updates React Query cache synchronously, which automatically re-triggers `categoryStatsMap` recalculation without UI lag.
 
 ---
 
 ## 2. Logic Chain
-1. **GC Lag**: The frequent creation of temporary objects (such as `new Map()`, string keys like `${r},${c}`, arrays of keys, and `nodeData` wrapper objects) inside the render loop triggers garbage collection cycles. Eliminating these allocations will reduce GC frame drop stutters to zero. (Based on Observation A & B)
-2. **Trig / Matrix Operations**: Calculating `Math.sqrt` for every node on every frame during orbiting updates consumes significant CPU cycles. Replacing it with a first-order Taylor expansion (which requires only multiplication and subtraction) will optimize CPU utilization. (Based on Observation C)
-3. **State Thrashing**: Alternating between fill styles, stroke styles, and font sizes within the same rendering pass slows down the HTML5 Canvas rendering. Splitting rendering into a sphere-drawing pass and a label-drawing pass will minimize state changes.
-4. **Theme Assignment**: Recursively reassigning themes for all nodes is only necessary when graph topology changes, not every frame. Bypassing it on static frames saves CPU overhead. (Based on Observation D)
+
+1. **From Observation 1**: Because `BudgetEntry` already contains `checked?: boolean` in its type and Zod schema, adding a selection checkbox to entry rows in `PolicyGroupCard.tsx`, `BudgetCategoryCardItem.tsx`, and `LedgerModal.tsx` will not require schema changes. A bottom sticky toolbar in `BudgetDashboard.tsx` can manage `selectedEntryIds` state and trigger multi-item actions.
+2. **From Observation 2**: Calling single-item `updateEntry` or `deleteEntry` in a loop creates multiple state dispatches and disk write race conditions. Implementing `batchUpdateEntries` and `batchDeleteEntries` using a single React Query `setQueryData` call inside `useBudget.ts` guarantees atomic state transitions and zero UI lag.
+3. **From Observation 3**: To eliminate context switching between `LedgerModal` and `ExpenseEntryModal`, `LedgerModal` can feature a toggleable `split` view mode where selecting an entry on the left T-account pane opens an embedded side-by-side entry inspector/editor pane on the right.
+4. **From Observation 4**: Because `categoryStatsMap` is reactively derived from `entries` in `useBudget.ts`, updating `['BUDGET_ENTRIES']` atomically in React Query cache will immediately update category stats, progress bars, and risk alerts without lag or Zod schema errors (`[HARNESS ZOD ERROR]`).
 
 ---
 
 ## 3. Caveats
-* **Inverse Square Root Precision**: The Taylor series approximation for normalization assumes that the vector's length remains extremely close to 1. If it drifts significantly (e.g. over hours of running), coordinates might distort slightly. To mitigate this, a full `Math.sqrt` should be run once every 120 frames or on drift detection.
-* **Layout Culling**: Collision culling relies on nodes being within `CULL_MARGIN`. If a node is just off-screen but still interacting with on-screen nodes, its exclusion from collision checks could theoretically cause minor popping, though this is minimized by the `CULL_MARGIN` padding.
+
+- **Limit Validation in Batch Operations**: When batch updating amounts or categories, individual entry budget limit checks (`checkLimit`) should be evaluated for each entry in the batch to avoid accidentally exceeding category or sub-item caps.
+- **Settlement Dependencies**: When batch deleting planned entries (`isPlanned: true`), entries with linked settled actuals (`relatedPlanId`) must be skipped or flagged with a warning to preserve relational integrity.
 
 ---
 
 ## 4. Conclusion
-We have formulated a detailed strategy to optimize the 3D Mindmap rendering performance and eliminate GC lag:
-1. Refactor spatial hash keys to packed 32-bit integers and implement a static Map and Array pool in `OntologyRenderer.ts`.
-2. Inline spatial grid loops to eliminate `Set` allocations.
-3. Cache node theme colors, crossing edge styles, and text widths to avoid string lookups/dictionary lookups per frame.
-4. Reuse a static grouping array for layer categorization and eliminate `.filter()` and `.map()` calls in layout collisions.
-5. Use a Taylor series approximation for vector normalization during orbiting.
-6. Adopt a 2-pass rendering pipeline (spheres first, then labels) to minimize Canvas state changes.
+
+Requirement R3 can be effectively implemented by:
+1. Adding entry checkboxes and a bottom sticky batch action toolbar to `BudgetDashboard.tsx` and `PolicyGroupCard.tsx`.
+2. Exporting atomic batch helpers (`batchUpdateEntries`, `batchDeleteEntries`) in `useBudget.ts`.
+3. Enhancing `BatchEditModal.tsx` / creating entry batch edit capabilities for batch approval, batch status change, and batch deletion.
+4. Implementing a side-by-side split view mode in `LedgerModal.tsx` for seamless T-account cross-verification and entry editing.
 
 ---
 
 ## 5. Verification Method
-* **Static Analysis**: After changes are implemented, run the build validation commands (`npm run build` or `next build`) to ensure TypeScript compiles and no layout contracts are broken.
-* **Performance Profiler**: Launch the project, open the Performance Profiler HUD at the bottom of the 3D Mindmap, and inspect:
-  - **Render Time**: Ensure average rendering time drops below **2ms**.
-  - **Lag Spikes**: Verify no lag spikes appear in the monitor log during panning/zooming/orbiting.
-  - **Console Spams**: Ensure no validation or runtime warnings are thrown in the developer tools console.
+
+To verify implementation accuracy and zero-stall compliance:
+
+1. **TypeScript Type Checking**:
+   ```bash
+   npx tsc --noEmit
+   ```
+   Must return 0 errors.
+
+2. **Harness & Zod Schema Verification**:
+   ```bash
+   node scripts/run-harness.js
+   ```
+   Must pass with 0 Zod errors and 0 ESLint warnings/errors.
+
+3. **UI Verification**:
+   - Select multiple expense items in `PolicyGroupCard.tsx` or `LedgerModal.tsx`.
+   - Verify bottom sticky batch toolbar appears showing selected item count.
+   - Execute batch approval / status edit / batch delete.
+   - Confirm category stats and remaining balances update instantaneously (~0ms stall).
+   - In `LedgerModal.tsx`, toggle to split view mode and verify side-by-side T-account and entry inspector panel functionality.

@@ -1,19 +1,18 @@
-## 2026-07-21T02:08:59Z
-You are explorer_r3_1.
-Your working directory is d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\explorer_r3_1.
+## 2026-07-23T01:28:48Z
+You are explorer_r3_1, an Explorer subagent for the Localhost UX Optimization project.
+Your working directory is `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\explorer_r3_1`.
 
-Your task is to analyze Requirement 3 (R3): DB Polling & React Query Refetch Optimization.
+Mission: Explore R3 requirements — Keyboard Shortcut Command Palette (`Ctrl+K` / `Cmd+K`).
+Specifically:
+1. Search the codebase for any existing modal, dialog, or search overlay implementations.
+2. Analyze module navigation routes and state (Dashboard, MindMap, Workspace, Projects) and how view switching works.
+3. Analyze data sources for instant local item search (tasks, budget items, inventory items, contacts).
+4. Design the `CommandPalette` component structure:
+   - Global keyboard event listener (`Ctrl+K` / `Cmd+K`, Escape to close, Arrow keys to navigate, Enter to select).
+   - Search input with instant filtering across modules and items.
+   - High-contrast dark theme modal styling.
+   - Accessibility (focus trapping, aria attributes).
 
-Target files to inspect:
-- `src/hooks/useGraphCustomization.ts`
-- `src/lib/query-client.ts`
-- `src/hooks/useTasks.ts`
-- `src/hooks/useBudget.ts`
-- `src/hooks/useInventory.ts`
-- Any other query hooks using TanStack React Query.
-
-Objectives:
-1. Examine `useGraphCustomization.ts` lines 700-780 (the 10-second `readSheet('MAP_CUSTOMIZATION')` polling loop). How does it check `enabled` and `document.visibilityState`? Formulate a plan to suspend polling when `!enabled` OR `document.visibilityState === 'hidden'`.
-2. Examine `QueryClient` defaults in `src/lib/query-client.ts` (or equivalent provider) and query hook configurations (`staleTime`, `gcTime`, `refetchOnWindowFocus`, `refetchInterval`).
-3. Formulate a plan to ensure React Query refetching for `useTasks`, `useBudget`, `useInventory`, etc., is cleanly debounced/cached with optimal `staleTime` and zero redundant API requests during tab switching.
-4. Write your analysis report to `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\explorer_r3_1\analysis.md` and `handoff.md`, and send a message back to parent.
+Output:
+Write your analysis to `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\explorer_r3_1\analysis.md` and deliver a handoff report in `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\explorer_r3_1\handoff.md`.
+Send a completion message back to parent orchestrator.

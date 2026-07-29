@@ -2,6 +2,19 @@
 
 ## 8. 최근 엔지니어링 마일스톤 (요약)
 
+### [Gatekeeper Verification] R4 Gatekeeper Verification & Sync Rules 패치 (2026-07-23)
+* **Gatekeeper Verification & Sync Rules**:
+  - `npx tsc --noEmit`: 0 TypeScript compiler errors verified.
+  - `node scripts/run-harness.js`: 0 Zod schema errors, 0 ESLint warnings, 0 MVC architectural violations, 0 performance bottlenecks verified.
+  - `node scripts/sync-rules.js`: Automatic milestone synchronization completed and `AGENTS.md` updated.
+
+### [Localhost UX Optimization] R1 Data Hydration & Optimistic Hooks, R2 LocalhostStatusHUD component, R3 CommandPalette Ctrl+K modal, R4 Zero-Stall & Offline Reliability 패치 (2026-07-23)
+* **Localhost UX Optimization**:
+  - **R1 (Data Hydration & Optimistic Hooks)**: `useTasks` optimistic updates, automatic state sync on task CRUD.
+  - **R2 (LocalhostStatusHUD Component)**: Port 3001 health probing, 3-tier backup archive stats, process memory indicator.
+  - **R3 (CommandPalette Ctrl+K Modal)**: Multi-token search, section-grouped quick navigation, focus trapping.
+  - **R4 (Zero-Stall & Offline Reliability)**: Page freeze detector, offline tombstone sync, zero-stall guarantee.
+
 ### [Zero-Stall Optimization] dashboard 및 workspace UI Thread Stall 제거 & 백그라운드 탭 pause 규격 준수 패치 (2026-07-22)
 * **Zero-Stall Optimization**:
   - **R1 (UI Thread Stall Isolation)**: `areInventoryItemCardPropsEqual` custom prop comparator for `InventoryItemCard`, `useVirtualGrid` rAF throttling & offset caching, `usePortfolioAnalytics` dead-weight removal, `useGoogleSheet` callback memoization, `PortfolioDashboardView` key fix.

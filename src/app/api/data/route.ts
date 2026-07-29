@@ -275,8 +275,13 @@ async function writeDataToFile(sheet: string, data: any[]): Promise<void> {
   // 2. 직접 안전 파일 쓰기 (재시도 및 지연 내장)
   await safeWriteFile(filePath, dataStr);
   
-  // 캐시 즉시 무효화
-  apiCache.delete(sheet);
+  // 캐시 메모리 직렬화 업데이트 (디스크 재읽기 방지)
+  try {
+    const stats = await fs.stat(filePath);
+    apiCache.set(sheet, { data, mtimeMs: stats.mtimeMs });
+  } catch {
+    apiCache.delete(sheet);
+  }
   
   // Trigger backup asynchronously in background so client response is instant (0ms) and not blocked by disk IO
   backupDataFile(sheet, data).catch(err => console.error('[Backup Error]:', err));

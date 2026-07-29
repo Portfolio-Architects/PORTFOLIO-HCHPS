@@ -1,9 +1,12 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { BudgetCategory, BudgetEntry } from '@/types';
 import { CategoryStats } from '@/hooks/useBudget';
 import { ChevronDown, Pencil, Trash2, ArrowUp, ArrowDown, FileCheck } from 'lucide-react';
+import { InlineEditCell } from './InlineEditCell';
+import { useDocumentVisibility } from '@/hooks/useDocumentVisibility';
+import { getCategoryStatus, STATUS_CONFIG } from '@/hooks/useBudgetFilters';
 
 function formatN(n: number) { return n.toLocaleString('ko-KR'); }
 
@@ -13,13 +16,102 @@ export interface BudgetCategoryCardItemProps {
   catEntries: BudgetEntry[];
   isFirst: boolean;
   isLast: boolean;
-  onSwapCat?: (dir: -1 | 1) => void;
+  onSwapCat?: (catId: string, dir: -1 | 1) => void;
   onEditCat: (cat: BudgetCategory) => void;
   onDeleteCat: (id: string) => void;
   onEditEntry: (entry: BudgetEntry) => void;
+  updateCategory?: (id: string, updates: Partial<BudgetCategory>) => void;
+  updateEntry?: (id: string, updates: Partial<BudgetEntry>) => void;
 }
 
-export const BudgetCategoryCardItem = React.memo<BudgetCategoryCardItemProps>(({
+function areBudgetCategoryCardItemPropsEqual(
+  prevProps: BudgetCategoryCardItemProps,
+  nextProps: BudgetCategoryCardItemProps
+): boolean {
+  if (prevProps.isFirst !== nextProps.isFirst) return false;
+  if (prevProps.isLast !== nextProps.isLast) return false;
+  if (prevProps.onSwapCat !== nextProps.onSwapCat) return false;
+  if (prevProps.onEditCat !== nextProps.onEditCat) return false;
+  if (prevProps.onDeleteCat !== nextProps.onDeleteCat) return false;
+  if (prevProps.onEditEntry !== nextProps.onEditEntry) return false;
+  if (prevProps.updateCategory !== nextProps.updateCategory) return false;
+  if (prevProps.updateEntry !== nextProps.updateEntry) return false;
+
+  const pCat = prevProps.cat;
+  const nCat = nextProps.cat;
+  if (
+    pCat.id !== nCat.id ||
+    pCat.name !== nCat.name ||
+    pCat.totalBudget !== nCat.totalBudget ||
+    pCat.sortOrder !== nCat.sortOrder ||
+    pCat.budgetType !== nCat.budgetType ||
+    pCat.fundingSource !== nCat.fundingSource ||
+    pCat.color !== nCat.color ||
+    pCat.formationItem !== nCat.formationItem ||
+    pCat.statItem !== nCat.statItem ||
+    pCat.managementProject !== nCat.managementProject ||
+    pCat.policyProject !== nCat.policyProject ||
+    pCat.unitProject !== nCat.unitProject ||
+    pCat.detailedProject !== nCat.detailedProject
+  ) {
+    return false;
+  }
+
+  const pSub = pCat.subItems || [];
+  const nSub = nCat.subItems || [];
+  if (pSub.length !== nSub.length) return false;
+  for (let i = 0; i < pSub.length; i++) {
+    if (pSub[i].name !== nSub[i].name || pSub[i].amount !== nSub[i].amount) return false;
+  }
+
+  const pSplits = pCat.fundingSplits || [];
+  const nSplits = nCat.fundingSplits || [];
+  if (pSplits.length !== nSplits.length) return false;
+  for (let i = 0; i < pSplits.length; i++) {
+    if (pSplits[i].source !== nSplits[i].source || pSplits[i].amount !== nSplits[i].amount) return false;
+  }
+
+  const pStats = prevProps.stats;
+  const nStats = nextProps.stats;
+  if (pStats === null && nStats !== null) return false;
+  if (pStats !== null && nStats === null) return false;
+  if (pStats && nStats) {
+    if (
+      pStats.totalBudget !== nStats.totalBudget ||
+      pStats.spent !== nStats.spent ||
+      pStats.planned !== nStats.planned ||
+      pStats.remaining !== nStats.remaining ||
+      pStats.usageRate !== nStats.usageRate ||
+      pStats.generalSpent !== nStats.generalSpent ||
+      pStats.dailyExpenseIssued !== nStats.dailyExpenseIssued ||
+      pStats.dailyExpenseSpent !== nStats.dailyExpenseSpent ||
+      pStats.dailyExpenseRemaining !== nStats.dailyExpenseRemaining
+    ) {
+      return false;
+    }
+  }
+
+  const pEntries = prevProps.catEntries;
+  const nEntries = nextProps.catEntries;
+  if (pEntries.length !== nEntries.length) return false;
+  for (let i = 0; i < pEntries.length; i++) {
+    if (
+      pEntries[i].id !== nEntries[i].id ||
+      pEntries[i].amount !== nEntries[i].amount ||
+      pEntries[i].date !== nEntries[i].date ||
+      pEntries[i].purpose !== nEntries[i].purpose ||
+      pEntries[i].isPlanned !== nEntries[i].isPlanned ||
+      pEntries[i].isSettled !== nEntries[i].isSettled ||
+      pEntries[i].actionType !== nEntries[i].actionType
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+const BudgetCategoryCardItemComponent = ({
   cat,
   stats,
   catEntries,
@@ -28,9 +120,55 @@ export const BudgetCategoryCardItem = React.memo<BudgetCategoryCardItemProps>(({
   onSwapCat,
   onEditCat,
   onDeleteCat,
-  onEditEntry
-}) => {
+  onEditEntry,
+  updateCategory,
+  updateEntry
+}: BudgetCategoryCardItemProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [activeCellId, setActiveCellId] = useState<string | null>(null);
+  const isVisible = useDocumentVisibility();
+
+  const catStatus = useMemo(() => {
+    return stats ? getCategoryStatus(stats.usageRate, stats.remaining) : 'NORMAL';
+  }, [stats]);
+
+  const statusCfg = STATUS_CONFIG[catStatus];
+
+  const cellIdList = useMemo(() => {
+    const list: string[] = [];
+    list.push(`${cat.id}:statItem`);
+    list.push(`${cat.id}:totalBudget`);
+    if (cat.subItems) {
+      cat.subItems.forEach((_, idx) => {
+        list.push(`${cat.id}:sub:${idx}:name`);
+        list.push(`${cat.id}:sub:${idx}:amount`);
+      });
+    }
+    return list;
+  }, [cat.id, cat.subItems]);
+
+  const handleCellNavigate = useCallback((currentCellId: string, direction: 'next' | 'prev') => {
+    const index = cellIdList.indexOf(currentCellId);
+    if (index === -1) return;
+    let targetIndex = direction === 'next' ? index + 1 : index - 1;
+    if (targetIndex >= cellIdList.length) targetIndex = 0;
+    if (targetIndex < 0) targetIndex = cellIdList.length - 1;
+    setActiveCellId(cellIdList[targetIndex]);
+  }, [cellIdList]);
+
+  const handleSubItemUpdate = useCallback((subIdx: number, field: 'name' | 'amount', newValue: string | number) => {
+    if (!updateCategory || !cat.subItems) return;
+    const newSubItems = cat.subItems.map((sub, i) => {
+      if (i !== subIdx) return sub;
+      if (field === 'amount') {
+        const cleaned = String(newValue).replace(/,/g, '').replace(/원/g, '').trim();
+        const numAmt = isNaN(Number(cleaned)) ? 0 : Number(cleaned);
+        return { ...sub, amount: numAmt };
+      }
+      return { ...sub, name: String(newValue) };
+    });
+    updateCategory(cat.id, { subItems: newSubItems });
+  }, [cat.id, cat.subItems, updateCategory]);
 
   const { generalEntries, dailyExpenseEntries, totalIssuance, totalDailyExpense, dailyRemaining } = useMemo(() => {
     const gen = catEntries
@@ -66,11 +204,26 @@ export const BudgetCategoryCardItem = React.memo<BudgetCategoryCardItemProps>(({
           className="text-[15px] font-bold flex items-center gap-2.5 text-gray-800 cursor-pointer hover:text-[var(--color-primary)] transition-colors select-none" 
           onClick={() => setIsExpanded(prev => !prev)}
         >
-          <div className="w-2.5 h-2.5 rounded-full flex-shrink-0 animate-pulse" style={{ backgroundColor: cat.color || '#4A6CF7' }} />
+          <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${isVisible ? 'animate-pulse' : ''}`} style={{ backgroundColor: cat.color || '#4A6CF7' }} />
           <div className="line-clamp-1 flex items-center gap-1.5">
             {cat.formationItem && <span className="text-gray-500 font-medium opacity-90">[{cat.formationItem}]</span>}
-            <span>{cat.statItem || cat.name}</span>
+            <InlineEditCell
+              cellId={`${cat.id}:statItem`}
+              value={cat.statItem || cat.name}
+              type="text"
+              isEditing={activeCellId === `${cat.id}:statItem`}
+              onStartEdit={() => setActiveCellId(`${cat.id}:statItem`)}
+              onCancelEdit={() => setActiveCellId(null)}
+              onSave={(newVal) => updateCategory && updateCategory(cat.id, { statItem: String(newVal) })}
+              onNavigate={(dir) => handleCellNavigate(`${cat.id}:statItem`, dir)}
+              className="font-bold text-gray-800 hover:text-[var(--color-primary)]"
+            />
             {cat.managementProject && <span className="text-gray-600 font-bold">({cat.managementProject})</span>}
+            
+            <span className={`text-[11px] font-bold px-2 py-0.5 rounded-lg flex-shrink-0 border shadow-3xs ${statusCfg.badgeClass}`}>
+              {statusCfg.label}
+            </span>
+
             <div className={`text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
               <ChevronDown size={14} />
             </div>
@@ -88,26 +241,58 @@ export const BudgetCategoryCardItem = React.memo<BudgetCategoryCardItemProps>(({
         </div>
         <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover/item:opacity-100 transition-opacity flex-shrink-0 absolute right-2 top-2 bg-white rounded-lg p-1 border border-slate-200 z-10 shadow-sm">
           {onSwapCat && !isFirst && (
-            <button onClick={(e) => { e.stopPropagation(); onSwapCat(-1); }} className="p-1 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-600" title="위로 이동"><ArrowUp size={13} /></button>
+            <button onClick={(e) => { e.stopPropagation(); onSwapCat(cat.id, -1); }} className="p-1 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-600" title="위로 이동"><ArrowUp size={13} /></button>
           )}
           {onSwapCat && !isLast && (
-            <button onClick={(e) => { e.stopPropagation(); onSwapCat(1); }} className="p-1 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-600" title="아래로 이동"><ArrowDown size={13} /></button>
+            <button onClick={(e) => { e.stopPropagation(); onSwapCat(cat.id, 1); }} className="p-1 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-600" title="아래로 이동"><ArrowDown size={13} /></button>
           )}
           <button onClick={() => onEditCat(cat)} className="p-1 rounded hover:bg-slate-100 text-gray-500" title="수정"><Pencil size={13} /></button>
           <button onClick={() => onDeleteCat(cat.id)} className="p-1 rounded hover:bg-red-50 text-gray-500 hover:text-red-500" title="삭제"><Trash2 size={13} /></button>
         </div>
       </div>
 
+      {catStatus === 'OVER' && (
+        <div className="mt-2 text-[12px] font-extrabold text-red-500 bg-red-500/10 border border-red-500/30 rounded-xl px-3 py-1.5 flex items-center justify-between shadow-3xs">
+          <span className="flex items-center gap-1">🚨 <strong>[예산 초과/위험]</strong> 가용 잔액 부족 또는 95% 이상 소진!</span>
+          <span className="font-mono tabular-nums">잔액: {formatN(stats.remaining)}원</span>
+        </div>
+      )}
+      {catStatus === 'WARNING' && (
+        <div className="mt-2 text-[12px] font-bold text-amber-500 bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-1.5 flex items-center justify-between shadow-3xs">
+          <span className="flex items-center gap-1">⚠️ <strong>[예산 주의]</strong> 집행률 80% 이상 주의 단계</span>
+          <span className="font-mono tabular-nums">잔액: {formatN(stats.remaining)}원</span>
+        </div>
+      )}
+
       {isExpanded && (
         <div className="mt-3 space-y-3 pt-3 border-t border-slate-100">
           <div className="flex items-center justify-between bg-slate-50/70 rounded-xl p-3 mb-3 border border-slate-100">
             <div className="flex flex-col">
               <span className="text-gray-500 font-bold mb-1 text-[13px]">사용 (집행+품의)</span>
-              <span className="text-gray-800 font-semibold tracking-tight text-base font-mono tabular-nums">{formatN(stats.spent + stats.planned)} <span className="text-gray-400 font-medium mx-0.5">/</span> {formatN(stats.totalBudget)}</span>
+              <span className="text-gray-800 font-semibold tracking-tight text-base font-mono tabular-nums">
+                {formatN(stats.spent + stats.planned)} <span className="text-gray-400 font-medium mx-0.5">/</span>{' '}
+                <InlineEditCell
+                  cellId={`${cat.id}:totalBudget`}
+                  value={cat.totalBudget}
+                  type="number"
+                  isEditing={activeCellId === `${cat.id}:totalBudget`}
+                  onStartEdit={() => setActiveCellId(`${cat.id}:totalBudget`)}
+                  onCancelEdit={() => setActiveCellId(null)}
+                  onSave={(newVal) => {
+                    const cleanNum = Number(String(newVal).replace(/,/g, '').trim());
+                    if (updateCategory) updateCategory(cat.id, { totalBudget: isNaN(cleanNum) ? 0 : cleanNum });
+                  }}
+                  onNavigate={(dir) => handleCellNavigate(`${cat.id}:totalBudget`, dir)}
+                  displayFormatter={(v) => formatN(Number(v))}
+                  className="inline-block text-gray-800 font-bold font-mono"
+                />
+              </span>
             </div>
             <div className="flex flex-col items-end">
               <span className="text-gray-500 font-bold mb-1 text-[13px]">잔여금액</span>
-              <span className="text-blue-600 font-bold tracking-tight text-[17px] font-mono tabular-nums">{formatN(stats.remaining)}원</span>
+              <span className={`font-bold tracking-tight text-[17px] font-mono tabular-nums ${stats.remaining < 0 ? 'text-red-500 font-extrabold' : 'text-blue-600'}`}>
+                {formatN(stats.remaining)}원
+              </span>
             </div>
           </div>
 
@@ -117,7 +302,7 @@ export const BudgetCategoryCardItem = React.memo<BudgetCategoryCardItemProps>(({
                 className={`h-full rounded-full transition-all duration-500 ease-out relative overflow-hidden ${(stats.usageRate || 0) >= 95 ? 'bg-gradient-to-r from-red-500 to-rose-500' : (stats.usageRate || 0) >= 80 ? 'bg-gradient-to-r from-amber-400 to-amber-500' : 'bg-gradient-to-r from-blue-500 to-indigo-500'}`} 
                 style={{ width: `${Math.min(100, stats.usageRate || 0)}%` }} 
               >
-                <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" style={{ backgroundSize: '200% 100%' }} />
+                <div className={`absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent ${isVisible ? 'animate-shimmer' : ''}`} style={{ backgroundSize: '200% 100%' }} />
               </div>
             </div>
             <span className="text-[12.5px] font-semibold text-slate-600 w-12 text-right tracking-tight font-mono tabular-nums">{(stats.usageRate || 0).toFixed(1)}%</span>
@@ -133,10 +318,31 @@ export const BudgetCategoryCardItem = React.memo<BudgetCategoryCardItemProps>(({
                       <div className="flex justify-between items-start">
                         <div className="flex items-center gap-1.5">
                           {sub.prefix && <span className="text-[15px] bg-gray-100 border border-gray-200 text-gray-500 font-bold px-1.5 rounded">{sub.prefix}</span>}
-                          <span className="text-[18px] text-gray-800 font-semibold tracking-tight">{sub.name}</span>
+                          <InlineEditCell
+                            cellId={`${cat.id}:sub:${subIdx}:name`}
+                            value={sub.name}
+                            type="text"
+                            isEditing={activeCellId === `${cat.id}:sub:${subIdx}:name`}
+                            onStartEdit={() => setActiveCellId(`${cat.id}:sub:${subIdx}:name`)}
+                            onCancelEdit={() => setActiveCellId(null)}
+                            onSave={(newVal) => handleSubItemUpdate(subIdx, 'name', newVal)}
+                            onNavigate={(dir) => handleCellNavigate(`${cat.id}:sub:${subIdx}:name`, dir)}
+                            className="text-[18px] text-gray-800 font-semibold tracking-tight"
+                          />
                         </div>
                         <div className="flex flex-col items-end gap-0.5 shrink-0 ml-3">
-                          {sub.amount > 0 && <span className="font-semibold text-slate-800 tracking-tight text-[17px] font-mono tabular-nums">{formatN(sub.amount)}원</span>}
+                          <InlineEditCell
+                            cellId={`${cat.id}:sub:${subIdx}:amount`}
+                            value={sub.amount}
+                            type="number"
+                            isEditing={activeCellId === `${cat.id}:sub:${subIdx}:amount`}
+                            onStartEdit={() => setActiveCellId(`${cat.id}:sub:${subIdx}:amount`)}
+                            onCancelEdit={() => setActiveCellId(null)}
+                            onSave={(newVal) => handleSubItemUpdate(subIdx, 'amount', newVal)}
+                            onNavigate={(dir) => handleCellNavigate(`${cat.id}:sub:${subIdx}:amount`, dir)}
+                            displayFormatter={(v) => Number(v) > 0 ? `${formatN(Number(v))}원` : '-'}
+                            className="font-semibold text-slate-800 tracking-tight text-[17px] font-mono tabular-nums"
+                          />
                         </div>
                       </div>
                       
@@ -204,17 +410,37 @@ export const BudgetCategoryCardItem = React.memo<BudgetCategoryCardItemProps>(({
               
               <div className="space-y-1">
                 {generalEntries.map(e => (
-                  <div key={e.id} className="flex justify-between items-center text-[15.5px] hover:bg-white/60 p-1.5 rounded transition-colors cursor-pointer border border-transparent hover:border-blue-200" onClick={(evt) => { evt.stopPropagation(); onEditEntry(e); }}>
+                  <div key={e.id} className="flex justify-between items-center text-[15.5px] hover:bg-white/60 p-1.5 rounded transition-colors border border-transparent hover:border-blue-200">
                     <div className="flex gap-2 items-center truncate">
-                      <span className={`font-bold px-1.5 py-0.5 rounded text-[12px] ${e.isPlanned && !e.isSettled ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-blue-100 text-blue-800 border border-blue-200'}`}>
+                      <span onClick={() => onEditEntry(e)} title="상세 모달 수정" className={`font-bold px-1.5 py-0.5 rounded text-[12px] cursor-pointer hover:opacity-80 ${e.isPlanned && !e.isSettled ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-blue-100 text-blue-800 border border-blue-200'}`}>
                         {e.isPlanned && !e.isSettled ? '품의(원인행위)' : '실지출'}
                       </span>
                       <span className="text-blue-700/70 font-medium tracking-tight shrink-0 bg-white border border-blue-100 px-1 rounded-sm">{e.date.replace(/-/g, '.')}</span>
-                      <span className={`${e.purpose?.includes('(일상경비 교부)') ? 'text-red-500 font-extrabold' : 'text-blue-900 font-semibold'} truncate`}>
-                        {e.purpose}
-                      </span>
+                      <InlineEditCell
+                        cellId={`${e.id}:cat_purpose`}
+                        value={e.purpose || ''}
+                        type="text"
+                        isEditing={activeCellId === `${e.id}:cat_purpose`}
+                        onStartEdit={() => setActiveCellId(`${e.id}:cat_purpose`)}
+                        onCancelEdit={() => setActiveCellId(null)}
+                        onSave={(newVal) => updateEntry && updateEntry(e.id, { purpose: String(newVal) })}
+                        className={`${e.purpose?.includes('(일상경비 교부)') ? 'text-red-500 font-extrabold' : 'text-blue-900 font-semibold'} truncate`}
+                      />
                     </div>
-                    <span className="font-bold text-blue-900 tabular-nums shrink-0 font-mono">{formatN(e.amount)}원</span>
+                    <InlineEditCell
+                      cellId={`${e.id}:cat_amount`}
+                      value={e.amount}
+                      type="number"
+                      isEditing={activeCellId === `${e.id}:cat_amount`}
+                      onStartEdit={() => setActiveCellId(`${e.id}:cat_amount`)}
+                      onCancelEdit={() => setActiveCellId(null)}
+                      onSave={(newVal) => {
+                        const cleanNum = Number(String(newVal).replace(/,/g, '').trim());
+                        if (updateEntry) updateEntry(e.id, { amount: isNaN(cleanNum) ? 0 : cleanNum });
+                      }}
+                      displayFormatter={(v) => `${formatN(Number(v))}원`}
+                      className="font-bold text-blue-900 tabular-nums shrink-0 font-mono"
+                    />
                   </div>
                 ))}
               </div>
@@ -238,17 +464,37 @@ export const BudgetCategoryCardItem = React.memo<BudgetCategoryCardItemProps>(({
               
               <div className="space-y-1">
                 {dailyExpenseEntries.map(e => (
-                  <div key={e.id} className="flex justify-between items-center text-[15.5px] hover:bg-white/60 p-1.5 rounded transition-colors cursor-pointer border border-transparent hover:border-emerald-200" onClick={(evt) => { evt.stopPropagation(); onEditEntry(e); }}>
+                  <div key={e.id} className="flex justify-between items-center text-[15.5px] hover:bg-white/60 p-1.5 rounded transition-colors border border-transparent hover:border-emerald-200">
                     <div className="flex gap-2 items-center truncate">
-                      <span className={`font-bold px-1.5 py-0.5 rounded text-[12px] ${e.actionType === 'issuance' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
+                      <span onClick={() => onEditEntry(e)} title="상세 모달 수정" className={`font-bold px-1.5 py-0.5 rounded text-[12px] cursor-pointer hover:opacity-80 ${e.actionType === 'issuance' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
                         {e.actionType === 'issuance' ? '교부' : '지출'}
                       </span>
                       <span className="text-emerald-700/70 font-medium tracking-tight shrink-0 bg-white border border-emerald-100 px-1 rounded-sm">{e.date.replace(/-/g, '.')}</span>
-                      <span className={`${e.purpose?.includes('(일상경비 교부)') ? 'text-red-500 font-extrabold' : 'text-emerald-900 font-semibold'} truncate`}>
-                        {e.purpose}
-                      </span>
+                      <InlineEditCell
+                        cellId={`${e.id}:cat_daily_purpose`}
+                        value={e.purpose || ''}
+                        type="text"
+                        isEditing={activeCellId === `${e.id}:cat_daily_purpose`}
+                        onStartEdit={() => setActiveCellId(`${e.id}:cat_daily_purpose`)}
+                        onCancelEdit={() => setActiveCellId(null)}
+                        onSave={(newVal) => updateEntry && updateEntry(e.id, { purpose: String(newVal) })}
+                        className={`${e.purpose?.includes('(일상경비 교부)') ? 'text-red-500 font-extrabold' : 'text-emerald-900 font-semibold'} truncate`}
+                      />
                     </div>
-                    <span className="font-bold text-emerald-900 tabular-nums shrink-0 font-mono">{formatN(e.amount)}원</span>
+                    <InlineEditCell
+                      cellId={`${e.id}:cat_daily_amount`}
+                      value={e.amount}
+                      type="number"
+                      isEditing={activeCellId === `${e.id}:cat_daily_amount`}
+                      onStartEdit={() => setActiveCellId(`${e.id}:cat_daily_amount`)}
+                      onCancelEdit={() => setActiveCellId(null)}
+                      onSave={(newVal) => {
+                        const cleanNum = Number(String(newVal).replace(/,/g, '').trim());
+                        if (updateEntry) updateEntry(e.id, { amount: isNaN(cleanNum) ? 0 : cleanNum });
+                      }}
+                      displayFormatter={(v) => `${formatN(Number(v))}원`}
+                      className="font-bold text-emerald-900 tabular-nums shrink-0 font-mono"
+                    />
                   </div>
                 ))}
               </div>
@@ -279,6 +525,11 @@ export const BudgetCategoryCardItem = React.memo<BudgetCategoryCardItemProps>(({
       )}
     </div>
   );
-});
+};
+
+export const BudgetCategoryCardItem = React.memo<BudgetCategoryCardItemProps>(
+  BudgetCategoryCardItemComponent,
+  areBudgetCategoryCardItemPropsEqual
+);
 
 BudgetCategoryCardItem.displayName = 'BudgetCategoryCardItem';

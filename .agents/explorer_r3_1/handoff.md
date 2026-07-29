@@ -1,88 +1,61 @@
-# Handoff Report — DB Polling & React Query Refetch Optimization (Requirement 3)
+# Handoff Report — Explorer R3-1 (Command Palette Architecture & Design)
 
 ## 1. Observation
-Direct evidence gathered from codebase inspection:
 
-- **`src/hooks/useGraphCustomization.ts` (lines 64-65, 702-784)**:
-  - Global singletons:
-    ```ts
-    let activePollInterval: ReturnType<typeof setInterval> | null = null;
-    let activePollCount = 0;
-    ```
-  - Polling setup:
-    ```ts
-    useEffect(() => {
-      if (!enabled || !isCloudLoaded) return;
-      activePollCount++;
-      if (!activePollInterval) {
-        ...
-        runPoll(); // Direct execution on mount
-        activePollInterval = setInterval(() => {
-          if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
-            return;
-          }
-          runPoll();
-        }, 10000);
-      }
-      return () => {
-        activePollCount--;
-        if (activePollCount <= 0 && activePollInterval) {
-          clearInterval(activePollInterval);
-          activePollInterval = null;
-        }
-      };
-    }, [enabled, isCloudLoaded]);
-    ```
-  - Observation: `runPoll()` runs immediately on mount regardless of tab visibility (`document.visibilityState === 'hidden'`). `setInterval` continues firing every 10 seconds while tab is hidden. When tab becomes visible, no immediate fetch is triggered.
-
-- **`src/lib/query-client.ts` (lines 1-22)**:
-  - Default options set `staleTime: 5 * 60 * 1000`, `gcTime: 30 * 60 * 1000`, and `refetchOnWindowFocus: false`.
-  - Observation: `refetchOnWindowFocus: false` is active globally. However, `refetchOnReconnect` is not explicitly disabled.
-
-- **`src/hooks/useTasks.ts` (lines 79-83) & `src/hooks/useBudget.ts` (lines 36-46)**:
-  - `useTasks`: `staleTime: 1000 * 60 * 5` re-declared explicitly on `useQuery({ queryKey: ['TASKS'], queryFn: () => readSheet<Task>('TASKS') })`.
-  - `useBudget`: `staleTime: 1000 * 60 * 5` re-declared explicitly for `BUDGET_CATEGORIES` and `BUDGET_ENTRIES`.
-
-- **`src/hooks/useAppLogs.ts` (lines 19-30)**:
-  - Configured with `refetchInterval: enabled ? 10000 : false`, but missing `refetchIntervalInBackground: false`.
-
-- **`src/hooks/useInventory.ts` & `src/hooks/useGoogleSheet.ts`**:
-  - `useInventory` wraps `useGoogleSheet` which hydrates once from `localStorage` and fetches from KV/`readSheet` on mount, caching back to `localStorage`.
+- **Existing Modal Topology**:
+  - `src/components/ui/modal.tsx` (lines 26–64): Generic backdrop `fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop` with `document.body.style.overflow = 'hidden'`.
+  - `src/components/SearchResultModal.tsx` (lines 118–143, 169–351): High-contrast backdrop `fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-black/50 backdrop-blur-md` for local wiki/drive search.
+- **Keyboard Shortcut Absence**:
+  - Global `grep_search` for `Ctrl+K` across `src/` yielded **0 results**. No keyboard command palette currently exists in the project codebase.
+- **Module Navigation & View Switching**:
+  - Module union type in `src/types/index.ts` line 174: `export type ModuleType = 'workspace' | 'mindmap' | 'dashboard' | 'project';`.
+  - Active module state in `src/app/page.tsx` line 355: `const [activeModule, setActiveModule] = useState<ModuleType>('dashboard');`.
+  - Module switcher function in `src/app/page.tsx` lines 529–533: `handleModuleChange` updates `activeModule`, `visitedModules`, and `localStorage.setItem('hchps_active_module', module)`.
+  - Custom event dispatch pattern: `window.dispatchEvent(new CustomEvent('wiki:openNode', { ... }))` caught in `page.tsx` lines 573–582 switches `activeModule` to `'mindmap'`.
+- **Data Hook Topology**:
+  - Tasks (`useTasks` in `src/hooks/useTasks.ts`): `Task[]` array with fields `id`, `title`, `description`, `status`, `priority`, `category`, `dueDate`, `tags`.
+  - Budget Categories & Entries (`useBudget` in `src/hooks/useBudget.ts`): `BudgetCategory[]` and `BudgetEntry[]` arrays with fields `name`, `policyProject`, `purpose`, `memo`, `docRegNum`, `amount`.
+  - Inventory (`useInventory` in `src/hooks/useInventory.ts`): `InventoryItem[]` array with `name`, `category`, `currentStock`, `unit`.
+  - Contacts (`useContacts` in `src/hooks/useContacts.ts`): `Contact[]` array with `name`, `phone`, `email`, `notes`.
+  - Projects (`useProjects` in `src/hooks/useProjects.ts`): `Project[]` array with `name`, `description`, `staff`, `location`.
+  - Meetings (`useMeetings` in `src/hooks/useMeetings.ts`): `Meeting[]` array with `title`, `datetime`, `location`, `attendees`.
 
 ---
 
 ## 2. Logic Chain
-1. *Premise*: Continuous background polling on hidden browser tabs wastes system resources (CPU/battery) and generates unnecessary network requests. Delayed state updates when switching back to a tab degrade user experience.
-2. *Step 1*: `useGraphCustomization.ts` currently runs `setInterval` every 10 seconds even when `document.visibilityState === 'hidden'`. Suspending the interval timer when `document.visibilityState === 'hidden'` or `!enabled` and immediately resuming via `visibilitychange` listener ensures 0 background timer ticks and 0 delay when returning to the tab.
-3. *Step 2*: TanStack React Query in `src/lib/query-client.ts` already sets `refetchOnWindowFocus: false`, preventing auto-refetch during tab switching. Explicitly adding `refetchOnReconnect: false` prevents edge-case network reconnect storms.
-4. *Step 3*: `useAppLogs.ts` needs `refetchIntervalInBackground: false` to align with the tab suspension strategy.
-5. *Step 4*: `useTasks.ts` and `useBudget.ts` benefit from consistent 5-minute `staleTime` and optimistic updates during mutations, preventing redundant network requests after user actions.
+
+1. **Observation 1 & 2** show that existing modals (`Modal.tsx`, `SearchResultModal.tsx`) use `z-index: 50` to `100` and backdrop blur styling, but there is no `Ctrl+K` shortcut handler in the entire repository.
+2. **Observation 3** establishes that module switching is cleanly driven by `activeModule` state in `src/app/page.tsx` via `handleModuleChange(module: ModuleType)`. Therefore, a global command palette can trigger view transitions by invoking `handleModuleChange`.
+3. **Observation 4** identifies all core local data hooks (`useTasks`, `useBudget`, `useInventory`, `useContacts`, `useProjects`, `useMeetings`) which are already instantiated at the top level of `ProtectedApp` in `src/app/page.tsx`.
+4. Therefore, passing these data items directly into a new `CommandPalette.tsx` component mounted inside `ProtectedApp` enables instant, zero-latency local search across all items and application modules without introducing new API network calls.
+5. The `CommandPalette` component design in `analysis.md` addresses all functional, aesthetic (dark high-contrast theme), and accessibility requirements (`Ctrl+K`/`Cmd+K` listener, Escape to close, Arrow keys for item selection, Enter to trigger action, ARIA roles, and focus trapping).
 
 ---
 
 ## 3. Caveats
-- **Multi-Tab Sync**: In local offline/E2EE mode, tab switching relies on Yjs CRDT and window focus events. Suspending polling while hidden relies on `visibilitychange` events, which are supported in all modern browsers.
-- **App Logs Polling**: When `useAppLogs` tab is active, polling at 10s is desired for real-time daemon logs. When backgrounded, `refetchIntervalInBackground: false` pauses it, which is the expected behavior.
+
+- **Scope boundary**: This is a read-only investigation and design analysis task. No source code files in `src/` were edited during this step.
+- **Focus trapping edge cases**: When third-party modal forms (such as `TaskModal` or `AddDataModal`) are open, pressing `Ctrl+K` should open `CommandPalette` above them (`z-[120]`). Focus will be shifted to `CommandPalette`'s search input and returned to previous active element upon close.
 
 ---
 
 ## 4. Conclusion
-Requirement 3 optimization can be achieved cleanly with 3 targeted edits:
-1. Refactor `useGraphCustomization.ts` polling loop to pause/clear `setInterval` when `document.visibilityState === 'hidden'` or `!enabled`, and attach a `visibilitychange` event listener to run `runPoll()` instantly on tab focus.
-2. Update `src/lib/query-client.ts` to explicitly include `refetchOnReconnect: false`.
-3. Update `useAppLogs.ts` to include `refetchIntervalInBackground: false`.
+
+The R3 Keyboard Shortcut Command Palette (`Ctrl+K` / `Cmd+K`) design is fully specified and ready for implementation. The proposed `CommandPalette` component will act as a central navigation and quick-search hub in `src/components/CommandPalette.tsx`, seamlessly wired into `src/app/page.tsx`.
 
 ---
 
 ## 5. Verification Method
 
-1. **Static Analysis & Type Checking**:
-   - Run `node scripts/run-harness.js`
-   - Target files: `src/hooks/useGraphCustomization.ts`, `src/lib/query-client.ts`, `src/hooks/useTasks.ts`, `src/hooks/useBudget.ts`, `src/hooks/useAppLogs.ts`.
-
-2. **Runtime Tab Switching Verification**:
-   - Open Chrome DevTools > Network tab.
-   - Load MindMap dashboard (`useGraphCustomization` enabled).
-   - Switch to another browser tab for 30 seconds.
-   - Confirm 0 network calls for `MAP_CUSTOMIZATION` or `/api/app-logs` while hidden.
-   - Switch back to dashboard tab: confirm 1 immediate network request occurs to sync watcher candidates.
+1. Inspect detailed exploration report:
+   `view_file` at `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\explorer_r3_1\analysis.md`
+2. Run TypeScript compilation check:
+   `npx tsc --noEmit`
+3. Run project harness check:
+   `node scripts/run-harness.js`
+4. Post-implementation visual & functional manual check:
+   - Open browser at `http://localhost:3001`
+   - Press `Ctrl+K` (or `Cmd+K`) -> Verify modal opens with dark theme backdrop.
+   - Type search query (e.g. `"예산"` or `"부엉이"`) -> Verify instant multi-category filtered results.
+   - Navigate with `ArrowUp` / `ArrowDown` -> Verify item highlight and scroll.
+   - Press `Enter` -> Verify transition to target view and palette closure.

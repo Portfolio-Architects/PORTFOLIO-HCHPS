@@ -1,38 +1,31 @@
-# Project Orchestrator Plan — UI Thread Stall Elimination & Zero-Stall Optimization
+# Execution Plan: Budget Management Page UI Freeze & GC Optimization
 
-## Architecture & Requirements
-- **Goal**: Full execution of R1, R2, R3 requirements and Acceptance Criteria specified in ORIGINAL_REQUEST.md.
+## Overview
+Eliminate 2-3s UI thread freeze when entering Budget Management page by implementing module pre-evaluation, component virtualization, GC allocation optimization, and background signal isolation.
 
-### R1. UI Thread Stall Cause Analysis & Isolation (`dashboard` & `workspace`)
-- Target components: `src/components/dashboard/*`, `src/components/workspace/*` (e.g. `PortfolioDashboardView.tsx`, `WorkspaceView.tsx`, `InventoryList.tsx`, `MindMap3D.tsx`, etc.).
-- Isolated main thread blocking bottlenecks during large DOM traversals or async transactions.
-- Applied UI virtualization (`useVirtualGrid`) and Props memoization (`React.memo`, `useMemo`, `useCallback`, custom comparator `areInventoryItemCardPropsEqual`) to reduce render frame occupancy below 100ms.
+## Milestones & Phased Plan
 
-### R2. Zero-Stall & Background Tab Pause Standards (AGENTS.md Sec. 2-J)
-- Implemented `document.hidden` / tab blur pause mechanisms: DB watcher polling, 3D WebGL physics simulation ticks (`isPaused`), and React Query background refetch (`refetchIntervalInBackground: false`, `refetchOnWindowFocus: false`).
-- Enforced Instant-Resume on tab focus with delta clamping `Math.min(now - lastFrameTime, 33.3ms)` and physics freeze/resume to prevent whiplash / physics explosion.
+### Milestone 1: R1 Module Preloading & Idle Evaluation
+- Analyze `WorkspaceView.tsx` preloading timing (dynamic import preloading schedule).
+- Adjust staggered timing or apply idle pre-compilation to prevent initial parse stalls.
+- Verification: Build/TSC passes, component preloads smoothly in background idle time.
 
-### R3. Hydration Chunk Isolation & Dynamic Imports (AGENTS.md Sec. 2-I)
-- Enforced dynamic imports `dynamic(() => import(...), { ssr: false })` for heavy components (`MindMap3D`, `PortfolioDashboardView`, `WorkspaceView`, `ProjectManagementPage`, `SecurityLockScreen`, `AppLogModal`, `AIAssistantModal`, `MindMapInspector`, `SemanticReviewModal`, `BudgetDashboard` modals).
-- Rendered modals conditionally in JSX tree (`page.tsx`, `BudgetDashboard.tsx`).
-- Ensured matching skeleton UI fallbacks (`WeeklySchedulerSkeleton`, `MindMap3DSkeleton`, `InventoryListSkeleton`, etc.) to prevent layout shifts.
+### Milestone 2: R2 Budget Category Cards Virtualization & DOM Node Reduction
+- Virtualize list rendering in `PolicyGroupCard` and `BudgetCategoryCardItem`.
+- Apply `useVirtualGrid` windowing or memoized chunk rendering to render only visible DOM nodes.
+- Verification: Rendering 100+ budget items produces minimal DOM nodes, 0 layout stalls.
 
-### Acceptance Criteria Verification
-- Zero UI thread stall (> 100ms) & target 60 FPS.
-- `npx tsc --noEmit` succeeds with 0 errors.
-- `node scripts/run-harness.js` succeeds with 0 errors/warnings.
-- `node scripts/sync-rules.js` updates AGENTS.md milestone log automatically.
+### Milestone 3: R3 Fix GC Memory Allocation Spikes in `getCategoryStats`
+- Cache `excludePlanned` calculation in `getCategoryStats` or `useBudget`.
+- Avoid instantiating temporary objects/arrays inside high-frequency render loops.
+- Verification: 0 GC allocation spikes, stats calculations are memoized and instant.
 
-## Milestones Table
-| # | Name | Scope | Dependencies | Status |
-|---|------|-------|-------------|--------|
-| M1 | Exploration & Cause Analysis | Scan `dashboard` & `workspace` components, hook performance, tab visibility hooks, dynamic imports | None | DONE |
-| M2 | R1, R2, R3 Optimization Implementation | Implement R1 (virtualization/memo), R2 (tab hidden pause/clamping), R3 (dynamic imports & skeletons) | M1 | DONE |
-| M3 | Build & Harness Verification + Rules Sync | Run `tsc`, `run-harness.js`, record patch in `Engineering Report.md`, run `sync-rules.js` | M2 | DONE |
-| M4 | Review & Forensic Integrity Audit | Reviewers, Challengers, and Forensic Auditor verification (CLEAN verdict) | M3 | DONE |
+### Milestone 4: R4 Gatekeeper Verification & Sync Rules
+- Run `node scripts/run-harness.js` (TSC 0 errors, Zod 0 errors, ESLint 0 warnings, Arch violations 0).
+- Verify thread long task (>100ms) count is 0 on entering Budget page.
+- Run `node scripts/sync-rules.js` to update `AGENTS.md` milestone log.
 
-## Code Layout
-- Dashboard: `src/components/dashboard/*`, `src/hooks/usePortfolioAnalytics.ts`
-- Workspace: `src/components/workspace/*`, `src/components/inventory/InventoryList.tsx`, `src/components/MindMap3D.tsx`
-- System/Hooks: `src/hooks/*`, `src/app/page.tsx`
-- Verification & Scripts: `scripts/run-harness.js`, `scripts/sync-rules.js`
+## Gatekeeper Protocol per Milestone
+1. Worker executes implementation & runs `run-harness.js`.
+2. Reviewers / Challengers verify correctness and performance.
+3. Forensic Auditor (`teamwork_preview_auditor`) performs integrity audit. Clean audit required to pass.

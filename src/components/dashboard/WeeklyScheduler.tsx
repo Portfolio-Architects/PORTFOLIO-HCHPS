@@ -29,6 +29,37 @@ function minutesToTime(mins: number): string {
   return `${h}:${m}`;
 }
 
+// Schedule type style helper
+function getTypeConfig(schedType: ScheduleType) {
+  switch (schedType) {
+    case 'security':
+      return {
+        bg: 'bg-indigo-50/70 border-indigo-100 hover:border-indigo-200 text-indigo-700 dark:bg-indigo-950/40 dark:border-indigo-900/50 dark:text-indigo-300',
+        badge: 'bg-indigo-100/80 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300',
+        icon: <Shield className="w-3.5 h-3.5" />
+      };
+    case 'meeting':
+      return {
+        bg: 'bg-emerald-50/70 border-emerald-100 hover:border-emerald-200 text-emerald-700 dark:bg-emerald-950/40 dark:border-emerald-900/50 dark:text-emerald-300',
+        badge: 'bg-emerald-100/80 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300',
+        icon: <Users className="w-3.5 h-3.5" />
+      };
+    case 'education':
+      return {
+        bg: 'bg-amber-50/70 border-amber-100 hover:border-amber-200 text-amber-700 dark:bg-amber-950/40 dark:border-amber-900/50 dark:text-amber-300',
+        badge: 'bg-amber-100/85 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
+        icon: <BookOpen className="w-3.5 h-3.5" />
+      };
+    case 'other':
+    default:
+      return {
+        bg: 'bg-slate-50/70 border-slate-100 hover:border-slate-200 text-slate-700 dark:bg-slate-800/50 dark:border-slate-700/50 dark:text-slate-300',
+        badge: 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-350',
+        icon: <Calendar className="w-3.5 h-3.5" />
+      };
+  }
+}
+
 // ============ Schedule Direct Creation / Edit Modal ============
 interface ScheduleModalProps {
   isOpen: boolean;
@@ -42,7 +73,7 @@ interface ScheduleModalProps {
   onDeleteSchedule: (id: string) => void;
 }
 
-function ScheduleModal({
+const ScheduleModal = React.memo(({
   isOpen,
   onClose,
   schedule,
@@ -52,7 +83,7 @@ function ScheduleModal({
   onSaveAdd,
   onSaveUpdate,
   onDeleteSchedule
-}: ScheduleModalProps) {
+}: ScheduleModalProps) => {
   const isEditing = Boolean(schedule);
 
   const [title, setTitle] = useState('');
@@ -317,7 +348,8 @@ function ScheduleModal({
       </div>
     </div>
   );
-}
+});
+ScheduleModal.displayName = 'ScheduleModal';
 
 // ============ Schedule Registration Form (Sidebar Panel) ============
 const ScheduleForm = React.memo(({ 
@@ -345,20 +377,20 @@ const ScheduleForm = React.memo(({
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  const handleDateChange = (newVal: string) => {
+  const handleDateChange = useCallback((newVal: string) => {
     setDate(newVal);
     if (endDate < newVal) {
       setEndDate(newVal);
     }
-  };
+  }, [setDate, endDate, setEndDate]);
 
   const hours = useMemo(() => Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')), []);
   const minutes = useMemo(() => ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'], []);
 
-  const applyPreset = (start: string, end: string) => {
+  const applyPreset = useCallback((start: string, end: string) => {
     setStartTime(start);
     setEndTime(end);
-  };
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -633,7 +665,7 @@ const ScheduleItem = React.memo(({
     }
   }, [onDelete, schedule.id, schedule.title]);
 
-  const handleDragStart = (e: React.DragEvent) => {
+  const handleDragStart = useCallback((e: React.DragEvent) => {
     const durationMins = Math.max(30, timeToMinutes(schedule.endTime) - timeToMinutes(schedule.startTime));
     const payload = JSON.stringify({
       id: schedule.id,
@@ -643,16 +675,18 @@ const ScheduleItem = React.memo(({
     });
     e.dataTransfer.setData('application/json', payload);
     e.dataTransfer.effectAllowed = 'move';
-  };
+  }, [schedule]);
+
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onEdit) onEdit(schedule);
+  }, [onEdit, schedule]);
 
   return (
     <div
       draggable={true}
       onDragStart={handleDragStart}
-      onClick={(e) => {
-        e.stopPropagation();
-        if (onEdit) onEdit(schedule);
-      }}
+      onClick={handleClick}
       className={`group relative flex flex-col p-2.5 border rounded-xl transition-all duration-200 hover:shadow-sm cursor-pointer select-none ${config.bg}`}
       title={`[클릭: 상세/수정 | 드래그: 일정 재배치]\n${schedule.title}\n담당: ${schedule.person}${schedule.notes ? `\n메모: ${schedule.notes}` : ''}`}
     >
@@ -706,6 +740,306 @@ const ScheduleItem = React.memo(({
   );
 });
 ScheduleItem.displayName = 'ScheduleItem';
+
+// ============ Memoized View Sub-Components ============
+
+const WeekDayColumn = React.memo(({
+  day,
+  dayIdx,
+  schedules,
+  dayNames,
+  onOpenCellModal,
+  onDropCell,
+  onDeleteSchedule,
+  onEditSchedule
+}: {
+  day: Date;
+  dayIdx: number;
+  schedules: Schedule[];
+  dayNames: string[];
+  onOpenCellModal: (dayStr: string) => void;
+  onDropCell: (e: React.DragEvent, dayStr: string) => void;
+  onDeleteSchedule: (id: string) => void;
+  onEditSchedule: (sched: Schedule) => void;
+}) => {
+  const dayStr = formatDateStr(day);
+  const isToday = useMemo(() => new Date().toDateString() === day.toDateString(), [day]);
+  const dayNum = day.getDate();
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    onDropCell(e, dayStr);
+  }, [onDropCell, dayStr]);
+
+  const handleHeaderClick = useCallback(() => {
+    onOpenCellModal(dayStr);
+  }, [onOpenCellModal, dayStr]);
+
+  return (
+    <div
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+      className={`flex flex-col bg-white/30 dark:bg-slate-900/30 border border-slate-200/40 dark:border-slate-800/40 rounded-2xl p-3 h-full min-h-[200px] md:min-h-[480px] transition-all hover:bg-white/60 dark:hover:bg-slate-800/40 hover:shadow-2xs ${
+        isToday ? 'bg-indigo-50/10 border-indigo-300/50 shadow-xs ring-1 ring-indigo-500/5 dark:bg-indigo-950/20 dark:border-indigo-800/50 dark:ring-indigo-500/10' : ''
+      }`}
+    >
+      {/* Header */}
+      <div 
+        onClick={handleHeaderClick}
+        className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-200/40 dark:border-slate-800/50 cursor-pointer hover:bg-slate-100/50 dark:hover:bg-slate-800/50 p-1 rounded-lg transition-all select-none"
+        title={`${dayNum}일 직관적 일정 추가 (클릭)`}
+      >
+        <div className="flex items-center gap-1.5">
+          <span className={`text-[12px] font-bold ${
+            dayIdx === 5 ? 'text-blue-500' : dayIdx === 6 ? 'text-red-500' : 'text-slate-500 dark:text-slate-400'
+          }`}>
+            {dayNames[dayIdx]}
+          </span>
+          <span className={`text-sm font-bold w-6 h-6 flex items-center justify-center rounded-full ${
+            isToday ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-800 dark:text-slate-200'
+          }`}>
+            {dayNum}
+          </span>
+        </div>
+        <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-350 bg-slate-200/40 dark:bg-slate-800 px-1.5 py-0.5 rounded-full shrink-0">
+          {schedules.length}건
+        </span>
+      </div>
+
+      {/* Column Body */}
+      <div 
+        onClick={handleHeaderClick}
+        className="flex flex-col gap-2 overflow-y-auto flex-1 max-h-[360px] md:max-h-none custom-scrollbar min-h-[140px]"
+      >
+        {schedules.length === 0 ? (
+          <div className="flex flex-col items-center justify-center flex-1 py-8 text-slate-400 dark:text-slate-500 italic text-[11px] font-semibold cursor-pointer">
+            + 클릭하여 추가
+          </div>
+        ) : (
+          schedules.map((schedule) => (
+            <ScheduleItem
+              key={schedule.id}
+              schedule={schedule}
+              config={getTypeConfig(schedule.type)}
+              onDelete={onDeleteSchedule}
+              onEdit={onEditSchedule}
+            />
+          ))
+        )}
+      </div>
+    </div>
+  );
+});
+WeekDayColumn.displayName = 'WeekDayColumn';
+
+const MonthSchedulePill = React.memo(({
+  schedule,
+  config,
+  onEdit
+}: {
+  schedule: Schedule;
+  config: { bg: string; badge: string; icon: React.ReactNode };
+  onEdit: (sched: Schedule) => void;
+}) => {
+  const handleDragStart = useCallback((e: React.DragEvent) => {
+    const durationMins = Math.max(30, timeToMinutes(schedule.endTime) - timeToMinutes(schedule.startTime));
+    e.dataTransfer.setData('application/json', JSON.stringify({
+      id: schedule.id,
+      durationMins,
+      startTime: schedule.startTime,
+      endTime: schedule.endTime
+    }));
+  }, [schedule]);
+
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    onEdit(schedule);
+  }, [onEdit, schedule]);
+
+  return (
+    <div
+      draggable={true}
+      onDragStart={handleDragStart}
+      onClick={handleClick}
+      className={`px-1.5 py-0.5 rounded text-[10px] font-bold truncate flex items-center justify-between gap-1 shadow-2xs ${config.bg}`}
+      title={`${schedule.startTime} ${schedule.title}`}
+    >
+      <span className="truncate">{schedule.title}</span>
+      <span className="text-[8px] opacity-70 shrink-0">{schedule.startTime}</span>
+    </div>
+  );
+});
+MonthSchedulePill.displayName = 'MonthSchedulePill';
+
+const MonthCell = React.memo(({
+  day,
+  currentMonth,
+  schedules,
+  onOpenModal,
+  onDropCell,
+  onEditSchedule
+}: {
+  day: Date;
+  currentMonth: number;
+  schedules: Schedule[];
+  onOpenModal: (dayStr: string) => void;
+  onDropCell: (e: React.DragEvent, dayStr: string) => void;
+  onEditSchedule: (sched: Schedule) => void;
+}) => {
+  const dayStr = formatDateStr(day);
+  const isCurrentMonth = day.getMonth() === currentMonth;
+  const isToday = useMemo(() => new Date().toDateString() === day.toDateString(), [day]);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    onDropCell(e, dayStr);
+  }, [onDropCell, dayStr]);
+
+  const handleClick = useCallback(() => {
+    onOpenModal(dayStr);
+  }, [onOpenModal, dayStr]);
+
+  return (
+    <div
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+      onClick={handleClick}
+      className={`min-h-[90px] max-h-[110px] p-1.5 rounded-xl border flex flex-col justify-start transition-all cursor-pointer ${
+        isCurrentMonth 
+          ? 'bg-white/40 dark:bg-slate-900/40 border-slate-200/50 dark:border-slate-800/50 hover:bg-white dark:hover:bg-slate-850' 
+          : 'bg-slate-100/20 dark:bg-slate-950/20 border-transparent text-slate-300 dark:text-slate-700'
+      } ${isToday ? 'ring-2 ring-indigo-500/60 bg-indigo-50/10' : ''}`}
+    >
+      <div className="flex items-center justify-between mb-1 px-1">
+        <span className={`text-[11px] font-bold ${
+          isToday 
+            ? 'w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center' 
+            : isCurrentMonth ? 'text-slate-700 dark:text-slate-200' : 'text-slate-300 dark:text-slate-600'
+        }`}>
+          {day.getDate()}
+        </span>
+        {schedules.length > 0 && (
+          <span className="text-[9px] font-bold text-slate-400">
+            {schedules.length}
+          </span>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-1 overflow-y-auto max-h-[70px] custom-scrollbar">
+        {schedules.map((s) => (
+          <MonthSchedulePill
+            key={s.id}
+            schedule={s}
+            config={getTypeConfig(s.type)}
+            onEdit={onEditSchedule}
+          />
+        ))}
+      </div>
+    </div>
+  );
+});
+MonthCell.displayName = 'MonthCell';
+
+const TimetableScheduleItem = React.memo(({
+  schedule,
+  config,
+  onEdit
+}: {
+  schedule: Schedule;
+  config: { bg: string; badge: string; icon: React.ReactNode };
+  onEdit: (sched: Schedule) => void;
+}) => {
+  const handleDragStart = useCallback((e: React.DragEvent) => {
+    const durationMins = Math.max(30, timeToMinutes(schedule.endTime) - timeToMinutes(schedule.startTime));
+    e.dataTransfer.setData('application/json', JSON.stringify({
+      id: schedule.id,
+      durationMins,
+      startTime: schedule.startTime,
+      endTime: schedule.endTime
+    }));
+  }, [schedule]);
+
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    onEdit(schedule);
+  }, [onEdit, schedule]);
+
+  return (
+    <div
+      draggable={true}
+      onDragStart={handleDragStart}
+      onClick={handleClick}
+      className={`p-1.5 rounded-lg border text-[10px] font-bold flex flex-col gap-0.5 shadow-2xs ${config.bg}`}
+    >
+      <div className="flex items-center justify-between">
+        <span className="truncate">{schedule.title}</span>
+        <span className="text-[9px] opacity-75">{schedule.startTime}~{schedule.endTime}</span>
+      </div>
+      <span className="text-[8.5px] opacity-80">{schedule.person}</span>
+    </div>
+  );
+});
+TimetableScheduleItem.displayName = 'TimetableScheduleItem';
+
+const TimetableSlotCell = React.memo(({
+  dayStr,
+  hourStr,
+  nextHourStr,
+  schedules,
+  onOpenCellModal,
+  onDropCell,
+  onEditSchedule
+}: {
+  dayStr: string;
+  hourStr: string;
+  nextHourStr: string;
+  schedules: Schedule[];
+  onOpenCellModal: (dayStr: string, startTime?: string, endTime?: string) => void;
+  onDropCell: (e: React.DragEvent, dayStr: string, targetTime?: string) => void;
+  onEditSchedule: (sched: Schedule) => void;
+}) => {
+  const matchingSchedules = useMemo(() => {
+    return schedules.filter(s => s.startTime.startsWith(hourStr));
+  }, [schedules, hourStr]);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    onDropCell(e, dayStr, `${hourStr}:00`);
+  }, [onDropCell, dayStr, hourStr]);
+
+  const handleClick = useCallback(() => {
+    onOpenCellModal(dayStr, `${hourStr}:00`, `${nextHourStr}:00`);
+  }, [onOpenCellModal, dayStr, hourStr, nextHourStr]);
+
+  return (
+    <div
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+      onClick={handleClick}
+      className="p-1 border-r border-slate-100 dark:border-slate-800/40 hover:bg-indigo-50/20 dark:hover:bg-indigo-950/20 transition-colors cursor-pointer flex flex-col gap-1 min-h-[50px]"
+      title={`${dayStr} ${hourStr}:00 일정 등록 (클릭)`}
+    >
+      {matchingSchedules.map((s) => (
+        <TimetableScheduleItem
+          key={s.id}
+          schedule={s}
+          config={getTypeConfig(s.type)}
+          onEdit={onEditSchedule}
+        />
+      ))}
+    </div>
+  );
+});
+TimetableSlotCell.displayName = 'TimetableSlotCell';
 
 // ============ Main Weekly Scheduler Component ============
 const WeeklySchedulerComponent: React.FC = () => {
@@ -776,29 +1110,33 @@ const WeeklySchedulerComponent: React.FC = () => {
   }, [currentDate]);
 
   // Navigation handlers
-  const handlePrev = () => {
-    const next = new Date(currentDate);
-    if (viewMode === 'month') {
-      next.setMonth(currentDate.getMonth() - 1);
-    } else {
-      next.setDate(currentDate.getDate() - 7);
-    }
-    setCurrentDate(next);
-  };
+  const handlePrev = useCallback(() => {
+    setCurrentDate(prev => {
+      const next = new Date(prev);
+      if (viewMode === 'month') {
+        next.setMonth(prev.getMonth() - 1);
+      } else {
+        next.setDate(prev.getDate() - 7);
+      }
+      return next;
+    });
+  }, [viewMode]);
 
-  const handleNext = () => {
-    const next = new Date(currentDate);
-    if (viewMode === 'month') {
-      next.setMonth(currentDate.getMonth() + 1);
-    } else {
-      next.setDate(currentDate.getDate() + 7);
-    }
-    setCurrentDate(next);
-  };
+  const handleNext = useCallback(() => {
+    setCurrentDate(prev => {
+      const next = new Date(prev);
+      if (viewMode === 'month') {
+        next.setMonth(prev.getMonth() + 1);
+      } else {
+        next.setDate(prev.getDate() + 7);
+      }
+      return next;
+    });
+  }, [viewMode]);
 
-  const handleToday = () => {
+  const handleToday = useCallback(() => {
     setCurrentDate(new Date());
-  };
+  }, []);
 
   // Pre-calculate / map schedules by day string
   const schedulesByDayMap = useMemo(() => {
@@ -807,7 +1145,6 @@ const WeeklySchedulerComponent: React.FC = () => {
       const startDate = s.date;
       const endDateVal = s.endDate || s.date;
       
-      // Map for single day or range
       let cur = new Date(startDate.includes('T') ? startDate : `${startDate}T00:00:00`);
       const end = new Date(endDateVal.includes('T') ? endDateVal : `${endDateVal}T00:00:00`);
       while (cur <= end) {
@@ -818,7 +1155,6 @@ const WeeklySchedulerComponent: React.FC = () => {
         cur.setDate(cur.getDate() + 1);
       }
     }
-    // Sort each day's list
     for (const list of map.values()) {
       list.sort((a, b) => a.startTime.localeCompare(b.startTime));
     }
@@ -855,51 +1191,24 @@ const WeeklySchedulerComponent: React.FC = () => {
   }, [updateSchedule]);
 
   // Open modal helper
-  const handleOpenCellModal = (targetDate: string, startTimeVal?: string, endTimeVal?: string) => {
+  const handleOpenCellModal = useCallback((targetDate: string, startTimeVal?: string, endTimeVal?: string) => {
     setEditingSchedule(null);
     setModalInitialDate(targetDate);
     setModalInitialStartTime(startTimeVal || '10:00');
     setModalInitialEndTime(endTimeVal || '11:00');
     setIsModalOpen(true);
-  };
+  }, []);
 
-  const handleOpenEditModal = (sched: Schedule) => {
+  const handleOpenEditModal = useCallback((sched: Schedule) => {
     setEditingSchedule(sched);
     setIsModalOpen(true);
-  };
+  }, []);
 
-  // Schedule type style helper
-  const getTypeConfig = (schedType: ScheduleType) => {
-    switch (schedType) {
-      case 'security':
-        return {
-          bg: 'bg-indigo-50/70 border-indigo-100 hover:border-indigo-200 text-indigo-700 dark:bg-indigo-950/40 dark:border-indigo-900/50 dark:text-indigo-300',
-          badge: 'bg-indigo-100/80 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300',
-          icon: <Shield className="w-3.5 h-3.5" />
-        };
-      case 'meeting':
-        return {
-          bg: 'bg-emerald-50/70 border-emerald-100 hover:border-emerald-200 text-emerald-700 dark:bg-emerald-950/40 dark:border-emerald-900/50 dark:text-emerald-300',
-          badge: 'bg-emerald-100/80 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300',
-          icon: <Users className="w-3.5 h-3.5" />
-        };
-      case 'education':
-        return {
-          bg: 'bg-amber-50/70 border-amber-100 hover:border-amber-200 text-amber-700 dark:bg-amber-950/40 dark:border-amber-900/50 dark:text-amber-300',
-          badge: 'bg-amber-100/85 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
-          icon: <BookOpen className="w-3.5 h-3.5" />
-        };
-      case 'other':
-      default:
-        return {
-          bg: 'bg-slate-50/70 border-slate-100 hover:border-slate-200 text-slate-700 dark:bg-slate-800/50 dark:border-slate-700/50 dark:text-slate-300',
-          badge: 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-350',
-          icon: <Calendar className="w-3.5 h-3.5" />
-        };
-    }
-  };
+  const handleCloseModal = useCallback(() => {
+    setIsModalOpen(false);
+  }, []);
 
-  const dayNames = ['월', '화', '수', '목', '금', '토', '일'];
+  const dayNames = useMemo(() => ['월', '화', '수', '목', '금', '토', '일'], []);
   const timetableHours = useMemo(() => Array.from({ length: 13 }, (_, i) => String(i + 8).padStart(2, '0')), []);
 
   return (
@@ -1010,66 +1319,18 @@ const WeeklySchedulerComponent: React.FC = () => {
               {weekDays.map((day, idx) => {
                 const dayStr = formatDateStr(day);
                 const daySchedules = getSchedulesForDay(dayStr);
-                const isToday = new Date().toDateString() === day.toDateString();
-                const dayNum = day.getDate();
-
                 return (
-                  <div
-                    key={idx}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => handleDropCell(e, dayStr)}
-                    className={`flex flex-col bg-white/30 dark:bg-slate-900/30 border border-slate-200/40 dark:border-slate-800/40 rounded-2xl p-3 h-full min-h-[200px] md:min-h-[480px] transition-all hover:bg-white/60 dark:hover:bg-slate-800/40 hover:shadow-2xs ${
-                      isToday ? 'bg-indigo-50/10 border-indigo-300/50 shadow-xs ring-1 ring-indigo-500/5 dark:bg-indigo-950/20 dark:border-indigo-800/50 dark:ring-indigo-500/10' : ''
-                    }`}
-                  >
-                    {/* Header */}
-                    <div 
-                      onClick={() => handleOpenCellModal(dayStr)}
-                      className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-200/40 dark:border-slate-800/50 cursor-pointer hover:bg-slate-100/50 dark:hover:bg-slate-800/50 p-1 rounded-lg transition-all select-none"
-                      title={`${dayNum}일 직관적 일정 추가 (클릭)`}
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <span className={`text-[12px] font-bold ${
-                          idx === 5 ? 'text-blue-500' : idx === 6 ? 'text-red-500' : 'text-slate-500 dark:text-slate-400'
-                        }`}>
-                          {dayNames[idx]}
-                        </span>
-                        <span className={`text-sm font-bold w-6 h-6 flex items-center justify-center rounded-full ${
-                          isToday ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-800 dark:text-slate-200'
-                        }`}>
-                          {dayNum}
-                        </span>
-                      </div>
-                      <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-350 bg-slate-200/40 dark:bg-slate-800 px-1.5 py-0.5 rounded-full shrink-0">
-                        {daySchedules.length}건
-                      </span>
-                    </div>
-
-                    {/* Column Body */}
-                    <div 
-                      onClick={() => handleOpenCellModal(dayStr)}
-                      className="flex flex-col gap-2 overflow-y-auto flex-1 max-h-[360px] md:max-h-none custom-scrollbar min-h-[140px]"
-                    >
-                      {daySchedules.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center flex-1 py-8 text-slate-400 dark:text-slate-500 italic text-[11px] font-semibold cursor-pointer">
-                          + 클릭하여 추가
-                        </div>
-                      ) : (
-                        daySchedules.map((schedule) => {
-                          const config = getTypeConfig(schedule.type);
-                          return (
-                            <ScheduleItem
-                              key={schedule.id}
-                              schedule={schedule}
-                              config={config}
-                              onDelete={deleteSchedule}
-                              onEdit={handleOpenEditModal}
-                            />
-                          );
-                        })
-                      )}
-                    </div>
-                  </div>
+                  <WeekDayColumn
+                    key={dayStr + idx}
+                    day={day}
+                    dayIdx={idx}
+                    schedules={daySchedules}
+                    dayNames={dayNames}
+                    onOpenCellModal={handleOpenCellModal}
+                    onDropCell={handleDropCell}
+                    onDeleteSchedule={deleteSchedule}
+                    onEditSchedule={handleOpenEditModal}
+                  />
                 );
               })}
             </div>
@@ -1090,67 +1351,16 @@ const WeeklySchedulerComponent: React.FC = () => {
                 {monthDays.map((day, idx) => {
                   const dayStr = formatDateStr(day);
                   const daySchedules = getSchedulesForDay(dayStr);
-                  const isCurrentMonth = day.getMonth() === currentDate.getMonth();
-                  const isToday = new Date().toDateString() === day.toDateString();
-
                   return (
-                    <div
+                    <MonthCell
                       key={dayStr + idx}
-                      onDragOver={(e) => e.preventDefault()}
-                      onDrop={(e) => handleDropCell(e, dayStr)}
-                      onClick={() => handleOpenCellModal(dayStr)}
-                      className={`min-h-[90px] max-h-[110px] p-1.5 rounded-xl border flex flex-col justify-start transition-all cursor-pointer ${
-                        isCurrentMonth 
-                          ? 'bg-white/40 dark:bg-slate-900/40 border-slate-200/50 dark:border-slate-800/50 hover:bg-white dark:hover:bg-slate-850' 
-                          : 'bg-slate-100/20 dark:bg-slate-950/20 border-transparent text-slate-300 dark:text-slate-700'
-                      } ${isToday ? 'ring-2 ring-indigo-500/60 bg-indigo-50/10' : ''}`}
-                    >
-                      <div className="flex items-center justify-between mb-1 px-1">
-                        <span className={`text-[11px] font-bold ${
-                          isToday 
-                            ? 'w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center' 
-                            : isCurrentMonth ? 'text-slate-700 dark:text-slate-200' : 'text-slate-300 dark:text-slate-600'
-                        }`}>
-                          {day.getDate()}
-                        </span>
-                        {daySchedules.length > 0 && (
-                          <span className="text-[9px] font-bold text-slate-400">
-                            {daySchedules.length}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Compact schedule pills */}
-                      <div className="flex flex-col gap-1 overflow-y-auto max-h-[70px] custom-scrollbar">
-                        {daySchedules.map((s) => {
-                          const config = getTypeConfig(s.type);
-                          return (
-                            <div
-                              key={s.id}
-                              draggable={true}
-                              onDragStart={(e) => {
-                                const durationMins = Math.max(30, timeToMinutes(s.endTime) - timeToMinutes(s.startTime));
-                                e.dataTransfer.setData('application/json', JSON.stringify({
-                                  id: s.id,
-                                  durationMins,
-                                  startTime: s.startTime,
-                                  endTime: s.endTime
-                                }));
-                              }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenEditModal(s);
-                              }}
-                              className={`px-1.5 py-0.5 rounded text-[10px] font-bold truncate flex items-center justify-between gap-1 shadow-2xs ${config.bg}`}
-                              title={`${s.startTime} ${s.title}`}
-                            >
-                              <span className="truncate">{s.title}</span>
-                              <span className="text-[8px] opacity-70 shrink-0">{s.startTime}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
+                      day={day}
+                      currentMonth={currentDate.getMonth()}
+                      schedules={daySchedules}
+                      onOpenModal={handleOpenCellModal}
+                      onDropCell={handleDropCell}
+                      onEditSchedule={handleOpenEditModal}
+                    />
                   );
                 })}
               </div>
@@ -1188,48 +1398,17 @@ const WeeklySchedulerComponent: React.FC = () => {
                       {weekDays.map((day) => {
                         const dayStr = formatDateStr(day);
                         const daySchedules = getSchedulesForDay(dayStr);
-                        // Filter schedules starting in this hour slot
-                        const matchingSchedules = daySchedules.filter((s) => s.startTime.startsWith(hourStr));
-
                         return (
-                          <div
+                          <TimetableSlotCell
                             key={dayStr + hourStr}
-                            onDragOver={(e) => e.preventDefault()}
-                            onDrop={(e) => handleDropCell(e, dayStr, `${hourStr}:00`)}
-                            onClick={() => handleOpenCellModal(dayStr, `${hourStr}:00`, `${nextHourStr}:00`)}
-                            className="p-1 border-r border-slate-100 dark:border-slate-800/40 hover:bg-indigo-50/20 dark:hover:bg-indigo-950/20 transition-colors cursor-pointer flex flex-col gap-1 min-h-[50px]"
-                            title={`${dayStr} ${hourStr}:00 일정 등록 (클릭)`}
-                          >
-                            {matchingSchedules.map((s) => {
-                              const config = getTypeConfig(s.type);
-                              return (
-                                <div
-                                  key={s.id}
-                                  draggable={true}
-                                  onDragStart={(e) => {
-                                    const durationMins = Math.max(30, timeToMinutes(s.endTime) - timeToMinutes(s.startTime));
-                                    e.dataTransfer.setData('application/json', JSON.stringify({
-                                      id: s.id,
-                                      durationMins,
-                                      startTime: s.startTime,
-                                      endTime: s.endTime
-                                    }));
-                                  }}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleOpenEditModal(s);
-                                  }}
-                                  className={`p-1.5 rounded-lg border text-[10px] font-bold flex flex-col gap-0.5 shadow-2xs ${config.bg}`}
-                                >
-                                  <div className="flex items-center justify-between">
-                                    <span className="truncate">{s.title}</span>
-                                    <span className="text-[9px] opacity-75">{s.startTime}~{s.endTime}</span>
-                                  </div>
-                                  <span className="text-[8.5px] opacity-80">{s.person}</span>
-                                </div>
-                              );
-                            })}
-                          </div>
+                            dayStr={dayStr}
+                            hourStr={hourStr}
+                            nextHourStr={nextHourStr}
+                            schedules={daySchedules}
+                            onOpenCellModal={handleOpenCellModal}
+                            onDropCell={handleDropCell}
+                            onEditSchedule={handleOpenEditModal}
+                          />
                         );
                       })}
                     </div>
@@ -1244,7 +1423,7 @@ const WeeklySchedulerComponent: React.FC = () => {
       {/* Schedule Direct Click Modal */}
       <ScheduleModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={handleCloseModal}
         schedule={editingSchedule}
         initialDate={modalInitialDate}
         initialStartTime={modalInitialStartTime}

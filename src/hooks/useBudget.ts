@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { readSheet, addRow, updateRow, deleteRow, replaceAll } from '@/lib/sheets-api';
+import { readSheet, addRow, updateRow, deleteRow, replaceAll, getTombstones } from '@/lib/sheets-api';
 import { BudgetCategory, BudgetEntry, generateId } from '@/types';
 
 export interface CategoryStats {
@@ -18,18 +18,6 @@ export interface CategoryStats {
   dailyExpenseRemaining: number;
 }
 
-let kvWriteQueue = Promise.resolve<any>(null);
-
-function enqueueKvWrite<T>(fn: () => Promise<T>): Promise<T> {
-  const p = kvWriteQueue.then(() => 
-    fn()
-      .then(res => new Promise<T>(resolve => setTimeout(() => resolve(res), 300)))
-      .catch(err => new Promise<never>((_, reject) => setTimeout(() => reject(err), 300)))
-  );
-  kvWriteQueue = p.catch(() => null); // Prevent queue from dying on error
-  return p;
-}
-
 export function useBudget() {
   const queryClient = useQueryClient();
 
@@ -39,6 +27,20 @@ export function useBudget() {
     staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
     refetchIntervalInBackground: false,
+    initialData: () => {
+      if (typeof window !== 'undefined') {
+        try {
+          const item = localStorage.getItem('hchps-fallback-BUDGET_CATEGORIES');
+          if (item) {
+            const parsed = JSON.parse(item);
+            if (Array.isArray(parsed)) return parsed as BudgetCategory[];
+          }
+        } catch (err) {
+          console.warn('[useBudget] Initial categories parse error:', err);
+        }
+      }
+      return undefined;
+    },
   });
 
   const { data: entries = [], isLoading: entryLoading } = useQuery({
@@ -47,6 +49,20 @@ export function useBudget() {
     staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
     refetchIntervalInBackground: false,
+    initialData: () => {
+      if (typeof window !== 'undefined') {
+        try {
+          const item = localStorage.getItem('hchps-fallback-BUDGET_ENTRIES');
+          if (item) {
+            const parsed = JSON.parse(item);
+            if (Array.isArray(parsed)) return parsed as BudgetEntry[];
+          }
+        } catch (err) {
+          console.warn('[useBudget] Initial entries parse error:', err);
+        }
+      }
+      return undefined;
+    },
   });
 
   // Deduplicate categories based on a composite key to prevent double-counting
@@ -72,8 +88,7 @@ export function useBudget() {
     },
     onError: (err, newCat, context) => {
       if (context?.previous) queryClient.setQueryData(['BUDGET_CATEGORIES'], context.previous);
-    },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['BUDGET_CATEGORIES'] })
+    }
   });
 
   const updateCategoryMut = useMutation({
@@ -82,7 +97,7 @@ export function useBudget() {
       const existing = queryClient.getQueryData<BudgetCategory[]>(['BUDGET_CATEGORIES'])?.find(c => c.id === id);
       if (!existing) throw new Error("Item not found in cache");
       const fullItem = { ...existing, ...updates };
-      return enqueueKvWrite(() => updateRow('BUDGET_CATEGORIES', id, fullItem));
+      return updateRow('BUDGET_CATEGORIES', id, fullItem);
     },
     onMutate: async ({ id, updates }) => {
       await queryClient.cancelQueries({ queryKey: ['BUDGET_CATEGORIES'] });
@@ -92,8 +107,7 @@ export function useBudget() {
     },
     onError: (err, vars, context) => {
       if (context?.previous) queryClient.setQueryData(['BUDGET_CATEGORIES'], context.previous);
-    },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['BUDGET_CATEGORIES'] })
+    }
   });
 
   const deleteCategoryMut = useMutation({
@@ -106,8 +120,7 @@ export function useBudget() {
     },
     onError: (err, id, context) => {
       if (context?.previous) queryClient.setQueryData(['BUDGET_CATEGORIES'], context.previous);
-    },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['BUDGET_CATEGORIES'] })
+    }
   });
 
   const replaceCategoriesMut = useMutation({
@@ -120,8 +133,7 @@ export function useBudget() {
     },
     onError: (err, newCategories, context) => {
       if (context?.previous) queryClient.setQueryData(['BUDGET_CATEGORIES'], context.previous);
-    },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['BUDGET_CATEGORIES'] })
+    }
   });
 
   // ================= Entry Mutations =================
@@ -135,8 +147,7 @@ export function useBudget() {
     },
     onError: (err, newEntry, context) => {
       if (context?.previous) queryClient.setQueryData(['BUDGET_ENTRIES'], context.previous);
-    },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['BUDGET_ENTRIES'] })
+    }
   });
 
   const updateEntryMut = useMutation({
@@ -145,7 +156,7 @@ export function useBudget() {
       const existing = queryClient.getQueryData<BudgetEntry[]>(['BUDGET_ENTRIES'])?.find(e => e.id === id);
       if (!existing) throw new Error("Item not found in cache");
       const fullItem = { ...existing, ...updates };
-      return enqueueKvWrite(() => updateRow('BUDGET_ENTRIES', id, fullItem));
+      return updateRow('BUDGET_ENTRIES', id, fullItem);
     },
     onMutate: async ({ id, updates }) => {
       await queryClient.cancelQueries({ queryKey: ['BUDGET_ENTRIES'] });
@@ -155,8 +166,7 @@ export function useBudget() {
     },
     onError: (err, vars, context) => {
       if (context?.previous) queryClient.setQueryData(['BUDGET_ENTRIES'], context.previous);
-    },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['BUDGET_ENTRIES'] })
+    }
   });
 
   const deleteEntryMut = useMutation({
@@ -169,8 +179,7 @@ export function useBudget() {
     },
     onError: (err, id, context) => {
       if (context?.previous) queryClient.setQueryData(['BUDGET_ENTRIES'], context.previous);
-    },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['BUDGET_ENTRIES'] })
+    }
   });
 
   const replaceEntriesMut = useMutation({
@@ -183,8 +192,7 @@ export function useBudget() {
     },
     onError: (err, newEntries, context) => {
       if (context?.previous) queryClient.setQueryData(['BUDGET_ENTRIES'], context.previous);
-    },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['BUDGET_ENTRIES'] })
+    }
   });
 
   // Action Wrappers
@@ -222,7 +230,7 @@ export function useBudget() {
       entriesMap.get(e.categoryId)!.push(e);
     }
 
-    const statsMap = new Map<string, CategoryStats>();
+    const statsMap = new Map<string, { standard: CategoryStats; excludePlanned: CategoryStats }>();
 
     for (const cat of uniqueCategories) {
       const catEntries = entriesMap.get(cat.id) || [];
@@ -270,7 +278,7 @@ export function useBudget() {
       const dailyExpenseRemaining = dailyExpenseIssued - dailyExpenseSpent;
       const usageRate = cat.totalBudget > 0 ? ((spent + planned) / cat.totalBudget) * 100 : 0;
 
-      statsMap.set(cat.id, {
+      const standard: CategoryStats = {
         totalBudget: cat.totalBudget,
         spent,
         planned,
@@ -281,26 +289,35 @@ export function useBudget() {
         dailyExpenseIssued,
         dailyExpenseSpent,
         dailyExpenseRemaining
-      });
+      };
+
+      const remainingExclude = cat.totalBudget - spent - lockedAmount;
+      const usageRateExclude = cat.totalBudget > 0 ? (spent / cat.totalBudget) * 100 : 0;
+
+      const excludePlanned: CategoryStats = {
+        totalBudget: cat.totalBudget,
+        spent,
+        planned: 0,
+        locked: lockedAmount,
+        remaining: remainingExclude,
+        usageRate: usageRateExclude,
+        generalSpent,
+        dailyExpenseIssued,
+        dailyExpenseSpent,
+        dailyExpenseRemaining
+      };
+
+      statsMap.set(cat.id, { standard, excludePlanned });
     }
 
     return statsMap;
   }, [uniqueCategories, entries]);
 
-  // Derived Stats
+  // Derived Stats - O(1) zero-allocation lookup from pre-cached stats Map
   const getCategoryStats = useCallback((categoryId: string, excludePlanned = false): CategoryStats | null => {
     const cached = categoryStatsMap.get(categoryId);
     if (!cached) return null;
-    if (!excludePlanned) return cached;
-
-    const remaining = cached.totalBudget - cached.spent - cached.locked; 
-    const usageRate = cached.totalBudget > 0 ? (cached.spent / cached.totalBudget) * 100 : 0;
-    return {
-      ...cached,
-      planned: 0,
-      remaining,
-      usageRate
-    };
+    return excludePlanned ? cached.excludePlanned : cached.standard;
   }, [categoryStatsMap]);
 
   const checkLimit = useCallback((categoryId: string, amount: number, actionType?: string, entryId?: string, transferDirection?: string, isPlanned?: boolean) => {
@@ -375,32 +392,235 @@ export function useBudget() {
     deleteEntryMut.mutate(id);
   }, [deleteEntryMut, entries]);
 
-  const overallStats = useMemo(() => {
-    const totalBudget = uniqueCategories.reduce((sum, c) => sum + c.totalBudget, 0);
-    const generalSpent = entries.filter(e => !e.isPlanned && (!e.actionType || e.actionType === 'general' || e.actionType === 'correction' || e.actionType === 'transfer')).reduce((sum, e) => {
-      if (e.actionType === 'transfer') return sum - e.amount;
-      return sum + e.amount;
-    }, 0);
-    const dailyExpenseIssued = entries.filter(e => !e.isPlanned && e.actionType === 'issuance').reduce((sum, e) => sum + e.amount, 0);
-    const dailyExpenseSpent = entries.filter(e => !e.isPlanned && e.actionType === 'daily_expense').reduce((sum, e) => sum + e.amount, 0);
-    const totalPlanned = entries.filter(e => e.isPlanned && !e.isSettled).reduce((sum, e) => sum + e.amount, 0);
-    
-    const totalSpent = generalSpent + dailyExpenseIssued;
-    
-    let totalLocked = 0;
-    uniqueCategories.forEach(cat => {
-      if (cat.subItems) {
-        cat.subItems.forEach(sub => {
-           if (sub.isLocked) {
-             totalLocked += sub.amount;
-           } else if (sub.calculations) {
-             sub.calculations.forEach(calc => {
-               if (calc.isLocked) totalLocked += calc.amount;
-             });
-           }
-        });
+  // ================= Batch Entry Mutations =================
+  const batchUpdateEntriesMut = useMutation({
+    mutationFn: async ({ ids, updates, items }: { ids?: string[]; updates?: Partial<BudgetEntry>; items?: Array<{ id: string; [key: string]: any }> }) => {
+      const current = queryClient.getQueryData<BudgetEntry[]>(['BUDGET_ENTRIES']) || entries;
+      let newEntries = [...current];
+      if (items && items.length > 0) {
+        const itemMap = new Map(items.map(item => [item.id, item]));
+        newEntries = current.map(e => itemMap.has(e.id) ? { ...e, ...itemMap.get(e.id) } : e);
+      } else if (ids && updates) {
+        const idSet = new Set(ids);
+        newEntries = current.map(e => idSet.has(e.id) ? { ...e, ...updates } : e);
       }
-    });
+      await replaceAll('BUDGET_ENTRIES', newEntries);
+      return newEntries;
+    },
+    onMutate: async ({ ids, updates, items }) => {
+      await queryClient.cancelQueries({ queryKey: ['BUDGET_ENTRIES'] });
+      const previous = queryClient.getQueryData<BudgetEntry[]>(['BUDGET_ENTRIES']);
+      let newEntries = [...(previous || [])];
+      if (items && items.length > 0) {
+        const itemMap = new Map(items.map(item => [item.id, item]));
+        newEntries = (previous || []).map(e => itemMap.has(e.id) ? { ...e, ...itemMap.get(e.id) } : e);
+      } else if (ids && updates) {
+        const idSet = new Set(ids);
+        newEntries = (previous || []).map(e => idSet.has(e.id) ? { ...e, ...updates } : e);
+      }
+      queryClient.setQueryData<BudgetEntry[]>(['BUDGET_ENTRIES'], newEntries);
+      return { previous };
+    },
+    onError: (err, vars, context) => {
+      if (context?.previous) queryClient.setQueryData(['BUDGET_ENTRIES'], context.previous);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['BUDGET_ENTRIES'] });
+      queryClient.invalidateQueries({ queryKey: ['BUDGET_CATEGORIES'] });
+      queryClient.invalidateQueries({ queryKey: ['budget'] });
+    }
+  });
+
+  const batchDeleteEntriesMut = useMutation({
+    mutationFn: async (ids: string[]) => {
+      if (typeof window !== 'undefined') {
+        try {
+          const tombstones = getTombstones();
+          const tombstoneIdSet = new Set(tombstones.map(t => t.id));
+          let changed = false;
+          ids.forEach(id => {
+            if (!tombstoneIdSet.has(id)) {
+              tombstones.push({ id, deletedAt: Date.now() });
+              tombstoneIdSet.add(id);
+              changed = true;
+            }
+          });
+          if (changed) {
+            localStorage.setItem('hchps-global-tombstones', JSON.stringify(tombstones));
+          }
+        } catch {}
+      }
+      const current = queryClient.getQueryData<BudgetEntry[]>(['BUDGET_ENTRIES']) || entries;
+      const idSet = new Set(ids);
+      const remaining = current.filter(e => !idSet.has(e.id));
+      await replaceAll('BUDGET_ENTRIES', remaining);
+      return remaining;
+    },
+    onMutate: async (ids) => {
+      await queryClient.cancelQueries({ queryKey: ['BUDGET_ENTRIES'] });
+      const previous = queryClient.getQueryData<BudgetEntry[]>(['BUDGET_ENTRIES']);
+      const idSet = new Set(ids);
+      queryClient.setQueryData<BudgetEntry[]>(['BUDGET_ENTRIES'], (old) =>
+        (old || []).filter(e => !idSet.has(e.id))
+      );
+      return { previous };
+    },
+    onError: (err, vars, context) => {
+      if (context?.previous) queryClient.setQueryData(['BUDGET_ENTRIES'], context.previous);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['BUDGET_ENTRIES'] });
+      queryClient.invalidateQueries({ queryKey: ['BUDGET_CATEGORIES'] });
+      queryClient.invalidateQueries({ queryKey: ['budget'] });
+    }
+  });
+
+  const batchSettleEntriesMut = useMutation({
+    mutationFn: async ({ ids, status }: { ids: string[]; status: 'SETTLED' | 'PENDING' | 'REJECTED' }) => {
+      const current = queryClient.getQueryData<BudgetEntry[]>(['BUDGET_ENTRIES']) || entries;
+      const idSet = new Set(ids);
+      const newEntries = current.map(e => {
+        if (!idSet.has(e.id)) return e;
+        if (status === 'SETTLED') {
+          return { ...e, isSettled: true, isPlanned: false };
+        } else if (status === 'PENDING') {
+          return { ...e, isSettled: false, isPlanned: true };
+        } else {
+          const memoText = e.memo?.includes('[지출반려]') ? e.memo : (e.memo ? `${e.memo} [지출반려]` : '[지출반려]');
+          return { ...e, isSettled: false, isPlanned: false, memo: memoText };
+        }
+      });
+      await replaceAll('BUDGET_ENTRIES', newEntries);
+      return newEntries;
+    },
+    onMutate: async ({ ids, status }) => {
+      await queryClient.cancelQueries({ queryKey: ['BUDGET_ENTRIES'] });
+      const previous = queryClient.getQueryData<BudgetEntry[]>(['BUDGET_ENTRIES']);
+      const idSet = new Set(ids);
+      queryClient.setQueryData<BudgetEntry[]>(['BUDGET_ENTRIES'], (old) =>
+        (old || []).map(e => {
+          if (!idSet.has(e.id)) return e;
+          if (status === 'SETTLED') {
+            return { ...e, isSettled: true, isPlanned: false };
+          } else if (status === 'PENDING') {
+            return { ...e, isSettled: false, isPlanned: true };
+          } else {
+            const memoText = e.memo?.includes('[지출반려]') ? e.memo : (e.memo ? `${e.memo} [지출반려]` : '[지출반려]');
+            return { ...e, isSettled: false, isPlanned: false, memo: memoText };
+          }
+        })
+      );
+      return { previous };
+    },
+    onError: (err, vars, context) => {
+      if (context?.previous) queryClient.setQueryData(['BUDGET_ENTRIES'], context.previous);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['BUDGET_ENTRIES'] });
+      queryClient.invalidateQueries({ queryKey: ['BUDGET_CATEGORIES'] });
+      queryClient.invalidateQueries({ queryKey: ['budget'] });
+    }
+  });
+
+  const batchUpdateEntries = useCallback((
+    idsOrUpdates: string[] | Array<{ id: string; [key: string]: any }>,
+    updates?: Partial<BudgetEntry>
+  ) => {
+    if (!idsOrUpdates || (Array.isArray(idsOrUpdates) && idsOrUpdates.length === 0)) return;
+    const catExtraDelta = new Map<string, number>();
+
+    if (typeof idsOrUpdates[0] === 'string') {
+      const ids = idsOrUpdates as string[];
+      if (updates) {
+        for (const id of ids) {
+          const existing = entries.find(e => e.id === id);
+          if (existing) {
+            const targetCatId = updates.categoryId || existing.categoryId;
+            const targetAmount = updates.amount !== undefined ? updates.amount : existing.amount;
+            const targetActionType = updates.actionType || existing.actionType;
+            const targetTransferDir = updates.transferDirection !== undefined ? updates.transferDirection : existing.transferDirection;
+            const targetIsPlanned = updates.isPlanned !== undefined ? updates.isPlanned : existing.isPlanned;
+
+            const extra = catExtraDelta.get(targetCatId) || 0;
+            if (!checkLimit(targetCatId, targetAmount + extra, targetActionType, id, targetTransferDir, targetIsPlanned)) {
+              return;
+            }
+
+            let oldAmount = 0;
+            if (existing.categoryId === targetCatId) {
+              oldAmount = existing.amount;
+            }
+            const delta = targetAmount - oldAmount;
+            catExtraDelta.set(targetCatId, extra + delta);
+          }
+        }
+        batchUpdateEntriesMut.mutate({ ids, updates });
+      }
+    } else {
+      const items = idsOrUpdates as Array<{ id: string; [key: string]: any }>;
+      for (const item of items) {
+        const existing = entries.find(e => e.id === item.id);
+        if (existing) {
+          const targetCatId = item.categoryId || existing.categoryId;
+          const targetAmount = item.amount !== undefined ? item.amount : existing.amount;
+          const targetActionType = item.actionType || existing.actionType;
+          const targetTransferDir = item.transferDirection !== undefined ? item.transferDirection : existing.transferDirection;
+          const targetIsPlanned = item.isPlanned !== undefined ? item.isPlanned : existing.isPlanned;
+
+          const extra = catExtraDelta.get(targetCatId) || 0;
+          if (!checkLimit(targetCatId, targetAmount + extra, targetActionType, item.id, targetTransferDir, targetIsPlanned)) {
+            return;
+          }
+
+          let oldAmount = 0;
+          if (existing.categoryId === targetCatId) {
+            oldAmount = existing.amount;
+          }
+          const delta = targetAmount - oldAmount;
+          catExtraDelta.set(targetCatId, extra + delta);
+        }
+      }
+      batchUpdateEntriesMut.mutate({ items });
+    }
+  }, [batchUpdateEntriesMut, entries, checkLimit]);
+
+  const batchDeleteEntries = useCallback((ids: string[]) => {
+    if (!ids || ids.length === 0) return;
+    const idSet = new Set(ids);
+    for (const id of ids) {
+      const entryToDelete = entries.find(e => e.id === id);
+      if (entryToDelete && entryToDelete.isPlanned) {
+        const hasSettledChildren = entries.some(e => e.relatedPlanId === id && !idSet.has(e.id));
+        if (hasSettledChildren) {
+          alert('이 품의서(원인행위)에 연결된 실제 지출 내역이 존재하여 삭제할 수 없습니다. 연결된 지출 내역을 먼저 삭제하거나 수정해주세요.');
+          return;
+        }
+      }
+    }
+    batchDeleteEntriesMut.mutate(ids);
+  }, [batchDeleteEntriesMut, entries]);
+
+  const batchSettleEntries = useCallback((ids: string[], status: 'SETTLED' | 'PENDING' | 'REJECTED') => {
+    if (!ids || ids.length === 0) return;
+    batchSettleEntriesMut.mutate({ ids, status });
+  }, [batchSettleEntriesMut]);
+
+  const overallStats = useMemo(() => {
+    let totalBudget = 0;
+    let totalSpent = 0;
+    let totalPlanned = 0;
+    let totalLocked = 0;
+    let dailyExpenseIssued = 0;
+    let dailyExpenseSpent = 0;
+
+    for (const { standard: st } of categoryStatsMap.values()) {
+      totalBudget += st.totalBudget;
+      totalSpent += st.spent;
+      totalPlanned += st.planned;
+      totalLocked += st.locked;
+      dailyExpenseIssued += st.dailyExpenseIssued;
+      dailyExpenseSpent += st.dailyExpenseSpent;
+    }
     
     return { 
       totalBudget, 
@@ -412,47 +632,34 @@ export function useBudget() {
       dailyExpenseSpent,
       dailyExpenseRemaining: dailyExpenseIssued - dailyExpenseSpent
     };
-  }, [uniqueCategories, entries]);
+  }, [categoryStatsMap]);
 
   const overallStatsActual = useMemo(() => {
-    const totalBudget = uniqueCategories.reduce((sum, c) => sum + c.totalBudget, 0);
-    const filteredEntries = entries.filter(e => !e.isPlanned);
-    const generalSpent = filteredEntries.filter(e => !e.isPlanned && (!e.actionType || e.actionType === 'general' || e.actionType === 'correction' || e.actionType === 'transfer')).reduce((sum, e) => {
-      if (e.actionType === 'transfer') return sum - e.amount;
-      return sum + e.amount;
-    }, 0);
-    const dailyExpenseIssued = filteredEntries.filter(e => !e.isPlanned && e.actionType === 'issuance').reduce((sum, e) => sum + e.amount, 0);
-    const dailyExpenseSpent = filteredEntries.filter(e => !e.isPlanned && e.actionType === 'daily_expense').reduce((sum, e) => sum + e.amount, 0);
-    const totalPlanned = 0;
-    
-    const totalSpent = generalSpent + dailyExpenseIssued;
-    
+    let totalBudget = 0;
+    let totalSpent = 0;
     let totalLocked = 0;
-    uniqueCategories.forEach(cat => {
-      if (cat.subItems) {
-        cat.subItems.forEach(sub => {
-           if (sub.isLocked) {
-             totalLocked += sub.amount;
-           } else if (sub.calculations) {
-             sub.calculations.forEach(calc => {
-               if (calc.isLocked) totalLocked += calc.amount;
-             });
-           }
-        });
-      }
-    });
+    let dailyExpenseIssued = 0;
+    let dailyExpenseSpent = 0;
+
+    for (const { excludePlanned: st } of categoryStatsMap.values()) {
+      totalBudget += st.totalBudget;
+      totalSpent += st.spent;
+      totalLocked += st.locked;
+      dailyExpenseIssued += st.dailyExpenseIssued;
+      dailyExpenseSpent += st.dailyExpenseSpent;
+    }
     
     return { 
       totalBudget, 
       totalSpent, 
-      totalPlanned, 
+      totalPlanned: 0, 
       totalLocked,
-      remaining: totalBudget - totalSpent - totalPlanned - totalLocked,
+      remaining: totalBudget - totalSpent - totalLocked,
       dailyExpenseIssued,
       dailyExpenseSpent,
       dailyExpenseRemaining: dailyExpenseIssued - dailyExpenseSpent
     };
-  }, [uniqueCategories, entries]);
+  }, [categoryStatsMap]);
 
   return { 
     categories: uniqueCategories, 
@@ -465,6 +672,9 @@ export function useBudget() {
     addEntry, 
     updateEntry, 
     deleteEntry, 
+    batchUpdateEntries,
+    batchDeleteEntries,
+    batchSettleEntries,
     getCategoryStats, 
     checkLimit,
     overallStats,

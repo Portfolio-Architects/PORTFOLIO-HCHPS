@@ -49,6 +49,52 @@ async function decryptData(encryptedBase64: string): Promise<any> {
   }
 }
 
+async function getBackupStats() {
+  let sonCount = 0;
+  let fatherCount = 0;
+  let grandfatherCount = 0;
+
+  const baseDir = path.join(process.cwd(), 'data', 'backups');
+  try {
+    const entries = await fs.readdir(baseDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory() && entry.name !== 'daily' && entry.name !== 'weekly') {
+        const subFiles = await fs.readdir(path.join(baseDir, entry.name));
+        sonCount += subFiles.filter(f => f.endsWith('.json') && !f.endsWith('.tmp')).length;
+      }
+    }
+
+    const dailyDir = path.join(baseDir, 'daily');
+    try {
+      const dailyEntries = await fs.readdir(dailyDir, { withFileTypes: true });
+      for (const entry of dailyEntries) {
+        if (entry.isDirectory()) {
+          const subFiles = await fs.readdir(path.join(dailyDir, entry.name));
+          fatherCount += subFiles.filter(f => f.endsWith('.json') && !f.endsWith('.tmp')).length;
+        }
+      }
+    } catch {}
+
+    const weeklyDir = path.join(baseDir, 'weekly');
+    try {
+      const weeklyEntries = await fs.readdir(weeklyDir, { withFileTypes: true });
+      for (const entry of weeklyEntries) {
+        if (entry.isDirectory()) {
+          const subFiles = await fs.readdir(path.join(weeklyDir, entry.name));
+          grandfatherCount += subFiles.filter(f => f.endsWith('.json') && !f.endsWith('.tmp')).length;
+        }
+      }
+    } catch {}
+  } catch {}
+
+  return {
+    son: sonCount,
+    father: fatherCount,
+    grandfather: grandfatherCount,
+    total: sonCount + fatherCount + grandfatherCount
+  };
+}
+
 export async function GET() {
   try {
     const logs: Array<{ timestamp: string; level: 'info' | 'warn' | 'error'; message: string }> = [];
@@ -110,12 +156,15 @@ export async function GET() {
 
     // Sort logs ascending by timestamp (chronological order)
     const sortedLogs = logs.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    const backupStats = await getBackupStats();
 
     return NextResponse.json({
       success: true,
       data: sortedLogs,
       daemonActive: false,
-      watchDir: 'd:/Desktop'
+      watchDir: 'd:/Desktop',
+      serverHeapMB: memUsage,
+      backupStats
     });
 
   } catch (err: any) {

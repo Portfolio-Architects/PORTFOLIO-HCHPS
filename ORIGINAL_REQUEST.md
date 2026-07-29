@@ -153,4 +153,64 @@ Integrity mode: development
 - [ ] `node scripts/run-harness.js` 실행 결과 0 warnings, 0 violations, 0 bottlenecks 통과
 - [ ] `node scripts/sync-rules.js` 실행 완료 및 `AGENTS.md` 파일 정상 동기화 확인
 
+## Follow-up — 2026-07-23T11:22:03Z
+
+# Teamwork Project Prompt — System-Wide Freeze & Architectural Violation Elimination
+
+Eliminate all UI thread freeze stalls (>100ms) across all modules (`mindmap`, `project`, `dashboard`, `workspace`), fix the architectural violation in `LocalhostStatusHUD.tsx` by eliminating direct `fetch()` calls inside UI components, and enforce 100% Zero-Stall performance.
+
+Working directory: d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL
+Integrity mode: development
+
+## Requirements
+
+### R1. Architectural Violation Removal (Direct Fetch Elimination)
+Refactor `LocalhostStatusHUD.tsx` to eliminate direct `fetch()` API calls inside the UI component, moving data fetching into a dedicated custom hook (`useLocalhostHealth.ts`) in strict compliance with the MVC ontology.
+
+### R2. MindMap 3D WebGL Physics & Delta Clamping Optimization
+Optimize `MindMap3D.tsx` to completely pause 3D physics ticks and WebGL rendering when `document.hidden` or `activeModule !== 'mindmap'`. Clamp frame delta to `Math.min(now - lastFrameTime, 33.3)` on tab resume to eliminate 3,420ms thread stalls.
+
+### R3. Project Tab & WeeklyScheduler Component Optimization
+Isolate heavy DOM rendering in `ProjectManagementPage.tsx` and `WeeklyScheduler.tsx` using `React.memo`, dynamic chunk preloading, and memoized callbacks to prevent 2,839ms layout freeze spikes.
+
+### R4. Zero-Stall & Gatekeeper Verification Guarantee
+Ensure 0 Long Task thread stalls (>100ms) across all modules and verify that `node scripts/run-harness.js` passes with 0 TypeScript compilation errors, 0 Zod schema errors, 0 Architectural violations, and 0 ESLint warnings.
+
+## Acceptance Criteria
+
+### Functionality & Performance
+- [ ] Architectural violation in `LocalhostStatusHUD.tsx` is 100% resolved (0 direct `fetch` calls in UI).
+- [ ] `MindMap3D` WebGL physics pauses completely on background tabs, preventing 3,420ms resume freezes.
+- [ ] `ProjectManagementPage` and `WeeklyScheduler` render smoothly without DOM re-layout stalls.
+- [ ] UI thread stall >100ms count is 0 across all modules (`mindmap`, `project`, `dashboard`, `workspace`).
+
+### Automated Verification
+- [ ] `node scripts/run-harness.js` passes cleanly with 0 Architectural Violations, 0 TSC errors, 0 Zod errors, 0 ESLint warnings.
+- [ ] `node scripts/sync-rules.js` updates `AGENTS.md` milestone log.
+
+## Follow-up — 2026-07-23T04:50:24Z
+
+Eliminate the 2-3s UI thread freeze when entering the Budget Management page by implementing module pre-evaluation, component virtualization, GC allocation optimization, and isolation of background signal computations.
+
+Working directory: d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL
+
+## Requirements
+
+### R1. Optimize Module Preloading & Idle Evaluation
+- Reduce initial component parse stall by adjusting `WorkspaceView` staggered preloading timing or performing idle pre-compilation.
+
+### R2. Virtualize Budget Category Cards & Eliminate Excess DOM Nodes
+- Apply DOM virtualization (`useVirtualGrid` / windowing) or memoized chunk rendering to `PolicyGroupCard` and `BudgetCategoryCardItem` list rendering.
+
+### R3. Fix GC Memory Allocation Spikes in `getCategoryStats`
+- Cache `excludePlanned` stats calculation or avoid object instantiations inside render loops to prevent GC pressure.
+
+## Acceptance Criteria
+
+### Performance & Verification
+- [ ] No UI thread long task (> 100ms) on entering the Budget Management page.
+- [ ] `npx tsc --noEmit` completes with 0 errors.
+- [ ] `node scripts/run-harness.js` passes clean.
+
+
 

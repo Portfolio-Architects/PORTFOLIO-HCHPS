@@ -1,17 +1,13 @@
-## 2026-07-21T01:26:37Z
-You are auditor_r1.
-Your working directory is d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\auditor_r1.
+## 2026-07-29T07:02:28Z
+You are Forensic Auditor for Milestone 1 (R1: Table Inline-Editing & Keyboard Navigation System) in `src/components/budget/`.
+Working directory: d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\auditor_r1
 
-Your task is to perform Forensic Integrity Audit on the R1 implementation:
-Check files:
-- `src/hooks/useMergedSignals.ts`
-- `src/hooks/useGraphCustomization.ts`
-- `src/app/page.tsx`
-- `src/app/api/data/route.ts`
+Objective:
+Perform mandatory forensic integrity verification of R1 changes in `src/components/budget/ui/InlineEditCell.tsx`, `PolicyGroupCard.tsx`, `BudgetCategoryCardItem.tsx`, and `BudgetDashboard.tsx`.
 
-Verify:
-1. Genuine implementation (NO hardcoding, dummy facades, or fake return values).
-2. Clean static analysis & type checking (`npx tsc --noEmit` and `node scripts/run-harness.js`).
-3. Verdict MUST be either CLEAN or INTEGRITY VIOLATION.
+Integrity Audit Checks:
+1. Static Analysis: Ensure NO hardcoded test outputs, facade/dummy logic, or bypassed validation.
+2. Contract Integrity: Verify `/api/data/route.ts` and `useBudget.ts` contracts are 100% genuine and unaltered.
+3. Code Execution & Build: Run `npx tsc --noEmit` and `node scripts/run-harness.js`.
 
-Write your report to `handoff.md` and send a message back to parent.
+Write your full forensic audit report to `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\auditor_r1\handoff.md` and send a message back with your verdict (CLEAN / VIOLATION). Remember: your verdict is a BINARY VETO!

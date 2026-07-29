@@ -1,64 +1,50 @@
-# BRIEFING — 2026-07-16T11:02:00+09:00
+# BRIEFING — 2026-07-23T04:55:15Z
 
 ## Mission
-Implement high-contrast dark theme UI enhancement and import/apply Inter and Outfit fonts across the PORTFOLIO-VITAL project, verifying build and lint success.
+Implement Milestone M1 (R1: Optimize Module Preloading & Idle Evaluation) for PORTFOLIO - VITAL to eliminate 2-stage loading waterfall for sub-chunks like BudgetDashboard.
 
 ## 🔒 My Identity
-- Archetype: worker
+- Archetype: worker_opt_r1
 - Roles: implementer, qa, specialist
 - Working directory: d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\worker_opt_r1
-- Original parent: cd53f6a5-33fc-4a9f-afd8-3fdda3a0de24
-- Milestone: High-contrast Dark Theme and Fonts Implementation
+- Original parent: 6f3aed7a-0d51-4eba-a3cc-2ea1f05a5137
+- Milestone: M1 (R1: Optimize Module Preloading & Idle Evaluation)
 
 ## 🔒 Key Constraints
-- CODE_ONLY network mode: no external HTTP requests.
-- DO NOT CHEAT: real behavior, no hardcoding, no dummy/facade implementations.
-- E2EE Bypass: Use plaintext JSON for local sync performance.
-- Loud Failures: Zod schemas should catch issues. Use `.catch()` for fallback defaults in schema, fix source logic.
-- CORS Allowed Origins: http://localhost:3001 and https://portfolio-architects.github.io (port 3001 is fixed).
-- Auto-expose: Open/run dev server requires exposing `PORTFOLIO VITAL - Engineering Report.md` and `AGENTS.md`.
-- Real-time logging: Log changes to `PORTFOLIO VITAL - Engineering Report.md` immediately and run `node scripts/sync-rules.js` to update `AGENTS.md`.
-- Handoff report: Create `handoff.md` with 5-component layout.
+- Follow MVC ontology: data/route.ts SSOT, src/components UI, src/hooks React Query, no direct fetch/API calls in components.
+- Minimal change principle.
+- Zero TSC errors, 0 Zod errors, 0 ESLint warnings, 0 MVC violations.
+- Code optimization: eliminate 2-stage loading waterfall for workspace sub-chunks (e.g., BudgetDashboard) during idle preloading.
 
 ## Current Parent
-- Conversation ID: cd53f6a5-33fc-4a9f-afd8-3fdda3a0de24
-- Updated: 2026-07-16T11:02:00+09:00
+- Conversation ID: 6f3aed7a-0d51-4eba-a3cc-2ea1f05a5137
+- Updated: 2026-07-23T04:55:15Z
 
 ## Task Summary
-- **What to build**: High contrast dark theme styling, import and apply Inter/Outfit fonts, fix color typos (`slate-55`, `slate-450`, etc.) in dashboard and mindmap components.
-- **Success criteria**: Code compiles with `npm run build` and `npm run lint` successfully.
-- **Interface contracts**: `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\AGENTS.md` and `task.md`.
-- **Code layout**: FSD-inspired layout (components in components/dashboard, components/ui, components).
+- **What to build**: Preloading sub-chunks (`BudgetDashboard`, `InventoryList`) when `'workspace'` preloading triggers during browser idle. Staggered preloading to avoid main thread stall.
+- **Success criteria**: Sub-chunks pre-triggered during idle preloading; 0 TSC errors; 0 harness errors; handoff report created.
 
 ## Key Decisions Made
-- Transitioned fonts configuration to direct offline-friendly imports using `next/font/google` in `layout.tsx` to enable absolute offline capability, discarding external url-based imports.
-- Enforced a high-contrast dark theme using `:root` variables under `@media (prefers-color-scheme: dark)` in `globals.css` ensuring native integration with Tailwind CSS utility mapping.
-- Resolved custom color name weight typos (`slate-55`, `indigo-55`, `slate-450`, `slate-350`) to standard Tailwind weight values.
-- Mapped all major panels to alternate dynamically in dark mode via Tailwind modifiers (`dark:bg-...`, `dark:text-...`, `dark:glass-panel-dark`, `dark:border-slate-800`).
-- Integrated custom hook dynamic detection of prefers-color-scheme in `WikiEditor.tsx` to pass dynamic dark/light theme options to BlockNoteView.
+- Updated `src/app/page.tsx` (`preloadModule` and `triggerPreload` inside `preloadModulesOnIdle`) to pre-trigger dynamic imports for sub-chunks `import('@/components/budget/BudgetDashboard')` and `import('@/components/inventory/InventoryList')` via `requestIdleCallback`.
+- Added secondary idle warm-up trigger in `src/components/WorkspaceView.tsx` `useEffect` on mount.
+- Ran `npx tsc --noEmit` (0 errors) and `node scripts/run-harness.js` (0 errors).
 
 ## Artifact Index
-- `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\worker_opt_r1\handoff.md` — Handoff documentation detailing observations, logic chain, caveats, and verification methods.
+- `.agents/worker_opt_r1/ORIGINAL_REQUEST.md` — Original prompt payload
+- `.agents/worker_opt_r1/progress.md` — Progress tracker
+- `.agents/worker_opt_r1/handoff.md` — Handoff report
 
 ## Change Tracker
 - **Files modified**:
-  - `src/app/layout.tsx` — Imported Inter/Outfit fonts, mapped classes, and removed default Geist font references.
-  - `src/app/globals.css` — Removed Google Fonts import url, defined Tailwind `@theme` properties for sans/display, and added dark preference media query.
-  - `src/components/dashboard/WeeklyScheduler.tsx` — Fixed typos, added comprehensive dark mode classes for inputs, presets, scheduled card types, and today columns.
-  - `src/components/dashboard/PortfolioDashboardView.tsx` — Added dark-mode glass overlays (`dark:glass-panel-dark`), tooltip styling, select options, list hovers, and trend charts text colors.
-  - `src/components/MindMap3D.tsx` — Fixed lag spike display typo, added dark theme classes to autocomplete menus, Wiki draw panels, delete/add modals, and HUD profilers.
-  - `src/components/MindMapInspector.tsx` — Added dark support for inspector card, AI relation forms, phone/email contact details, and priority items.
-  - `src/components/WikiEditor.tsx` — Added prefers-color-scheme media listener to update editor dark state, passing it dynamically to BlockNoteView.
-  - `src/components/ui/modal.tsx` — Added close button hover and footer backdrop overrides for dark mode.
-  - `PORTFOLIO VITAL - Engineering Report.md` — Added patch log entry.
-  - `AGENTS.md` — Synchronized rules and milestone logs.
-- **Build status**: Pass
+  - `src/app/page.tsx`: Pre-trigger dynamic imports for WorkspaceView sub-chunks during idle preloading
+  - `src/components/WorkspaceView.tsx`: Idle pre-warm sub-chunks in useEffect
+- **Build status**: Pass (`npx tsc --noEmit` and `node scripts/run-harness.js` passed with 0 errors)
 - **Pending issues**: None
 
 ## Quality Status
-- **Build/test result**: Pass (compiled and page generation completed successfully)
-- **Lint status**: 0 warnings/errors (linter completed successfully)
-- **Tests added/modified**: None
+- **Build/test result**: Pass (TSC 0 errors, Zod 0 errors, ESLint 0 errors)
+- **Lint status**: 0 violations
+- **Tests added/modified**: Verified via Gatekeeper harness script
 
 ## Loaded Skills
-- None loaded.
+- None

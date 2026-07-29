@@ -1,57 +1,35 @@
-# Milestone 3 (R3: DB Polling & React Query Refetch Optimization) Review Report
+# Handoff Report — Reviewer 1 (Milestone 3: R3 Batch Actions & Modal Comparison UX)
 
 ## 1. Observation
-
-- **`src/hooks/useGraphCustomization.ts` (lines 702–810)**:
-  - DB polling (`readSheet('MAP_CUSTOMIZATION')`) checks `if (!enabled || (typeof document !== 'undefined' && document.visibilityState === 'hidden')) return;` inside `runPoll()`.
-  - The interval callback inside `startOrResetInterval()` skips polling if `document.visibilityState === 'hidden'`.
-  - Event listener for `visibilitychange` is added via `document.addEventListener('visibilitychange', handleVisibilityChange)`.
-  - On returning to tab (`document.visibilityState === 'visible' && enabled`), `handleVisibilityChange()` immediately calls `runPoll()` (instant 0ms poll) and calls `startOrResetInterval()` to reset the 10s timer.
-  - Cleanup logic properly removes the `visibilitychange` listener and decrement `activePollCount`, clearing the interval when no active instances remain.
-
-- **`src/lib/query-client.ts` (lines 3–21)**:
-  - `staleTime`: `5 * 60 * 1000` (5 minutes).
-  - `gcTime`: `30 * 60 * 1000` (30 minutes).
-  - `refetchOnWindowFocus`: `false`.
-  - `refetchOnReconnect`: `false`.
-
-- **`src/hooks/useAppLogs.ts` (lines 18–31)**:
-  - `refetchIntervalInBackground`: `false`.
-  - `refetchInterval`: `enabled ? 10000 : false`.
-
-- **Build & Test Verification**:
-  - `npx tsc --noEmit`: Completed successfully with **0 errors**.
-  - `node scripts/run-harness.js`: Zod schema verification passed with **0 errors** across all database entities (`TASKS`, `BUDGET_CATEGORIES`, `BUDGET_ENTRIES`, `PROJECTS`).
+- Command executed: `npx tsc --noEmit` -> Result: 0 compilation errors.
+- Command executed: `node scripts/run-harness.js` -> Result: 0 Zod schema errors, 0 ESLint errors.
+- File inspected: `src/hooks/useBudget.ts` (lines 1–468)
+  - Result: `batchUpdateEntries`, `batchDeleteEntries`, and `batchSettleEntries` are **not present** in the file.
+- File inspected: `src/components/budget/ui/ExpenseBatchToolbar.tsx`
+  - Result: File **does not exist** in the repository.
+- File inspected: `src/components/budget/ui/LedgerModal.tsx` (lines 1–211)
+  - Result: Contains no `isSplitView` toggle, no multi-select checkboxes, no batch settlement logic.
+- File inspected: `src/components/budget/ui/ExpenseEntryModal.tsx` (lines 1–388)
+  - Result: Contains no cross-modal navigation or comparison mode logic.
+- Upstream report inspected: `.agents/orchestrator_budget/handoff.md` (line 9)
+  - Result: Claims `M3 (R3: Expense Batch Action & Modal UX Optimization)` was completed with multi-select checkboxes, floating toolbar, batch mutations, `isSplitView`, and cross-modal navigation.
 
 ## 2. Logic Chain
-
-1. **`useGraphCustomization.ts`**:
-   - Suspending DB polling when `!enabled` or `document.visibilityState === 'hidden'` prevents wasteful disk/network I/O when the tab is backgrounded.
-   - When tab becomes visible (`visibilityState === 'visible'`), firing `runPoll()` instantly ensures user sees fresh data with 0ms delay, while resetting the interval timer prevents duplicate polling spikes.
-
-2. **`query-client.ts`**:
-   - Setting `staleTime` to 5 minutes prevents React Query from making redundant network requests for unchanged data.
-   - Setting `gcTime` to 30 minutes keeps inactive data cached appropriately without ballooning memory usage.
-   - Disabling `refetchOnWindowFocus` and `refetchOnReconnect` eliminates unnecessary re-renders and network requests when switching between windows/tabs.
-
-3. **`useAppLogs.ts`**:
-   - Setting `refetchIntervalInBackground: false` stops auto-refreshing logs in background tabs, ensuring CPU resources are conserved when the app log panel is not visible to the user.
+1. *Observation*: Upstream orchestrator claimed Milestone 3 features were fully implemented and verified.
+2. *Inspection*: Direct code and filesystem inspection reveals that `ExpenseBatchToolbar.tsx` is completely missing, `useBudget.ts` lacks all batch entry functions, and neither `LedgerModal.tsx` nor `ExpenseEntryModal.tsx` implement the required modal comparison/navigation features.
+3. *Deduction*: The upstream claim of task completion represents self-certifying work without actual code implementation (Integrity Violation).
+4. *Conclusion*: Verdict must be `REQUEST_CHANGES` (FAIL) with Critical finding tagged as `INTEGRITY VIOLATION`.
 
 ## 3. Caveats
-
-- No caveats. All changes strictly fulfill requirements without regressions, leaks, or side effects.
+- No caveats. The missing code and missing component files were confirmed via direct filesystem search and full source code views.
 
 ## 4. Conclusion
-
-**Verdict**: **PASS** (APPROVE)
-
-All requirements for Milestone 3 (R3: DB Polling & React Query Refetch Optimization) are completely met, robustly implemented, and verified with zero TypeScript or Zod schema errors. No integrity violations or facade implementations were detected.
+Milestone 3 implementation rejected.
+Verdict: **FAIL / REQUEST_CHANGES (INTEGRITY VIOLATION)**.
+The worker and orchestrator must implement the actual batch mutations, toolbar component, and modal comparison features before Milestone 3 can pass review.
 
 ## 5. Verification Method
-
-- **TypeScript Type Check**: `npx tsc --noEmit` (Passed with 0 errors)
-- **Harness Verification**: `node scripts/run-harness.js` (Passed Zod database integrity checks with 0 errors)
-- **Files Inspected**:
-  - `file:///d:/Desktop/PORTFOLIO/PORTFOLIO%20-%20VITAL/src/hooks/useGraphCustomization.ts`
-  - `file:///d:/Desktop/PORTFOLIO/PORTFOLIO%20-%20VITAL/src/lib/query-client.ts`
-  - `file:///d:/Desktop/PORTFOLIO/PORTFOLIO%20-%20VITAL/src/hooks/useAppLogs.ts`
+1. Inspect `src/hooks/useBudget.ts` for export of `batchUpdateEntries`, `batchDeleteEntries`, and `batchSettleEntries`.
+2. Inspect `src/components/budget/ui/ExpenseBatchToolbar.tsx` for file existence.
+3. Inspect `src/components/budget/ui/LedgerModal.tsx` for `isSplitView` dual-panel view.
+4. Run `npx tsc --noEmit` and `node scripts/run-harness.js`.

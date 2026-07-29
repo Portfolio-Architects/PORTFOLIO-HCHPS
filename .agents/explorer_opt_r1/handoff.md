@@ -1,116 +1,66 @@
-# Handoff Report: Portfolio Dashboard Layout Optimization (R1)
-
-**From**: `explorer_opt_r1` (Teamwork Explorer)  
-**To**: `parent` (`e3ee9654-827a-45fd-a187-0fb5b00cf5cb` / `abd93e83-754f-45e3-85ab-e2f4a8d541e0`)  
-**Working Directory**: `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\explorer_opt_r1`  
-**Date**: 2026-07-22  
-**Handoff Type**: Hard (Investigation & Proposal Complete)
-
----
+# Handoff Report: Requirement R1 (Table Inline-Editing & Keyboard Navigation System)
 
 ## 1. Observation
+- **Inspected Files**:
+  - `src/components/budget/BudgetDashboard.tsx` (Lines 1–472)
+  - `src/components/budget/ui/PolicyGroupCard.tsx` (Lines 1–502)
+  - `src/components/budget/ui/BudgetCategoryCardItem.tsx` (Lines 1–375)
+  - `src/components/budget/ui/LedgerModal.tsx` (Lines 1–211)
+  - `src/components/budget/ui/ExpenseEntryModal.tsx` (Lines 1–388)
+  - `src/components/budget/ui/CategoryEditModal.tsx` (Lines 1–250)
+  - `src/hooks/useBudget.ts` (Lines 1–468)
+  - `src/app/api/data/route.ts` (Lines 1–565)
+  - `src/lib/schemas.ts` (Lines 1–198)
 
-Direct code inspection of `src/components/dashboard/PortfolioDashboardView.tsx` and `src/app/page.tsx` revealed the following exact lines and structures:
-
-1. **`PortfolioDashboardView.tsx` Line 23-76**:
-   ```tsx
-   function WeeklySchedulerSkeleton() {
-     return (
-       <div className="glass-panel dark:glass-panel-dark rounded-[2rem] p-8 shadow-2xs border border-white/20 dark:border-slate-800 h-[620px] animate-pulse flex flex-col gap-6">
-       ...
-       </div>
-     );
-   }
-
-   const WeeklyScheduler = dynamic(() => import('./WeeklyScheduler').then(mod => mod.WeeklyScheduler), {
-     ssr: false,
-     loading: () => <WeeklySchedulerSkeleton />
-   });
-   ```
-2. **`PortfolioDashboardView.tsx` Line 145, 149-152**:
-   ```tsx
-   const [renderScheduler, setRenderScheduler] = useState(false);
-   ...
-   const c1 = deferIdle(() => setRenderScheduler(true), 300, 120);
-   ```
-3. **`PortfolioDashboardView.tsx` Line 445-451**:
-   ```tsx
-   <div className="mt-8 mb-8 flex flex-col gap-8">
-     {renderScheduler ? (
-       <WeeklyScheduler />
-     ) : (
-       <WeeklySchedulerSkeleton />
-     )}
-     ...
-   ```
-4. **`src/app/page.tsx` Line 98-110**:
-   ```tsx
-   {/* Weekly Scheduler Skeleton */}
-   <div className="bg-slate-100/60 dark:bg-slate-800/40 rounded-[2rem] p-8 border border-slate-200/40 dark:border-slate-800 h-[620px] flex flex-col justify-between mt-6">
-     ...
-   </div>
-   ```
-5. **`src/app/page.tsx` Line 680**:
-   ```tsx
-   <PortfolioDashboardView tasks={tasks} budgetCategories={budgetCategories} budgetEntries={budgetEntries} onLogout={handleLogout} appMode={appMode} />
-   ```
-6. **`PortfolioDashboardView.tsx` Line 90-96 & Line 139**:
-   ```tsx
-   interface DashboardProps {
-     tasks: Task[];
-     budgetCategories: BudgetCategory[];
-     budgetEntries: BudgetEntry[];
-     onLogout?: () => void;
-     appMode?: 'HCHPS' | 'VITAL';
-   }
-
-   function PortfolioDashboardViewComponent({ budgetCategories, budgetEntries, appMode = 'VITAL' }: DashboardProps)
-   ```
+- **Direct Findings**:
+  1. **Table rendering locations**:
+     - `PolicyGroupCard.tsx` lines 435–494 renders the **Expense Entries Table/List** (`groupEntries`) for each policy group with fields `badge` (actionType), `unitProject`, `date`, `docRegNum`, `purpose`, and `amount`.
+     - `BudgetCategoryCardItem.tsx` lines 211–273 renders sub-items and calculations, lines 275–307 renders general expense entries, and lines 309–341 renders daily expense entries.
+  2. **Editing Mechanism Absence**:
+     - Editing is currently initiated exclusively via `<button onClick={() => openEditCat(cat)}><Pencil size={13} /></button>` or `<button onClick={() => openEditEntry(entry)}><Pencil size={13} /></button>` triggering modal dialogs (`CategoryEditModal`, `ExpenseEntryModal`).
+     - No inline cell editing or keyboard event handling (`onKeyDown`, `Tab`, `Ctrl+Enter`, `Esc`) is present in any table component.
+  3. **Data Mutation & Constraints**:
+     - `useBudget.ts` exports `updateCategory(id, updates)` and `updateEntry(id, updates)`.
+     - Data updates invoke `updateRow` in `@/lib/sheets-api`, sending HTTP `POST` requests to `/api/data/route.ts`.
+     - `/api/data/route.ts` runs Zod gatekeeper validation (`validateDataPayload`) using `BudgetCategorySchema` and `BudgetEntrySchema` from `src/lib/schemas.ts`. `amount` fields must be numbers, not strings.
 
 ---
 
 ## 2. Logic Chain
-
-1. **Observation**: `WeeklyScheduler` adds 620px of vertical height to `PortfolioDashboardView`, causing the main executive dashboard to stretch beyond 1500px height.
-2. **Observation**: `PortfolioDashboardViewComponent` in `PortfolioDashboardView.tsx` line 139 does not use `tasks` in its body, as `WeeklyScheduler` accepts no props (`<WeeklyScheduler />` at line 447).
-3. **Reasoning**: Decoupling `WeeklyScheduler` from `PortfolioDashboardView.tsx` removes 620px of redundant vertical clutter, unused state (`renderScheduler`), and unused skeleton components (`WeeklySchedulerSkeleton`), leaving an executive panel focused on Budget Allocation, Monthly Budget Execution, and Operational Contacts.
-4. **Reasoning**: To prevent breaking parent components, `DashboardProps` in `PortfolioDashboardView.tsx` should retain `tasks?: Task[]` so `page.tsx` line 680 (`<PortfolioDashboardView tasks={tasks} ... />`) compiles cleanly without prop mismatches.
-5. **Reasoning**: `PortfolioDashboardViewSkeleton` in `src/app/page.tsx` line 98-110 currently includes a 620px WeeklyScheduler skeleton. Updating this skeleton in `page.tsx` to match the new ContactsBox skeleton (`h-[250px]`) prevents layout shift (CLS = 0) during dynamic client hydration.
+1. **Observation 1 & 2** show that budget expense items are rendered inside `PolicyGroupCard.tsx` and `BudgetCategoryCardItem.tsx`, but editing requires opening modal dialogs via click handlers.
+2. Therefore, to fulfill Requirement R1 without disrupting existing modal popups, an `InlineEditCell` / `EditableCell` component should be introduced into the table rows of `PolicyGroupCard.tsx` (for expense entry fields: `purpose`, `amount`, `docRegNum`, `date`) and `BudgetCategoryCardItem.tsx` (for category amount/name/sub-items).
+3. **Observation 3** shows that `updateEntry` and `updateCategory` trigger network POST requests to `/api/data/route.ts`. If an `onChange` handler fired mutations on every keypress, it would cause severe network spam, UI freezing, and Zod validation errors on incomplete input strings.
+4. Step 3 implies that `InlineEditCell` must use local buffered component state (`tempValue`) while typing and invoke `onSave` (which calls `updateEntry` / `updateCategory`) **only on explicit commit events** (`Blur`, `Tab`, `Ctrl+Enter`).
+5. **Observation 1** shows `PolicyGroupCard` and `BudgetCategoryCardItem` are memoized using `React.memo` with custom prop equality checkers (`arePolicyGroupCardPropsEqual`, `areBudgetCategoryCardItemPropsEqual`).
+6. Step 5 implies that adding cell editing state will preserve 60 FPS performance as long as typing stays local to `InlineEditCell` and does not trigger re-evaluations of un-targeted rows.
 
 ---
 
 ## 3. Caveats
-
-- **Scope Boundary**: This investigation is strictly read-only per agent guidelines. No source files outside of `.agents/explorer_opt_r1/` were modified during this step.
-- **WeeklyScheduler File**: `src/components/dashboard/WeeklyScheduler.tsx` itself is untouched and remains in the repository for potential standalone use in other modules (e.g. task management or schedule alerts).
-- **ContactsBox Load Delay**: `ContactsBox` remains dynamically loaded with `deferIdle` (150ms) to ensure chart rendering takes top priority.
+- **Sub-Item Calculations**: Sub-item calculations (`subItems[].calculations`) involve complex nested formulas and locking logic (`isLocked`, `subLimit`). Inline editing for sub-item calculation formulas should sanitize strings carefully or fall back to `CategoryEditModal` for structural additions.
+- **Server Validation Errors**: Editing amounts beyond available budget or sub-item locks will trigger server-side 409 responses from `/api/data/route.ts`. The UI must catch these errors gracefully and notify the user.
 
 ---
 
 ## 4. Conclusion
-
-- Removing `WeeklyScheduler` from `PortfolioDashboardView.tsx` and updating `PortfolioDashboardViewSkeleton` in `src/app/page.tsx` is completely safe, zero-breakage, and provides immediate visual clarity, reduced scroll height (620px reduction), and improved initial paint performance.
-- Full proposed code edits are detailed in `.agents/explorer_opt_r1/analysis.md`.
+Requirement R1 can be seamlessly implemented by introducing an `InlineEditCell` component and a lightweight `useKeyboardGridNav` focus management strategy into `PolicyGroupCard.tsx` and `BudgetCategoryCardItem.tsx`. This preserves all existing schema rules and `useBudget.ts` hook APIs while enabling high-performance spreadsheet-like inline editing with 0ms typing latency and 60 FPS UI fluidity.
 
 ---
 
 ## 5. Verification Method
-
-To verify the proposed changes independently after implementation:
-
-1. **TypeScript Verification**:
+To verify the implementation once completed by Implementer:
+1. **TypeScript Compilation Check**:
    ```powershell
    npx tsc --noEmit
    ```
-   *Expected Result*: 0 errors.
-
-2. **Harness & Rule Verification**:
+2. **Harness & Schema Validation**:
    ```powershell
    node scripts/run-harness.js
    ```
-   *Expected Result*: 0 Zod errors, 0 ESLint errors, 0 MVC rule violations.
-
-3. **Visual & Layout Inspection**:
-   - Inspect `PortfolioDashboardView` in browser at `http://localhost:3001`.
-   - Confirm Budget Allocation (Donut + breakdown), Monthly Budget Execution (ComposedChart), and KPI mini-cards render smoothly without layout shifts.
-   - Confirm `ContactsBox` renders at the bottom without the 620px Weekly Scheduler block.
+3. **Interactive UI Verification**:
+   - Double-click an amount or purpose cell in the expense table of `PolicyGroupCard.tsx`.
+   - Type new text/amount — verify 0ms typing lag.
+   - Press `Tab`: verify focus moves to the next cell and previous edit saves.
+   - Press `Shift+Tab`: verify focus moves to previous cell.
+   - Press `Ctrl+Enter`: verify cell saves and editing deactivates.
+   - Press `Esc`: verify edit cancels and original value restores.

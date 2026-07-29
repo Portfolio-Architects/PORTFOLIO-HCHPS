@@ -1,15 +1,12 @@
-# Progress Tracker
-Last visited: 2026-07-16T11:03:00+09:00
+# Progress Tracker - worker_opt_r1
 
-- [x] Initial analysis and verification of requirements
-- [x] Font setup in src/app/layout.tsx
-- [x] CSS configuration in src/app/globals.css
-- [x] WeeklyScheduler component readability enhancements and typo fixes
-- [x] PortfolioDashboardView dark-mode styling
-- [x] MindMap3D color typo fix and dark-theme compatibility
-- [x] MindMapInspector dark compatibility
-- [x] WikiEditor system dark mode detection and dynamic BlockNoteView theme
-- [x] Card and Modal components styling adjustments
-- [x] Run build and lint verification
-- [x] Update Engineering Report and sync rules
-- [x] Handoff documentation
+Last visited: 2026-07-23T04:55:18Z
+
+- [x] Create ORIGINAL_REQUEST.md & BRIEFING.md
+- [x] Inspect `src/app/page.tsx` and `src/components/WorkspaceView.tsx`
+- [x] Analyze `triggerPreload` and staggered preloading logic
+- [x] Update `src/app/page.tsx` to pre-trigger sub-chunks (`BudgetDashboard` & `InventoryList`) during idle preloading
+- [x] Update `src/components/WorkspaceView.tsx` with idle pre-warm trigger for sub-chunks
+- [x] Run `npx tsc --noEmit` (0 errors) and `node scripts/run-harness.js` (0 errors)
+- [x] Write `handoff.md`
+- [x] Send completion message to parent

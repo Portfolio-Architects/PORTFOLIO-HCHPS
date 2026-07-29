@@ -529,7 +529,15 @@
     "_enc": "{\"categoryId\":\"mnrcir0v56b8pixdb\",\"amount\":3282400,\"date\":\"2026-07-06\",\"purpose\":\"(일상경비)금연·건강증진 합동 캠페인 운영 홍보물품 구매(손목 아대)\",\"memo\":\"\",\"docRegNum\":\"보건행정과-8086\",\"actionType\":\"daily_expense\",\"isPlanned\":false}"
   },
   {
-    "id": "mrtysetxkdjrps6t1",
-    "_enc": "{\"categoryId\":\"mnrcir0v56b8pixdb\",\"amount\":1243000,\"date\":\"2026-07-21\",\"purpose\":\"(일상경비) 헬스체크업 건강 운동 리플릿 제작비 지급\",\"memo\":\"\",\"docRegNum\":\"보건행정과-8775\",\"actionType\":\"daily_expense\",\"isPlanned\":false}"
+    "id": "ms41fwjjf4lhgysr9",
+    "_enc": "{\"categoryId\":\"mnrcir0v56b8pixdb\",\"amount\":1243000,\"date\":\"2026-07-20\",\"purpose\":\"(일상경비) 헬스체크업 건강 운동 리플릿 제작비 지급\",\"memo\":\"\",\"docRegNum\":\"보건행정과-8775\",\"actionType\":\"daily_expense\",\"isPlanned\":false}"
+  },
+  {
+    "id": "ms41hgvzkoyfj9dnl",
+    "_enc": "{\"categoryId\":\"mnrcir0voap2bpm8z\",\"amount\":263200,\"date\":\"2026-07-24\",\"purpose\":\"(일상경비)건강생활실천 사업, 캠페인 근무복(조끼) 구매비 지급\",\"memo\":\"\",\"docRegNum\":\"보건행정과-9008\",\"actionType\":\"daily_expense\",\"isPlanned\":false}"
+  },
+  {
+    "id": "ms5qd4tzp4xvkouac",
+    "_enc": "{\"categoryId\":\"mnrcir0v5zjn4qxyg\",\"amount\":7413400,\"date\":\"2026-07-29\",\"purpose\":\"2026년 7월 서울체력장 강남센터 기간제근로자 인건비 지출\",\"memo\":\"\",\"docRegNum\":\"보건행정과-9142\",\"actionType\":\"general\",\"isPlanned\":false}"
   }
 ]

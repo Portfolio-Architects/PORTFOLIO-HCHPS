@@ -29,6 +29,17 @@ function useIdleMount(fallbackMs = 200) {
   return mounted;
 }
 
+function useDeferredChartMount() {
+  const [shouldRender, setShouldRender] = useState(false);
+  useEffect(() => {
+    const animFrame = requestAnimationFrame(() => {
+      setShouldRender(true);
+    });
+    return () => cancelAnimationFrame(animFrame);
+  }, []);
+  return shouldRender;
+}
+
 const ContactsBox = dynamic(() => import('./ContactsBox').then(mod => mod.ContactsBox), {
   ssr: false,
   loading: () => (
@@ -99,6 +110,7 @@ function PortfolioDashboardViewComponent({ budgetCategories, budgetEntries, appM
   const [chartWidth, setChartWidth] = useState<number>(0);
 
   const renderContacts = useIdleMount();
+  const renderCharts = useDeferredChartMount();
 
   useEffect(() => {
     if (!isMounted || !chartContainerRef.current) return;
@@ -184,7 +196,7 @@ function PortfolioDashboardViewComponent({ budgetCategories, budgetEntries, appM
           <div className="flex-1 w-full h-[250px] flex flex-col sm:flex-row items-stretch justify-center mb-6 gap-6 sm:gap-8 md:gap-12 lg:gap-16">
             <div className="w-full sm:w-[260px] h-[250px] flex-shrink-0 flex justify-center items-center">
               <div className="w-[230px] h-[230px] relative flex-shrink-0">
-                {isMounted && (
+                {isMounted && renderCharts && (
                   <PieChart width={230} height={230}>
                     <Pie
                       data={dynamicPieData}
@@ -350,7 +362,7 @@ function PortfolioDashboardViewComponent({ budgetCategories, budgetEntries, appM
 
             {/* Monthly Trend Chart */}
             <div ref={chartContainerRef} className="flex-1 mt-6 relative w-full min-h-[385px] h-[385px]">
-              {isMounted && chartWidth > 0 && (
+              {isMounted && renderCharts && chartWidth > 0 && (
                 <ComposedChart width={chartWidth} height={385} data={monthlyExecutionData} margin={{ top: 25, right: 10, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorCumulative" x1="0" y1="0" x2="0" y2="1">

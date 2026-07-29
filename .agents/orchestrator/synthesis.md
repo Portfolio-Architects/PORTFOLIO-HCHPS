@@ -1,76 +1,43 @@
-# Project Synthesis — VITAL Work & Wealth Performance Optimization
+# Synthesis Report — Budget Management Page UI Freeze & GC Optimization
 
 ## Executive Summary
-The VITAL Work & Wealth performance optimization project has been successfully completed across all 3 planned milestones. All technical requirements, quality standards, and integrity criteria have been met with **100% automated test compliance (0 TypeScript errors, 0 Zod database errors, 0 ESLint warnings, 0 architectural violations, 0 performance bottlenecks)** and verified by multi-agent review swarms (Explorers, Workers, Reviewers, Challengers, and Forensic Auditors).
+All milestones (M1, M2, M3, M4) for the **Budget Management Page UI Freeze & GC Optimization** project have been successfully implemented and independently audited by Forensic Auditors with **CLEAN** verdicts. Long UI thread freezes (>100ms) on entering the Budget page have been completely eliminated through sub-chunk idle preloading, list window virtualization, custom React.memo prop comparators, and O(1) zero-allocation category statistics caching.
 
----
+## Milestone Achievements
 
-## Milestone Accomplishments
+### Milestone 1: R1 Module Preloading & Idle Evaluation
+- **Files Modified**: `src/app/page.tsx`, `src/components/WorkspaceView.tsx`
+- **Improvements**: Pre-triggered dynamic imports for sub-chunks (`BudgetDashboard` & `InventoryList`) within `requestIdleCallback` when preloading `WorkspaceView`.
+- **Outcome**: Completely eliminated the 2-stage dynamic import loading waterfall when navigating to the Budget Management tab.
+- **Audit Verdict**: **CLEAN** (`auditor_opt_r1`)
 
-### Milestone 1 (R1): Initial Server Hydration & Staggered Chunk Isolation
-- **Dynamic Chunk Isolation**: Wrapped heavy views (`PortfolioDashboardView`, `MindMap3D`, `WorkspaceView`, `ProjectManagementPage`, `SecurityLockScreen`, `AppLogModal`, `AIAssistantModal`, `BudgetDashboard`) in `dynamic(..., { ssr: false })` with dedicated UI skeletons.
-- **Staggered Background Preloading**: Implemented `preloadModulesOnIdle` with 3.5s, 5.5s, and 7.5s delays to preload dynamic chunks without blocking UI thread.
-- **Hook Scoping**: Conditioned execution of heavy hooks (`useMergedSignals`, `useGraphCustomization`) to run only when target views are active.
-- **Result**: Server hydration stall reduced to ~18-24ms (<35ms target). Verified CLEAN by Forensic Auditor.
+### Milestone 2: R2 Budget Category Cards Virtualization & DOM Node Reduction
+- **Files Created/Modified**: `src/hooks/useVirtualList.ts`, `src/components/budget/ui/BudgetCategoryCardItem.tsx`, `src/components/budget/ui/PolicyGroupCard.tsx`, `src/components/budget/BudgetDashboard.tsx`
+- **Improvements**:
+  - Implemented zero-dependency `useVirtualList` windowing hook.
+  - Virtualized `groupedByPolicy` policy cards in `BudgetDashboard` and `groupedByDetail` project lists in `PolicyGroupCard`.
+  - Stabilized callback props (`onSwapCat`, modal event handlers) via `useCallback`.
+  - Created `areBudgetCategoryCardItemPropsEqual` and `arePolicyGroupCardPropsEqual` custom `React.memo` prop comparators.
+- **Outcome**: Bounded DOM node count to viewport capacity; isolated component re-renders to O(1) scope.
+- **Audit Verdict**: **CLEAN** (`auditor_opt_r2`)
 
-### Milestone 2 (R2): Workspace Component & Inventory List DOM Optimization
-- **DOM Window Virtualization**: Implemented `useVirtualGrid` hook in `InventoryList.tsx` for zero-dependency grid windowing with dynamic column counting (`useColumnCount`), top/bottom spacer padding divs, and stable row keys (`key={row[0]?.id || rowIndex}`). Reduced DOM node count from ~1,000 to 15-24 rendered cards (98.5% reduction).
-- **ESLint & State Remediation**:
-  - Ref access compliance (`react-hooks/refs`): Moved `containerRef.current` access strictly inside `useEffect` (`updateMetrics`).
-  - Relative scroll offset: Computed `containerOffsetTop` using `getBoundingClientRect()` relative to `scrollParent`.
-  - State isolation: Implemented `closeAdjustModal()` resetting `selectedItem` to `null` on modal close/submit.
-  - Category swap efficiency ($O(1)$): Updated `handleSwapCat` in `PolicyGroupCard.tsx` to mutate ONLY the 2 swapped categories (`idx` and `targetIdx`).
-  - Budget entry grouping ($O(E)$): Indexed budget categories into `entriesByCatId` in $O(E)$ time.
-- **Result**: Tab switching UI freeze eliminated. Re-verified CLEAN by Reviewer 1, Reviewer 2, Challenger (5/5 PASS), and Forensic Auditor.
+### Milestone 3: R3 Fix GC Memory Allocation Spikes in `getCategoryStats`
+- **Files Modified**: `src/hooks/useBudget.ts`, `src/components/budget/ui/PolicyGroupCard.tsx`
+- **Improvements**:
+  - Pre-calculated both `standard` and `excludePlanned` `CategoryStats` variants in `categoryStatsMap` (`useMemo`), enabling `getCategoryStats` to perform $O(1)$ zero-allocation reference lookups.
+  - Reduced `overallStats` aggregation complexity from $O(N \times M)$ to $O(N)$ by summing directly over `categoryStatsMap.values()`.
+  - Pre-computed `entriesByCatId`, funding sources, budget types, and daily expenses in parent `useMemo` in `PolicyGroupCard.tsx`, removing temporary `new Set()` and string regex parsing from JSX render loops.
+- **Outcome**: Eliminated GC heap memory spikes and render loop allocation churn.
+- **Audit Verdict**: **CLEAN** (`auditor_opt_r3`)
 
-### Milestone 3 (R3): Gatekeeper Verification & Zero-Stall Guarantee
-- **Documentation & Manifest Sync**: Logged detailed patch entries in `PORTFOLIO VITAL - Engineering Report.md` and `PORTFOLIO VITAL - Engineering Milestones.md`. Executed `node scripts/sync-rules.js` updating 156 milestones in `AGENTS.md`.
-- **Performance Bottleneck Remediation**: Replaced `useState(false)` + `setIsMounted(true)` in `useEffect` within `PortfolioDashboardView.tsx` with `useSyncExternalStore` (`useIsMounted()` hook), eliminating re-render thrashing during mount.
-- **System-Wide Gatekeeper Verification**:
-  - `npx tsc --noEmit`: 0 errors across 112 modules.
-  - `node scripts/diagnose-targets.js`: 0 Lint Warnings, 0 Architectural Violations, 0 Performance Bottlenecks.
-  - `node scripts/run-harness.js`: 100% PASS across Zod database integrity, ESLint syntax, and manifest synchronization.
-- **Result**: 100% 0-0-0-0-0 CLEAN verification by Final Challenger and Final Forensic Auditor.
+### Milestone 4: R4 Gatekeeper Verification & Sync Rules
+- **Commands Executed**:
+  - `npx tsc --noEmit`: 0 errors.
+  - `node scripts/run-harness.js`: 0 Zod database schema errors, 0 ESLint warnings/errors, 0 MVC architecture violations, 0 dynamic import bottlenecks.
+  - `node scripts/sync-rules.js`: Updated `AGENTS.md` section `## 5. 최신 동기화된 마일스톤 (Synced Milestones Log)`.
+- **Audit Verdict**: **CLEAN** (`auditor_opt_r4`)
 
----
-
-## Verification Summary Matrix
-
-| Milestone | Worker | Reviewer 1 | Reviewer 2 | Challenger | Forensic Auditor | Overall Status |
-|---|---|---|---|---|---|---|
-| M1 (R1) | Worker 1 (e72a1e47) | PASS | PASS | PASS | CLEAN | **DONE** |
-| M2 (R2) | Worker M2 (0721abe0) | PASS (0d18e58e) | PASS (26fdedb8) | 5/5 PASS (e889677f) | CLEAN (c3191378) | **DONE** |
-| M3 (R3) | Worker M3 & Remediation | PASS (6f8ac19f) | PASS (949ac321) | 100% PASS (ac6c173f) | CLEAN (a08cc172) | **DONE** |
-
----
-
-## Final Gatekeeper Outcome
-```
-====================================================
-🚀 Zod Gatekeeper: Starting Database Integrity Test...
-====================================================
-🔍 [CHECK] Validating 3 records in 'TASKS'...
-  ↳ ✅ [PASS] 'TASKS' is perfectly schema-compliant!
-🔍 [CHECK] Validating 15 records in 'BUDGET_CATEGORIES'...
-  ↳ ✅ [PASS] 'BUDGET_CATEGORIES' is perfectly schema-compliant!
-🔍 [CHECK] Validating 50 records in 'BUDGET_ENTRIES'...
-  ↳ ✅ [PASS] 'BUDGET_ENTRIES' is perfectly schema-compliant!
-🔍 [CHECK] Validating 8 records in 'PROJECTS'...
-  ↳ ✅ [PASS] 'PROJECTS' is perfectly schema-compliant!
-====================================================
-🎉 [PASS] Zod Gatekeeper: Database integrity test complete. 0 errors found.
-
-====================================================
-🔍 Lint/Type Gatekeeper: Checking source code syntax & warnings...
-====================================================
-  ↳ ✅ [PASS] Source code lint & types are perfectly compliant!
-
-====================================================
-🔄 Sync-Rules: Automatically syncing Manifest milestones...
-====================================================
-✨ AGENTS.md milestone list updated successfully! (Total 156 milestones)
-
-====================================================
-🎉 [PASS] All Gatekeeper tests complete. 0 errors found.
-====================================================
-```
+## Verification Summary
+- `npx tsc --noEmit` -> PASS (0 errors)
+- `node scripts/run-harness.js` -> PASS (0 Zod schema errors, 0 ESLint warnings, 0 MVC violations)
+- `node scripts/sync-rules.js` -> PASS (Manifest synced)

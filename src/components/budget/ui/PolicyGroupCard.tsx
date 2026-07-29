@@ -1,8 +1,14 @@
-import React, { useState, useMemo, useCallback } from 'react';
+'use client';
+
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { BudgetCategory, BudgetEntry, BudgetActionType } from '@/types';
 import { ChevronDown, ChevronUp, Pencil, Trash2, FileCheck, FilePlus2, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { CategoryStats } from '@/hooks/useBudget';
 import { BudgetCategoryCardItem } from './BudgetCategoryCardItem';
+import { InlineEditCell } from './InlineEditCell';
+import { useVirtualList } from '@/hooks/useVirtualList';
+import { useDocumentVisibility } from '@/hooks/useDocumentVisibility';
+import { getCategoryStatus, STATUS_CONFIG, CategoryStatus } from '@/hooks/useBudgetFilters';
 
 function formatN(n: number) { return n.toLocaleString('ko-KR'); }
 
@@ -15,19 +21,7 @@ export const ACTION_TYPE_CONFIG: Record<BudgetActionType, { label: string; badge
   settle: { label: '정산(결산)', badge: '정산', badgeBg: 'bg-gray-100 text-gray-700', icon: CheckCircle2 }
 };
 
-export const PolicyGroupCard = React.memo(({
-  group,
-  entries,
-  getCategoryStats,
-  deleteCategory,
-  deleteEntry,
-  openEditCat,
-  openAddCat,
-  openEditEntry,
-  openBatchEdit,
-  updateCategory,
-  hidePolicyHeader = false
-}: {
+interface PolicyGroupCardProps {
   group: { policyName: string; cats: BudgetCategory[] };
   entries: BudgetEntry[];
   getCategoryStats: (id: string) => CategoryStats | null;
@@ -38,26 +32,84 @@ export const PolicyGroupCard = React.memo(({
   openEditEntry: (entry: BudgetEntry) => void;
   openBatchEdit?: (title: string, cats: BudgetCategory[]) => void;
   updateCategory?: (id: string, updates: Partial<BudgetCategory>) => void;
+  updateEntry?: (id: string, updates: Partial<BudgetEntry>) => void;
   hidePolicyHeader?: boolean;
-}) => {
+}
+
+function arePolicyGroupCardPropsEqual(
+  prevProps: PolicyGroupCardProps,
+  nextProps: PolicyGroupCardProps
+): boolean {
+  if (prevProps.hidePolicyHeader !== nextProps.hidePolicyHeader) return false;
+  if (prevProps.deleteCategory !== nextProps.deleteCategory) return false;
+  if (prevProps.deleteEntry !== nextProps.deleteEntry) return false;
+  if (prevProps.openEditCat !== nextProps.openEditCat) return false;
+  if (prevProps.openAddCat !== nextProps.openAddCat) return false;
+  if (prevProps.openEditEntry !== nextProps.openEditEntry) return false;
+  if (prevProps.openBatchEdit !== nextProps.openBatchEdit) return false;
+  if (prevProps.updateCategory !== nextProps.updateCategory) return false;
+  if (prevProps.updateEntry !== nextProps.updateEntry) return false;
+
+  if (prevProps.group.policyName !== nextProps.group.policyName) return false;
+  
+  const pCats = prevProps.group.cats;
+  const nCats = nextProps.group.cats;
+  if (pCats.length !== nCats.length) return false;
+  for (let i = 0; i < pCats.length; i++) {
+    if (
+      pCats[i].id !== nCats[i].id ||
+      pCats[i].totalBudget !== nCats[i].totalBudget ||
+      pCats[i].sortOrder !== nCats[i].sortOrder ||
+      pCats[i].name !== nCats[i].name ||
+      pCats[i].budgetType !== nCats[i].budgetType ||
+      pCats[i].fundingSource !== nCats[i].fundingSource
+    ) {
+      return false;
+    }
+  }
+
+  const catIdSet = new Set(nCats.map(c => c.id));
+  const pGroupEntries = prevProps.entries.filter(e => catIdSet.has(e.categoryId));
+  const nGroupEntries = nextProps.entries.filter(e => catIdSet.has(e.categoryId));
+  if (pGroupEntries.length !== nGroupEntries.length) return false;
+  for (let i = 0; i < pGroupEntries.length; i++) {
+    if (
+      pGroupEntries[i].id !== nGroupEntries[i].id ||
+      pGroupEntries[i].amount !== nGroupEntries[i].amount ||
+      pGroupEntries[i].date !== nGroupEntries[i].date ||
+      pGroupEntries[i].purpose !== nGroupEntries[i].purpose ||
+      pGroupEntries[i].docRegNum !== nGroupEntries[i].docRegNum
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+const PolicyGroupCardComponent = ({
+  group,
+  entries,
+  getCategoryStats,
+  deleteCategory,
+  deleteEntry,
+  openEditCat,
+  openAddCat,
+  openEditEntry,
+  openBatchEdit,
+  updateCategory,
+  updateEntry,
+  hidePolicyHeader = false
+}: PolicyGroupCardProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [showAllEntries, setShowAllEntries] = useState(false);
+  const [activeCellId, setActiveCellId] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isVisible = useDocumentVisibility();
+
   const { policyName, cats } = group;
 
-  // 편성목 순서 교환 (↑↓)
-  const handleSwapCat = useCallback((sortedCats: BudgetCategory[], idx: number, dir: -1 | 1) => {
-    if (!updateCategory) return;
-    const targetIdx = idx + dir;
-    if (targetIdx < 0 || targetIdx >= sortedCats.length) return;
-    const currentCat = sortedCats[idx];
-    const targetCat = sortedCats[targetIdx];
-    if (currentCat && targetCat) {
-      updateCategory(currentCat.id, { sortOrder: targetIdx });
-      updateCategory(targetCat.id, { sortOrder: idx });
-    }
-  }, [updateCategory]);
-
-  const { totalBudget, spent, planned, remaining, usageRate, groupEntries, entriesByCatId, groupedByDetail, groupFunding, groupTypes, catMap } = useMemo(() => {
+  const { totalBudget, spent, planned, remaining, usageRate, groupEntries, entriesByCatId, groupedByDetail, groupFunding, groupTypes, groupStatus, catMap } = useMemo(() => {
     const tBudget = cats.reduce((s, c) => s + c.totalBudget, 0);
     let tSpent = 0; let tPlanned = 0; let tRemaining = 0;
     
@@ -75,7 +127,6 @@ export const PolicyGroupCard = React.memo(({
       .sort((a, b) => b.ts - a.ts)
       .map(item => item.entry);
 
-    // Group entries by categoryId in O(E) time to eliminate O(C * E) complexity in render
     const entriesByCatMap: Record<string, BudgetEntry[]> = {};
     cats.forEach(c => {
       entriesByCatMap[c.id] = [];
@@ -86,13 +137,11 @@ export const PolicyGroupCard = React.memo(({
       }
     });
 
-    // Build category ID lookup map in O(C)
     const categoryLookupMap: Record<string, BudgetCategory> = {};
     cats.forEach(c => {
       categoryLookupMap[c.id] = c;
     });
 
-    // Group by detailedProject in O(C)
     const groupsMap: Record<string, BudgetCategory[]> = {};
     cats.forEach(cat => {
       const detail = cat.detailedProject || '분류되지 않은 세부사업';
@@ -102,13 +151,54 @@ export const PolicyGroupCard = React.memo(({
       groupsMap[detail].push(cat);
     });
     
-    const groups = Object.keys(groupsMap).map(detail => ({
-      detailName: detail,
-      cats: groupsMap[detail]
-    }));
-    // Sort cats within each group by sortOrder
-    groups.forEach(g => {
-      g.cats.sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
+    const groups = Object.keys(groupsMap).map(detail => {
+      const detailCats = groupsMap[detail];
+      detailCats.sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
+
+      let detailTotalBudget = 0;
+      let detailDailyIssued = 0;
+      let detailDailySpent = 0;
+      let detailDailyRemaining = 0;
+
+      const detailFundingSet = new Set<string>();
+      const detailTypesSet = new Set<string>();
+
+      for (const c of detailCats) {
+        detailTotalBudget += c.totalBudget;
+
+        const st = getCategoryStats(c.id);
+        if (st) {
+          detailDailyIssued += st.dailyExpenseIssued;
+          detailDailySpent += st.dailyExpenseSpent;
+          detailDailyRemaining += st.dailyExpenseRemaining;
+        }
+
+        if (c.fundingSource) {
+          const clean = c.fundingSource.replace(/구비\(자체\)/g, '구비').replace(/\([^)]+\)/g, '');
+          const parts = clean.split(',');
+          for (let i = 0; i < parts.length; i++) {
+            const t = parts[i].trim();
+            if (t && t !== '구비') {
+              detailFundingSet.add(t);
+            }
+          }
+        }
+
+        if (c.budgetType && c.budgetType !== '본예산') {
+          detailTypesSet.add(c.budgetType);
+        }
+      }
+
+      return {
+        detailName: detail,
+        cats: detailCats,
+        detailTotalBudget,
+        detailDailyIssued,
+        detailDailySpent,
+        detailDailyRemaining,
+        detailFunding: Array.from(detailFundingSet),
+        detailTypes: Array.from(detailTypesSet)
+      };
     });
 
     const groupFundingSet = new Set<string>();
@@ -117,12 +207,13 @@ export const PolicyGroupCard = React.memo(({
           const clean = c.fundingSource.replace(/\([^)]+\)/g, '');
           clean.split(',').forEach(p => {
              const t = p.trim();
-             if (t && t !== '구비' && t !== '구비') groupFundingSet.add(t);
+             if (t && t !== '구비') groupFundingSet.add(t);
           });
        }
      });
     const groupFunding = Array.from(groupFundingSet);
     const groupTypes = Array.from(new Set(cats.map(c => c.budgetType).filter(t => t && t !== '본예산')));
+    const groupStatus: CategoryStatus = getCategoryStatus(rate, tRemaining);
 
     return { 
       totalBudget: tBudget, 
@@ -135,13 +226,69 @@ export const PolicyGroupCard = React.memo(({
       groupedByDetail: groups, 
       groupFunding, 
       groupTypes, 
+      groupStatus,
       catMap: categoryLookupMap 
     };
   }, [cats, entries, getCategoryStats]);
 
+  const groupStatusCfg = STATUS_CONFIG[groupStatus as keyof typeof STATUS_CONFIG];
+
+  // Stable swap callback function passed down to BudgetCategoryCardItem instances
+  const handleSwapCat = useCallback((catId: string, dir: -1 | 1) => {
+    if (!updateCategory) return;
+    for (const detailGroup of groupedByDetail) {
+      const idx = detailGroup.cats.findIndex(c => c.id === catId);
+      if (idx !== -1) {
+        const targetIdx = idx + dir;
+        if (targetIdx < 0 || targetIdx >= detailGroup.cats.length) return;
+        const currentCat = detailGroup.cats[idx];
+        const targetCat = detailGroup.cats[targetIdx];
+        if (currentCat && targetCat) {
+          updateCategory(currentCat.id, { sortOrder: targetIdx });
+          updateCategory(targetCat.id, { sortOrder: idx });
+        }
+        break;
+      }
+    }
+  }, [updateCategory, groupedByDetail]);
+
   const visibleGroupEntries = useMemo(() => {
     return showAllEntries ? groupEntries : groupEntries.slice(0, 6);
   }, [groupEntries, showAllEntries]);
+
+  const entryCellIdList = useMemo(() => {
+    const list: string[] = [];
+    visibleGroupEntries.forEach(entry => {
+      list.push(`${entry.id}:date`);
+      list.push(`${entry.id}:docRegNum`);
+      list.push(`${entry.id}:purpose`);
+      list.push(`${entry.id}:amount`);
+    });
+    return list;
+  }, [visibleGroupEntries]);
+
+  const handleCellNavigate = useCallback((currentCellId: string, direction: 'next' | 'prev') => {
+    const index = entryCellIdList.indexOf(currentCellId);
+    if (index === -1) return;
+    let targetIndex = direction === 'next' ? index + 1 : index - 1;
+    if (targetIndex >= entryCellIdList.length) targetIndex = 0;
+    if (targetIndex < 0) targetIndex = entryCellIdList.length - 1;
+    setActiveCellId(entryCellIdList[targetIndex]);
+  }, [entryCellIdList]);
+
+  // Window virtualization for detailed groups when list is long (> 3 groups)
+  const isVirtualizationActive = groupedByDetail.length > 3;
+  const { startIndex, endIndex, topPadding, bottomPadding } = useVirtualList({
+    totalItems: groupedByDetail.length,
+    itemHeight: 200,
+    overscan: 2,
+    containerRef
+  });
+
+  const visibleDetailGroups = useMemo(() => {
+    if (!isVirtualizationActive) return groupedByDetail;
+    return groupedByDetail.slice(startIndex, endIndex);
+  }, [groupedByDetail, isVirtualizationActive, startIndex, endIndex]);
 
   return (
     <div className={`glass-panel rounded-[2rem] mb-5 last:mb-0 transition-all duration-300 shadow-2xs ${hidePolicyHeader ? '' : 'border border-slate-200/60 hover:border-indigo-400/50 hover:shadow-md hover:shadow-indigo-500/5'}`}>
@@ -158,6 +305,9 @@ export const PolicyGroupCard = React.memo(({
               <div>
                  <h3 className="font-bold text-[18px] text-gray-800 tracking-tight group-hover:text-[var(--color-primary)] transition-colors flex items-center gap-1.5 flex-wrap">
                    {policyName}
+                   <span className={`text-[11px] font-bold px-2 py-0.5 rounded-lg border shadow-3xs ${groupStatusCfg.badgeClass}`}>
+                     {groupStatusCfg.label}
+                   </span>
                    {groupTypes.map(t => (
                      <span key={t} className={`text-[11px] font-semibold px-2 py-0.5 rounded-lg border ${t === '간주예산' ? 'bg-purple-50/80 text-purple-700 border-purple-200/60 shadow-3xs' : 'bg-rose-50/80 text-rose-700 border-rose-200/60 shadow-3xs'}`}>{t}</span>
                    ))}
@@ -197,7 +347,7 @@ export const PolicyGroupCard = React.memo(({
                  }`} 
                  style={{ width: `${Math.min(100, usageRate)}%` }}
                >
-                 <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" style={{ backgroundSize: '200% 100%' }} />
+                 <div className={`absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent ${isVisible ? 'animate-shimmer' : ''}`} style={{ backgroundSize: '200% 100%' }} />
                </div>
             </div>
             {planned > 0 && <div className="text-[11px] text-amber-700 font-bold bg-amber-50/80 px-2 py-1 rounded-lg inline-block self-start border border-amber-200/60 shadow-3xs">📋 품의 진행/예정: {formatN(planned)}원</div>}
@@ -206,51 +356,39 @@ export const PolicyGroupCard = React.memo(({
       )}
       
       {(hidePolicyHeader || isOpen) && (
-        <div className={`px-5 py-3 transition-all duration-300 ease-in-out divide-y divide-gray-100 ${hidePolicyHeader ? 'px-1 pt-1 border border-slate-200 rounded-xl bg-white shadow-sm' : ''}`}>
-          {groupedByDetail.map(detailGroup => {
-            const detailTotalBudget = detailGroup.cats.reduce((sum, c) => sum + c.totalBudget, 0);
-            const detailDailyIssued = detailGroup.cats.reduce((sum, c) => {
-              const st = getCategoryStats(c.id);
-              return sum + (st ? st.dailyExpenseIssued : 0);
-            }, 0);
-            const detailDailySpent = detailGroup.cats.reduce((sum, c) => {
-              const st = getCategoryStats(c.id);
-              return sum + (st ? st.dailyExpenseSpent : 0);
-            }, 0);
-            const detailDailyRemaining = detailGroup.cats.reduce((sum, c) => {
-              const st = getCategoryStats(c.id);
-              return sum + (st ? st.dailyExpenseRemaining : 0);
-            }, 0);
+        <div ref={containerRef} className={`px-5 py-3 transition-all duration-300 ease-in-out divide-y divide-gray-100 ${hidePolicyHeader ? 'px-1 pt-1 border border-slate-200 rounded-xl bg-white shadow-sm' : ''}`}>
+          {isVirtualizationActive && topPadding > 0 && (
+            <div style={{ height: `${topPadding}px` }} aria-hidden="true" />
+          )}
 
-            const detailFundingSet = new Set<string>();
-            detailGroup.cats.forEach(c => {
-               if (c.fundingSource) {
-                  const clean = c.fundingSource.replace(/구비\(자체\)/g, '구비').replace(/\([^)]+\)/g, '');
-                  clean.split(',').forEach(p => {
-                     const t = p.trim();
-                     if (t && t !== '구비' && t !== '구비') detailFundingSet.add(t);
-                  });
-               }
-            });
-            const detailFunding = Array.from(detailFundingSet);
-            const detailTypes = Array.from(new Set(detailGroup.cats.map(c => c.budgetType).filter(t => t && t !== '본예산')));
+          {visibleDetailGroups.map(detailGroup => {
+            const {
+              detailName,
+              cats: detailCats,
+              detailTotalBudget,
+              detailDailyIssued,
+              detailDailySpent,
+              detailDailyRemaining,
+              detailFunding,
+              detailTypes
+            } = detailGroup;
             
             return (
-              <div key={detailGroup.detailName} className="py-3 first:pt-0">
+              <div key={detailName} className="py-3 first:pt-0">
                 <div className={`flex items-center gap-2 ${hidePolicyHeader ? 'mb-4 border-b border-slate-100 pb-4 px-3 pt-2' : 'mb-2.5'}`}>
                   <div className={`${hidePolicyHeader ? 'w-8 h-8' : 'w-5 h-5'} rounded bg-[var(--color-primary)]/10 flex items-center justify-center`}>
                     <div className={`${hidePolicyHeader ? 'w-3.5 h-3.5' : 'w-2 h-2'} rounded-full bg-[var(--color-primary)]`} />
                   </div>
                   <div className={`flex items-center gap-2 font-semibold text-gray-800 flex-wrap ${hidePolicyHeader ? 'text-xl tracking-tight' : 'text-[17px]'}`}>
-                    {detailGroup.detailName}
+                    {detailName}
                     {policyName && (
                       <span className={`font-bold rounded-lg border bg-indigo-50/80 text-indigo-700 border-indigo-200/60 shadow-3xs ${hidePolicyHeader ? 'text-xs px-2 py-0.5' : 'text-[11px] px-1.5 py-0.5'}`}>
                         정책: {policyName}
                       </span>
                     )}
-                    {detailGroup.cats[0]?.unitProject && (
+                    {detailCats[0]?.unitProject && (
                       <span className={`font-bold rounded-lg border bg-slate-50 text-slate-600 border-slate-200 shadow-3xs ${hidePolicyHeader ? 'text-xs px-2 py-0.5' : 'text-[11px] px-1.5 py-0.5'}`}>
-                        단위: {detailGroup.cats[0].unitProject}
+                        단위: {detailCats[0].unitProject}
                       </span>
                     )}
                     {detailTypes.map(t => (
@@ -271,8 +409,8 @@ export const PolicyGroupCard = React.memo(({
                           e.stopPropagation(); 
                           openAddCat({ 
                             policyProject: policyName, 
-                            unitProject: detailGroup.cats[0]?.unitProject, 
-                            detailedProject: detailGroup.detailName,
+                            unitProject: detailCats[0]?.unitProject, 
+                            detailedProject: detailName,
                             budgetType: (detailTypes[0] as '본예산' | '추경') || '본예산',
                             fundingSource: detailFunding[0] || '구비'
                           }); 
@@ -287,7 +425,7 @@ export const PolicyGroupCard = React.memo(({
                       <button 
                         onClick={(e) => { 
                           e.stopPropagation(); 
-                          openBatchEdit(detailGroup.detailName, detailGroup.cats);
+                          openBatchEdit(detailName, detailCats);
                         }} 
                         className="ml-1 text-[11px] font-semibold px-2 py-0.5 rounded border bg-indigo-50 text-indigo-700 border-indigo-200 cursor-pointer hover:bg-indigo-100 transition-colors flex items-center gap-1 shadow-sm"
                         title="이 세부사업 내 모든 통계목에 동일한 재원비율 일괄 할당"
@@ -299,10 +437,10 @@ export const PolicyGroupCard = React.memo(({
                 </div>
                 
                 <div className="space-y-3 pl-2">
-                  {detailGroup.cats.map((cat, catIdx) => {
+                  {detailCats.map((cat, catIdx) => {
                     const stats = getCategoryStats(cat.id);
                     const isFirst = catIdx === 0;
-                    const isLast = catIdx === detailGroup.cats.length - 1;
+                    const isLast = catIdx === detailCats.length - 1;
                     const catEntries = entriesByCatId[cat.id] || [];
 
                     return (
@@ -313,10 +451,12 @@ export const PolicyGroupCard = React.memo(({
                         catEntries={catEntries}
                         isFirst={isFirst}
                         isLast={isLast}
-                        onSwapCat={updateCategory ? (dir) => handleSwapCat(detailGroup.cats, catIdx, dir) : undefined}
+                        onSwapCat={updateCategory ? handleSwapCat : undefined}
                         onEditCat={openEditCat}
                         onDeleteCat={deleteCategory}
                         onEditEntry={openEditEntry}
+                        updateCategory={updateCategory}
+                        updateEntry={updateEntry}
                       />
                     );
                   })}
@@ -324,6 +464,10 @@ export const PolicyGroupCard = React.memo(({
               </div>
             );
           })}
+
+          {isVirtualizationActive && bottomPadding > 0 && (
+            <div style={{ height: `${bottomPadding}px` }} aria-hidden="true" />
+          )}
           
           {groupEntries.length > 0 && (
             <div className="pt-3 space-y-2 mt-2">
@@ -356,29 +500,72 @@ export const PolicyGroupCard = React.memo(({
                         </span>
                       </div>
                       <div className="w-[90px] flex items-center flex-shrink-0 pr-3">
-                        <span className="text-[13.5px] text-gray-500 font-medium tracking-tight whitespace-nowrap">
-                          {entry.date.replace(/-/g, '.')}
-                        </span>
+                        <InlineEditCell
+                          cellId={`${entry.id}:date`}
+                          value={entry.date}
+                          type="date"
+                          isEditing={activeCellId === `${entry.id}:date`}
+                          onStartEdit={() => setActiveCellId(`${entry.id}:date`)}
+                          onCancelEdit={() => setActiveCellId(null)}
+                          onSave={(newVal) => updateEntry && updateEntry(entry.id, { date: String(newVal) })}
+                          onNavigate={(dir) => handleCellNavigate(`${entry.id}:date`, dir)}
+                          displayFormatter={(v) => String(v).replace(/-/g, '.')}
+                          className="text-[13.5px] text-gray-500 font-medium tracking-tight whitespace-nowrap"
+                        />
                       </div>
                       <div className="w-[140px] hidden lg:flex items-center flex-shrink-0 pr-3">
-                        {entry.docRegNum && (
-                          <span className="text-[13px] bg-indigo-50 border border-indigo-100 text-indigo-700 px-2 py-0.5 rounded-md whitespace-nowrap">
-                            {entry.docRegNum}
-                          </span>
-                        )}
+                        <InlineEditCell
+                          cellId={`${entry.id}:docRegNum`}
+                          value={entry.docRegNum || ''}
+                          type="text"
+                          placeholder="문서번호 입력"
+                          isEditing={activeCellId === `${entry.id}:docRegNum`}
+                          onStartEdit={() => setActiveCellId(`${entry.id}:docRegNum`)}
+                          onCancelEdit={() => setActiveCellId(null)}
+                          onSave={(newVal) => updateEntry && updateEntry(entry.id, { docRegNum: String(newVal) })}
+                          onNavigate={(dir) => handleCellNavigate(`${entry.id}:docRegNum`, dir)}
+                          displayFormatter={(v) => v ? (
+                            <span className="text-[13px] bg-indigo-50 border border-indigo-100 text-indigo-700 px-2 py-0.5 rounded-md whitespace-nowrap">
+                              {String(v)}
+                            </span>
+                          ) : <span className="text-[12px] text-slate-300 font-light">+문서번호</span>}
+                        />
                       </div>
                       <div className="flex-1 min-w-[150px] pr-2">
-                        <span className={`${entry.purpose?.includes('(일상경비 교부)') ? 'text-red-500 font-extrabold' : 'text-gray-800 font-semibold'} tracking-tight line-clamp-1 text-[15px]`} title={entry.purpose}>
-                           {entry.purpose}
-                        </span>
+                        <InlineEditCell
+                          cellId={`${entry.id}:purpose`}
+                          value={entry.purpose || ''}
+                          type="text"
+                          isEditing={activeCellId === `${entry.id}:purpose`}
+                          onStartEdit={() => setActiveCellId(`${entry.id}:purpose`)}
+                          onCancelEdit={() => setActiveCellId(null)}
+                          onSave={(newVal) => updateEntry && updateEntry(entry.id, { purpose: String(newVal) })}
+                          onNavigate={(dir) => handleCellNavigate(`${entry.id}:purpose`, dir)}
+                          className={`${entry.purpose?.includes('(일상경비 교부)') ? 'text-red-500 font-extrabold' : 'text-gray-800 font-semibold'} tracking-tight line-clamp-1 text-[15px]`}
+                        />
                       </div>
                       <div className="w-[130px] sm:w-[160px] flex items-center justify-end gap-3 flex-shrink-0">
-                         <span className="font-semibold text-gray-800 tracking-tight tabular-nums whitespace-nowrap text-[15px]">{formatN(entry.amount)}원</span>
-                         <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 absolute right-2 top-2 sm:relative sm:top-0 sm:right-0 bg-white sm:bg-transparent rounded p-1 sm:p-0 border border-slate-200 sm:border-none z-10 w-auto sm:w-[56px] justify-end flex-shrink-0">
-                           <button onClick={() => openEditEntry(entry)} className="p-1 rounded hover:bg-slate-100 text-gray-500" title="수정"><Pencil size={13} /></button>
-                           <button onClick={() => { if(window.confirm('이 지출 내역을 정말 삭제하시겠습니까? 삭제된 데이터는 복구할 수 없습니다.')) deleteEntry(entry.id) }} className="p-1 rounded hover:bg-red-50 text-gray-500 hover:text-red-500" title="삭제"><Trash2 size={13} /></button>
-                         </div>
-                       </div>
+                        <InlineEditCell
+                          cellId={`${entry.id}:amount`}
+                          value={entry.amount}
+                          type="number"
+                          isEditing={activeCellId === `${entry.id}:amount`}
+                          onStartEdit={() => setActiveCellId(`${entry.id}:amount`)}
+                          onCancelEdit={() => setActiveCellId(null)}
+                          onSave={(newVal) => {
+                            const cleanStr = String(newVal).replace(/,/g, '').trim();
+                            const numVal = Number(cleanStr);
+                            if (updateEntry) updateEntry(entry.id, { amount: isNaN(numVal) ? 0 : numVal });
+                          }}
+                          onNavigate={(dir) => handleCellNavigate(`${entry.id}:amount`, dir)}
+                          displayFormatter={(v) => `${formatN(Number(v))}원`}
+                          className="font-semibold text-gray-800 tracking-tight tabular-nums whitespace-nowrap text-[15px]"
+                        />
+                        <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 absolute right-2 top-2 sm:relative sm:top-0 sm:right-0 bg-white sm:bg-transparent rounded p-1 sm:p-0 border border-slate-200 sm:border-none z-10 w-auto sm:w-[56px] justify-end flex-shrink-0">
+                          <button onClick={() => openEditEntry(entry)} className="p-1 rounded hover:bg-slate-100 text-gray-500" title="수정"><Pencil size={13} /></button>
+                          <button onClick={() => { if(window.confirm('이 지출 내역을 정말 삭제하시겠습니까? 삭제된 데이터는 복구할 수 없습니다.')) deleteEntry(entry.id) }} className="p-1 rounded hover:bg-red-50 text-gray-500 hover:text-red-500" title="삭제"><Trash2 size={13} /></button>
+                        </div>
+                      </div>
                     </div>
                   );
                 })}
@@ -389,6 +576,7 @@ export const PolicyGroupCard = React.memo(({
       )}
     </div>
   );
-});
+};
 
+export const PolicyGroupCard = React.memo(PolicyGroupCardComponent, arePolicyGroupCardPropsEqual);
 PolicyGroupCard.displayName = "PolicyGroupCard";

@@ -1,49 +1,51 @@
-# BRIEFING — 2026-07-21T10:32:00+09:00
+# BRIEFING — 2026-07-29T07:11:45Z
 
 ## Mission
-Empirically verify and challenge R1 implementation (hook execution, memoization stability, useGraphCustomization enabled option, tsc & harness tests).
+Adversarially test performance (0ms delay & re-render isolation) and boundary input handling for R1 Inline-Editing in `src/components/budget/`.
 
 ## 🔒 My Identity
 - Archetype: EMPIRICAL CHALLENGER
 - Roles: critic, specialist
 - Working directory: d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\challenger_r1_2
-- Original parent: 31023d6a-4d28-409e-8e0c-51403b90eef9
-- Milestone: R1 Verification & Challenge
-- Instance: 1 of 1
+- Original parent: 00635cc5-d18f-4d97-8802-1a1eb5483fc2
+- Milestone: R1: Table Inline-Editing & Keyboard Navigation System
+- Instance: 2 of 2
 
 ## 🔒 Key Constraints
-- Review-only & empirical testing — do NOT modify implementation code (only write test scripts/harnesses in working directory if needed or run existing commands).
-- Must execute verification code empirically.
+- Review-only — do NOT modify implementation code in `src/`
+- Run verification code empirically — write and execute tests, generators, oracles, stress harnesses
+- Do NOT trust claims or logs — reproduce bugs empirically or confirm pass with concrete evidence
 
 ## Current Parent
-- Conversation ID: 31023d6a-4d28-409e-8e0c-51403b90eef9
-- Updated: 2026-07-21T10:32:00+09:00
+- Conversation ID: 00635cc5-d18f-4d97-8802-1a1eb5483fc2
+- Updated: 2026-07-29T07:11:45Z
 
 ## Review Scope
-- **Files reviewed**: `src/hooks/useGraphCustomization.ts`, `src/hooks/useYjsStore.ts`, `__tests__/useGraphCustomization.test.tsx`, `__tests__/challenger-r1-2.test.tsx`.
-- **Verification commands**: `npx tsc --noEmit`, `node scripts/run-harness.js`, `npx jest __tests__/useGraphCustomization.test.tsx`, `npx jest __tests__/challenger-r1-2.test.tsx`.
+- **Files to review**: `src/components/budget/ui/InlineEditCell.tsx`, `BudgetCategoryCardItem.tsx`, `PolicyGroupCard.tsx`, `src/lib/schemas.ts`
+- **Interface contracts**: R1 Inline-Editing & Keyboard Navigation System specification
+- **Review criteria**: Re-render isolation, 0ms input delay, boundary inputs (0, -100, 1,000,000, spaces, special chars, schema compliance, tsc, harness)
+
+## Key Decisions Made
+- Executed empirical test runner `scratch/test_r1_adversarial.js` covering 18 test cases across performance, boundary inputs, Zod schemas, and prop update race conditions.
+- Confirmed re-render isolation: typing 100 characters causes 0 parent card re-renders.
+- Discovered 3 empirical failure modes (subItem comma parsing converting `"1,000,000"` to `0`, `'원'` suffix parsing converting `"50,000원"` to `0`, and `useEffect([value])` wiping uncommitted input on parent prop change).
 
 ## Attack Surface
 - **Hypotheses tested**: 
-  - `useGraphCustomization` auto-save effect triggers or bypasses correctly based on `enabled` parameter (`false` vs `true`) — **VERIFIED PASS**
-  - Hook execution and memoization stability under high frequency or edge-case updates — **VERIFIED PASS**
-  - TypeScript compilation clean without errors — **VERIFIED PASS**
-  - System harness tests pass without errors (`node scripts/run-harness.js`) — **VERIFIED PASS**
-- **Vulnerabilities found**: None. 0 type errors, 0 schema errors, 0 lint errors, 0 diagnostic flaws.
-- **Untested angles**: Production cloud API live endpoints (mocked in unit tests).
-
-## Loaded Skills
-None loaded.
-
-## Key Decisions Made
-- Executed `npx tsc --noEmit` and `node scripts/run-harness.js`.
-- Executed `npx jest __tests__/useGraphCustomization.test.tsx`.
-- Created `__tests__/challenger-r1-2.test.tsx` to empirically stress-test hook reference stability, high-frequency batch updates (200 rapid updates), and auto-save/auto-load behavior across `enabled = false` vs `enabled = true`.
-- Determined verdict: **PASS**.
+  - 100 character typing isolation -> PASSED (0 parent renders)
+  - SubItem amount comma handling -> FAILED (`Number("1,000,000")` -> `NaN` -> `0`)
+  - Korean currency '원' suffix handling -> FAILED (`Number("50000원")` -> `NaN` -> `0`)
+  - External prop change during editing -> FAILED (`useEffect([value])` overwrites `tempValue`)
+  - Negative numbers, 0, whitespace, script tags -> PASSED
+- **Vulnerabilities found**: 
+  1. SubItem amount data reset bug on formatted numbers in `BudgetCategoryCardItem.tsx:155`.
+  2. Currency suffix data loss bug in numeric inputs.
+  3. Active edit overwrite bug in `InlineEditCell.tsx:46`.
+  4. ESLint `react-hooks/set-state-in-effect` warning on `InlineEditCell.tsx:46`.
+- **Untested angles**: Multi-cell keyboard navigation focus trapping during rapid network latency spikes.
 
 ## Artifact Index
-- `.agents/challenger_r1_2/ORIGINAL_REQUEST.md` — logged prompt
-- `.agents/challenger_r1_2/BRIEFING.md` — persistent memory index
-- `.agents/challenger_r1_2/progress.md` — heartbeat and progress tracker
-- `.agents/challenger_r1_2/handoff.md` — formal 5-component handoff report
-- `__tests__/challenger-r1-2.test.tsx` — empirical challenger test suite
+- `.agents/challenger_r1_2/ORIGINAL_REQUEST.md` — Original request text
+- `.agents/challenger_r1_2/BRIEFING.md` — Active briefing state
+- `.agents/challenger_r1_2/progress.md` — Active progress tracker
+- `scratch/test_r1_adversarial.js` — Empirical test runner script

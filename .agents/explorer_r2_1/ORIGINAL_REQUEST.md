@@ -1,17 +1,19 @@
-## 2026-07-21T01:35:10Z
-You are explorer_r2_1.
-Your working directory is d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\explorer_r2_1.
+## 2026-07-23T01:28:47Z
+You are explorer_r2_1, an Explorer subagent for the Localhost UX Optimization project.
+Your working directory is `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\explorer_r2_1`.
 
-Your task is to analyze Requirement 2 (R2): 3D WebGL Frame Pause & Physics Freezing.
+Mission: Explore R2 requirements — Localhost Health & Daemon Status HUD Component.
+Specifically:
+1. Examine layout and sidebar components in `src/components/layout/` or `src/components/dashboard/` (e.g. Sidebar, Navigation, Header, Layout wrappers).
+2. Determine the optimal placement and integration point for the new `LocalhostStatusHUD` component.
+3. Investigate how to fetch or probe the required metrics:
+   - Server Port (3001)
+   - Local Heap Usage (MB) (e.g. `(performance as any).memory?.usedJSHeapSize` or process API / status endpoint)
+   - Auto-Backup count (e.g. scanning backup count from API or local stats)
+   - File Watcher status
+   - Offline Sync indicator (e.g. `navigator.onLine` / CRDT sync status)
+4. Design the UI/UX layout and component structure for a modern, high-contrast dark theme HUD widget adhering to TailwindCSS v4 standards.
 
-Target files to inspect:
-- `src/components/MindMap3D.tsx`
-- `src/lib/engine/OntologyRenderer.ts` (or `OntologyRenderer.tsx`)
-- Any animation frame loop or canvas lifecycle handlers in `OntologyCanvasEngine.ts` or renderer.
-
-Objectives:
-1. Identify where `requestAnimationFrame` and physics velocity/position integration loops are initiated and scheduled in `OntologyRenderer` or `MindMap3D`.
-2. Analyze how to detect when the mindmap tab is inactive or active (e.g. `activeModule !== 'mindmap'` or `isActive` prop or canvas visibility).
-3. Formulate a strategy to immediately cancel/pause the `requestAnimationFrame` loop and freeze node velocity/positions when navigating away from the mindmap tab.
-4. Formulate a strategy to instantly resume rendering upon returning to the mindmap tab WITHOUT triggering a physics delta time spike ("whiplash" or re-simulation explosion).
-5. Write your analysis report to `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\explorer_r2_1\analysis.md` and `handoff.md`, and send a message back to parent.
+Output:
+Write your analysis to `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\explorer_r2_1\analysis.md` and deliver a handoff report in `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\explorer_r2_1\handoff.md`.
+Send a completion message back to parent orchestrator.

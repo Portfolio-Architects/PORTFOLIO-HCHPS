@@ -1,55 +1,62 @@
-# BRIEFING — 2026-07-16T12:38:50+09:00
+# BRIEFING — 2026-07-23T05:05:00Z
 
 ## Mission
-Implement the synthesized performance optimization strategy for the 3D Mindmap rendering engine (OntologyLayout, OntologyRenderer, collision resolution, orbiting, etc.).
+Implement Milestone M2 (R2: Virtualize Budget Category Cards & Eliminate Excess DOM Nodes) for PORTFOLIO - VITAL.
 
 ## 🔒 My Identity
-- Archetype: Optimizer Worker
+- Archetype: implementer / qa / specialist
 - Roles: implementer, qa, specialist
-- Working directory: d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\worker_opt_r2
-- Original parent: 9b15eace-e7e8-4066-8492-f68b1200e2a3
-- Milestone: Milestone 2: 3D Mindmap Rendering Performance Optimization
+- Working directory: d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\worker_opt_r2\
+- Original parent: 6f3aed7a-0d51-4eba-a3cc-2ea1f05a5137
+- Milestone: M2 (R2: Virtualize Budget Category Cards & Eliminate Excess DOM Nodes)
 
 ## 🔒 Key Constraints
-- Decouple layout structural updates from geometry updates using a new `isTopologyDirty` flag.
-- Skip processing off-screen nodes/labels in `OntologyRenderer.ts` using frustum/viewport culling.
-- Optimize collision loop iterations dynamically based on FPS, decay damping, ignore <0.8px, skip collision during passive pan/zoom, sleep faster.
-- Cache unit vectors `(orbitCos, orbitSin)`, bypass LERP during active orbiting, Taylor-series approximations, cache tilt angles statically, precompute 64-segment orbit rings.
-- Record patch details in `PORTFOLIO VITAL - Engineering Report.md` and run `node scripts/sync-rules.js`.
-- No cheating (no hardcoding, no dummy/facade implementations).
-- Follow MVC/FSD rules from AGENTS.md.
+- Virtualize/window/chunk memoized rendering for budget category cards and policy group card lists.
+- Fix broken React.memo on BudgetCategoryCardItem by stabilizing callbacks in PolicyGroupCard using useCallback.
+- Pass `npx tsc --noEmit` with 0 errors.
+- Pass `node scripts/run-harness.js` with 0 Zod errors, 0 ESLint warnings, 0 MVC violations.
+- Document in `PORTFOLIO VITAL - Engineering Report.md`, sync rules via `node scripts/sync-rules.js`.
+- Write handoff report in `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\worker_opt_r2\handoff.md`.
 
 ## Current Parent
-- Conversation ID: 9b15eace-e7e8-4066-8492-f68b1200e2a3
-- Updated: not yet
+- Conversation ID: 6f3aed7a-0d51-4eba-a3cc-2ea1f05a5137
+- Updated: 2026-07-23T05:05:00Z
 
 ## Task Summary
-- **What to build**: Synthesized performance optimizations for the 3D Mindmap rendering engine.
-- **Success criteria**: All optimizations implemented genuinely, build and tests pass successfully (`node scripts/run-harness.js` passes), and report generated.
-- **Interface contracts**: `PROJECT.md` / `SCOPE.md` if available, and the code layout of the codebase.
+- **What to build**: Budget category card virtualization/windowing & DOM node optimization, memoization stabilization in Budget components.
+- **Success criteria**: 0 TSC errors, 0 harness errors/warnings, virtualized/memoized budget rendering, handoff report.
+- **Interface contracts**: `PROJECT.md` / `AGENTS.md`
+- **Code layout**: `src/components/budget/`
 
 ## Key Decisions Made
-- Use files under `.agents/worker_opt_r2/` for metadata.
-- Read `synthesis.md` and the two explorer reports before planning.
+- Created `src/hooks/useVirtualList.ts` for zero-dependency window virtualization.
+- Updated `BudgetCategoryCardItem.tsx` with stable `onSwapCat` signature and custom `areBudgetCategoryCardItemPropsEqual` comparator.
+- Updated `PolicyGroupCard.tsx` with `useCallback` for `handleSwapCat`, `useVirtualList` windowing, and `arePolicyGroupCardPropsEqual` comparator.
+- Updated `BudgetDashboard.tsx` with `useVirtualList` for policy groups and `useCallback` for all event handler functions.
+- Verified TypeScript compilation (`npx tsc --noEmit`) with 0 errors.
+- Verified harness validation (`node scripts/run-harness.js`) with 0 Zod errors, 0 ESLint warnings, 0 MVC violations.
 
 ## Artifact Index
-- `.agents/worker_opt_r2/BRIEFING.md` — Initial briefing
-- `.agents/worker_opt_r2/progress.md` — Progress tracker
+- `.agents/worker_opt_r2/ORIGINAL_REQUEST.md` — Original request
+- `.agents/worker_opt_r2/BRIEFING.md` — Agent briefing
+- `.agents/worker_opt_r2/progress.md` — Progress log
+- `.agents/worker_opt_r2/handoff.md` — Detailed handoff report
 
 ## Change Tracker
 - **Files modified**:
-  - `src/lib/ontology.types.ts`: Added optional `orbitCos` and `orbitSin` to `OrbitalNode`.
-  - `src/lib/OntologyCanvasEngine.ts`: Declared `isTopologyDirty` and set it on init, node clicks, expand/collapse, radar expand, and active layers change. Bypassed LERP during orbiting, and slept velocities faster (speedSq < 0.012).
-  - `src/lib/engine/OntologyLayout.ts`: Imported `PerformanceProfiler`, added `isDragging` parameter, optimized layout computation using static tilt values, skipped trig for non-orbiting nodes, implemented FPS-based iteration scaling, damping decay (0.80), overlap dead-zone (0.8px), skipped collision during passive panning/zooming, and used Taylor-series small-angle rotation approximations inside collision updates.
-  - `src/lib/engine/OntologyRenderer.ts`: Precomputed 64-segment circle rings, skipped offscreen nodes during rendering, and verified midpoint bounds for edge labels.
-  - `PORTFOLIO VITAL - Engineering Report.md`: Logged details of the 3D Mindmap rendering performance optimization patch.
-- **Build status**: PASS
+  - `src/hooks/useVirtualList.ts` (New zero-dependency window virtualization hook)
+  - `src/components/budget/ui/BudgetCategoryCardItem.tsx` (Refactored callback props & custom React.memo comparison)
+  - `src/components/budget/ui/PolicyGroupCard.tsx` (Stabilized handleSwapCat callback & virtualized detail groups)
+  - `src/components/budget/BudgetDashboard.tsx` (Virtualized policy group list & memoized all handler callbacks)
+  - `PORTFOLIO VITAL - Engineering Report.md` (Recorded M2 patch entry)
+  - `AGENTS.md` (Synced milestones log)
+- **Build status**: PASS (0 TSC errors, 0 Harness errors)
 - **Pending issues**: None
 
 ## Quality Status
-- **Build/test result**: PASS (all Zod, ESLint, TypeScript compiler tests passed successfully)
-- **Lint status**: PASS (0 ESLint errors/warnings)
-- **Tests added/modified**: Verified all canvas engine and renderer math changes compile and execute flawlessly under ESLint & TSC.
+- **Build/test result**: PASS
+- **Lint status**: 0 warnings / 0 errors
+- **Tests added/modified**: Harness verification passed
 
 ## Loaded Skills
-- None yet
+- None

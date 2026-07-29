@@ -1,26 +1,23 @@
-## 2026-07-16T05:10:19Z
-You are the Forensic Auditor for Milestone 3 (Manual Node/Edge CRUD UI with Yjs Sync).
-Your working directory is d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\auditor_m3. Please create it.
-Perform an independent forensic audit of the implementation of Milestone 3.
-Verify:
-1. Authenticity: Inspect the code in src/hooks/useGraphCustomization.ts, src/components/MindMapInspector.tsx, and src/components/MindMap3D.tsx to ensure there are absolutely no hardcoded test results, facade implementations, dummy data structures, or code designed to cheat/circumvent tests.
-2. Compliance: Verify that all CRUD operations, tombstones, and debounced Yjs states are correctly implemented and integrated.
-3. Run eslint, type checks (tsc), and tests (jest) to ensure there are no errors, warnings, or failures.
-Write your detailed audit findings to d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\auditor_m3\audit.md and handoff.md, then send a message back to the parent.
+## 2026-07-23T02:40:08Z
+<USER_REQUEST>
+You are the Forensic Auditor for Milestone 3 (M3: Project Tab & WeeklyScheduler Component Optimization).
 
-## 2026-07-16T05:43:46Z
-You are a Forensic Auditor. Your working directory is d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\auditor_m3.
+Working Directory: `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\auditor_m3`
+Project Root: `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL`
 
-Verify the integrity of the Milestone 3 implementation (React.memo and useCallback optimizations).
-Examine:
-- `src/components/dashboard/PortfolioDashboardView.tsx`
-- `src/components/WorkspaceView.tsx`
-- `src/components/dashboard/ContactsBox.tsx`
-- `src/app/page.tsx`
+Task:
+Perform independent forensic verification of Milestone 3 implementation.
 
-Perform static analysis and checking to confirm:
-1. The implementation is genuine: no hardcoded test results, fake/facade implementations, or logic that bypasses verification.
-2. The `React.memo` and `useCallback` wrappers are correctly integrated into the production code.
-3. No other unintended modifications were made that could compromise code integrity or violate the FSD/MVC architecture outlined in AGENTS.md.
-
-Produce a clear audit report with a CLEAN or VIOLATION verdict. If any violation is found, detail the evidence.
+Checklist:
+1. Inspect `src/components/project/ProjectManagementPage.tsx` and `src/components/dashboard/WeeklyScheduler.tsx`.
+2. Verify DOM reconciliation isolation:
+   - Sub-components (list items, day/month cells, timetable slots, modals) are wrapped with `React.memo` and assigned stable `key` props (e.g. `key={item.id}`).
+   - Callback props passed to children are memoized with `useCallback`.
+   - Data transformations and helper calculations are memoized with `useMemo` or moved out of render loop.
+3. Run `npx tsc --noEmit` and `node scripts/run-harness.js` using `run_command` in project root (`d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL`) to verify compiler, linter, Zod, and architectural integrity.
+4. Verify there are NO hardcoded fake test results or integrity violations.
+5. Produce a forensic report in `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\auditor_m3\handoff.md` with:
+   - Verdict: CLEAN or INTEGRITY VIOLATION
+   - Evidence chain for each checklist item
+6. Send a message to parent orchestrator with your verdict.
+</USER_REQUEST>

@@ -1,11 +1,35 @@
 {
-  "timestamp": "2026-07-22T05:38:36.212Z",
-  "lintWarnings": [],
+  "timestamp": "2026-07-29T08:45:34.000Z",
+  "lintWarnings": [
+    {
+      "file": "src/components/budget/ui/LedgerModal.tsx",
+      "line": 32,
+      "column": 23,
+      "ruleId": "@typescript-eslint/no-unused-vars",
+      "message": "'_batchUpdateEntries' is defined but never used.",
+      "severity": "warning"
+    },
+    {
+      "file": "src/hooks/useBudgetFilters.ts",
+      "line": 2,
+      "column": 20,
+      "ruleId": "@typescript-eslint/no-unused-vars",
+      "message": "'useEffect' is defined but never used.",
+      "severity": "warning"
+    }
+  ],
   "architecturalViolations": [],
-  "performanceBottlenecks": [],
+  "performanceBottlenecks": [
+    {
+      "file": "src/components/budget/ui/LedgerModal.tsx",
+      "line": 241,
+      "pattern": ".filter( ... .filter/find/some )",
+      "message": "Detected nested filter/find/some lookup inside component .filter() loop. This leads to O(N^2) complexity. Extract mapping calculations using useMemo or pre-group data into O(1) maps."
+    }
+  ],
   "summary": {
-    "totalWarnings": 0,
+    "totalWarnings": 2,
     "totalViolations": 0,
-    "totalBottlenecks": 0
+    "totalBottlenecks": 1
   }
 }

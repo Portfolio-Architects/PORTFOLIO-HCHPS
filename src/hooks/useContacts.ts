@@ -1,9 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useRef } from 'react';
-import { useGoogleSheet, useSheetCrud } from './useGoogleSheet';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { readSheet, addRow, updateRow, deleteRow, replaceAll } from '@/lib/sheets-api';
 import { Contact, generateId } from '@/types';
-import { replaceAll } from '@/lib/sheets-api';
 
 const SEED_CONTACTS: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>[] = [
   { name: '바른자세개선', phone: '01079353095', email: '', notes: '노드 ID: custom-1775195030946' },
@@ -26,15 +26,45 @@ const SEED_CONTACTS: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>[] = [
 ];
 
 export function useContacts() {
-  const [contacts, setContacts, loading] = useGoogleSheet<Contact>(
-    'CONTACTS',
-    'hchps-contacts',
-    []
-  );
-  const { syncAdd, syncUpdate, syncDelete } = useSheetCrud<Contact>('CONTACTS');
+  const queryClient = useQueryClient();
   const seedingTriggered = useRef(false);
 
-  // 초기 17개 연락처 자동 Seeding 로직
+  const { data: contacts = [], isLoading: loading } = useQuery({
+    queryKey: ['CONTACTS'],
+    queryFn: () => readSheet<Contact>('CONTACTS'),
+    staleTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
+    refetchIntervalInBackground: false,
+    initialData: () => {
+      if (typeof window !== 'undefined') {
+        try {
+          const item = localStorage.getItem('hchps-fallback-CONTACTS') || localStorage.getItem('hchps-contacts');
+          if (item) {
+            const parsed = JSON.parse(item);
+            if (Array.isArray(parsed)) return parsed as Contact[];
+          }
+        } catch (err) {
+          console.warn('[useContacts] Initial data parse error:', err);
+        }
+      }
+      return undefined;
+    },
+  });
+
+  const replaceContactsMut = useMutation({
+    mutationFn: (newContacts: Contact[]) => replaceAll('CONTACTS', newContacts),
+    onMutate: async (newContacts) => {
+      await queryClient.cancelQueries({ queryKey: ['CONTACTS'] });
+      const previous = queryClient.getQueryData<Contact[]>(['CONTACTS']);
+      queryClient.setQueryData<Contact[]>(['CONTACTS'], newContacts);
+      return { previous };
+    },
+    onError: (err, newContacts, context) => {
+      if (context?.previous) queryClient.setQueryData(['CONTACTS'], context.previous);
+    },
+  });
+
+  // Auto-seed if empty after loading completes
   useEffect(() => {
     if (!loading && contacts.length === 0 && !seedingTriggered.current) {
       seedingTriggered.current = true;
@@ -45,20 +75,51 @@ export function useContacts() {
         createdAt: now,
         updatedAt: now
       }));
-      setContacts(seeded);
-      
-      // replaceAll을 통해 E2EE 암호화 업로드
-      replaceAll('CONTACTS', seeded)
-        .then(ok => {
-          if (ok) {
-            console.log('[Seed] 17개의 기본 실무 주소록 데이터 Seeding 성공!');
-          }
-        })
-        .catch(err => {
-          console.error('[Seed] Seeding 중 오류가 발생했습니다:', err);
-        });
+      replaceContactsMut.mutate(seeded);
     }
-  }, [loading, contacts, setContacts]);
+  }, [loading, contacts, replaceContactsMut]);
+
+  const addContactMut = useMutation({
+    mutationFn: (newContact: Contact) => addRow('CONTACTS', newContact),
+    onMutate: async (newContact) => {
+      await queryClient.cancelQueries({ queryKey: ['CONTACTS'] });
+      const previous = queryClient.getQueryData<Contact[]>(['CONTACTS']);
+      queryClient.setQueryData<Contact[]>(['CONTACTS'], (old) => [newContact, ...(old || [])]);
+      return { previous };
+    },
+    onError: (err, newContact, context) => {
+      if (context?.previous) queryClient.setQueryData(['CONTACTS'], context.previous);
+    },
+  });
+
+  const updateContactMut = useMutation({
+    mutationFn: ({ id, updates }: { id: string; updates: Partial<Contact> }) => updateRow('CONTACTS', id, updates),
+    onMutate: async ({ id, updates }) => {
+      await queryClient.cancelQueries({ queryKey: ['CONTACTS'] });
+      const previous = queryClient.getQueryData<Contact[]>(['CONTACTS']);
+      const updatedFields = { ...updates, updatedAt: new Date().toISOString() };
+      queryClient.setQueryData<Contact[]>(['CONTACTS'], (old) =>
+        (old || []).map(c => c.id === id ? { ...c, ...updatedFields } : c)
+      );
+      return { previous };
+    },
+    onError: (err, vars, context) => {
+      if (context?.previous) queryClient.setQueryData(['CONTACTS'], context.previous);
+    },
+  });
+
+  const deleteContactMut = useMutation({
+    mutationFn: (id: string) => deleteRow('CONTACTS', id),
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ['CONTACTS'] });
+      const previous = queryClient.getQueryData<Contact[]>(['CONTACTS']);
+      queryClient.setQueryData<Contact[]>(['CONTACTS'], (old) => (old || []).filter(c => c.id !== id));
+      return { previous };
+    },
+    onError: (err, id, context) => {
+      if (context?.previous) queryClient.setQueryData(['CONTACTS'], context.previous);
+    },
+  });
 
   const addContact = useCallback((contact: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>) => {
     const now = new Date().toISOString();
@@ -68,21 +129,17 @@ export function useContacts() {
       createdAt: now,
       updatedAt: now
     };
-    setContacts(prev => [newContact, ...prev]);
-    syncAdd(newContact);
+    addContactMut.mutate(newContact);
     return newContact;
-  }, [setContacts, syncAdd]);
+  }, [addContactMut]);
 
   const updateContact = useCallback((id: string, updates: Partial<Contact>) => {
-    const updatedFields = { ...updates, updatedAt: new Date().toISOString() };
-    setContacts(prev => prev.map(c => c.id === id ? { ...c, ...updatedFields } : c));
-    syncUpdate(id, updatedFields);
-  }, [setContacts, syncUpdate]);
+    updateContactMut.mutate({ id, updates });
+  }, [updateContactMut]);
 
   const deleteContact = useCallback((id: string) => {
-    setContacts(prev => prev.filter(c => c.id !== id));
-    syncDelete(id);
-  }, [setContacts, syncDelete]);
+    deleteContactMut.mutate(id);
+  }, [deleteContactMut]);
 
   return {
     contacts,

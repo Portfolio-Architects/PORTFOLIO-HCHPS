@@ -1,148 +1,27 @@
-# Milestone 3 (R3: DB Polling & React Query Refetch Optimization) Verification Report
-
-## Verdict: PASS (With Performance Optimization Recommendations)
-
----
+# Handoff Report: Milestone 3 (R3 - Batch Actions & Modal Comparison UX)
 
 ## 1. Observation
-
-### Target Files Inspected:
-- `src/hooks/useGraphCustomization.ts` (lines 702–810)
-- `src/lib/query-client.ts` (lines 1–23)
-- `src/hooks/useAppLogs.ts` (lines 1–33)
-
-### Verbatim Observations:
-
-1. **`src/lib/query-client.ts` (lines 3–22)**:
-   ```ts
-   export const queryClient = new QueryClient({
-     defaultOptions: {
-       queries: {
-         staleTime: 5 * 60 * 1000, // 5 minutes
-         gcTime: 30 * 60 * 1000,   // 30 minutes garbage collection
-         retry: (failureCount, error: unknown) => {
-           const errStatus = (error as { status?: number })?.status;
-           if (errStatus === 401 || errStatus === 403) return false;
-           return failureCount < 2;
-         },
-         retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
-         refetchOnWindowFocus: false, // Prevent heavy main thread block on window focus
-         refetchOnReconnect: false,   // Prevent automatic refetch on network reconnect
-       },
-       mutations: {
-         retry: 1, // Minimize retry on mutation to prevent duplicate records
-       }
-     },
-   });
-   ```
-
-2. **`src/hooks/useAppLogs.ts` (lines 18–31)**:
-   ```ts
-   export function useAppLogs(enabled = false) {
-     return useQuery<AppLogsResponse, Error>({
-       queryKey: ['app-logs'],
-       queryFn: async () => {
-         const res = await fetch('/api/app-logs');
-         if (!res.ok) {
-           throw new Error('Failed to fetch execution logs');
-         }
-         return res.json();
-       },
-       enabled,
-       refetchInterval: enabled ? 10000 : false, // Auto refetch every 10 seconds when open
-       refetchIntervalInBackground: false,
-     });
-   }
-   ```
-
-3. **`src/hooks/useGraphCustomization.ts` (lines 781–789 & 799–809)**:
-   ```ts
-   const handleVisibilityChange = () => {
-     if (typeof document !== 'undefined' && document.visibilityState === 'visible' && enabled) {
-       runPoll();
-       startOrResetInterval();
-     }
-   };
-
-   if (typeof document !== 'undefined') {
-     document.addEventListener('visibilitychange', handleVisibilityChange);
-   }
-   ```
-   ```ts
-   return () => {
-     if (typeof document !== 'undefined') {
-       document.removeEventListener('visibilitychange', handleVisibilityChange);
-     }
-     activePollCount--;
-     if (activePollCount <= 0 && activePollInterval) {
-       console.info('[Watcher Poll] Stopping global singleton polling loop.');
-       clearInterval(activePollInterval);
-       activePollInterval = null;
-     }
-   };
-   ```
-
-4. **Empirical Test Results (`node scratch/test_r3_polling_simulation.js`)**:
-   - `npx tsc --noEmit` completed with exit code 0 and 0 error output.
-   - Mounting 3 instances of `useGraphCustomization` attached 3 `visibilitychange` listeners to `document`. Single `visibilitychange` event triggered 3 `runPoll()` calls simultaneously.
-   - Simulating 30 rapid tab visibility toggles in 100ms triggered 30 un-throttled parallel `runPoll()` calls (`maxConcurrentPolls: 31`).
-
----
+- **TypeScript Check**: `npx tsc --noEmit` passed with 0 errors after resolving `Modal` component `size="4xl"` prop configuration.
+- **Harness & Schema Integrity**: `node scripts/run-harness.js` passed Zod Gatekeeper tests for all DB entities (TASKS, BUDGET_CATEGORIES, BUDGET_ENTRIES, PROJECTS) with 0 errors.
+- **Empirical Performance Benchmark**: `scratch/test_empirical_m3_2.js` measured `entriesByCatId` grouping and render sort. Standard datasets (<50 categories, <500 entries) complete in ~1.15ms (<16.6ms threshold for 60 FPS). Large datasets (100 categories, 10,000 entries) took 30.13ms due to inline date sorting per render.
+- **State Retention**: In `LedgerModal.tsx`, `viewMode` toggle (`'ledger' | 'split'`) persists during modal open state. Upon closing or navigating to `ExpenseEntryModal`, unmounting `LedgerModal` resets `viewMode` to `'ledger'`.
+- **Reactive Recalculation**: Settlement actions (`onSettle`) correctly update `getCategoryStats`, dynamically updating highlight badges for planned, spent, and remaining budget totals.
 
 ## 2. Logic Chain
-
-1. **Type Safety Verification**:
-   - Running `npx tsc --noEmit` passed with zero errors, establishing that there are no TypeScript type mismatches, invalid imports, or breaking signature changes across the codebase resulting from the R3 refactoring.
-
-2. **React Query Default Configuration Impact**:
-   - In `query-client.ts`, setting `refetchOnWindowFocus: false` and `refetchOnReconnect: false` prevents automatic background refetches when switching OS windows or reconnecting to network.
-   - For `useAppLogs.ts`, setting `refetchInterval: enabled ? 10000 : false` and `refetchIntervalInBackground: false` overrides default behavior when enabled, correctly polling logs every 10 seconds while the UI tab is active and pausing when hidden.
-   - Component-level queries (e.g. `useTasks`, `useBudget`) maintain explicit `staleTime` and optimistic updates without interference from global defaults. Authentication errors (401, 403) are explicitly excluded from retries, preventing infinite 401 request loops.
-
-3. **DB Polling & Tab Switching Analysis in `useGraphCustomization.ts`**:
-   - **No Infinite Loops**: The global singleton polling interval (`activePollInterval`) runs at a fixed 10-second interval (`10000ms`) and is properly cleared when all components unmount (`activePollCount <= 0`).
-   - **Multi-Instance Listener Duplication Caveat**: While `activePollInterval` is global, each call to `useGraphCustomization` registers its own `handleVisibilityChange` listener on `document`. When $N$ components call the hook simultaneously, 1 tab switch triggers $N$ concurrent `runPoll()` executions.
-   - **Un-throttled Rapid Tab Switching Caveat**: Rapidly toggling tab visibility (e.g. 30 toggles in quick succession) triggers `runPoll()` 30 times without debouncing or an in-flight poll lock (`isPolling`), causing temporary spikes in parallel `/api/data?sheet=MAP_CUSTOMIZATION` requests.
-
----
+1. `npx tsc --noEmit` and `node scripts/run-harness.js` were run directly via shell environment. Both returned success status codes and 0 validation errors.
+2. Code review of `LedgerModal.tsx` verified that `viewMode` state (`'ledger' | 'split'`) is declared locally via `useState`. In `BudgetDashboard.tsx`, conditional rendering unmounts `LedgerModal` when closed. Therefore, state retention across unmounts is absent by design of component scoping.
+3. Code review of `ExpenseEntryModal.tsx` confirmed `onSave` triggers reactive state updates via parent callbacks (`addEntry`/`updateEntry`), which trigger re-evaluation of `useBudget` stats.
+4. Benchmarking via `scratch/test_empirical_m3_2.js` proved mathematical conservation of budget stats and confirmed zero-stall 60 FPS execution for normal operational loads.
 
 ## 3. Caveats
-
-- **No Active Memory Leaks**: Upon unmounting all components, `activePollCount` returns to 0, `activePollInterval` is cleared, and all `visibilitychange` event listeners are detached.
-- **Network Load under Fast Tab Toggling**: Under normal user behavior, tab switching occurs infrequently. However, under extreme tab toggling automation or multi-component mounting, adding an `isPolling` lock or debouncing `handleVisibilityChange` would further improve efficiency.
-
----
+- Modal unmounting clears transient UI state (`viewMode`, checkbox selections, search filter string) unless stored in parent state or persistent store.
+- On ultra-large datasets (>10,000 entries), date sorting inside `render` loop can exceed single-frame latency (30ms vs 16.6ms). Pre-sorting entries during map creation would eliminate this minor bottleneck.
 
 ## 4. Conclusion
-
-**Verdict: PASS**
-
-The R3 DB Polling & React Query Refetch Optimization meets all functional, stability, and type safety requirements:
-1. `npx tsc --noEmit` produces 0 type errors.
-2. No infinite polling loops exist. Polling interval is bounded (10s) and pauses when the document is hidden.
-3. React Query default options in `query-client.ts` safely streamline queries across the app without negative side effects on component queries.
-4. `useAppLogs` behaves deterministically with `refetchInterval` bounded to `enabled` state.
-
-**Actionable Recommendation for Future Hardening**:
-- In `useGraphCustomization.ts`, consider wrapping `runPoll` execution with a global `isPollingInFlight` boolean flag or a 1000ms debounce on `handleVisibilityChange` to collapse multi-instance tab switch triggers into a single poll request.
-
----
+The implementation for Milestone 3 (R3: Batch Actions & Modal Comparison UX) satisfies all core functional and type safety requirements. Verdict: **PASSED WITH CAVEATS**.
 
 ## 5. Verification Method
-
-To independently verify these findings:
-
-1. **Run TypeScript Check**:
-   ```powershell
-   npx tsc --noEmit
-   ```
-   *Expected Output*: Exit code 0, 0 errors.
-
-2. **Run Empirical Stress Test Script**:
-   ```powershell
-   node scratch/test_r3_polling_simulation.js
-   ```
-   *Expected Output*:
-   - Active poll count tracks mounts/unmounts (3 -> 0).
-   - React Query default options verified (`staleTime: 300000`, `gcTime: 1800000`, `refetchOnWindowFocus: false`).
-   - `useAppLogs` options verified.
+- **Command 1**: `npx tsc --noEmit` (Must complete with 0 errors)
+- **Command 2**: `node scripts/run-harness.js` (Must complete with 0 errors)
+- **Command 3**: `node scratch/test_empirical_m3_2.js` (Must output benchmark and recalculation pass results)
+- **Inspection Files**: `src/components/budget/ui/LedgerModal.tsx`, `src/components/budget/ui/ExpenseEntryModal.tsx`, `src/components/budget/BudgetDashboard.tsx`

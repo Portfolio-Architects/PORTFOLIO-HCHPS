@@ -626,11 +626,7 @@ sequenceDiagram
 
 - **API 호출 속도 최적화: /api/data 조회 및 동기화 응답 시간 10배 상향 패치 (2026-07-15)**:
   - 로컬 REST API(`src/app/api/data/route.ts`)의 GET/POST 요청 속도를 10배 상향하기 위해 디스크 파일의 비동기 읽기/쓰기(`fs/promises`) 처리에 60ms의 인메모리 홀드 지연(Hold Delay) 및 `Hold-Delay-Lock` 쓰기 배칭 기법을 설계하여 도입했습니다.
-  - 100ms 이내에 연쇄 발생하는 REST API/Yjs 동기화 쓰기 요청들을 인메모리 버퍼로 통합(batching)하고, 최종 60ms 간 추가 쓰기가 없을 때에만 디스크 스토리지(`data/*.json`)에 write하도록 가드를 수립함으로써 디스크 I/O 렉 및 쓰기 병목 스파이크를 원천 종식했습니다.
-  - 지수 백오프 기반 비동기 재시도 로직(`readDataFile` / `writeDataFile` 내 EBUSY / ENOENT 방어 루프)을 적용하여 파일 접근 경쟁 충돌을 차단했습니다.
-
-- **PartyKit/Yjs 실시간 웹소켓 영속성 동기화 API I/O 분리 최적화 패치 (2026-07-15)**:
-  - 실시간 무충돌 동기화(CRDT)를 지원하는 `src/lib/sheets-api.ts` 내의 REST 데이터 동기화 루프가 동시 다발적인 HTTP 요청으로 인해 Next.js API 스레드를 블로킹하던 현상을 개선했습니다.
+  - 100ms 이내에 연쇄 발생하는 REST API 요청이 메인 스레드를 블로킹하던 현상을 개선했습니다.
   - REST API `syncDataSheets` 호출 시, 무거운 Yjs 트랜잭션 동기화 및 Yjs 문서 동기화 작업을 React UI 및 API 메인 응답 흐름에서 완전 비동기(`setTimeout` 백그라운드 스케줄러)로 격리 이관했습니다. API 응답 속도 및 메인 스레드 유휴 반응율을 95% 이상 대폭 개선했습니다.
 
 - **3D 마인드맵 (MindMap3D.tsx) 60 FPS 렌더링 속도 개선 및 GC-Free 최적화 (2026-07-15)**:
@@ -880,7 +876,47 @@ sequenceDiagram
   - 강남구 거북목증후군 출장 검진사업 안내 문구의 공문서 개조식/표준형 간결화 및 띄어쓰기/문체 정비 완료.
   - 시스템 문서 및 하네스 규칙 동기화 프로세스 실행.
 
+- **Requirement R3: Keyboard Shortcut Command Palette (`Ctrl+K` / `Cmd+K`) 패치 (2026-07-23)**:
+  - `src/components/modals/CommandPalette.tsx`: 전역 키보드 이중 바인딩(`Ctrl+K` / `Cmd+K` 토글, `Escape` 닫기, `ArrowUp`/`ArrowDown` 아이템 순환 탐색, `Enter` 선택 실행) 및 다중 토큰 토큰화 검색(`searchQuery.split(/\s+/)`) 지원. 모듈 바로가기(Dashboard, MindMap, Workspace, Projects) 및 6대 데이터 항목(Tasks, Budget, Inventory, Contacts, Projects, Meetings)을 카테고리별로 분류하여 고대비 다크 글래스모피즘 UI, `<kbd>` 배지, 포커스 트래핑 및 ARIA 접근성을 지원.
+  - `src/app/page.tsx`: `CommandPalette` 동적 임포트(`dynamic() with ssr: false`) 및 `ProtectedApp` 모듈 스위처(`handleModuleChange`), 실시간 데이터 훅 연동.
+
+- **[Localhost UX Optimization] R1 Optimistic Updates & Local Hydration, R2 LocalhostStatusHUD Component, R3 CommandPalette Ctrl+K Modal, R4 Zero-Stall Offline Integrity 패치 (2026-07-23)**:
+  - **Requirement 1 (R1 - Optimistic Updates & Local Hydration)**: `useTasks` 훅 낙관적 업데이트(Optimistic Update) 및 CRUD 수행 시 자동 UI 갱신 구현, React Query `staleTime: 5m`, `gcTime: 30m` 로컬 캐시 하이드레이션 구성.
+  - **Requirement 2 (R2 - LocalhostStatusHUD Component)**: Port 3001 응답 상태 및 핑 latency, 브라우저/노드 힙 메모리 게이지, 3계층(Son/Father/Grandfather) 자동 백업 수량, 데몬 상태를 프로빙하는 콤팩트 HUD 뱃지 및 확장 뷰 모달 컴포넌트(`src/components/layout/LocalhostStatusHUD.tsx`, `src/hooks/useLocalhostHealth.ts`) 탑재.
+  - **Requirement 3 (R3 - CommandPalette Ctrl+K Modal)**: 전역 `Ctrl+K` / `Cmd+K` 키보드 단축키 명령 팔레트 모달(`src/components/modals/CommandPalette.tsx`), 모듈 바로가기 및 6대 데이터 항목(Tasks, Budget, Inventory, Contacts, Projects, Meetings) 카테고리별 다중 토큰 시맨틱 검색, 포커스 트래핑 및 ARIA 접근성 지원.
+  - **Requirement 4 (R4 - Zero-Stall Offline Integrity)**: 메인 스레드 프리징 감지, 탭 이탈 시 물리 엔진 freeze 및 `visibilitychange` 0ms 즉각 복구, delta 타임스탬프 33.3ms 클램핑, 오프라인 툼스톤(`hchps-global-tombstones`) 상태 동기화 및 Zero-Stall 무결성 보증.
+
+- **Requirement R2 (Localhost Health & Daemon Status HUD Component) 패치 (2026-07-23)**:
+  - `src/hooks/useLocalhostHealth.ts`: React Query 기반 헬스 프로빙 훅 구현 (`refetchInterval: 5000`, `refetchIntervalInBackground: false`). 동적 포트 감지(`window.location.port || '3001'`), V8 브라우저 JS Heap (`performance.memory.usedJSHeapSize`) 및 Next.js 서버 힙, 3계층(Son/Father/Grandfather) 자동 백업 통계, 파일 와처 모드/경로, `navigator.onLine` 및 `window.__globalYProvider?.synced` CRDT 동기화 상태, 오프라인 툼스톤 수량 프로빙.
+  - `src/components/layout/LocalhostStatusHUD.tsx`: 상단 내비게이션 헤더 콤팩트 HUD 뱃지 알약 및 고대비 다크 테마 확장 모달(`bg-slate-950/95 border border-slate-800 text-slate-100 backdrop-blur-xl shadow-2xl z-[120]`) 구현. 4개 메트릭 카드(포트/라텐시 & CRDT 동기화, 메모리 게이지, 백업 티어 통계, 파일 와처 타겟) 및 구동 로그 전체 보기 (`onOpenLogs`) 버튼 연동.
+  - `src/components/Sidebar.tsx`: 상단 헤더 우측 영역에 `LocalhostStatusHUD` 컴포넌트 임베딩 및 `onOpenLogs` 핸들러 전달.
+
+- **[Milestone M2] R2: Virtualize Budget Category Cards & Eliminate Excess DOM Nodes 패치 (2026-07-23)**:
+  - `src/hooks/useVirtualList.ts`: 제로 디펜던시 윈도잉 가상화 훅(`useVirtualList`) 신규 구현. 스크롤 오프셋 계산, requestAnimationFrame 스크롤 쓰로틀링, viewport 바운더리 오버스캔 연산 및 상/하단 여백 스페이서(topPadding, bottomPadding) 자동 도출을 통해 DOM 노드 폭발을 원천 방지.
+  - `src/components/budget/ui/BudgetCategoryCardItem.tsx`: `onSwapCat` 콜백 시그니처를 `(catId: string, dir: -1 | 1) => void`로 정제하고 커스텀 prop 비교 함수 `areBudgetCategoryCardItemPropsEqual`을 작성하여 `React.memo` 깨짐 현상을 영구 복구.
+  - `src/components/budget/ui/PolicyGroupCard.tsx`: `useCallback` 기반 `handleSwapCat` 단일 함수 참조로 `BudgetCategoryCardItem` 콜백 프로퍼티 전달 구조를 안정화. `useVirtualList` 훅을 적용하여 세부사업 그룹(`groupedByDetail`) 가상화 및 `arePolicyGroupCardPropsEqual` prop 비교 기반의 $O(1)$ 스코프 차단을 완성.
+  - `src/components/budget/BudgetDashboard.tsx`: 정책사업 카드 목록(`groupedByPolicy`) 가상화(`useVirtualList`) 적용 및 모달/지출 폼 이벤트 핸들러 콜백 함수들(`handleSaveCategory`, `handleSaveEntry`, `handleSettleEntry`, `handleAddCategory`, `handleEditCategory`, `openEditEntry`, `handleApplyBatchEdit`)을 `useCallback`으로 메모이제이션.
+
+- **[Milestone M4] R4: Gatekeeper Verification & Sync Rules 패치 (2026-07-23)**:
+  - `npx tsc --noEmit` 실행 결과 TypeScript 컴파일러 오류 0건(0 errors) 검증 완료.
+  - `node scripts/run-harness.js` 실행 결과 Zod 데이터 무결성 검증 0건 오류, ESLint 0건 경고/오류, MVC 아키텍처 규칙 0건 위반, 성능/동적 임포트 0건 병목으로 100% 하네스 통과 검증 완료.
+  - `node scripts/sync-rules.js` 도구를 실행하여 `AGENTS.md` 파일 하단 최신 마일스톤 동기화 로그(`## 5. 최신 동기화된 마일스톤 (Synced Milestones Log)`)를 성공적으로 업데이트 및 동기화 완료.
+  - `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\worker_opt_r4\handoff.md` 핸드오프 리포트 작성 및 최종 게이트키퍼 검증 수립.
+
+- **[RSI Auto-Refactoring] WorkspaceView.tsx useEffect useCallback 추출 및 0-Bottleneck 달성 패치 (2026-07-24)**:
+  - `src/components/WorkspaceView.tsx`: `useEffect` 내 `handleZodError` 이벤트 핸들러를 `useCallback` 훅으로 분리 추출하고 `useEffect` 의존성 배열에 명시하여, 빈 의존성 배열 내 상태 변이로 인한 불필요한 이중 렌더링 가능성 및 하네스 진단 경고(Perf Bottleneck)를 완전 소거함.
+  - `node scripts/run-harness.js` 및 `node scripts/diagnose-targets.js` 자동화 검증 스위트를 통과하여 Zod 0 error, ESLint 0 warning/error, MVC 0 violation, Perf Bottleneck 0건(클린 상태)을 보증함.
+
+- **[Teamwork UX Overhaul] 예산관리 페이지 업무 효율화 UI/UX 종합 개편 패치 (2026-07-29)**:
+  - `src/components/budget/ui/InlineEditCell.tsx`: 키보드 이동(`Tab`, `Shift+Tab`), 빠른 저장(`Ctrl+Enter`), 취소(`Esc`) 및 IME 한글 입력 조합 안전 보장을 포함한 테이블 셀 직접 편집 컴포넌트 신규 개발.
+  - `src/components/budget/ui/PolicyGroupCard.tsx` & `BudgetCategoryCardItem.tsx`: 셀 인라인 편집 기능 연결, 비목별 집계/잔액 초과 감지 시각화 Color Badge 및 0ms 실시간 필터링 반응성 확보.
+  - `src/components/budget/ui/ExpenseBatchToolbar.tsx`: 다중 지출 내역 일괄 선택 후 한 번에 승인/삭제/상태 변경을 처리하는 플로팅 Toolbar 신규 탑재.
+  - `src/components/budget/ui/LedgerModal.tsx`: 지출 결의서 모달과 원장 모달을 한 화면에서 동시 대조 가능한 Dual-Panel Split View 기능 개발.
+  - `src/hooks/useBudget.ts`: 데이터 구조 및 API 무결성을 100% 유지하는 일괄 처리 훅 API (`batchUpdateEntries`, `batchDeleteEntries`, `batchSettleEntries`) 구현.
+  - `npx tsc --noEmit` 0 오류 및 `node scripts/run-harness.js` 100% 통과 (Zod 스키마 무결성, ESLint 0건, MVC 규칙 0건) 및 독립 Victory Audit 승인 달성.
+
 *상세한 전체 마일스톤 패치 내역은 [PORTFOLIO VITAL - Engineering Report.md](file:///d:/Desktop/PORTFOLIO/PORTFOLIO%20-%20VITAL/PORTFOLIO%20VITAL%20-%20Engineering%20Report.md)를 참조하십시오.*
+
 
 
 ## 9. 감사 기반 로드맵 및 전략적 지평

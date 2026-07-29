@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useTransition } from 'react';
 import dynamic from 'next/dynamic';
 import { BudgetCategory, BudgetEntry, InventoryItem, StockChange } from '@/types';
 function BudgetDashboardSkeleton() {
@@ -93,6 +93,9 @@ interface WorkspaceViewProps {
   addEntry: (entry: Omit<BudgetEntry, 'id'>) => void;
   updateEntry: (id: string, updates: Partial<BudgetEntry>) => void;
   deleteEntry: (id: string) => void;
+  batchUpdateEntries?: (ids: string[] | Array<{ id: string; [key: string]: any }>, updates?: Partial<BudgetEntry>) => void;
+  batchDeleteEntries?: (ids: string[]) => void;
+  batchSettleEntries?: (ids: string[], status: 'SETTLED' | 'PENDING' | 'REJECTED') => void;
   getCategoryStats: (id: string) => CategoryStats | null;
   overallStats: { 
     totalBudget: number; totalSpent: number; totalPlanned: number; remaining: number;
@@ -111,25 +114,42 @@ interface WorkspaceViewProps {
 
 function WorkspaceViewComponent(props: WorkspaceViewProps) {
   const [activeTab, setActiveTab] = useState<'budget' | 'inventory'>('budget');
+  const [, startTransition] = useTransition();
   const [zodError, setZodError] = useState<{ sheetName: string; rowId: string; errors: any } | null>(null);
 
+  const handleTabChange = (tab: 'budget' | 'inventory') => {
+    startTransition(() => {
+      setActiveTab(tab);
+    });
+  };
+
+  const handleZodError = useCallback((e: Event) => {
+    const customEvent = e as CustomEvent;
+    setZodError(customEvent.detail);
+  }, []);
+
   useEffect(() => {
-    const handleZodError = (e: Event) => {
-      const customEvent = e as CustomEvent;
-      setZodError(customEvent.detail);
-    };
     window.addEventListener('hchps-zod-error', handleZodError);
+
+    // Warm-up idle evaluation of sub-chunks if not already pre-fetched
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      window.requestIdleCallback(() => {
+        import('@/components/budget/BudgetDashboard');
+        import('@/components/inventory/InventoryList');
+      });
+    }
+
     return () => {
       window.removeEventListener('hchps-zod-error', handleZodError);
     };
-  }, []);
+  }, [handleZodError]);
 
   return (
     <div className="w-full flex flex-col gap-4">
       {/* Tab Switcher */}
       <div className="flex border-b border-slate-200 gap-1 overflow-x-auto pb-px">
         <button
-          onClick={() => setActiveTab('budget')}
+          onClick={() => handleTabChange('budget')}
           className={`flex items-center gap-2 px-5 py-3 border-b-2 font-bold text-xs sm:text-sm tracking-wide transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'budget'
               ? 'border-indigo-650 text-indigo-650 bg-indigo-50/20'
@@ -139,7 +159,7 @@ function WorkspaceViewComponent(props: WorkspaceViewProps) {
           예산 대조보드
         </button>
         <button
-          onClick={() => setActiveTab('inventory')}
+          onClick={() => handleTabChange('inventory')}
           className={`flex items-center gap-2 px-5 py-3 border-b-2 font-bold text-xs sm:text-sm tracking-wide transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'inventory'
               ? 'border-indigo-650 text-indigo-650 bg-indigo-50/20'
@@ -182,6 +202,9 @@ function WorkspaceViewComponent(props: WorkspaceViewProps) {
           addEntry={props.addEntry}
           updateEntry={props.updateEntry}
           deleteEntry={props.deleteEntry}
+          batchUpdateEntries={props.batchUpdateEntries}
+          batchDeleteEntries={props.batchDeleteEntries}
+          batchSettleEntries={props.batchSettleEntries}
           getCategoryStats={props.getCategoryStats}
           overallStats={props.overallStats}
         />

@@ -78,3 +78,28 @@ Implement the following changes in `src/lib/engine/OntologyRenderer.ts`:
    ```
 
 4. Run `npm run lint`, `npm run build`, and `node scripts/run-harness.js` to verify everything compiles, passes lints, and fits within the project's strict database rules.
+
+
+## 2026-07-23T05:08:06Z
+You are worker_opt_r3. Your task is to implement Milestone M3 (R3: Fix GC Memory Allocation Spikes in getCategoryStats) for PORTFOLIO - VITAL.
+
+Working directory: d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\worker_opt_r3\
+
+MANDATORY INTEGRITY WARNING:
+DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results, create dummy/facade implementations, or circumvent the intended task. A Forensic Auditor will independently verify your work. Integrity violations WILL be detected and your work WILL be rejected.
+
+Context & Requirements:
+1. Examine `src/hooks/useBudget.ts` and `src/components/budget/ui/PolicyGroupCard.tsx`.
+2. In `src/hooks/useBudget.ts`:
+   - In `getCategoryStats(categoryId, excludePlanned)`: avoid instantiating temporary object literals (`{ ...cached, planned: 0, remaining, usageRate }`) on every call. Pre-calculate and cache both standard and `excludePlanned` stats variants in `categoryStatsMap` (or a dedicated cache map) during the single `useMemo` pass, so `getCategoryStats` returns pre-cached object references in O(1) zero-allocation time.
+   - Optimize `overallStats` and `overallStatsActual` to aggregate totals directly from pre-computed category stats in `categoryStatsMap` instead of doing redundant full-array `.reduce()` and `.filter()` passes over `uniqueCategories` and `entries`.
+3. In `src/components/budget/ui/PolicyGroupCard.tsx`:
+   - Eliminate temporary `new Set<string>()` allocations and string parsing (`.replace()`, `.split()`) inside JSX `.map()` render loops per detail group. Move funding source set calculations into parent `useMemo`.
+   - Avoid calling `getCategoryStats(c.id)` multiple times per category inside `.reduce()` render loops.
+4. Verify TypeScript compilation (`npx tsc --noEmit`) and run harness (`node scripts/run-harness.js`). Ensure 0 TSC errors, 0 Zod errors, 0 ESLint warnings, 0 MVC violations.
+5. Create a detailed handoff report in `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\worker_opt_r3\handoff.md` with:
+   - Summary of code modifications made
+   - Verification command outputs (`npx tsc --noEmit` and `node scripts/run-harness.js`)
+   - Confirmation of MVC ontology adherence
+
+Send a message back to parent when completed with your handoff path and summary.

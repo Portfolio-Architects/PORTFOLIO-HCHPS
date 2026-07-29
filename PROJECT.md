@@ -1,23 +1,36 @@
-# Project: Windows Explorer Sorting and Tagging Optimization in File Organizer
+# Project: Localhost UX Optimization
 
 ## Architecture
-- **Script**: `scratch/organize-files.py` - Performs file indexing, categorization, deduplication (clustering), and metadata caching.
-- **Cache**: `.search_cache.json` - Caches parsed file content, hash, mtime, size for search efficiency.
-- **Test Suite**: `scratch/verify-duplicates.py` - Automated tests to verify deduplication, final-file marking, and cache integrity.
+- **Model (Storage)**: `src/app/api/data/route.ts` & local JSON files in `data/*.json`.
+- **Controller (Hooks)**: `src/hooks/useTasks.ts`, `src/hooks/useBudget.ts`, `src/hooks/useInventory.ts`, `src/hooks/useContacts.ts`, `src/hooks/useLocalhostHealth.ts`.
+- **View (UI)**: React 19 / Next.js app components (`src/components/dashboard/`, `src/components/layout/`, `src/components/modals/`).
+- **HUD & Command Palette**: `LocalhostStatusHUD` widget in layout sticky header (`Sidebar.tsx`); `CommandPalette` modal for `Ctrl+K`/`Cmd+K`.
+- **Verification Harness**: `scripts/run-harness.js`, `scripts/sync-rules.js`.
+
+## Code Layout
+- `src/hooks/`: Custom React Query hooks with optimistic UI updates and zero-stall status polling (`useTasks.ts`, `useBudget.ts`, `useInventory.ts`, `useContacts.ts`, `useLocalhostHealth.ts`).
+- `src/components/layout/`: Top navigation/sidebar layout components including `LocalhostStatusHUD.tsx`.
+- `src/components/modals/`: `CommandPalette.tsx` component.
+- `src/app/api/data/route.ts` & `src/app/api/app-logs/route.ts`: Local data fetcher / I/O handling and API endpoints.
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|---|---|---|---|
-| 1 | keyword_extraction_impl | Implement `★최종★_` prefix and body keyword extraction/injection in `scratch/organize-files.py` | None | DONE |
-| 2 | test_suite_updates | Update `scratch/verify-duplicates.py` to cover prefixing and keyword tagging | M1 | DONE |
-| 3 | verification_and_debug | Run `scratch/verify-duplicates.py` and fix any execution issues or logic bugs | M2 | DONE |
-| 4 | final_safety_check | Perform cache check and verify Zero Deletion Guard (no file loss) | M3 | IN_PROGRESS |
+| 1 | R1_R2_R3_Exploration | Explore codebase structure for R1, R2, R3 requirements | None | DONE |
+| 2 | R1_Optimistic_Updates | Implement optimistic updates across hooks (`useTasks`, `useBudget`, `useInventory`, `useContacts`), remove 300ms delays, update server `apiCache` directly | M1 | DONE |
+| 3 | R2_Localhost_Status_HUD | Implement `useLocalhostHealth.ts` hook & `LocalhostStatusHUD.tsx` widget in top sticky header (`Sidebar.tsx`) showing Port 3001, Heap MB, Auto-Backups, File Watcher, and Offline Sync | M1 | DONE |
+| 4 | R3_Command_Palette | Implement `CommandPalette.tsx` modal with `Ctrl+K`/`Cmd+K` global keyboard handler, instant module navigation & multi-category item search | M1 | DONE |
+| 5 | R4_Verification_Integrity | Verify 0ms thread stall, 100% offline operation, MVC ontology adherence, run `scripts/run-harness.js` (0 tsc, 0 zod, 0 eslint errors) & `scripts/sync-rules.js` | M2, M3, M4 | DONE |
 
 ## Interface Contracts
-- `organize-files.py`:
-  - `main()`: Entry point of the organization process.
-  - `get_clean_base_filename(filename)`: Cleans draft, final, and duplicate tags from name, but preserves any existing parentheses summary.
-  - `clean_final_tag(filename)`: Strips and identifies final tags.
-- `verify-duplicates.py`:
-  - Runs in a mocked root `test_env` to prevent altering production files.
-  - Returns exit code 0 on success.
+- **React Query Hooks**:
+  - `useTasks()`, `useBudget()`, `useInventory()`, `useContacts()` return mutation methods with instant optimistic UI updates (`onMutate`, `onError`, `onSettled` without refetch delays).
+- **useLocalhostHealth**:
+  - Returns real-time metrics: `{ port: 3001, heapUsedMb: number, backupCount: number, watcherActive: boolean, offlineSync: boolean }`.
+- **LocalhostStatusHUD**:
+  - Compact Badge Pill in sticky header (`Sidebar.tsx`) + Expanded High-Contrast Dark Theme HUD Modal.
+- **CommandPalette**:
+  - Global `Ctrl+K` / `Cmd+K` listener, instant multi-token search across modules and items, keyboard navigation (`ArrowUp`/`ArrowDown`/`Enter`/`Esc`), ARIA accessibility.
+- **Verification Harness**:
+  - `node scripts/run-harness.js`: Returns exit code 0 on clean verification.
+  - `node scripts/sync-rules.js`: Synchronizes milestone log to `AGENTS.md`.

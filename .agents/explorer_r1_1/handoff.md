@@ -1,83 +1,73 @@
-# Handoff Report — R1 Top-Level Hook Scoping & Conditional Computing
-
-**Agent**: `explorer_r1_1`  
-**Role**: Explorer  
-**Task**: R1 Analysis — Top-Level Hook Scoping & Conditional Computing in `ProtectedApp` (`src/app/page.tsx`)  
-**Status**: Completed  
-
----
+# Handoff Report: Local Data Hydration & Instant UI Feedback (R1 Exploration)
 
 ## 1. Observation
 
-- **Top-Level Hook Calls in `src/app/page.tsx`**:
-  - Line 376: `const { mergedKeywordMap, mergedEntries } = useMergedSignals(signalEntries, keywordMap, tasks, projects, meetings, budgetEntries, inventoryItems);`
-  - Line 377: `const { customNodes, customEdges, deletedEdges, overrides } = useGraphCustomization(activeModule === 'mindmap');`
-  - Line 383: `const aiContextData = useMemo(() => ({ signals: mergedEntries, budgetEntries, budgetCategories, customNodes, customEdges, deletedEdges, overrides, keywordMap: mergedKeywordMap }), [mergedEntries, budgetEntries, budgetCategories, customNodes, customEdges, deletedEdges, overrides, mergedKeywordMap]);`
+### Codebase Inspections & Exact Line References
+1. **`src/hooks/useTasks.ts`**:
+   - Lines 87–132: `addTaskMut`, `updateTaskMut`, `deleteTaskMut` implement `onMutate`, `onError`, `onSettled`.
+   - Line 98, 117, 131: `onSettled: () => queryClient.invalidateQueries({ queryKey: ['TASKS'] })`.
+   - Lines 172–177: `await addTaskMut.mutateAsync(nextTask)` inside `updateTask` creates sequential mutation blocking for recurring tasks.
 
-- **Hook Implementation in `src/hooks/useMergedSignals.ts`**:
-  - `useMergedSignals` signature accepts 7 arguments: `(signalEntries, keywordMap, tasks, projects, meetings, budgetEntries, inventoryItems)`.
-  - It does NOT accept an `enabled` parameter.
-  - It executes `useMemo` blocks for `mergedKeywordMap` and `mergedEntries` unconditionally on every render whenever any input changes, parsing text with `extractKeywords` regex matching across all 5 domain entities (`tasks`, `projects`, `meetings`, `budgetEntries`, `inventoryItems`).
+2. **`src/hooks/useBudget.ts`**:
+   - Lines 21–31: `enqueueKvWrite` implementation with artificial delay:
+     ```ts
+     function enqueueKvWrite<T>(fn: () => Promise<T>): Promise<T> {
+       const p = kvWriteQueue.then(() => 
+         fn()
+           .then(res => new Promise<T>(resolve => setTimeout(() => resolve(res), 300)))
+           .catch(err => new Promise<never>((_, reject) => setTimeout(() => reject(err), 300)))
+       );
+       kvWriteQueue = p.catch(() => null);
+       return p;
+     }
+     ```
+   - Lines 85, 148: `updateCategoryMut` and `updateEntryMut` call `enqueueKvWrite`, delaying mutation resolution by 300ms.
+   - Line 205: `deleteCategory` triggers two mutations sequentially: `deleteCategoryMut.mutate(id)` and `replaceEntriesMut.mutate(remainingEntries)`.
 
-- **Hook Implementation in `src/hooks/useGraphCustomization.ts`**:
-  - Accepts `enabled = true` parameter (passed as `activeModule === 'mindmap'`).
-  - Lines 703-784: Polling loop (`runPoll`) checks `if (!enabled || !isCloudLoaded) return;` and cleanup function clears `activePollInterval` when `enabled` changes to `false`.
-  - Polling is already conditionally scoped to when `activeModule === 'mindmap'`.
+3. **`src/hooks/useInventory.ts` & `src/hooks/useContacts.ts`**:
+   - `useInventory.ts` (lines 8–11) and `useContacts.ts` (lines 29–34) use custom `useGoogleSheet` hook rather than `@tanstack/react-query`.
+   - `useGoogleSheet.ts` (lines 24–31) hydrates from `localStorage` immediately on mount.
+   - `useSheetCrud` (lines 101–124) runs `syncAdd`, `syncUpdate`, `syncDelete` asynchronously without `try/catch` or error rollback mechanisms for local React state.
 
-- **TypeScript Compilation Errors (`npx tsc --noEmit`)**:
-  - `src/app/api/data/route.ts:546`: `error TS2304: Cannot find name 'RAGEngine'.`
-  - `src/app/api/data/route.ts:546`: `error TS7006: Parameter 'err' implicitly has an 'any' type.`
+4. **`src/app/api/data/route.ts` & `src/lib/sheets-api.ts`**:
+   - `route.ts` line 279: `apiCache.delete(sheet)` in `writeDataToFile` invalidates in-memory API cache on write, causing subsequent reads to execute `fs.readFile` disk operations.
+   - `route.ts` line 282: `backupDataFile(sheet, data).catch(...)` runs asynchronously in background without blocking POST HTTP response.
+   - `sheets-api.ts` lines 316–335: `writeData` updates client-side `clientCache` immediately upon HTTP POST success.
 
 ---
 
 ## 2. Logic Chain
 
-1. **Unconditional Computation Observation**: `useMergedSignals` runs keyword extraction and sorting over all tasks, projects, meetings, budget entries, inventory items, and signal entries regardless of `activeModule`.
-2. **Impact on Non-Mindmap Tabs**: When a user creates or updates a task/budget item while on `dashboard`, `workspace`, or `project` tab, `useMergedSignals` executes full keyword extraction and returns new array and object references for `mergedEntries` and `mergedKeywordMap`.
-3. **Impact on Memoization**: Because `mergedEntries` and `mergedKeywordMap` receive new object references, the `useMemo` for `aiContextData` in `src/app/page.tsx` recalculates, creating a new `aiContextData` object reference on every data edit.
-4. **Conditional Bypass Solution**: Passing `isMergedSignalsEnabled = activeModule === 'mindmap' || isQuickInputOpen` to `useMergedSignals` allows the hook to check `enabled`. Using a ref-cached fallback (`cachedMapRef`, `cachedEntriesRef`, `isInitializedRef`), `useMergedSignals` returns the previously computed references instantly when `enabled` is `false`.
-5. **Tab Switching Result**: When switching between `dashboard`, `workspace`, and `project` tabs (with `isQuickInputOpen = false`), `isMergedSignalsEnabled` remains `false`. Signal calculations do not run, and references remain strictly equal (`===`), eliminating re-computations of `aiContextData` and unnecessary child re-renders.
-6. **Build Fix Requirement**: The missing `RAGEngine` import in `src/app/api/data/route.ts` causes `tsc --noEmit` build failures and must be resolved by adding `import { RAGEngine } from '@/lib/rag/rag-engine';` and typing `(err: unknown)`.
+1. **Observation 1 & 2** show that `useTasks` and `useBudget` use React Query with `onMutate` optimistic updates, but `onSettled` calls `invalidateQueries`, which triggers an immediate network HTTP GET fetch after every mutation.
+2. **Observation 2** shows that `useBudget.ts` explicitly introduces a 300ms artificial delay via `enqueueKvWrite` on every category/entry update, directly causing a 300ms UI update delay before `onSettled` settles.
+3. **Observation 3** shows that `useInventory` and `useContacts` achieve instant 0ms cold-start rendering via `localStorage` hydration, but lack error rollback logic (`onError`) and do not share query state via React Query.
+4. **Observation 4** shows that `sheets-api.ts` already updates `clientCache` in memory when `writeData` succeeds, making post-mutation network refetches via `invalidateQueries` redundant.
+5. **Conclusion**: Unifying all 4 hooks under React Query with `localStorage` `initialData` hydration, removing `enqueueKvWrite` 300ms artificial delays, eliminating redundant `invalidateQueries` refetches on settled mutations, and updating server `apiCache` directly will achieve true 0ms optimistic UI updates without disk I/O delay across the entire application.
 
 ---
 
 ## 3. Caveats
 
-- **Initial Load Behavior**: If the application starts on `dashboard` (the default tab), `isInitializedRef.current` is `false`. `useMergedSignals` will execute once on initial mount to populate the cache, ensuring `aiContextData` has valid signal data immediately if the user opens the AI Assistant modal before visiting the mindmap.
-- **AI Assistant Modal**: The `isQuickInputOpen` state MUST be OR'd with `activeModule === 'mindmap'` (`activeModule === 'mindmap' || isQuickInputOpen`). If only `activeModule === 'mindmap'` were checked, opening the AI Assistant modal on the `dashboard` tab would use stale signal keywords until the user visited the mindmap tab.
+- **Network Mode**: Investigation was conducted under CODE_ONLY network mode. No external APIs were queried.
+- **Yjs/PartyKit Integration**: Real-time CRDT sync via PartyKit/Yjs operates in parallel with local data fetching; recommendations focus on local React Query & disk data hydration.
 
 ---
 
 ## 4. Conclusion
 
-The strategy to solve R1 (Top-Level Hook Scoping & Conditional Computing) and fix the build errors is clear, safe, and actionable:
-
-1. Update `src/hooks/useMergedSignals.ts`:
-   - Add optional parameter `enabled: boolean = true`.
-   - Add `cachedMapRef`, `cachedEntriesRef`, and `isInitializedRef`.
-   - Check `if (!enabled && isInitializedRef.current) return cachedMapRef.current;` (and `cachedEntriesRef.current`).
-   - Add `enabled` to both `useMemo` dependency arrays.
-2. Update `src/app/page.tsx`:
-   - Define `const isMergedSignalsEnabled = activeModule === 'mindmap' || isQuickInputOpen;`
-   - Pass `isMergedSignalsEnabled` as the 8th parameter to `useMergedSignals`.
-3. Update `src/app/api/data/route.ts`:
-   - Import `RAGEngine` from `@/lib/rag/rag-engine`.
-   - Annotate `(err: unknown)`.
-
-No code changes were made to `src/` during this read-only investigation.
+To implement R1 requirements (Local Data Hydration & Instant UI Feedback with 0ms UI delay):
+1. **Unify Hooks**: Standardize `useInventory` and `useContacts` to use React Query alongside `useTasks` and `useBudget`.
+2. **0ms Cold Start**: Add `initialData` loading from `localStorage` (`hchps-fallback-<SHEET>`) to `useQuery` across all 4 hooks.
+3. **Remove 300ms Delays**: Remove `enqueueKvWrite` artificial delay from `useBudget.ts`.
+4. **Optimistic Settlement**: Rely on `onMutate` cache updates and `onError` snapshot rollback; remove `invalidateQueries` calls from `onSettled`.
+5. **Server Cache Preservation**: Update `apiCache` in `/api/data/route.ts` directly on write instead of deleting it.
 
 ---
 
 ## 5. Verification Method
 
-To independently verify the analysis and proposed strategy:
-
-1. **Inspect Files**:
-   - `src/app/page.tsx` lines 376-393
-   - `src/hooks/useMergedSignals.ts` lines 5-62
-   - `src/hooks/useGraphCustomization.ts` lines 703-784
-   - `src/app/api/data/route.ts` lines 1-5, 546
-2. **Run TypeScript Check**:
-   - `npx tsc --noEmit`
-3. **Test Invalidation Conditions**:
-   - If `useMergedSignals` is disabled on non-mindmap tabs without checking `isQuickInputOpen`, opening the AI Assistant modal on the `dashboard` tab will fail to reflect newly added tasks/signals until visiting the `mindmap` tab.
+1. **Static Analysis & Harness Verification**:
+   - Run `node scripts/run-harness.js` to ensure TypeScript compilation and Zod schema validations pass without errors.
+2. **Manual Inspection**:
+   - Check `useBudget.ts` for absence of `setTimeout(..., 300)` or `enqueueKvWrite`.
+   - Inspect `useTasks.ts`, `useBudget.ts`, `useInventory.ts`, `useContacts.ts` for `initialData` from `localStorage`.

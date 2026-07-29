@@ -16,7 +16,7 @@ import { CategoryStats } from '@/hooks/useBudget';
 
 // Mock Lucide icons for fast deterministic testing
 jest.mock('lucide-react', () => {
-  const DummyIcon = ({ size, className }: any) => <span data-testid="lucide-icon" className={className} />;
+  const DummyIcon = ({ className }: any) => <span data-testid="lucide-icon" className={className} />;
   return {
     Plus: DummyIcon,
     Pencil: DummyIcon,
@@ -52,7 +52,7 @@ describe('M2 DOM Virtualization & Tab Switch Stall Empirical Verification', () =
   const generateBudgetData = (numCats: number, entriesPerCat: number) => {
     const categories: BudgetCategory[] = [];
     const entries: BudgetEntry[] = [];
-    const getCategoryStats = jest.fn((id: string): CategoryStats => ({
+    const getCategoryStats = jest.fn((_id: string): CategoryStats => ({
       totalBudget: 10000000,
       spent: 3000000,
       planned: 1000000,
@@ -138,8 +138,6 @@ describe('M2 DOM Virtualization & Tab Switch Stall Empirical Verification', () =
       console.log(`[EMPIRICAL BENCHMARK] InventoryList mount stall: ${mountStallMs.toFixed(2)}ms`);
       expect(mountStallMs).toBeLessThan(50); // In test runner JSDOM environment, allow reasonable margin, ideally < 15ms in browser
 
-      // Measure rendered InventoryItemCard elements
-      const cards = renderedContainer.querySelectorAll('.glass-panel.rounded-\\[2rem\\]');
       // Total cards in grid should be windowed (e.g. 6 rows * 3 cols = 18-24 cards out of 100 total)
       const totalItemCards = renderedContainer.querySelectorAll('.font-bold.text-base.text-slate-800').length;
       

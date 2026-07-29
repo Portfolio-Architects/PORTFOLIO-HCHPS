@@ -1,36 +1,52 @@
 # Original User Request
 
-## 2026-07-22T10:00:25+09:00
+## 2026-07-23T01:28:18Z
 
-You are the Project Orchestrator for PORTFOLIO VITAL.
+# Teamwork Project Prompt — Localhost UX Optimization
+
+Implement comprehensive Localhost UX optimizations for the PORTFOLIO - VITAL application, enhancing local data loading responsiveness, adding a real-time Localhost Daemon/Health Status HUD, implementing a `Ctrl+K` command palette for instant navigation, and reinforcing offline-first Zero-Stall reliability.
+
 Working directory: d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL
-Original Request file: d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\ORIGINAL_REQUEST.md
+Integrity mode: development
 
-Your task:
-Execute all requirements specified in ORIGINAL_REQUEST.md:
-1. R1: Codebase statistics & inventory re-calculation (scan TS/TSX files, line count, custom hooks list (29+), API endpoints, component structure) and reflect in `PORTFOLIO VITAL - Engineering Report.md` Section 3 and Section 5.
-2. R2: Refine engineering patch history & milestones (R1 hydration/chunk isolation, R2 virtualization/DOM optimization, R3 zero-collision persistence & 0-stall guarantee, 3D mindmap render/GC optimization, PBKDF2 caching patch, etc.).
-3. R3: Automated harness verification (`npx tsc --noEmit` and `node scripts/run-harness.js` achieving 0 errors, 0 warnings, 0 violations, 0 bottlenecks).
-4. R4: Auto-sync AGENTS.md (`node scripts/sync-rules.js` to sync engineering report milestones into AGENTS.md).
+## Requirements
 
-Initialize your workspace directory under `.agents/orchestrator/`, create `plan.md`, `progress.md`, and execute the work using specialist subagents. When all requirements and acceptance criteria are met, update `progress.md` claiming completion and submit your final handoff report.
+### R1. Local Data Hydration & Instant UI Feedback
+Optimize local JSON disk I/O operations and React Query hooks (`useTasks`, `useBudget`, `useInventory`, `useContacts`) to provide instant 0ms UI feedback (optimistic updates) for all local data mutations, eliminating visual delays during disk auto-saves.
 
-## Follow-up — 2026-07-22T04:52:19Z
+### R2. Localhost Health & Daemon Status HUD Component
+Implement a modern, sleek Localhost Status HUD widget in the layout/sidebar displaying real-time local environment metrics: Server Port (3001), Local Heap Usage (MB), Auto-Backup count, File Watcher status, and Offline Sync indicator.
 
-<USER_REQUEST>
-You are the Project Orchestrator for PORTFOLIO - VITAL.
-Your working directory is: d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\orchestrator
+### R3. Keyboard Shortcut Command Palette (`Ctrl+K` / `Cmd+K`)
+Add a global keyboard command palette accessible via `Ctrl+K` / `Cmd+K` that enables instant keyboard navigation across all 4 main modules (Dashboard, MindMap, Workspace, Projects) and quick searching/filtering of local items.
 
-Task instructions:
-1. Read `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\ORIGINAL_REQUEST.md` and `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\AGENTS.md`.
-2. Formulate a plan (`plan.md`) and maintain progress tracking (`progress.md`) in your working directory `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\orchestrator`.
-3. Orchestrate the implementation of R1, R2, and R3 requirements:
-   - R1: UI Thread Stall cause analysis & isolation for `dashboard` and `workspace` (using `useVirtualGrid`, `React.memo`, `useMemo`, `useCallback` to keep frame occupancy < 100ms).
-   - R2: Zero-Stall & Background Tab Pause (AGENTS.md Sec. 2-J: `document.hidden` pause watcher/sim/React Query refetch, delta clamping `Math.min(now - lastFrameTime, 100)`).
-   - R3: Dynamic imports `dynamic(() => import(...), { ssr: false })` & Skeleton UI guards (AGENTS.md Sec. 2-I).
-4. Run and verify Acceptance Criteria:
-   - `npx tsc --noEmit`
-   - `node scripts/run-harness.js`
-   - `node scripts/sync-rules.js`
-5. Report completion to Sentinel when all criteria pass.
-</USER_REQUEST>
+### R4. Offline-First Zero-Stall Reliability & Codebase Integrity
+Ensure all local operations function completely offline without external network dependencies, preserving zero-stall thread responsiveness (>100ms stall 0) and adhering to the project's MVC ontology.
+
+## Acceptance Criteria
+
+### Localhost UX & Functionality
+- [ ] A Localhost Status HUD widget is integrated into the UI showing Port 3001, Heap Memory, and Local Storage health.
+- [ ] Pressing `Ctrl+K` (or `Cmd+K`) opens a polished Command Palette modal with instant search and tab navigation.
+- [ ] Local data modifications (task edits, budget additions, contact changes) immediately reflect in the UI via optimistic updates.
+- [ ] App operates 100% offline without external network call failures.
+
+### Automated Verification
+- [ ] `node scripts/run-harness.js` passes cleanly with 0 TypeScript compilation errors, 0 Zod schema errors, and 0 ESLint warnings.
+- [ ] `node scripts/sync-rules.js` automatically syncs the updated milestone log to `AGENTS.md`.
+
+## 2026-07-23T13:50:53Z
+
+Eliminate the 2-3s UI thread freeze when entering the Budget Management page by implementing module pre-evaluation, component virtualization, GC allocation optimization, and isolation of background signal computations.
+
+Requirements:
+- R1: Optimize Module Preloading & Idle Evaluation (adjust WorkspaceView staggered preloading timing or idle pre-compilation).
+- R2: Virtualize Budget Category Cards & Eliminate Excess DOM Nodes (apply DOM virtualization via useVirtualGrid/windowing or memoized chunk rendering to PolicyGroupCard and BudgetCategoryCardItem).
+- R3: Fix GC Memory Allocation Spikes in getCategoryStats (cache excludePlanned stats calculation or avoid object instantiations inside render loops).
+
+Acceptance Criteria:
+- No UI thread long task (> 100ms) on entering the Budget Management page.
+- `npx tsc --noEmit` completes with 0 errors.
+- `node scripts/run-harness.js` passes clean.
+- `node scripts/sync-rules.js` updates AGENTS.md milestone log.
+

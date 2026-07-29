@@ -1,50 +1,44 @@
-# BRIEFING — 2026-07-21T11:18:50+09:00
+# BRIEFING — 2026-07-29T17:00:24Z
 
 ## Mission
-Empirically verify and stress test R3 changes in useGraphCustomization.ts, query-client.ts, and useAppLogs.ts.
+Empirically challenge and stress-test Milestone 3: Batch Actions & Modal Comparison UX (`batchUpdateEntries`, `batchDeleteEntries`, `batchSettleEntries`), including edge cases, high volume, state corruption checks, TypeScript compilation, and harness verification.
 
 ## 🔒 My Identity
 - Archetype: EMPIRICAL CHALLENGER
 - Roles: critic, specialist
 - Working directory: d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\challenger_m3_1
-- Original parent: 2f44916a-d6e9-4f69-bb54-b0b454a51cbd
-- Milestone: Milestone 3 (R3: DB Polling & React Query Refetch Optimization)
-- Instance: 1 of 1
+- Original parent: 813643a4-8da0-42d3-b418-a2dfbfbc0968
+- Milestone: Milestone 3 (R3: Batch Actions & Modal Comparison UX)
+- Instance: Challenger 1
 
 ## 🔒 Key Constraints
-- Review-only — do NOT modify implementation code
-- Write outputs only to d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\challenger_m3_1
+- Review and empirical testing — do NOT modify implementation code unless creating test files in test directories or scripts.
+- Must run verification code directly; do not rely on claims.
+- Report findings to report.md, handoff.md, and send_message to parent.
 
 ## Current Parent
-- Conversation ID: 2f44916a-d6e9-4f69-bb54-b0b454a51cbd
-- Updated: 2026-07-21T11:18:50+09:00
+- Conversation ID: 813643a4-8da0-42d3-b418-a2dfbfbc0968
+- Updated: 2026-07-29T17:00:24Z
 
 ## Review Scope
-- **Files to review**:
-  - `src/lib/query-client.ts`
-  - `src/hooks/useGraphCustomization.ts`
-  - `src/hooks/useAppLogs.ts`
-- **Interface contracts**: PROJECT.md / AGENTS.md
-- **Review criteria**: DB Polling & React Query Refetch Optimization requirements, cleanup logic, background polling guards, type safety (`npx tsc --noEmit`).
-
-## Key Decisions Made
-- Executed static and empirical tests (`node scratch/test_m3_r3.js`, `npx tsc --noEmit`, `node scripts/run-harness.js`).
-- Confirmed VERDICT: PASS across all 4 verification goals.
-- Written handoff.md report.
-
-## Artifact Index
-- ORIGINAL_REQUEST.md — Original task prompt
-- BRIEFING.md — Working context and status
-- handoff.md — Final handoff report (VERDICT: PASS)
+- **Functions tested**: `batchUpdateEntries`, `batchDeleteEntries`, `batchSettleEntries`, `LedgerModal.tsx`, `ExpenseBatchToolbar.tsx`, `BatchEditModal.tsx`
+- **Edge cases tested**: Empty arrays, missing/invalid IDs, high-volume item selections (5,000 items), idempotency, referential integrity, limit checks.
+- **Commands run**: `npx tsc --noEmit` (0 errors), `node scripts/run-harness.js` (0 schema errors), `node scripts/test-m3-batch.js` (0 failures, 3 warnings).
 
 ## Attack Surface
-- **Hypotheses tested**:
-  - `queryClient` default options match staleTime (5m), gcTime (30m), refetchOnWindowFocus (false), refetchOnReconnect (false). [CONFIRMED PASS]
-  - `useGraphCustomization` listener & timer cleanup on unmount, multi-instance unmount logic. [CONFIRMED PASS]
-  - `useAppLogs` background polling guard `refetchIntervalInBackground: false`. [CONFIRMED PASS]
-  - Type checking via `npx tsc --noEmit`. [CONFIRMED PASS]
-- **Vulnerabilities found**: None.
-- **Untested angles**: None.
+- **Hypotheses tested**: High volume batch performance ($<50\text{ms}$), safety on missing/empty IDs, idempotency of batch settlement status, referential integrity during batch delete.
+- **Vulnerabilities found**:
+  1. Non-idempotent memo suffixing on repeated `REJECTED` batch status calls (`[지출반려] [지출반려]`).
+  2. Missing referential integrity check (`relatedPlanId`) when batch deleting planned entries.
+  3. Missing category budget limit check during `batchUpdateEntries`.
+- **Untested angles**: Multi-device Yjs CRDT real-time sync under network partition.
 
-## Loaded Skills
-- None loaded.
+## Key Decisions Made
+- Executed empirical test harness (`scripts/test-m3-batch.js`) and verified sub-3ms performance for 5,000 entries.
+- Confirmed zero TypeScript errors (`npx tsc --noEmit`) and zero database schema integrity errors.
+- Documented detailed findings in `report.md` and `handoff.md`.
+
+## Artifact Index
+- `.agents/challenger_m3_1/report.md` — Detailed empirical challenge report
+- `.agents/challenger_m3_1/handoff.md` — Standard 5-component handoff report
+- `scripts/test-m3-batch.js` — Empirical test harness script

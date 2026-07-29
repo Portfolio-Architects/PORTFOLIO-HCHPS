@@ -1,40 +1,81 @@
-/* eslint-disable react-hooks/set-state-in-effect */
-import { useState, useEffect, useMemo } from 'react';
+ 
+import { useState, useEffect, useMemo, useDeferredValue } from 'react';
 import { BudgetCategory, BudgetEntry } from '@/types';
 
 function formatN(n: number) { return n.toLocaleString('ko-KR'); }
+
+export type CategoryStatus = 'OVER' | 'WARNING' | 'NORMAL';
+
+export function getCategoryStatus(usageRate: number, remaining: number): CategoryStatus {
+  if (usageRate >= 95 || remaining < 0) {
+    return 'OVER';
+  }
+  if (usageRate >= 80) {
+    return 'WARNING';
+  }
+  return 'NORMAL';
+}
+
+export const STATUS_CONFIG: Record<CategoryStatus, { label: string; badgeClass: string }> = {
+  OVER: {
+    label: '초과/위험',
+    badgeClass: 'bg-red-500/20 text-red-400 border border-red-500/30'
+  },
+  WARNING: {
+    label: '주의',
+    badgeClass: 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+  },
+  NORMAL: {
+    label: '정상',
+    badgeClass: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+  }
+};
 
 export function useBudgetFilters(
   categories: BudgetCategory[],
   entries: BudgetEntry[],
   getCategoryStats: (id: string) => any
 ) {
-  const [filterPolicy, setFilterPolicy] = useState<string[]>([]);
-  const [filterUnit, setFilterUnit] = useState<string[]>([]);
-  const [filterDetail, setFilterDetail] = useState<string[]>([]);
-  const [filterStat, setFilterStat] = useState<string[]>([]);
-  const [isLoaded, setIsLoaded] = useState(false);
-
-  useEffect(() => {
+  const [initialSaved] = useState(() => {
+    if (typeof window === 'undefined') {
+      return { policy: [], unit: [], detail: [], stat: [], month: '전체', status: '전체' };
+    }
     try {
       const saved = localStorage.getItem('hchps-budget-filters-v2');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed.policy)) setFilterPolicy(parsed.policy);
-        if (Array.isArray(parsed.unit)) setFilterUnit(parsed.unit);
-        if (Array.isArray(parsed.detail)) setFilterDetail(parsed.detail);
-        if (Array.isArray(parsed.stat)) setFilterStat(parsed.stat);
+        return {
+          policy: Array.isArray(parsed.policy) ? parsed.policy : [],
+          unit: Array.isArray(parsed.unit) ? parsed.unit : [],
+          detail: Array.isArray(parsed.detail) ? parsed.detail : [],
+          stat: Array.isArray(parsed.stat) ? parsed.stat : [],
+          month: typeof parsed.month === 'string' ? parsed.month : '전체',
+          status: typeof parsed.status === 'string' ? parsed.status : '전체'
+        };
       }
     } catch {}
-    setIsLoaded(true);
-  }, []);
+    return { policy: [], unit: [], detail: [], stat: [], month: '전체', status: '전체' };
+  });
+
+  const [filterPolicy, setFilterPolicy] = useState<string[]>(initialSaved.policy);
+  const [filterUnit, setFilterUnit] = useState<string[]>(initialSaved.unit);
+  const [filterDetail, setFilterDetail] = useState<string[]>(initialSaved.detail);
+  const [filterStat, setFilterStat] = useState<string[]>(initialSaved.stat);
+  const [filterMonth, setFilterMonth] = useState<string>(initialSaved.month);
+  const [filterStatus, setFilterStatus] = useState<string>(initialSaved.status);
+  const [searchTerm, setSearchTerm] = useState<string>('');
+
+  const deferredSearchTerm = useDeferredValue(searchTerm);
+  const [isLoaded] = useState(true);
 
   const handleSaveFilters = () => {
     localStorage.setItem('hchps-budget-filters-v2', JSON.stringify({
       policy: filterPolicy,
       unit: filterUnit,
       detail: filterDetail,
-      stat: filterStat
+      stat: filterStat,
+      month: filterMonth,
+      status: filterStatus
     }));
     alert('✅ 현재 필터링 상태가 저장되었습니다. 앞으로 페이지 접속 시 이 필터가 유지됩니다.');
   };
@@ -44,14 +85,27 @@ export function useBudgetFilters(
     setFilterUnit([]);
     setFilterDetail([]);
     setFilterStat([]);
+    setFilterMonth('전체');
+    setFilterStatus('전체');
+    setSearchTerm('');
     localStorage.removeItem('hchps-budget-filters-v2');
   };
 
-  // Hierarchical Filter Calculation
+  // Hierarchical & Multi-Criteria Filter Calculation
   const policySet = useMemo(() => new Set(filterPolicy), [filterPolicy]);
   const unitSet = useMemo(() => new Set(filterUnit), [filterUnit]);
   const detailSet = useMemo(() => new Set(filterDetail), [filterDetail]);
   const statSet = useMemo(() => new Set(filterStat), [filterStat]);
+
+  const monthNum = useMemo(() => {
+    if (!filterMonth || filterMonth === '전체') return null;
+    const matched = filterMonth.match(/\d+/);
+    return matched ? parseInt(matched[0], 10) : null;
+  }, [filterMonth]);
+
+  const searchKeyword = useMemo(() => {
+    return deferredSearchTerm.trim().toLowerCase();
+  }, [deferredSearchTerm]);
 
   const { uniquePolicies, unitOptions, detailOptions, statOptions, filteredCategoriesTree } = useMemo(() => {
     const policySums: Record<string, number> = {};
@@ -72,6 +126,51 @@ export function useBudgetFilters(
       const dMatch = !hasDetail || detailSet.has(c.detailedProject || '');
       const sMatch = !hasStat || statSet.has(c.statItem || '');
 
+      // Status filter check
+      let statusMatch = true;
+      if (filterStatus && filterStatus !== '전체') {
+        const catStats = getCategoryStats(c.id);
+        const status = catStats ? getCategoryStatus(catStats.usageRate, catStats.remaining) : 'NORMAL';
+        if (filterStatus === '초과') statusMatch = (status === 'OVER');
+        else if (filterStatus === '주의') statusMatch = (status === 'WARNING');
+        else if (filterStatus === '정상') statusMatch = (status === 'NORMAL');
+      }
+
+      // Month filter check: category entries in selected month
+      let monthMatch = true;
+      if (monthNum !== null) {
+        monthMatch = entries.some(e => {
+          if (e.categoryId !== c.id) return false;
+          const eMonth = new Date(e.date).getMonth() + 1;
+          return eMonth === monthNum;
+        });
+      }
+
+      // Search keyword match check across policy, category, subItems, docRegNum, purpose
+      let searchMatch = true;
+      if (searchKeyword) {
+        const inPolicy = (c.policyProject || '').toLowerCase().includes(searchKeyword);
+        const inUnit = (c.unitProject || '').toLowerCase().includes(searchKeyword);
+        const inDetail = (c.detailedProject || '').toLowerCase().includes(searchKeyword);
+        const inName = (c.name || '').toLowerCase().includes(searchKeyword);
+        const inStat = (c.statItem || '').toLowerCase().includes(searchKeyword);
+        const inFormation = (c.formationItem || '').toLowerCase().includes(searchKeyword);
+        const inManagement = (c.managementProject || '').toLowerCase().includes(searchKeyword);
+        const inSubItems = (c.subItems || []).some(s => 
+          (s.name || '').toLowerCase().includes(searchKeyword) ||
+          (s.prefix || '').toLowerCase().includes(searchKeyword) ||
+          (s.calculation || '').toLowerCase().includes(searchKeyword)
+        );
+        const inEntries = entries.some(e => 
+          e.categoryId === c.id && (
+            (e.docRegNum || '').toLowerCase().includes(searchKeyword) ||
+            (e.purpose || '').toLowerCase().includes(searchKeyword) ||
+            (e.memo || '').toLowerCase().includes(searchKeyword)
+          )
+        );
+        searchMatch = inPolicy || inUnit || inDetail || inName || inStat || inFormation || inManagement || inSubItems || inEntries;
+      }
+
       if (c.policyProject) {
         policySums[c.policyProject] = (policySums[c.policyProject] || 0) + c.totalBudget;
       }
@@ -84,7 +183,8 @@ export function useBudgetFilters(
       if (pMatch && uMatch && dMatch && c.statItem) {
         statSums[c.statItem] = (statSums[c.statItem] || 0) + c.totalBudget;
       }
-      if (pMatch && uMatch && dMatch && sMatch) {
+
+      if (pMatch && uMatch && dMatch && sMatch && statusMatch && monthMatch && searchMatch) {
         tree.push(c);
       }
     }
@@ -96,7 +196,7 @@ export function useBudgetFilters(
       statOptions: Object.keys(statSums).map(s => ({ value: s, suffix: `${formatN(statSums[s])}원` })),
       filteredCategoriesTree: tree
     };
-  }, [categories, policySet, unitSet, detailSet, statSet]);
+  }, [categories, entries, policySet, unitSet, detailSet, statSet, filterStatus, monthNum, searchKeyword, getCategoryStats]);
 
   const groupedByPolicy = useMemo(() => {
     const groupsMap: Record<string, BudgetCategory[]> = {};
@@ -145,6 +245,10 @@ export function useBudgetFilters(
     filterUnit, setFilterUnit,
     filterDetail, setFilterDetail,
     filterStat, setFilterStat,
+    filterMonth, setFilterMonth,
+    filterStatus, setFilterStatus,
+    searchTerm, setSearchTerm,
+    deferredSearchTerm,
     isLoaded,
     handleSaveFilters,
     handleResetFilters,

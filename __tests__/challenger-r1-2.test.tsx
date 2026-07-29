@@ -162,7 +162,7 @@ describe('Empirical Challenger R1-2 Test Suite', () => {
   describe('2. Hook Execution & Memoization Stability', () => {
     it('should maintain stable function references across re-renders', () => {
       const { result } = renderHook(() => {
-        const [_cnt, setCnt] = useState(0);
+        const [, setCnt] = useState(0);
         const graph = useGraphCustomization(true);
         return { graph, setCnt };
       });

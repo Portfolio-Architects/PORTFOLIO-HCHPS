@@ -15,7 +15,8 @@
     "email": "",
     "notes": "노드 ID: custom-1775022780402",
     "createdAt": "2026-06-15T04:39:18.362Z",
-    "updatedAt": "2026-06-15T04:39:18.362Z"
+    "updatedAt": "2026-06-15T04:39:18.362Z",
+    "_enc": "{\"name\":\"최장미\",\"phone\":\"02-2133-9480\",\"email\":\"\",\"notes\":\"노드 ID: custom-1775022780402\",\"updatedAt\":\"2026-07-23T01:19:26.880Z\"}"
   },
   {
     "id": "contact-seed-2-mqeq4iu2fiosi9202",
@@ -1172,5 +1173,9 @@
   {
     "id": "mrvec8c5d4t1r55x3",
     "_enc": "{\"name\":\"전예진 담당\",\"phone\":\"02-865-1541\",\"email\":\"scoliosis1@daum.net\",\"notes\":\"고려대학교 척추측만증 연구소\",\"createdAt\":\"2026-07-22T01:21:09.941Z\",\"updatedAt\":\"2026-07-22T01:21:09.941Z\"}"
+  },
+  {
+    "id": "mrwtrpa6mfr51pyov",
+    "_enc": "{\"name\":\"조성호\",\"phone\":\"02-2133-9479\",\"email\":\"tigercho@seoul.go.kr\",\"notes\":\"\",\"createdAt\":\"2026-07-23T01:20:52.158Z\",\"updatedAt\":\"2026-07-23T01:20:52.158Z\"}"
   }
 ]

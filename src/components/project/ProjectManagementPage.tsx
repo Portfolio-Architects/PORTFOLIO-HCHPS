@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useProjects } from '@/hooks/useProjects';
 import { useTasks } from '@/hooks/useTasks';
 import { Project, ChecklistItem, Task } from '@/types';
@@ -32,6 +32,168 @@ const WeeklyScheduler = dynamic(() => import('@/components/dashboard/WeeklySched
   ssr: false,
   loading: () => <WeeklySchedulerSkeleton />
 });
+
+// ============ Memoized Sub-Components ============
+
+const ProjectListItem = React.memo(({
+  project,
+  isSelected,
+  progress,
+  onSelect,
+  onStartEdit,
+  onDelete
+}: {
+  project: Project;
+  isSelected: boolean;
+  progress: number;
+  onSelect: (id: string) => void;
+  onStartEdit: (project: Project) => void;
+  onDelete: (id: string, e: React.MouseEvent) => void;
+}) => {
+  return (
+    <div
+      onClick={() => onSelect(project.id)}
+      className={`p-3.5 rounded-xl border transition-all cursor-pointer flex flex-col gap-2.5 ${
+        isSelected 
+          ? 'bg-blue-50/40 border-blue-200 shadow-xs' 
+          : 'bg-white border-slate-100 hover:border-slate-200 hover:bg-slate-50/30'
+      }`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span 
+            className="w-2.5 h-2.5 rounded-full shrink-0" 
+            style={{ backgroundColor: project.color }} 
+          />
+          <h3 className="font-extrabold text-[13px] text-slate-800 truncate">{project.name}</h3>
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onStartEdit(project);
+            }}
+            className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors border-0 bg-transparent cursor-pointer"
+          >
+            <Edit2 size={13} />
+          </button>
+          <button
+            onClick={(e) => onDelete(project.id, e)}
+            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors border-0 bg-transparent cursor-pointer"
+          >
+            <Trash2 size={13} />
+          </button>
+        </div>
+      </div>
+
+      {project.description && (
+        <p className="text-[11px] font-semibold text-slate-500 line-clamp-2 leading-relaxed">
+          {project.description}
+        </p>
+      )}
+
+      <div className="flex items-center gap-2 mt-0.5">
+        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+          <div 
+            className="h-full rounded-full transition-all duration-300"
+            style={{ width: `${progress}%`, backgroundColor: project.color }}
+          />
+        </div>
+        <span className="text-[10px] font-bold text-slate-500 min-w-[28px] text-right">{progress}%</span>
+      </div>
+    </div>
+  );
+});
+ProjectListItem.displayName = 'ProjectListItem';
+
+const ChecklistItemRow = React.memo(({
+  projectId,
+  item,
+  onToggle,
+  onDelete
+}: {
+  projectId: string;
+  item: ChecklistItem;
+  onToggle: (projectId: string, itemId: string) => void;
+  onDelete: (projectId: string, itemId: string) => void;
+}) => {
+  return (
+    <div className="flex items-center justify-between p-3 bg-slate-50/60 rounded-xl border border-slate-100/50 hover:bg-slate-50 transition-colors">
+      <button
+        onClick={() => onToggle(projectId, item.id)}
+        className="flex items-start gap-3 flex-1 text-left border-0 bg-transparent p-0 cursor-pointer"
+      >
+        <span className="shrink-0 mt-0.5">
+          {item.completed ? (
+            <CheckCircle2 className="text-emerald-500" size={16} />
+          ) : (
+            <Circle className="text-slate-300 hover:text-slate-400" size={16} />
+          )}
+        </span>
+        <span className={`text-[12px] font-bold leading-relaxed ${
+          item.completed ? 'text-slate-400 line-through' : 'text-slate-700'
+        }`}>
+          {item.text}
+        </span>
+      </button>
+
+      <button
+        onClick={() => onDelete(projectId, item.id)}
+        className="p-1 text-slate-400 hover:text-rose-600 rounded-md transition-colors border-0 bg-transparent cursor-pointer shrink-0 ml-2"
+      >
+        <Trash2 size={13} />
+      </button>
+    </div>
+  );
+});
+ChecklistItemRow.displayName = 'ChecklistItemRow';
+
+const AssociatedTaskItemRow = React.memo(({
+  task,
+  onToggleStatus
+}: {
+  task: Task;
+  onToggleStatus: (task: Task) => void;
+}) => {
+  const statusColors: Record<string, string> = {
+    'todo': 'bg-slate-100 text-slate-600 border-slate-200/50',
+    'in-progress': 'bg-blue-50 text-blue-600 border-blue-100',
+    'done': 'bg-emerald-50 text-emerald-600 border-emerald-100'
+  };
+  const priorityColors: Record<string, string> = {
+    'low': 'bg-slate-100 text-slate-500',
+    'medium': 'bg-amber-50 text-amber-600',
+    'high': 'bg-rose-50 text-rose-600'
+  };
+  const statusLabel: Record<string, string> = {
+    'todo': '대기',
+    'in-progress': '진행중',
+    'done': '완료'
+  };
+
+  return (
+    <div className="p-3 bg-white border border-slate-150 rounded-xl flex items-center justify-between gap-3 shadow-2xs hover:shadow-xs transition-shadow">
+      <div className="flex flex-col gap-1 min-w-0">
+        <h4 className="font-extrabold text-[12px] text-slate-800 truncate">{task.title}</h4>
+        <div className="flex items-center gap-1.5 mt-0.5">
+          <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${priorityColors[task.priority] || priorityColors.medium}`}>
+            우선순위: {task.priority.toUpperCase()}
+          </span>
+        </div>
+      </div>
+
+      <button
+        onClick={() => onToggleStatus(task)}
+        className={`px-2.5 py-1.5 rounded-lg border text-[10px] font-extrabold transition-all cursor-pointer ${statusColors[task.status] || statusColors.todo}`}
+      >
+        {statusLabel[task.status] || '대기'}
+      </button>
+    </div>
+  );
+});
+AssociatedTaskItemRow.displayName = 'AssociatedTaskItemRow';
+
+// ============ Main Page Component ============
 
 export default function ProjectManagementPage() {
   const {
@@ -78,7 +240,7 @@ export default function ProjectManagementPage() {
     return projects.find(p => p.id === selectedProjectId) || null;
   }, [projects, selectedProjectId]);
 
-  const colorPalette = [
+  const colorPalette = useMemo(() => [
     '#3b82f6', // Blue
     '#10b981', // Emerald
     '#f59e0b', // Amber
@@ -87,9 +249,9 @@ export default function ProjectManagementPage() {
     '#ec4899', // Pink
     '#14b8a6', // Teal
     '#6366f1', // Indigo
-  ];
+  ], []);
 
-  const resetForm = () => {
+  const resetForm = useCallback(() => {
     setNewProjectName('');
     setNewProjectDesc('');
     setNewProjectColor('#3b82f6');
@@ -100,9 +262,36 @@ export default function ProjectManagementPage() {
     setNewProjectPerformance('');
     setNewProjectFuturePlans('');
     setNewProjectTimeline('');
-  };
+  }, []);
 
-  const handleCreateProject = (e: React.FormEvent) => {
+  const handleSelectProject = useCallback((id: string) => {
+    setSelectedProjectId(id);
+  }, []);
+
+  const startEditProject = useCallback((project: Project) => {
+    setEditingProjectId(project.id);
+    setNewProjectName(project.name);
+    setNewProjectDesc(project.description || '');
+    setNewProjectColor(project.color);
+    setNewProjectTarget(project.target || '');
+    setNewProjectBudget(project.budget || '');
+    setNewProjectLocation(project.location || '');
+    setNewProjectStaff(project.staff || '');
+    setNewProjectPerformance(project.performance || '');
+    setNewProjectFuturePlans(project.futurePlans || '');
+    setNewProjectTimeline(project.timeline || '');
+    setIsEditingProject(true);
+  }, []);
+
+  const handleDeleteProject = useCallback((id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (confirm('이 사업/프로젝트를 완전히 삭제하시겠습니까? 연관된 모든 체크리스트 및 소속 하위 업무들이 일괄 삭제됩니다.')) {
+      deleteProject(id);
+      setSelectedProjectId(prev => prev === id ? null : prev);
+    }
+  }, [deleteProject]);
+
+  const handleCreateProject = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     if (!newProjectName.trim()) return;
 
@@ -122,13 +311,12 @@ export default function ProjectManagementPage() {
     resetForm();
     setIsAddingProject(false);
     
-    // Automatically select the newly created project
     if (created && created.id) {
       setSelectedProjectId(created.id);
     }
-  };
+  }, [addProject, newProjectName, newProjectDesc, newProjectColor, newProjectTarget, newProjectBudget, newProjectLocation, newProjectStaff, newProjectPerformance, newProjectFuturePlans, newProjectTimeline, resetForm]);
 
-  const handleUpdateProject = (e: React.FormEvent) => {
+  const handleUpdateProject = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProjectId || !newProjectName.trim()) return;
 
@@ -148,45 +336,27 @@ export default function ProjectManagementPage() {
     resetForm();
     setIsEditingProject(false);
     setEditingProjectId(null);
-  };
+  }, [editingProjectId, newProjectName, newProjectDesc, newProjectColor, newProjectTarget, newProjectBudget, newProjectLocation, newProjectStaff, newProjectPerformance, newProjectFuturePlans, newProjectTimeline, updateProject, resetForm]);
 
-  const startEditProject = (project: Project) => {
-    setEditingProjectId(project.id);
-    setNewProjectName(project.name);
-    setNewProjectDesc(project.description || '');
-    setNewProjectColor(project.color);
-    setNewProjectTarget(project.target || '');
-    setNewProjectBudget(project.budget || '');
-    setNewProjectLocation(project.location || '');
-    setNewProjectStaff(project.staff || '');
-    setNewProjectPerformance(project.performance || '');
-    setNewProjectFuturePlans(project.futurePlans || '');
-    setNewProjectTimeline(project.timeline || '');
-    setIsEditingProject(true);
-  };
+  const handleToggleChecklist = useCallback((projectId: string, itemId: string) => {
+    toggleChecklistItem(projectId, itemId);
+  }, [toggleChecklistItem]);
 
-  const handleDeleteProject = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (confirm('이 사업/프로젝트를 완전히 삭제하시겠습니까? 연관된 모든 체크리스트 및 소속 하위 업무들이 일괄 삭제됩니다.')) {
-      deleteProject(id);
-      if (selectedProjectId === id) {
-        setSelectedProjectId(null);
-      }
-    }
-  };
+  const handleDeleteChecklist = useCallback((projectId: string, itemId: string) => {
+    deleteChecklistItem(projectId, itemId);
+  }, [deleteChecklistItem]);
 
-  const handleAddChecklist = (e: React.FormEvent) => {
+  const handleAddChecklist = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProjectId || !newChecklistText.trim()) return;
     addChecklistItem(selectedProjectId, newChecklistText.trim());
     setNewChecklistText('');
-  };
+  }, [selectedProjectId, newChecklistText, addChecklistItem]);
 
-  const handleCreateAssociatedTask = (e: React.FormEvent) => {
+  const handleCreateAssociatedTask = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProjectId || !newTaskTitle.trim()) return;
 
-    // Add task through useTasks hook, specifying projectId
     addTask({
       title: newTaskTitle.trim(),
       status: 'todo',
@@ -199,9 +369,9 @@ export default function ProjectManagementPage() {
     setNewTaskTitle('');
     setNewTaskPriority('medium');
     setIsAddingTask(false);
-  };
+  }, [selectedProjectId, newTaskTitle, newTaskPriority, selectedProject?.name, addTask]);
 
-  const handleToggleTaskStatus = (task: Task) => {
+  const handleToggleTaskStatus = useCallback((task: Task) => {
     const nextStatusMap: Record<string, 'todo' | 'in-progress' | 'done'> = {
       'todo': 'in-progress',
       'in-progress': 'done',
@@ -209,7 +379,7 @@ export default function ProjectManagementPage() {
     };
     const newStatus = nextStatusMap[task.status] || 'todo';
     updateTask(task.id, { status: newStatus });
-  };
+  }, [updateTask]);
 
   // Get associated tasks
   const associatedTasks = useMemo(() => {
@@ -301,64 +471,17 @@ export default function ProjectManagementPage() {
                 <p className="text-[10px] text-slate-400 mt-1">상단 + 버튼을 눌러 첫 사업을 등록하고 수동 관리를 시작하세요.</p>
               </div>
             ) : (
-              projects.map(p => {
-                const isSelected = p.id === selectedProjectId;
-                const progress = progressMap[p.id] || 0;
-                return (
-                  <div
-                    key={p.id}
-                    onClick={() => setSelectedProjectId(p.id)}
-                    className={`p-3.5 rounded-xl border transition-all cursor-pointer flex flex-col gap-2.5 ${
-                      isSelected 
-                        ? 'bg-blue-50/40 border-blue-200 shadow-xs' 
-                        : 'bg-white border-slate-100 hover:border-slate-200 hover:bg-slate-50/30'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span 
-                          className="w-2.5 h-2.5 rounded-full shrink-0" 
-                          style={{ backgroundColor: p.color }} 
-                        />
-                        <h3 className="font-extrabold text-[13px] text-slate-800 truncate">{p.name}</h3>
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            startEditProject(p);
-                          }}
-                          className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors border-0 bg-transparent cursor-pointer"
-                        >
-                          <Edit2 size={13} />
-                        </button>
-                        <button
-                          onClick={(e) => handleDeleteProject(p.id, e)}
-                          className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors border-0 bg-transparent cursor-pointer"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    </div>
-
-                    {p.description && (
-                      <p className="text-[11px] font-semibold text-slate-500 line-clamp-2 leading-relaxed">
-                        {p.description}
-                      </p>
-                    )}
-
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full rounded-full transition-all duration-300"
-                          style={{ width: `${progress}%`, backgroundColor: p.color }}
-                        />
-                      </div>
-                      <span className="text-[10px] font-bold text-slate-500 min-w-[28px] text-right">{progress}%</span>
-                    </div>
-                  </div>
-                );
-              })
+              projects.map(p => (
+                <ProjectListItem
+                  key={p.id}
+                  project={p}
+                  isSelected={p.id === selectedProjectId}
+                  progress={progressMap[p.id] || 0}
+                  onSelect={handleSelectProject}
+                  onStartEdit={startEditProject}
+                  onDelete={handleDeleteProject}
+                />
+              ))
             )}
           </div>
         </div>
@@ -441,35 +564,13 @@ export default function ProjectManagementPage() {
                       </div>
                     ) : (
                       selectedProject.checklistItems.map((item: ChecklistItem) => (
-                        <div 
+                        <ChecklistItemRow
                           key={item.id}
-                          className="flex items-center justify-between p-3 bg-slate-50/60 rounded-xl border border-slate-100/50 hover:bg-slate-50 transition-colors"
-                        >
-                          <button
-                            onClick={() => toggleChecklistItem(selectedProject.id, item.id)}
-                            className="flex items-start gap-3 flex-1 text-left border-0 bg-transparent p-0 cursor-pointer"
-                          >
-                            <span className="shrink-0 mt-0.5">
-                              {item.completed ? (
-                                <CheckCircle2 className="text-emerald-500" size={16} />
-                              ) : (
-                                <Circle className="text-slate-300 hover:text-slate-400" size={16} />
-                              )}
-                            </span>
-                            <span className={`text-[12px] font-bold leading-relaxed ${
-                              item.completed ? 'text-slate-400 line-through' : 'text-slate-700'
-                            }`}>
-                              {item.text}
-                            </span>
-                          </button>
-
-                          <button
-                            onClick={() => deleteChecklistItem(selectedProject.id, item.id)}
-                            className="p-1 text-slate-400 hover:text-rose-600 rounded-md transition-colors border-0 bg-transparent cursor-pointer shrink-0 ml-2"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
+                          projectId={selectedProject.id}
+                          item={item}
+                          onToggle={handleToggleChecklist}
+                          onDelete={handleDeleteChecklist}
+                        />
                       ))
                     )}
                   </div>
@@ -539,45 +640,13 @@ export default function ProjectManagementPage() {
                         <p className="text-[11px] font-bold text-slate-400">배정된 업무가 없습니다.</p>
                       </div>
                     ) : (
-                      associatedTasks.map(task => {
-                        const statusColors: Record<string, string> = {
-                          'todo': 'bg-slate-100 text-slate-600 border-slate-200/50',
-                          'in-progress': 'bg-blue-50 text-blue-600 border-blue-100',
-                          'done': 'bg-emerald-50 text-emerald-600 border-emerald-100'
-                        };
-                        const priorityColors: Record<string, string> = {
-                          'low': 'bg-slate-100 text-slate-500',
-                          'medium': 'bg-amber-50 text-amber-600',
-                          'high': 'bg-rose-50 text-rose-600'
-                        };
-                        const statusLabel: Record<string, string> = {
-                          'todo': '대기',
-                          'in-progress': '진행중',
-                          'done': '완료'
-                        };
-                        return (
-                          <div 
-                            key={task.id}
-                            className="p-3 bg-white border border-slate-150 rounded-xl flex items-center justify-between gap-3 shadow-2xs hover:shadow-xs transition-shadow"
-                          >
-                            <div className="flex flex-col gap-1 min-w-0">
-                              <h4 className="font-extrabold text-[12px] text-slate-800 truncate">{task.title}</h4>
-                              <div className="flex items-center gap-1.5 mt-0.5">
-                                <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${priorityColors[task.priority]}`}>
-                                  우선순위: {task.priority.toUpperCase()}
-                                </span>
-                              </div>
-                            </div>
-
-                            <button
-                              onClick={() => handleToggleTaskStatus(task)}
-                              className={`px-2.5 py-1.5 rounded-lg border text-[10px] font-extrabold transition-all cursor-pointer ${statusColors[task.status]}`}
-                            >
-                              {statusLabel[task.status]}
-                            </button>
-                          </div>
-                        );
-                      })
+                      associatedTasks.map(task => (
+                        <AssociatedTaskItemRow
+                          key={task.id}
+                          task={task}
+                          onToggleStatus={handleToggleTaskStatus}
+                        />
+                      ))
                     )}
                   </div>
                 </div>

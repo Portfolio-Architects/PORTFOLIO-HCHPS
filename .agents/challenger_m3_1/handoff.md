@@ -1,88 +1,56 @@
-# Handoff Report: Milestone 3 (R3 DB Polling & React Query Optimization) Empirical Verification
-
-- **Role**: Challenger 1 (Milestone 3)
-- **Verdict**: **PASS**
-- **Working Directory**: `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\challenger_m3_1`
-
----
+# Handoff Report — Challenger 1 (Milestone 3: Batch Actions & Modal Comparison UX)
 
 ## 1. Observation
 
-Direct empirical observations and verification results:
-
-- **`src/lib/query-client.ts`**:
-  - `staleTime: 5 * 60 * 1000` (line 6) — 5 minutes data freshness window.
-  - `gcTime: 30 * 60 * 1000` (line 7) — 30 minutes garbage collection time.
-  - `refetchOnWindowFocus: false` (line 15) — Disables automatic re-fetch on tab refocus.
-  - `refetchOnReconnect: false` (line 16) — Disables automatic re-fetch on network reconnect.
-
-- **`src/hooks/useGraphCustomization.ts`**:
-  - Singleton polling tracking via `activePollInterval` (line 64) and `activePollCount` (line 65).
-  - Background polling guard: `if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;` inside `runPoll()` (line 708) and interval callback (line 773).
-  - Event listener cleanup on unmount: `document.removeEventListener('visibilitychange', handleVisibilityChange);` (line 801).
-  - Timer cleanup on final unmount: `activePollCount--; if (activePollCount <= 0 && activePollInterval) { clearInterval(activePollInterval); activePollInterval = null; }` (lines 803-808).
-  - Auto-save timer cleanup: `return () => clearTimeout(timer);` (line 697).
-  - Yjs `useSyncExternalStore` timer cleanup: `if (timeoutId) clearTimeout(timeoutId);` (line 333) and map unobserve cleanup (lines 329-332).
-
-- **`src/hooks/useAppLogs.ts`**:
-  - `refetchInterval: enabled ? 10000 : false` (line 29) — Auto-refetch every 10s when tab/drawer is enabled.
-  - `refetchIntervalInBackground: false` (line 30) — Pauses polling when browser tab is inactive.
-
-- **Empirical Execution & Test Commands**:
-  - `npx tsc --noEmit`: Executed cleanly with **0 errors**.
-  - `node scratch/test_m3_r3.js` (Empirical Test Suite):
-    - `QueryClient Options Verification`: **PASS**
-    - `useGraphCustomization Cleanup & Listener Verification`: **PASS**
-    - `Simulated Lifecycle & Multi-Mount/Unmount Logic`: **PASS**
-    - `useAppLogs Background Polling Guard Verification`: **PASS**
-  - `node scripts/run-harness.js`: **PASS** (Validated records across `TASKS`, `BUDGET_CATEGORIES`, `BUDGET_ENTRIES`, `PROJECTS` with 0 schema errors).
-
----
+- **TypeScript Compilation**: `npx tsc --noEmit` executed with 0 errors.
+- **Database Integrity & Harness**: `node scripts/run-harness.js` executed Zod database schema tests on 78 records (TASKS, BUDGET_CATEGORIES, BUDGET_ENTRIES, PROJECTS) with **0 errors**.
+- **Batch Action Functions**:
+  - `batchUpdateEntries`, `batchDeleteEntries`, `batchSettleEntries` are defined in `src/hooks/useBudget.ts` (lines 395-523) and exported.
+  - Wire-up in `src/components/budget/ui/LedgerModal.tsx` (lines 107-133) and `src/components/budget/ui/ExpenseBatchToolbar.tsx` (lines 52-117) was verified.
+- **Empirical Stress Testing Results (`scripts/test-m3-batch.js`)**:
+  - **Empty array input (`ids = []`)**: Handled gracefully with early return. Zero crashes.
+  - **Non-existent / missing IDs**: Filtered correctly using `Set` lookup. Array length intact, zero side effects on existing records.
+  - **High Volume Performance (5,000 entries, 2,500 selected)**:
+    - `batchUpdateEntries`: **1.23 ms** ($< 50\text{ms}$)
+    - `batchDeleteEntries`: **0.90 ms** ($< 50\text{ms}$)
+    - `batchSettleEntries`: **2.43 ms** ($< 50\text{ms}$)
+- **Discovered Failure Modes**:
+  1. `batchSettleEntries` with status `'REJECTED'` appends `' [지출반려]'` to `memo` non-idempotently. Repeated calls create duplicate tags (`'[지출반려] [지출반려]'`).
+  2. `batchDeleteEntries` omits referential integrity check (`relatedPlanId`) when deleting planned entries (`isPlanned: true`) with linked actual expenditures.
+  3. `batchUpdateEntries` omits `checkLimit` category budget checking when updating entry amounts in bulk.
 
 ## 2. Logic Chain
 
-1. **React Query Configuration (`query-client.ts`)**:
-   - `staleTime: 5 * 60 * 1000` prevents unnecessary background HTTP and disk read operations within a 5-minute window.
-   - `gcTime: 30 * 60 * 1000` preserves cached state in memory across standard navigation.
-   - `refetchOnWindowFocus: false` and `refetchOnReconnect: false` prevent burst refetches and main-thread freezing when Alt-Tabbing or switching focus between browser tabs.
-
-2. **Timer & Listener Cleanup (`useGraphCustomization.ts`)**:
-   - Using a ref-counted singleton pattern (`activePollCount`) guarantees that multiple mounted instances of `useGraphCustomization` share a single 10-second polling interval instead of spawning multiple redundant timers.
-   - On unmount, `activePollCount` is decremented and `removeEventListener('visibilitychange', handleVisibilityChange)` is invoked.
-   - When all hook instances unmount (`activePollCount <= 0`), `clearInterval(activePollInterval)` executes and `activePollInterval` resets to `null`.
-   - Simulated multi-mount/unmount tests confirmed that unmounting N-1 instances keeps the interval active for remaining instances, while unmounting the final instance cleanly stops the timer and removes listeners.
-
-3. **Background Log Polling Guard (`useAppLogs.ts`)**:
-   - Configuring `refetchIntervalInBackground: false` halts the 10s interval query while the tab is hidden, preventing battery drain and background server requests.
-
-4. **Empirical Verification**:
-   - Typechecking via `npx tsc --noEmit` verifies strict TypeScript conformance with zero build errors.
-   - The custom harness test (`scratch/test_m3_r3.js`) validates options, regex patterns, and exact unmount lifecycle state transitions.
-
----
+1. **Static Analysis**: Inspected `useBudget.ts`, `LedgerModal.tsx`, `ExpenseBatchToolbar.tsx`, `BatchEditModal.tsx` for method signatures, React Query mutation hooks (`onMutate`, `onError`, `onSettled`), and UI state handlers.
+2. **Dynamic Verification**: Wrote and executed `scripts/test-m3-batch.js` to simulate high-volume batch operations (5,000 items) and measure latency, state mutations, and edge case responses.
+3. **Adversarial Failure Mode Probe**:
+   - Tested idempotency of string transformations in batch settle logic.
+   - Tested parent-child relational constraints during batch deletion.
+   - Tested budget remaining constraint checks during batch amount updates.
+4. **Tool Verification**: Launched background compiler checks (`npx tsc --noEmit`) and harness checks (`node scripts/run-harness.js`) and confirmed 0 baseline build/schema errors.
 
 ## 3. Caveats
 
-- **Multi-Tab Sync**: Setting `staleTime: 5 min` and `refetchOnWindowFocus: false` means that external JSON disk edits made by secondary out-of-band tools will not auto-trigger UI refetches on tab focus. However, real-time graph collaboration is synchronized via Yjs CRDT over WebSocket/PartyKit, making focus refetching redundant.
-- **Jest Test Suite Wrappers**: Milestone 3 test suites (`__tests__/graph-customization-m3.test.tsx` and `__tests__/useGraphCustomization.test.tsx`) pass 100%. Note that legacy test `__tests__/refactoring-stress.test.tsx` renders `<AppLogModal />` without wrapping it in `<QueryClientProvider>`, which React Query requires in unit test renders. In the production app, `src/components/QueryProviders.tsx` properly wraps all components.
-
----
+- End-to-end WebGL / DOM browser interaction tests were verified via unit script and static UI wiring inspection, not inside a live browser session.
+- Tombstone persistence in `localStorage` (`hchps-global-tombstones`) was tested logically, but full multidevice Yjs CRDT network sync was not evaluated in local single-user mode.
 
 ## 4. Conclusion
 
-**VERDICT: PASS**
+**Verdict**: **PASS WITH WARNINGS (MEDIUM RISK)**
 
-The R3 changes in `src/lib/query-client.ts`, `src/hooks/useGraphCustomization.ts`, and `src/hooks/useAppLogs.ts` fully satisfy all project requirements:
-- `QueryClient` defaults strictly enforce `staleTime: 5m`, `gcTime: 30m`, `refetchOnWindowFocus: false`, and `refetchOnReconnect: false`.
-- `useGraphCustomization.ts` properly cleans up intervals and event listeners on unmount with zero memory leaks.
-- `useAppLogs.ts` explicitly prevents background polling using `refetchIntervalInBackground: false`.
-- `npx tsc --noEmit`, database harness checks, and empirical unit tests pass with 0 errors.
-
----
+Milestone 3 meets core functionality, performance, type safety, and schema integrity criteria. High volume handling (5,000 items) operates in under $3\text{ms}$. 3 non-fatal edge case warnings (memo tag duplication on repeated rejection, referential integrity check on batch delete, budget limit check on batch update) have been identified and documented with recommended defenses.
 
 ## 5. Verification Method
 
-To independently re-verify:
-1. Run `npx tsc --noEmit` from the project root directory.
-2. Run `node scratch/test_m3_r3.js` to execute the empirical verification test suite.
-3. Run `node scripts/run-harness.js` to verify database schema compliance and code linting.
+To independently verify these findings, run the following commands from `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL`:
+
+```bash
+# 1. Run TypeScript Compilation Check
+npx tsc --noEmit
+
+# 2. Run Database Integrity Harness Check
+node scripts/run-harness.js
+
+# 3. Run Empirical M3 Batch Actions Stress Test Script
+node scripts/test-m3-batch.js
+```

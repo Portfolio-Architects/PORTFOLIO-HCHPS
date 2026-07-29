@@ -8,7 +8,7 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
-  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl' | 'full';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl' | '5xl' | 'full';
   footer?: React.ReactNode;
 }
 
@@ -20,6 +20,7 @@ const sizeClasses = {
   '2xl': 'max-w-5xl',
   '3xl': 'max-w-6xl',
   '4xl': 'max-w-7xl',
+  '5xl': 'max-w-[90vw]',
   'full': 'max-w-[95vw]',
 };
 

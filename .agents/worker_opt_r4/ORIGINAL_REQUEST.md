@@ -26,3 +26,21 @@ MANDATORY INTEGRITY WARNING:
 DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results, create dummy/facade implementations, or circumvent the intended task. A Forensic Auditor will independently verify your work. Integrity violations WILL be detected and your work WILL be rejected.
 
 Always follow the rules in AGENTS.md, including bypassing E2EE, loud failures, and live status reporting.
+
+## 2026-07-23T14:13:22Z
+
+You are worker_opt_r4. Your task is to execute Milestone M4 (R4: Gatekeeper Verification & Sync Rules) for PORTFOLIO - VITAL.
+
+Working directory: d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\worker_opt_r4\
+
+MANDATORY INTEGRITY WARNING:
+DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results, create dummy/facade implementations, or circumvent the intended task. A Forensic Auditor will independently verify your work. Integrity violations WILL be detected and your work WILL be rejected.
+
+Context & Requirements:
+1. Log all patches and milestone details into `PORTFOLIO VITAL - Engineering Report.md`.
+2. Run `node scripts/sync-rules.js` to update `AGENTS.md` milestone log.
+3. Run `npx tsc --noEmit` to verify 0 TypeScript compilation errors.
+4. Run `node scripts/run-harness.js` to verify 0 Zod database schema errors, 0 ESLint warnings, 0 MVC violations, 0 architectural defects.
+5. Create a detailed handoff report in `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\worker_opt_r4\handoff.md` with verification outputs and manifest sync status.
+
+Send a message back to parent when completed with your handoff path and summary.

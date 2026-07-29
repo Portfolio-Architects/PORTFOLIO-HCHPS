@@ -749,8 +749,12 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
     // Animation
     const loop = () => {
       const engine = engineRef.current;
-      if (!engine || !ctx || !canvasRef.current) {
-        animationRef.current = 0;
+      if (!engine || !ctx || !canvasRef.current || !isActive || document.hidden) {
+        if (animationRef.current) {
+          cancelAnimationFrame(animationRef.current);
+          animationRef.current = 0;
+        }
+        engineRef.current?.freeze();
         return;
       }
 
@@ -773,14 +777,11 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
       PerformanceProfiler.getInstance().tick();
 
       const now = performance.now();
-      if (now - lastFrameTime > 100) {
-        lastFrameTime = now - 16.6;
-      }
-      const delta = Math.min(now - lastFrameTime, 33.3);
+      const clampedDelta = Math.min(now - lastFrameTime, 33.3);
       lastFrameTime = now;
 
-      if (delta > 32 && delta < 1000) {
-        const diagnostic = PerformanceProfiler.getInstance().getSpikeDiagnostic(delta);
+      if (clampedDelta > 32 && clampedDelta < 1000) {
+        const diagnostic = PerformanceProfiler.getInstance().getSpikeDiagnostic(clampedDelta);
         PerformanceProfiler.getInstance().recordLagSpike(diagnostic);
       }
 
@@ -881,6 +882,7 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
         engineRef.current?.freeze();
       } else if (isActive) {
         engineRef.current?.resume();
+        lastFrameTime = performance.now();
         resumePhysicsLoopRef.current?.();
       }
     };
@@ -1793,6 +1795,7 @@ function BottomPerformancePanel({ isActive }: BottomPerformancePanelProps) {
   useEffect(() => {
     if (!isActive) return;
     const timer = setInterval(() => {
+      if (document.hidden) return;
       setPerfMetrics(PerformanceProfiler.getInstance().getMetrics());
       setLagSpikes(PerformanceProfiler.getInstance().getLagSpikes());
     }, 1000);

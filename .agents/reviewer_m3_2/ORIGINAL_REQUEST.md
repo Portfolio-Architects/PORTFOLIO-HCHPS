@@ -1,20 +1,17 @@
-## 2026-07-21T02:16:24Z
-You are Code Reviewer 2 for Milestone 3 (R3: DB Polling & React Query Refetch Optimization).
-Your task is to independently review and verify the changes in:
-- `src/hooks/useGraphCustomization.ts`
-- `src/lib/query-client.ts`
-- `src/hooks/useAppLogs.ts`
+## 2026-07-29T07:52:03Z
+<USER_REQUEST>
+You are Reviewer 2 for Milestone 3 (R3: Batch Actions & Modal Comparison UX).
+Working directory: d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\reviewer_m3_2
 
-Working Directory: d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\reviewer_m3_2
-Project root: d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL
+Objective:
+Independently review code quality, edge cases, accessibility, and UI responsiveness for Milestone 3 implementation:
+- `src/hooks/useBudget.ts`
+- `src/components/budget/ui/ExpenseBatchToolbar.tsx`
+- `src/components/budget/ui/LedgerModal.tsx`
+- `src/components/budget/ui/ExpenseEntryModal.tsx`
 
-Requirements to verify:
-1. `useGraphCustomization.ts`: DB polling loop (`readSheet('MAP_CUSTOMIZATION')`) is suspended when `!enabled` or `document.visibilityState === 'hidden'`. Added `visibilitychange` listener for instant 0ms poll + interval reset on tab return.
-2. `query-client.ts`: Configured with `staleTime: 5 * 60 * 1000` (5 min), `gcTime: 30 * 60 * 1000` (30 min), `refetchOnWindowFocus: false`, `refetchOnReconnect: false`.
-3. `useAppLogs.ts`: Configured with `refetchIntervalInBackground: false`.
-
-Review for:
-- Edge cases, memory leaks, potential race conditions, or unhandled visibility transitions.
-- Run typecheck (`npx tsc --noEmit`).
-- Write your findings and verdict (PASS/FAIL) to `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\reviewer_m3_2\handoff.md`.
-- Send a message to parent (`2f44916a-d6e9-4f69-bb54-b0b454a51cbd`) with your report.
+Verification Requirements:
+1. Run `npx tsc --noEmit` and `node scripts/run-harness.js` from `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL` to verify zero errors.
+2. Verify split-view comparison UX, selection state stability, and reactive category updates.
+3. Write your report to `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\reviewer_m3_2\report.md` and send a message back with your verdict (PASS/FAIL).
+</USER_REQUEST>

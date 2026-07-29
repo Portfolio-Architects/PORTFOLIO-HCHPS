@@ -82,6 +82,20 @@ export function useTasks() {
     staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
     refetchIntervalInBackground: false,
+    initialData: () => {
+      if (typeof window !== 'undefined') {
+        try {
+          const item = localStorage.getItem('hchps-fallback-TASKS');
+          if (item) {
+            const parsed = JSON.parse(item);
+            if (Array.isArray(parsed)) return parsed as Task[];
+          }
+        } catch (err) {
+          console.warn('[useTasks] Initial data parse error:', err);
+        }
+      }
+      return undefined;
+    },
   });
 
   const addTaskMut = useMutation({
@@ -94,8 +108,7 @@ export function useTasks() {
     },
     onError: (err, newTask, context) => {
       if (context?.previousTasks) queryClient.setQueryData(['TASKS'], context.previousTasks);
-    },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['TASKS'] })
+    }
   });
 
   const updateTaskMut = useMutation({
@@ -113,8 +126,7 @@ export function useTasks() {
     },
     onError: (err, variables, context) => {
       if (context?.previousTasks) queryClient.setQueryData(['TASKS'], context.previousTasks);
-    },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['TASKS'] })
+    }
   });
 
   const deleteTaskMut = useMutation({
@@ -127,8 +139,7 @@ export function useTasks() {
     },
     onError: (err, id, context) => {
       if (context?.previousTasks) queryClient.setQueryData(['TASKS'], context.previousTasks);
-    },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['TASKS'] })
+    }
   });
 
   const addTask = useCallback((taskPayload: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => {

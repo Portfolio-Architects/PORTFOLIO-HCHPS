@@ -84,7 +84,7 @@ try {
     const relativePath = path.relative(process.cwd(), file).replace(/\\/g, '/');
     
     // Check for direct fetch or window.fetch calls (excluding imports and hooks)
-    const directFetchRegex = /(?<!\/\/\s*|import\s+.*from\s+['"])(fetch\s*\(|axios\.(get|post|put|delete)\(|fetchPayload\s*\()/g;
+    const directFetchRegex = /(?<!\/\/\s*|import\s+.*from\s+['"])(\bfetch\s*\(|axios\.(get|post|put|delete)\(|fetchPayload\s*\()/g;
     let match;
     while ((match = directFetchRegex.exec(content)) !== null) {
       // Find line number

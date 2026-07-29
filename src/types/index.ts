@@ -75,6 +75,8 @@ export interface BudgetCategory {
   sortOrder?: number; // 편성목 표시 순서 (낮을수록 위)
 }
 
+export type ExpenseEntry = BudgetEntry;
+
 export interface BudgetEntry {
   id: string;
   categoryId: string;

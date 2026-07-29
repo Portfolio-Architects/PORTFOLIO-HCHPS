@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore, useTransition } from 'react';
 import dynamic from 'next/dynamic';
 import { ModuleType } from '@/types';
 import { useTasks } from '@/hooks/useTasks';
@@ -8,6 +8,7 @@ import { useBudget } from '@/hooks/useBudget';
 import { useInventory } from '@/hooks/useInventory';
 import { useMeetings } from '@/hooks/useMeetings';
 import { useProjects } from '@/hooks/useProjects';
+import { useContacts } from '@/hooks/useContacts';
 import { useSignal } from '@/hooks/useSignal';
 import { useScheduleAlerts } from '@/hooks/useScheduleAlerts';
 import { useNotificationAlerts } from '@/hooks/useNotificationAlerts';
@@ -297,6 +298,11 @@ const AIAssistantModal = dynamic(() => import('@/components/ai/AIAssistantModal'
   loading: () => null
 });
 
+const CommandPalette = dynamic(() => import('@/components/modals/CommandPalette').then(mod => mod.CommandPalette), {
+  ssr: false,
+  loading: () => null
+});
+
 import { useMergedSignals } from '@/hooks/useMergedSignals';
 import { syncTombstones } from '@/lib/sheets-api';
 import { useGraphCustomization } from '@/hooks/useGraphCustomization';
@@ -361,17 +367,33 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
   });
   const [isQuickInputOpen, setIsQuickInputOpen] = useState(false);
   const [isLogsOpen, setIsLogsOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [buttonBottom, setButtonBottom] = useState<number | null>(null);
   // Hooks
   const { tasks, updateTask, stats: taskStats } = useTasks();
-  const { categories: budgetCategories, entries: budgetEntries, addCategory, updateCategory, deleteCategory, replaceCategories, addEntry, updateEntry, deleteEntry, getCategoryStats, overallStatsActual } = useBudget();
+  const { categories: budgetCategories, entries: budgetEntries, addCategory, updateCategory, deleteCategory, replaceCategories, addEntry, updateEntry, deleteEntry, batchUpdateEntries, batchDeleteEntries, batchSettleEntries, getCategoryStats, overallStatsActual } = useBudget();
   const { items: inventoryItems, addItem, updateItem, deleteItem, adjustStock, getItemHistory } = useInventory();
   const { meetings } = useMeetings();
   const { projects } = useProjects();
+  const { contacts } = useContacts();
   const { entries: signalEntries, addSignal, deleteSignal, updateSignalKeywords, keywordMap } = useSignal();
   const scheduleAlerts = useScheduleAlerts(tasks, meetings);
   useNotificationAlerts(scheduleAlerts);
   useFreezeDetector(activeModule);
+
+  const handleCloseCommandPalette = useCallback(() => setIsCommandPaletteOpen(false), []);
+
+  // Global keyboard shortcut (Ctrl+K / Cmd+K) to toggle Command Palette
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsCommandPaletteOpen(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const isMergedSignalsEnabled = !isInitializingGlobal && (activeModule === 'mindmap' || isQuickInputOpen);
   const { mergedKeywordMap, mergedEntries } = useMergedSignals(signalEntries, keywordMap, tasks, projects, meetings, budgetEntries, inventoryItems, isMergedSignalsEnabled);
@@ -402,6 +424,17 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
       if (prev[module]) return prev;
       return { ...prev, [module]: true };
     });
+    if (typeof window !== 'undefined') {
+      if (module === 'workspace') {
+        import('@/components/WorkspaceView');
+        import('@/components/budget/BudgetDashboard');
+        import('@/components/inventory/InventoryList');
+      } else if (module === 'mindmap') {
+        import('@/components/MindMap3D');
+      } else if (module === 'project') {
+        import('@/components/project/ProjectManagementPage');
+      }
+    }
   }, []);
 
   const preloadModulesOnIdle = useCallback((): { timers: number[]; idleCallbackId: number | null } | null => {
@@ -412,9 +445,23 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
     let idleCallbackId: number | null = null;
 
     const triggerPreload = (module: ModuleType) => {
-      if (module === 'mindmap') import('@/components/MindMap3D');
-      else if (module === 'workspace') import('@/components/WorkspaceView');
-      else if (module === 'project') import('@/components/project/ProjectManagementPage');
+      if (module === 'mindmap') {
+        import('@/components/MindMap3D');
+      } else if (module === 'workspace') {
+        import('@/components/WorkspaceView');
+        // Pre-trigger dynamic imports for sub-chunks during idle to eliminate 2-stage loading waterfall
+        if ('requestIdleCallback' in window) {
+          window.requestIdleCallback(() => {
+            import('@/components/budget/BudgetDashboard');
+            import('@/components/inventory/InventoryList');
+          });
+        } else {
+          import('@/components/budget/BudgetDashboard');
+          import('@/components/inventory/InventoryList');
+        }
+      } else if (module === 'project') {
+        import('@/components/project/ProjectManagementPage');
+      }
       console.log(`[Watcher Preload] Background caching initialized for: ${module}`);
     };
 
@@ -526,10 +573,14 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
   const touchStartX = useRef<number | null>(null);
   const touchEndX = useRef<number | null>(null);
 
+  const [, startTabTransition] = useTransition();
+
   const handleModuleChange = useCallback((module: ModuleType) => {
-    setActiveModule(module);
-    setVisitedModules(prev => prev[module] ? prev : { ...prev, [module]: true });
-    localStorage.setItem('hchps_active_module', module);
+    startTabTransition(() => {
+      setActiveModule(module);
+      setVisitedModules(prev => prev[module] ? prev : { ...prev, [module]: true });
+      localStorage.setItem('hchps_active_module', module);
+    });
   }, []);
 
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -701,6 +752,9 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
                   addEntry={addEntry}
                   updateEntry={updateEntry}
                   deleteEntry={deleteEntry}
+                  batchUpdateEntries={batchUpdateEntries}
+                  batchDeleteEntries={batchDeleteEntries}
+                  batchSettleEntries={batchSettleEntries}
                   getCategoryStats={handleGetCategoryStats}
                   overallStats={overallStatsActual}
                   inventoryItems={inventoryItems}
@@ -743,6 +797,19 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
           appMode={appMode}
         />
       )}
+
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        onClose={handleCloseCommandPalette}
+        onSelectModule={handleModuleChange}
+        tasks={tasks}
+        budgetEntries={budgetEntries}
+        budgetCategories={budgetCategories}
+        inventoryItems={inventoryItems}
+        contacts={contacts}
+        projects={projects}
+        meetings={meetings}
+      />
 
       {/* Floating LLM Button & Popover */}
       <div 

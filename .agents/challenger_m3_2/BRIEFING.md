@@ -1,57 +1,38 @@
-# BRIEFING — 2026-07-21T02:18:10Z
+# BRIEFING — 2026-07-29T17:00:25Z
 
 ## Mission
-Empirically verify and stress test R3 DB Polling & React Query Refetch Optimization changes.
+Empirically challenge and stress-test the split view and modal navigation interactions in LedgerModal.tsx and ExpenseEntryModal.tsx.
 
 ## 🔒 My Identity
-- Archetype: EMPIRICAL CHALLENGER
+- Archetype: empirical challenger
 - Roles: critic, specialist
 - Working directory: d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\challenger_m3_2
-- Original parent: 2f44916a-d6e9-4f69-bb54-b0b454a51cbd
-- Milestone: Milestone 3 (R3: DB Polling & React Query Refetch Optimization)
-- Instance: Challenger 2
+- Original parent: 813643a4-8da0-42d3-b418-a2dfbfbc0968
+- Milestone: Milestone 3 (R3: Batch Actions & Modal Comparison UX)
+- Instance: 2 of 2
 
 ## 🔒 Key Constraints
-- Review-only — do NOT modify implementation code (report findings as findings)
-- Must run empirical verification code / tests ourselves
-- Target files: `src/hooks/useGraphCustomization.ts`, `src/lib/query-client.ts`, `src/hooks/useAppLogs.ts`
+- Review-only — do NOT modify implementation code
+- Run empirical verification tests and stress test harnesses
+- Report findings accurately; do not fix bugs directly
 
 ## Current Parent
-- Conversation ID: 2f44916a-d6e9-4f69-bb54-b0b454a51cbd
-- Updated: 2026-07-21T02:18:10Z
+- Conversation ID: 813643a4-8da0-42d3-b418-a2dfbfbc0968
+- Updated: 2026-07-29T17:00:25Z
 
 ## Review Scope
-- **Files to review**: `src/hooks/useGraphCustomization.ts`, `src/lib/query-client.ts`, `src/hooks/useAppLogs.ts`
-- **Verification goals**:
-  1. Tab switching / visibility changes for infinite polling loops or rapid re-triggering under fast tab toggle simulation.
-  2. React Query default options in `query-client.ts` component override safety.
-  3. `npx tsc --noEmit` typecheck and runtime hazards.
+- **Files to review**: LedgerModal.tsx, ExpenseEntryModal.tsx, related components and hooks
+- **Interface contracts**: PROJECT.md / AGENTS.md
+- **Review criteria**: State retention on toggling viewMode/splitView, modal navigation state persistence, zero-stall / 60 FPS performance, reactive recalculation of category budget highlights, tsc and run-harness checks
 
 ## Key Decisions Made
-- Executed `npx tsc --noEmit` -> Passed with 0 errors.
-- Created empirical stress test harness `scratch/test_r3_polling_simulation.js`.
-- Discovered 2 performance caveats in `useGraphCustomization.ts`: listener multiplication across multiple instances and un-throttled poll calls on rapid tab toggle.
-- Confirmed no infinite polling loops exist.
-- Confirmed React Query default options in `query-client.ts` are safe and don't break component requirements.
+- Executed empirical benchmark suite (`scratch/test_empirical_m3_2.js`).
+- Verified `npx tsc --noEmit` (0 errors) and `node scripts/run-harness.js` (0 errors).
+- Documented state retention behavior and performance metrics.
+- Completed handoff report (`handoff.md`) and findings report (`report.md`).
 
 ## Artifact Index
-- `.agents/challenger_m3_2/ORIGINAL_REQUEST.md` — Original request logging
-- `.agents/challenger_m3_2/BRIEFING.md` — Agent working memory
-- `.agents/challenger_m3_2/progress.md` — Liveness heartbeat and progress
-- `scratch/test_r3_polling_simulation.js` — Empirical test script
-- `.agents/challenger_m3_2/handoff.md` — Handoff report
-
-## Attack Surface
-- **Hypotheses tested**:
-  - Infinite polling loops on tab switch -> Disproven (interval correctly managed and cleared).
-  - Multi-instance event listener duplication -> Confirmed (N instances register N listeners on `document`).
-  - Rapid tab toggle request storm -> Confirmed (30 rapid toggles fire 30 parallel `runPoll()` calls).
-  - React Query default option conflicts -> Disproven (defaults are safe and overrideable).
-  - TypeScript compilation errors -> Disproven (`npx tsc --noEmit` passed with 0 errors).
-- **Vulnerabilities found**:
-  - Event listener duplication per hook instance in `useGraphCustomization.ts`.
-  - Missing in-flight request lock / debounce on `visibilitychange` in `useGraphCustomization.ts`.
-- **Untested angles**: None.
-
-## Loaded Skills
-- None
+- ORIGINAL_REQUEST.md — Original request log
+- report.md — Comprehensive empirical challenge report
+- handoff.md — Handoff report following 5-component protocol
+- scratch/test_empirical_m3_2.js — Empirical test benchmark script

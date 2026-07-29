@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import { BudgetCategory, BudgetEntry } from '@/types';
 import { useBudgetFilters } from '@/hooks/useBudgetFilters';
 import { Card } from '@/components/ui/card';
 import { ShieldAlert, RefreshCw, Search, FilePlus2, CircleDollarSign, Wallet, Receipt, ShieldCheck } from 'lucide-react';
 import { MultiSelectDropdown } from './ui/MultiSelectDropdown';
 import { PolicyGroupCard } from './ui/PolicyGroupCard';
+import { useVirtualList } from '@/hooks/useVirtualList';
 import dynamic from 'next/dynamic';
 
 const CategoryEditModal = dynamic(
@@ -46,6 +47,9 @@ interface BudgetDashboardProps {
   addEntry: (entry: Omit<BudgetEntry, 'id'>) => void;
   updateEntry: (id: string, updates: Partial<BudgetEntry>) => void;
   deleteEntry: (id: string) => void;
+  batchUpdateEntries?: (ids: string[] | Array<{ id: string; [key: string]: any }>, updates?: Partial<BudgetEntry>) => void;
+  batchDeleteEntries?: (ids: string[]) => void;
+  batchSettleEntries?: (ids: string[], status: 'SETTLED' | 'PENDING' | 'REJECTED') => void;
   getCategoryStats: (id: string) => CategoryStats | null;
   overallStats: { 
     totalBudget: number; totalSpent: number; totalPlanned: number; remaining: number;
@@ -56,7 +60,20 @@ interface BudgetDashboardProps {
 function formatN(n: number) { return n.toLocaleString('ko-KR'); }
 
 export function BudgetDashboard(props: BudgetDashboardProps) {
-  const { categories, entries, addCategory, updateCategory, deleteCategory, addEntry, updateEntry, deleteEntry, getCategoryStats } = props;
+  const {
+    categories,
+    entries,
+    addCategory,
+    updateCategory,
+    deleteCategory,
+    addEntry,
+    updateEntry,
+    deleteEntry,
+    batchUpdateEntries,
+    batchDeleteEntries,
+    batchSettleEntries,
+    getCategoryStats
+  } = props;
 
   const [showCatModal, setShowCatModal] = useState(false);
   const [catModalInitialData, setCatModalInitialData] = useState<Partial<BudgetCategory> | null>(null);
@@ -71,11 +88,17 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
   const [showLedgerModal, setShowLedgerModal] = useState(false);
   const [showDailyStatModal, setShowDailyStatModal] = useState(false);
 
+  const containerRef = useRef<HTMLDivElement>(null);
+
   const {
     filterPolicy, setFilterPolicy,
     filterUnit, setFilterUnit,
     filterDetail, setFilterDetail,
     filterStat, setFilterStat,
+    filterMonth, setFilterMonth,
+    filterStatus, setFilterStatus,
+    searchTerm, setSearchTerm,
+    deferredSearchTerm,
     handleSaveFilters,
     handleResetFilters,
     uniquePolicies,
@@ -87,15 +110,15 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
     filteredStats
   } = useBudgetFilters(categories, entries, getCategoryStats);
 
-  const handleSaveCategory = (isEdit: boolean, editCatId: string | null, updates: Partial<BudgetCategory>) => {
+  const handleSaveCategory = useCallback((isEdit: boolean, editCatId: string | null, updates: Partial<BudgetCategory>) => {
     if (isEdit && editCatId) {
       updateCategory(editCatId, updates);
     } else {
       addCategory(updates as Omit<BudgetCategory, 'id'>);
     }
-  };
+  }, [updateCategory, addCategory]);
 
-  const handleSaveEntry = (isEdit: boolean, editEntryId: string | null, entryData: Partial<BudgetEntry>) => {
+  const handleSaveEntry = useCallback((isEdit: boolean, editEntryId: string | null, entryData: Partial<BudgetEntry>) => {
     if (isEdit && editEntryId) {
       updateEntry(editEntryId, entryData);
     } else {
@@ -105,20 +128,18 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
       setShowEntryModal(true);
       setReturnToEntryModal(false);
     }
-  };
+  }, [updateEntry, addEntry, returnToEntryModal]);
 
-  const handleSettleEntry = (plannedEntryId: string, actualAmount: number) => {
+  const handleSettleEntry = useCallback((plannedEntryId: string, actualAmount: number) => {
     const plannedEntry = entries.find(e => e.id === plannedEntryId);
     if (!plannedEntry) return;
 
-    // 1. Update the planned entry to isSettled: true
     updateEntry(plannedEntryId, { isSettled: true });
 
-    // 2. Add the actual spent entry
     addEntry({
       categoryId: plannedEntry.categoryId,
       amount: actualAmount,
-      date: new Date().toISOString().split('T')[0], // today
+      date: new Date().toISOString().split('T')[0],
       purpose: `${plannedEntry.purpose} (정산)`,
       memo: plannedEntry.memo,
       isPlanned: false,
@@ -129,29 +150,30 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
       docRegNum: plannedEntry.docRegNum,
       fundingSource: plannedEntry.fundingSource
     });
-  };
+  }, [entries, updateEntry, addEntry]);
 
-  const handleAddCategory = () => {
-    setCatModalInitialData(null);
+  const handleAddCategory = useCallback((template?: Partial<BudgetCategory>) => {
+    setCatModalInitialData(template || null);
     setShowCatModal(true);
-  };
-  const handleEditCategory = (cat: BudgetCategory) => {
+  }, []);
+
+  const handleEditCategory = useCallback((cat: BudgetCategory) => {
     setCatModalInitialData(cat);
     setShowCatModal(true);
-  };
+  }, []);
   
-  const openEditEntry = (entry: BudgetEntry) => {
+  const openEditEntry = useCallback((entry: BudgetEntry) => {
     setEntryModalInitialData(entry);
     setShowEntryModal(true);
-  };
+  }, []);
 
-  const openBatchEdit = React.useCallback((title: string, cats: BudgetCategory[]) => {
+  const openBatchEdit = useCallback((title: string, cats: BudgetCategory[]) => {
     setBatchCats(cats);
     setBatchTitle(title);
     setShowBatchModal(true);
   }, []);
 
-  const handleApplyBatchEdit = (updates: Partial<BudgetCategory>, fundingSplits?: { source: string; ratio: string }[]) => {
+  const handleApplyBatchEdit = useCallback((updates: Partial<BudgetCategory>, fundingSplits?: { source: string; ratio: string }[]) => {
     batchCats.forEach(c => {
       const finalUpdates = { ...updates };
       
@@ -171,12 +193,12 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
       updateCategory(c.id, finalUpdates);
     });
     setShowBatchModal(false);
-  };
+  }, [batchCats, updateCategory]);
 
   const currentMonth = new Date().getMonth() + 1;
   const isEndOfYearApproaching = currentMonth >= 11;
   
-  const riskCategories = React.useMemo(() => {
+  const riskCategories = useMemo(() => {
     return categories.map(cat => {
       const st = getCategoryStats(cat.id);
       if (!st) return null;
@@ -185,6 +207,20 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
       return null;
     }).filter(Boolean);
   }, [categories, getCategoryStats, currentMonth, isEndOfYearApproaching]);
+
+  // Policy groups virtualization
+  const isPolicyVirtualActive = groupedByPolicy.length > 4;
+  const { startIndex, endIndex, topPadding, bottomPadding } = useVirtualList({
+    totalItems: groupedByPolicy.length,
+    itemHeight: 220,
+    overscan: 2,
+    containerRef
+  });
+
+  const visibleGroupedByPolicy = useMemo(() => {
+    if (!isPolicyVirtualActive) return groupedByPolicy;
+    return groupedByPolicy.slice(startIndex, endIndex);
+  }, [groupedByPolicy, isPolicyVirtualActive, startIndex, endIndex]);
 
   return (
     <div className="space-y-6">
@@ -218,10 +254,17 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
         </div>
       </div>
 
-      {/* Hierarchical Filters */}
+      {/* Hierarchical & Multi-Criteria Filters */}
       <div className="glass-panel rounded-[2rem] p-5 shadow-2xs border border-white/20">
         <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-          <div className="text-sm font-bold text-slate-800 tracking-wide">다중 필터링 시스템</div>
+          <div className="text-sm font-bold text-slate-800 tracking-wide flex items-center gap-2">
+            <span>다중 필터링 & 실시간 대조 시스템</span>
+            {deferredSearchTerm && (
+              <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full border border-indigo-100 font-normal">
+                검색어: "{deferredSearchTerm}"
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-2">
             <button onClick={handleSaveFilters} className="text-xs px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg font-semibold border border-blue-200 transition-all cursor-pointer shadow-3xs">
               구성 저장하기
@@ -231,11 +274,65 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
             </button>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+
+        {/* Keyword Search Input */}
+        <div className="relative mb-3">
+          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+            <Search size={16} />
+          </div>
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="사업명(정책/단위/세부), 통계목, 산출기초, 문서번호, 지출목적 실시간 검색..."
+            className="w-full pl-10 pr-10 py-2 bg-white/80 border border-slate-200 rounded-xl text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+          />
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm('')}
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 text-xs font-bold"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+
+        {/* Filter Controls Row */}
+        <div className="flex flex-wrap gap-2 items-center">
           <MultiSelectDropdown label="정책사업명" options={uniquePolicies} selected={filterPolicy} onChange={val => { setFilterPolicy(val); setFilterUnit([]); setFilterDetail([]); setFilterStat([]); }} />
           <MultiSelectDropdown label="단위사업명" options={unitOptions} selected={filterUnit} onChange={val => { setFilterUnit(val); setFilterDetail([]); setFilterStat([]); }} disabled={unitOptions.length === 0} />
           <MultiSelectDropdown label="세부사업명" options={detailOptions} selected={filterDetail} onChange={val => { setFilterDetail(val); setFilterStat([]); }} disabled={detailOptions.length === 0} />
           <MultiSelectDropdown label="통계목" options={statOptions} selected={filterStat} onChange={val => setFilterStat(val)} disabled={statOptions.length === 0} />
+
+          {/* Month Filter Selector */}
+          <div className="flex items-center gap-1.5 bg-white/80 border border-slate-200 rounded-xl px-3 py-1.5 text-xs shadow-3xs">
+            <span className="text-slate-500 font-medium">월별:</span>
+            <select
+              value={filterMonth}
+              onChange={(e) => setFilterMonth(e.target.value)}
+              className="bg-transparent font-bold text-slate-700 focus:outline-none cursor-pointer"
+            >
+              <option value="전체">전체 (1~12월)</option>
+              {Array.from({ length: 12 }, (_, i) => `${i + 1}월`).map(m => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Status Filter Selector */}
+          <div className="flex items-center gap-1.5 bg-white/80 border border-slate-200 rounded-xl px-3 py-1.5 text-xs shadow-3xs">
+            <span className="text-slate-500 font-medium">상태별:</span>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="bg-transparent font-bold text-slate-700 focus:outline-none cursor-pointer"
+            >
+              <option value="전체">전체 상태</option>
+              <option value="초과">🚨 초과/위험 (95%↑)</option>
+              <option value="주의">⚠️ 주의 (80%↑)</option>
+              <option value="정상">✅ 정상 (&lt;80%)</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -353,9 +450,14 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
       {categories.length === 0 ? (
         <Card><div className="px-5 py-10 text-center text-sm text-[var(--color-text-tertiary)]">예산 과목을 추가해 보세요</div></Card>
       ) : (
-        <div className="space-y-3">
+        <div ref={containerRef} className="space-y-3">
           {groupedByPolicy.length === 0 && <div className="text-center text-sm text-gray-500 py-8">선택된 필터에 해당하는 예산 과목이 없습니다.</div>}
-          {groupedByPolicy.map(group => (
+          
+          {isPolicyVirtualActive && topPadding > 0 && (
+            <div style={{ height: `${topPadding}px` }} aria-hidden="true" />
+          )}
+
+          {visibleGroupedByPolicy.map(group => (
             <PolicyGroupCard
               key={group.policyName}
               group={group}
@@ -368,9 +470,14 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
               openEditEntry={openEditEntry}
               openBatchEdit={openBatchEdit}
               updateCategory={updateCategory}
+              updateEntry={updateEntry}
               hidePolicyHeader={filterDetail.length > 0}
             />
           ))}
+
+          {isPolicyVirtualActive && bottomPadding > 0 && (
+            <div style={{ height: `${bottomPadding}px` }} aria-hidden="true" />
+          )}
         </div>
       )}
 
@@ -429,6 +536,10 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
           entries={entries}
           getCategoryStats={getCategoryStats}
           onSettle={handleSettleEntry}
+          batchUpdateEntries={batchUpdateEntries}
+          batchDeleteEntries={batchDeleteEntries}
+          batchSettleEntries={batchSettleEntries}
+          onOpenExpenseEntry={(entry) => openEditEntry(entry)}
         />
       )}
 

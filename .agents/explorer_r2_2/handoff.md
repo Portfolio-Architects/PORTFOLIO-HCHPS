@@ -1,93 +1,104 @@
-# Handoff Report — Requirement 2 (R2): 3D WebGL Frame Pause & Physics Freezing Analysis
+# Handoff Report — Localhost Health & Daemon Status HUD Component (R2)
+
+**Agent ID**: `explorer_r2_2`  
+**Role**: Explorer Subagent  
+**Working Directory**: `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\explorer_r2_2`  
+**Date**: 2026-07-23  
+**Handoff Type**: Hard (Task Complete)
+
+---
 
 ## 1. Observation
-- **`src/components/MindMap3D.tsx` (Line 96 & 129)**: `isActive?: boolean = true` prop controls whether the mindmap engine is active.
-- **`src/components/MindMap3D.tsx` (Lines 160–170)**:
-  ```typescript
-  useEffect(() => {
-    if (!isActive) {
-      setEngineActive(false);
-      return;
-    }
-    const timer = setTimeout(() => {
-      setEngineActive(true);
-    }, 150);
-    return () => clearTimeout(timer);
-  }, [isActive]);
-  ```
-- **`src/components/MindMap3D.tsx` (Lines 702 & 763–766)**:
-  ```typescript
-  let lastFrameTime = performance.now();
-  ...
-  const now = performance.now();
-  const delta = now - lastFrameTime;
-  lastFrameTime = now;
-  ```
-- **`src/components/MindMap3D.tsx` (Lines 831–839)**:
-  ```typescript
-  resumePhysicsLoopRef.current = () => {
-    if (animationRef.current === 0) {
-      if (engineRef.current) {
-        engineRef.current.needsRedraw = true;
-      }
-      lastFrameTime = performance.now();
-      animationRef.current = requestAnimationFrame(loop);
-    }
-  };
-  ```
-- **`src/lib/OntologyCanvasEngine.ts` (Lines 835–851)**:
-  ```typescript
-  if (this.idleFramesCount > 90) {
-    if (this.needsRedraw) {
-      this.needsRedraw = false;
-      return true; // 마지막 한 번 더 그리고 정지
-    }
-    return false; // Stop frame updates
-  }
-  ```
-- **`src/lib/OntologyCanvasEngine.ts` (Lines 769–770)**:
-  ```typescript
-  const dx = vx * this.physicsAlpha;
-  const dy = vy * this.physicsAlpha;
-  node.worldX = (node.worldX ?? 0) + dx;
-  node.worldY = (node.worldY ?? 0) + dy;
-  ```
-- **`src/app/page.tsx` (Line 695)**:
-  ```tsx
-  <MindMap3D ... isActive={activeModule === 'mindmap'} />
-  ```
+
+1. **Top Navigation Header Layout (`src/components/Sidebar.tsx`)**:
+   - `Sidebar.tsx:29`: Component serves as sticky header bar: `<header className="sticky top-0 left-0 right-0 z-50 pointer-events-auto bg-[var(--color-card)]/70 backdrop-blur-md border-b border-white/20 shadow-xs transition-all duration-300">`.
+   - `Sidebar.tsx:70-81`: Right header bar currently displays the "구동 로그 기록" (App Daemon Logs) button container:
+     ```tsx
+     <div className="flex items-center gap-2 max-w-[200px] w-full pr-1.5">
+       <button onClick={onOpenLogs} className="w-full flex items-center justify-between px-3 py-1.5 ...">
+         <div className="flex items-center gap-2 truncate">
+           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+           <span className="truncate">구동 로그 기록</span>
+         </div>
+         <Terminal size={12} className="text-slate-400" />
+       </button>
+     </div>
+     ```
+
+2. **Global Application Mounting (`src/app/page.tsx`)**:
+   - `page.tsx:615-623`: `<Sidebar>` is mounted at the top of `ProtectedApp`, persisting across all active modules (`dashboard`, `workspace`, `mindmap`, `project`).
+
+3. **Backend Memory & Daemon API (`src/app/api/app-logs/route.ts`)**:
+   - `app-logs/route.ts:57-62`: Exposes process memory usage and server port status:
+     ```typescript
+     const memUsage = Math.round(process.memoryUsage().heapUsed / 1024 / 1024);
+     logs.push({
+       timestamp: new Date().toISOString(),
+       level: 'info',
+       message: `[VITAL Daemon] Next.js dev server listening on port 3001. Heap: ${memUsage}MB.`
+     });
+     ```
+   - `app-logs/route.ts:114-119`: Returns JSON with `{ success: true, data: sortedLogs, daemonActive: false, watchDir: 'd:/Desktop' }`.
+
+4. **Client-Side JS Heap Probing**:
+   - In Chromium runtime environments, `(window.performance as any).memory` yields `usedJSHeapSize`, `totalJSHeapSize`, and `jsHeapSizeLimit`.
+
+5. **CRDT & Offline Persistence Probing (`src/hooks/useYjsStore.ts`)**:
+   - `useYjsStore.ts:42-63`: Binds global singletons `window.__globalYDoc`, `window.__globalYProvider` (PartyKit provider), and `window.__globalYIndexeddb` (IndexedDB persistence provider).
+   - Event listener `window.addEventListener('online')` and `navigator.onLine` track network link status with 0ms latency.
+
+6. **Auto-Backup System (`src/app/api/data/route.ts`)**:
+   - `route.ts:195-264`: 3-tier rolling backup strategy (`Son`: 20 recent files, `Father`: 7 daily, `Grandfather`: 4 weekly) across 17 sheets.
+   - Client tracks `localStorage.getItem('hchps-global-tombstones')`.
 
 ---
 
 ## 2. Logic Chain
-1. **Observation 1 & 7 (`MindMap3D.tsx:96`, `page.tsx:695`)**: `<MindMap3D>` receives `isActive={activeModule === 'mindmap'}` from `page.tsx`.
-2. **Observation 2 (`MindMap3D.tsx:160-170`)**: When `isActive` is false, `setEngineActive(false)` immediately halts the animation loop, preventing off-screen CPU/GPU rendering.
-3. **Observation 5 (`OntologyCanvasEngine.ts:835-851`)**: When `isActive` is true, after 90 idle frames (~1.5s of no user movement/interaction), `engine.tick()` returns `false`, setting `animationRef.current = 0` to enter sleep mode.
-4. **Observation 4 (`MindMap3D.tsx:831-839`)**: When user events trigger `resumePhysicsLoop()`, `lastFrameTime = performance.now()` is called before `requestAnimationFrame(loop)` is restarted.
-5. **Observation 3 & 6 (`MindMap3D.tsx:763-766`, `OntologyCanvasEngine.ts:769-770`)**: Because `lastFrameTime` is reset upon loop resumption AND physics position integration uses fixed discrete steps (`vx * physicsAlpha`) rather than variable `vx * delta`, resuming from idle or module tab switching does NOT produce mathematical velocity explosions or whiplash lag spikes.
-6. **Browser Tab Observation**: While `isActive` handles internal tab switching between dashboard/workspace/mindmap/project, browser-level tab changes rely on native `requestAnimationFrame` browser throttling.
+
+1. **Step 1 — Placement Selection**:
+   - *Observation*: `Sidebar.tsx` (top navigation header) is mounted in `page.tsx` and visible on every view.
+   - *Deduction*: Placing `LocalhostStatusHUD` on the right side of `Sidebar.tsx` guarantees global accessibility without occupying main content real estate.
+
+2. **Step 2 — Metric Source Verification**:
+   - *Observation*: `window.location.port`, `(performance as any).memory`, `navigator.onLine`, `localStorage`, and `/api/app-logs` cover all 5 required metrics.
+   - *Deduction*: All 5 metrics can be gathered reliably on the client side with 0ms network overhead, supported by background API queries from `useAppLogs`.
+
+3. **Step 3 — Performance & Zero-Stall Compliance**:
+   - *Observation*: Polling JS Heap every 2 seconds could consume minor CPU if active in background tabs.
+   - *Deduction*: Adding a `document.hidden` check (Rule J visibility pause) eliminates unnecessary background timer execution and satisfies zero-stall criteria.
+
+4. **Step 4 — UI Specification**:
+   - *Observation*: TailwindCSS v4 dark theme standard with slate-950 background and neon indicators (`emerald-400`, `cyan-400`, `blue-400`, `amber-400`) fits the high-contrast aesthetic.
+   - *Deduction*: Designing a compact header pill that expands into a 5-metric HUD popover drawer satisfies both unobtrusive navigation requirements and deep diagnostic utility.
 
 ---
 
 ## 3. Caveats
-- Browser-level tab visibility changes (`document.addEventListener('visibilitychange')`) are not currently explicitly registered in `MindMap3D.tsx`. Adding a `visibilitychange` listener will further optimize background tab CPU usage.
-- No other caveats; code investigation fully covers all 4 objectives of Requirement 2.
+
+- `(performance as any).memory` is a Chromium-specific extension. On standard non-Chromium browsers, it returns `undefined`. The component design includes safe fallback default handling (`usedMB: 0`).
+- The file watcher is explicitly set to `STANDBY (Manual)` mode in `app-logs/route.ts:66` because manual mindmap mode is currently active.
 
 ---
 
 ## 4. Conclusion
-1. `MindMap3D.tsx` and `OntologyCanvasEngine.ts` implement a clean, high-performance frame loop with idle auto-sleeping (`idleFramesCount > 90`) and module-level pause/resume via `isActive`.
-2. Zeroing `lastFrameTime = performance.now()` upon waking from sleep and using fixed-step velocity integration (`vx * physicsAlpha`) prevents whiplash lag spikes when resuming physics/render loops.
-3. The engine architecture is robust, responsive, and adheres to 60 FPS performance standards.
+
+1. **Target Component Path**: `src/components/LocalhostStatusHUD.tsx` (or `LocalhostStatusWidget.tsx`).
+2. **Target Integration Point**: `src/components/Sidebar.tsx` right side header container (replacing or wrapping the standalone terminal log button).
+3. **5 Metrics Fully Specified**:
+   - Server Port (`3001`)
+   - JS Heap Usage (`usedJSHeapSize` / MB)
+   - Auto-Backup Snapshot count & Tombstones
+   - File Watcher daemon status
+   - Offline Sync & CRDT PartyKit state
+4. **Architectural Analysis File**: Detailed specification saved in `.agents/explorer_r2_2/analysis.md`.
 
 ---
 
 ## 5. Verification Method
-1. **File Inspection**:
-   - Inspect `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\src\components\MindMap3D.tsx` (lines 160-170, 702, 738-839).
-   - Inspect `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\src\lib\OntologyCanvasEngine.ts` (lines 769-770, 808-852).
-2. **Runtime Verification**:
-   - Launch application on `http://localhost:3001`.
-   - Switch between modules ('dashboard' <-> 'mindmap') and observe smooth engine pause and resume without position jumps.
-   - Leave mindmap idle for 2 seconds and observe frame loop pausing (`animationRef.current === 0`).
-   - Move mouse over canvas and observe instant smooth wake-up without lag spikes.
+
+1. **Inspect Analysis Report**:
+   - Read `.agents/explorer_r2_2/analysis.md` to verify the proposed React component code and metric probing strategy.
+2. **Execute Harness Verification**:
+   - Run `node scripts/run-harness.js` to ensure 0 Zod, ESLint, or MVC violations exist in the current project state.
+3. **TypeScript Compilation Check**:
+   - Run `npx tsc --noEmit` to confirm complete type safety.

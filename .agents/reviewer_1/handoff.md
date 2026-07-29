@@ -1,52 +1,89 @@
-# Reviewer Handoff Report
+# Handoff Report — Localhost UX Optimization Review (R1 & R2)
 
-## Observation
-1. **Codebase Metrics Verification (`PORTFOLIO VITAL - Engineering Report.md` Section 3)**:
-   - **TS/TSX File Count**: Inspected repository via Node filesystem traversal script. Total count across production directories is 130 files (41 components in `src/components`, 33 hooks in `src/hooks`, 31 lib modules in `src/lib`, 16 app pages/routes/layouts in `src/app`, 1 party server in `party/` or `src/party`, 1 proxy in `src/proxy.ts`, 1 store in `src/store/`, 1 types in `src/types/`, and 5 root configs).
-   - **LOC**: Verified total LOC count across production TS/TSX files is ~30,397 - 31,030 lines.
-   - **Hooks**: Exactly 33 custom hook files in `src/hooks/`.
-   - **API Routes**: Exactly 10 REST API route handlers under `src/app/api/` (`ai-linker`, `app-logs`, `auth`, `data`, `drive`, `file-radar`, `law`, `llm/extract`, `local-contacts`, `report-generator`) + 1 LLM chat route handler under `src/app/llm/chat/route.ts`.
-   - **Components**: Exactly 41 component files across 7 sub-modules (`mindmap/`: 6, `dashboard/`: 6, `budget/`: 9, `inventory/`: 1, `law/project/`: 3, `ai/modals/`: 10, `ui/`: 6).
-   - **Lib Files**: Exactly 31 library files in `src/lib/`.
+## 1. Observation
 
-2. **Milestone History Verification (`PORTFOLIO VITAL - Engineering Report.md` Section 5)**:
-   - Section 5 accurately documents key milestones including:
-     - Requirement / Milestone 1 (R1): Initial Server Hydration & Staggered Chunk Isolation (lines 843-853)
-     - Requirement / Milestone 2 (R2): Workspace Component & Inventory List DOM Optimization (lines 838-842, 854-858)
-     - Requirement / Milestone 3 (R3): Final Gatekeeper Verification & Zero-Stall Guarantee (lines 833-837, 859-870)
-     - 3D Canvas GC Optimization (lines 495-501, 528-541, 636-640, 825-832)
-     - PBKDF2 Master Key In-Memory Caching (lines 179-180, 345-351)
-     - ContactsBox `startEdit` useCallback Memoization (lines 165, 813-817)
-     - Policy/Law Integration (`LawSystemPage`, `ProjectManagementPage`) (lines 448-460, 553-558)
+### Code Files Inspected
+- `src/hooks/useTasks.ts` (lines 79–99, 101–143, 183–189):
+  - `initialData` safely reads cached data from `localStorage.getItem('hchps-fallback-TASKS')`.
+  - `staleTime: 1000 * 60 * 5`, `refetchOnWindowFocus: false`, `refetchIntervalInBackground: false`.
+  - `addTaskMut`, `updateTaskMut`, `deleteTaskMut` implement full `onMutate` optimistic updates (query cancellation, cache update, and `onError` rollback context).
+  - Recurring task duplication uses serialized `await addTaskMut.mutateAsync(nextTask)` to prevent race conditions.
 
-3. **AGENTS.md Synced Milestones Log Verification**:
-   - Ran `node scripts/sync-rules.js` which successfully parsed `PORTFOLIO VITAL - Engineering Report.md` Section 5 patch history and updated `AGENTS.md` Section 5 (Synced Milestones Log) with timestamp `2026-07-22`.
+- `src/hooks/useBudget.ts` (lines 24–66, 81–196, 223–296):
+  - Categories and Entries queries configured with `initialData` from `localStorage` fallbacks.
+  - `refetchIntervalInBackground: false` and `refetchOnWindowFocus: false` set on all queries.
+  - `uniqueCategories` deduplicates raw categories using composite keys (`${c.name}-${c.policyProject}-${c.unitProject}-${c.detailedProject}-${c.statItem}-${c.budgetType || '본예산'}`).
+  - `categoryStatsMap` pre-calculates statistics in $O(N + M)$ time using Map grouping to eliminate $O(N \times M)$ calculation overhead.
+  - Full optimistic mutation flow with query cancellation and `onError` rollback for categories and entries.
 
-4. **TypeScript & Harness Diagnostics Execution**:
-   - `npx tsc --noEmit` returned exit code 0 with 0 errors.
-   - `node scripts/run-harness.js` executed ESLint syntax check, MVC ontology check, Zod integrity check, and rendering performance bottleneck check. Results:
-     - Lint Warnings: 0
-     - Arch Violations: 0
-     - Perf Bottlenecks: 0
-     - Gatekeeper Test Verdict: `🎉 [PASS] All Gatekeeper tests complete. 0 errors found.`
+- `src/hooks/useInventory.ts` (lines 11–53, 55–127):
+  - Queries for `INVENTORY` and `STOCK_CHANGES` use `initialData` from `localStorage` fallbacks.
+  - `refetchIntervalInBackground: false` and `refetchOnWindowFocus: false` set.
+  - Full optimistic updates on `addItemMut`, `updateItemMut`, `deleteItemMut`, `addStockChangeMut`, and `deleteStockChangesByItemMut`.
 
-## Logic Chain
-- Step 1: Verification of Section 3 codebase metrics against the physical filesystem confirmed that the reported numbers (130 TS/TSX files, ~31k LOC, 33 custom hooks, 10 API routes + 1 LLM chat route, 41 components, 31 lib files) match the actual codebase layout and module structure without exaggeration or omission.
-- Step 2: Inspection of Section 5 in `PORTFOLIO VITAL - Engineering Report.md` showed comprehensive documentation of all milestone patches (R1, R2, R3, GC optimizations, PBKDF2 caching, `startEdit` memoization, Policy/Law integration).
-- Step 3: Execution of `node scripts/sync-rules.js` confirmed that `AGENTS.md` Section 5 is automatically kept in perfect alignment with the Engineering Report.
-- Step 4: Independent compilation (`npx tsc --noEmit`) and harness testing (`node scripts/run-harness.js`) proved that the repository maintains 0 TypeScript errors, 0 ESLint warnings, 0 architectural violations, and 0 performance bottlenecks.
-- Step 5: No facade/mock implementations, hardcoded fake test results, or integrity violations were detected.
+- `src/hooks/useContacts.ts` (lines 32–65, 68–122):
+  - Query for `CONTACTS` includes `initialData` fallback from `localStorage`.
+  - `refetchIntervalInBackground: false` and `refetchOnWindowFocus: false` set.
+  - Optimistic update and rollback logic implemented for `addContactMut`, `updateContactMut`, `deleteContactMut`, `replaceContactsMut`.
+  - Auto-seeding guarded by `seedingTriggered.current` ref to run only once if dataset is empty after loading.
 
-## Caveats
-- No caveats. All claims were verified independently using filesystem inspection tools and direct command executions.
+- `src/app/api/data/route.ts` (lines 9–21, 32–70, 97–165, 179–193, 195–264, 267–288, 330–335):
+  - Allowed sheet check includes 17 sheet types (`TASKS`, `BUDGET_CATEGORIES`, `BUDGET_ENTRIES`, `INVENTORY`, `STOCK_CHANGES`, `CONTACTS`, etc.).
+  - `safeWriteFile` uses unique `.tmp` filenames per write request (`tempFilePath = ${filePath}.${Date.now()}.${Math.random().toString(36).substring(2, 7)}.tmp`) and rename retry loops to prevent Windows file-locking collisions.
+  - Multi-tier automatic backups (Son: 20 recent, Father: 7 daily, Grandfather: 4 weekly) executed asynchronously so HTTP responses are not blocked.
+  - Zod Gatekeeper validation (`validateDataPayload`) checks records against domain schemas before writing to disk.
+  - Self-healing recovery mechanism in `readData` restores corrupted/truncated disk files from recent backups.
+  - 304 `notModified` support via `clientMtime` and `clientSize` checks.
 
-## Conclusion
+- `src/hooks/useLocalhostHealth.ts` (lines 37–127):
+  - `useQuery` targeting `/api/app-logs`.
+  - Configured with `refetchInterval: enabled ? 5000 : false`, `refetchIntervalInBackground: false`, `refetchOnWindowFocus: false`.
+  - Probes dev server port 3001 status & latency, client JS Heap memory (`performance.memory.usedJSHeapSize`), multi-tier backup stats, file watcher status, and offline tombstone count.
+
+- `src/components/layout/LocalhostStatusHUD.tsx` (lines 22 font/UI, 45–85 pill badge, 88–289 modal):
+  - Compact badge pill displaying Port (3001), Heap memory size (MB), Backup count, and WiFi status.
+  - High-contrast modal displaying Dev Server latency, memory gauges (Client JS Heap & Server Heap), Son/Father/Grandfather backup metrics, File Watcher target path (`d:/Desktop`), and Daemon Logs launcher.
+
+- `src/components/Sidebar.tsx` (lines 7, 72–74):
+  - Integrates `<LocalhostStatusHUD onOpenLogs={onOpenLogs} />` into header layout smoothly without layout shifts.
+
+### Verification Commands & Executed Results
+1. `npx tsc --noEmit`
+   - Command result: **0 errors** (Success).
+2. `node scripts/run-harness.js`
+   - Zod Gatekeeper DB Integrity Check: **0 errors found** across TASKS, BUDGET_CATEGORIES, BUDGET_ENTRIES, PROJECTS.
+
+---
+
+## 2. Logic Chain
+
+1. **Hydration & Zero Latency**: By providing `initialData` from `localStorage` fallbacks in `useTasks`, `useBudget`, `useInventory`, and `useContacts`, components render immediately on mount without waiting for network API roundtrips.
+2. **Zero-Stall & Background Resource Management**: Enforcing `refetchIntervalInBackground: false` and `refetchOnWindowFocus: false` across all custom query hooks ensures that inactive browser tabs consume 0 CPU cycles and generate no background network polling noise.
+3. **Data Integrity & Concurrency Safety**: The backend route (`route.ts`) enforces Zod schema validation before saving to disk, uses atomic temporary file writes to eliminate file-lock race conditions on Windows, and provides self-healing backup restoration if disk errors occur.
+4. **Optimistic Updates & Resilience**: All CRUD operations update the React Query cache immediately before server confirmation and provide complete rollback contexts (`previousData`) to handle network failures gracefully.
+5. **Observability & Diagnostics**: `LocalhostStatusHUD` and `useLocalhostHealth` provide clear visibility into port 3001 health, memory usage, backup counts, and offline synchronization without incurring background poll overhead when hidden.
+6. **Integrity Check**: No hardcoded test results, facade implementations, or bypass shortcuts were identified. Implementation contains complete, functional logic.
+
+---
+
+## 3. Caveats
+
+- `performance.memory` for client heap monitoring is a V8 feature (supported in Chrome/Edge/Electron); in non-V8 environments it safely evaluates to `null` without throwing errors.
+- `localStorage` serves strictly as an offline/initial fallback cache; disk JSON (`data/*.json`) remains the single source of truth (SSOT).
+
+---
+
+## 4. Conclusion
+
 **Verdict**: **APPROVE**
 
-The documentation (`PORTFOLIO VITAL - Engineering Report.md` and `AGENTS.md`) is completely accurate, up-to-date, and synchronized. The codebase compiles with 0 TypeScript errors and passes all harness diagnostic checks with 0 warnings, 0 architectural violations, and 0 performance bottlenecks.
+The code changes in R1 (Local Data Hydration & Optimistic Updates) and R2 (Localhost Status HUD Component) satisfy all architectural, type safety, zero-stall, data integrity, and UI requirements specified in `AGENTS.md`. No regressions or integrity violations were found.
 
-## Verification Method
-To re-verify independently, run:
-1. `npx tsc --noEmit` -> Must return 0 errors.
-2. `node scripts/run-harness.js` -> Must return `0 Lint Warnings`, `0 Arch Violations`, `0 Perf Bottlenecks`.
-3. `node scripts/sync-rules.js` -> Must update `AGENTS.md` Section 5 without errors.
+---
+
+## 5. Verification Method
+
+To independently verify this review:
+1. Run `npx tsc --noEmit` from project root — verify 0 TypeScript errors.
+2. Run `node scripts/run-harness.js` from project root — verify 0 Zod schema errors and ESLint pass.
+3. Inspect `src/hooks/useTasks.ts`, `src/hooks/useBudget.ts`, `src/hooks/useInventory.ts`, `src/hooks/useContacts.ts`, and `src/hooks/useLocalhostHealth.ts` to confirm `refetchIntervalInBackground: false` is present on all active queries.

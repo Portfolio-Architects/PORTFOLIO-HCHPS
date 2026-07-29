@@ -1,27 +1,39 @@
-## 2026-07-16T12:56:23Z
-You are the Worker for Milestone 3 (Manual Node/Edge CRUD UI with Yjs Sync).
-Your working directory is d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\worker_m3. Please create it.
-Read the Explorer reports at:
-- d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\explorer_m3_1\analysis.md
-- d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\explorer_m3_2\handoff.md
+## 2026-07-29T07:51:54Z
+You are Worker 2 (M3 Implementation Worker) for the Budget UI/UX Overhaul project.
+Working directory: d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\worker_m3
 
-You must implement the manual CRUD UI and Yjs synchronization for nodes and edges.
-Specifically, make the following changes:
-1. Update `addCustomNode` in `src/hooks/useGraphCustomization.ts` to accept `group: OntologyGroup`, `baseValue: number`, and `layerId?: OntologyLayerId`, storing them inside the Yjs map.
-2. In `src/components/MindMapInspector.tsx`:
-   - Update `MindMapInspectorProps` to receive `addCustomNode` prop.
-   - Add form states (`createLabel`, `createGroup`, `createBaseValue`, `createLayer`) and render the "New Node Creation Form" when `activeNode` is null.
-   - For an active node, render the "Edge Creation Form" (target selector dropdown, edge type selector dropdown, weight slider from -1.0 to 1.0, and 'Add Connection' submit button calling `addCustomEdge` with all parameters).
-   - In the active node panel, display a categorized "Connections List" split into:
-     - "Outgoing Connections" (edges where source is the active node).
-     - "Incoming Connections" (edges where target is the active node).
-     - Provide an 'Unlink' action next to each connection calling `deleteCustomEdge` or cleaning up the parent-child relationship.
-3. In `src/components/MindMap3D.tsx`:
-   - Pass the `addCustomNode` callback from the custom hook down to `MindMapInspector`.
-   - Implement `customizationHash` and `customNodesHash` to track edits to node properties and overrides (name, group, importance, layer, relationship type, weight, etc.) while ignoring `fixedX`/`fixedY` to preserve 60FPS dragging.
-   - Update the reactive `useEffect` that calls `initEngine()` to trigger on these hashes changing (which happens during peer sync).
-4. Verify the changes by:
-   - Running the project build: `npm run build`
-   - Running the linter: `npm run lint`
-   - Running the tests: `npm run test`
-5. Document all your changes in `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\worker_m3\changes.md` and write a detailed handoff report in `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\worker_m3\handoff.md`.
+Objective:
+Implement Milestone 3 (R3: Expense Batch Actions & Modal Comparison UX Optimization).
+
+Detailed Specification & Requirements:
+1. `src/hooks/useBudget.ts`:
+   Add helper mutation methods to batch process expense entries while preserving all existing custom hook contracts and API compatibility (`/api/data/route.ts`):
+   - `batchUpdateEntries(ids: string[], updates: Partial<ExpenseEntry>)`
+   - `batchDeleteEntries(ids: string[])`
+   - `batchSettleEntries(ids: string[], status: 'SETTLED' | 'PENDING' | 'REJECTED')`
+   Ensure optimistic updates and invalidation of budget/expense queries so category balances update reactively and immediately.
+
+2. `src/components/budget/ui/ExpenseBatchToolbar.tsx`:
+   - Create a sticky floating action bar component rendered when `selectedEntryIds.length > 0`.
+   - Displays selected item count (e.g., "N개 항목 선택됨").
+   - Action buttons:
+     - Batch Settle / Approve ("일괄 승인")
+     - Batch Status Change ("상태 변경")
+     - Batch Delete ("선택 삭제")
+     - Clear Selection ("선택 해제")
+   - High-contrast dark theme TailwindCSS styling matching the existing dashboard aesthetic.
+
+3. Multi-Select & Modal Comparison UX:
+   - In `src/components/budget/ui/LedgerModal.tsx` and expense entry lists:
+     - Add multi-select checkbox controls per entry row and a "select all" header checkbox.
+     - Manage `selectedEntryIds` state and render `ExpenseBatchToolbar` floating overlay.
+     - Implement a Dual-Panel Split View toggle inside `LedgerModal.tsx` allowing side-by-side comparison of ledger entries and budget category targets/details.
+     - Support smooth cross-modal navigation between `LedgerModal` and `ExpenseEntryModal` without losing selection or modal context.
+     - Ensure immediate reactive updating of category balance highlights and summary numbers after batch operations.
+
+4. Verification Requirements:
+   - Run `npx tsc --noEmit` and `node scripts/run-harness.js` from `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL`.
+   - Verify 0 TypeScript errors and 0 harness errors.
+
+Handoff Requirements:
+Write your handoff report to `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\worker_m3\handoff.md` and send a message back to the orchestrator with full details of created/modified components and execution results of `npx tsc --noEmit` and `node scripts/run-harness.js`.

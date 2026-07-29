@@ -1,13 +1,12 @@
 # Progress
 
-- Last visited: 2026-07-16T11:15:00+09:00
+- Last visited: 2026-07-23T14:08:24+09:00
 
 ## Status
-- [x] Read references and understand component states
-- [x] Implement WeeklyScheduler memoization & `<ScheduleItem>`
-- [x] Implement ContactsBox memoization & `<ContactCard>`
-- [x] Implement MindMap3D custom memoization & canvas loop delay
-- [x] Implement MindMapInspector props stabilization
-- [x] Implement Staggered Preloading Gates in PortfolioDashboardView
-- [x] Verify build and linting
-- [x] Write handoff report
+- [x] Initialized task context and BRIEFING.md
+- [/] Investigate `src/hooks/useBudget.ts` and `src/components/budget/ui/PolicyGroupCard.tsx`
+- [ ] Implement optimizations in `src/hooks/useBudget.ts`
+- [ ] Implement optimizations in `src/components/budget/ui/PolicyGroupCard.tsx`
+- [ ] Run `npx tsc --noEmit` and `node scripts/run-harness.js`
+- [ ] Update `BRIEFING.md` and write `handoff.md`
+- [ ] Send completion message to parent

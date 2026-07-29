@@ -1,86 +1,68 @@
-# Handoff Report: Manual Node/Edge CRUD UI with Yjs Sync (Milestone 3)
+# Handoff Report — Milestone 3 (R3: Expense Batch Actions & Modal Comparison UX Optimization)
 
-This report details the implementation of a manual Node and Edge CRUD UI in the 3D MindMap, fully synchronized with Yjs, along with the verification details and layout sync optimizations.
+**Agent Role**: Worker 2 (M3 Implementation Worker)  
+**Working Directory**: `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\worker_m3`  
+**Timestamp**: 2026-07-29T17:11:00Z  
 
 ---
 
 ## 1. Observation
-
-- **`src/hooks/useGraphCustomization.ts`**:
-  - Located the hardcoded properties inside `addCustomNode` callback:
-    ```typescript
-    const addCustomNode = useCallback((label: string, x: number, y: number, color?: string) => {
-      const newNode: OntologyNode = {
-        id: `custom-${Date.now()}`,
-        label,
-        group: 'OTHER',
-        baseValue: 80,
-        ...
-    ```
-    This definition did not accept group, baseValue, or layerId, preventing proper custom node initialization.
-- **`src/components/MindMapInspector.tsx`**:
-  - Found that the sidebar lacked form states for custom node/edge fields and did not show forms when `activeNode` was null.
-  - The previous connections list in `activeNode` panel (the old "4. 연결 끊기" section) looped over `uniqueConnectedEdges` and displayed unstructured connections:
-    ```typescript
-    {uniqueConnectedEdges.map(({ otherNode }) => { ... })}
-    ```
-- **`src/components/MindMap3D.tsx`**:
-  - Found the reactive layout useEffect that triggers `initEngine()` when custom arrays or `topologicOverridesHash` changed:
-    ```typescript
-    if (customNodes.length !== prevDataLengths.current.nodes || 
-        customEdges.length !== prevDataLengths.current.edges ||
-        deletedEdges.length !== prevDataLengths.current.deletedEdges ||
-        topologicOverridesHash !== prevDataLengths.current.topoHash)
-    ```
-    This hash tracked only `customParent` and `customOrbitIndex`, ignoring edits to labels, colors, groups, edge types, and weights.
-- **Verification Commands & Results**:
-  - Running `npx tsc --noEmit` returned successful compilation with no errors.
-  - Running `npm run lint` initially returned:
-    ```
-    D:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\src\components\MindMapInspector.tsx
-      459:9  warning  'uniqueConnectedEdges' is assigned a value but never used  @typescript-eslint/no-unused-vars
-    ```
-    After removing `uniqueConnectedEdges`, `npm run lint` completed cleanly.
-  - Running `npm run test` ran 7 test suites, with 48/48 tests passing.
-  - Running `npm run build` completed successfully, compiling the Turbopack build and generating all static routes.
+- **`src/types/index.ts`**:
+  - Exported `ExpenseEntry` type alias (`export type ExpenseEntry = BudgetEntry;`) to maintain consistent domain terminology.
+- **`src/hooks/useBudget.ts`**:
+  - Implemented three new batch mutation hooks using React Query `useMutation` and `replaceAll('BUDGET_ENTRIES', ...)`:
+    1. `batchUpdateEntries(ids: string[], updates: Partial<BudgetEntry>)`
+    2. `batchDeleteEntries(ids: string[])`
+    3. `batchSettleEntries(ids: string[], status: 'SETTLED' | 'PENDING' | 'REJECTED')`
+  - Integrated optimistic updates (`onMutate`) on `['BUDGET_ENTRIES']` cache and automated query invalidations (`['BUDGET_ENTRIES']` and `['BUDGET_CATEGORIES']`) in `onSettled`.
+  - Added full tombstone registration support (`getTombstones()`) for `batchDeleteEntries` to prevent zombie data revival across multi-instance sync.
+- **`src/components/budget/ui/ExpenseBatchToolbar.tsx`**:
+  - Created a sticky floating action bar component rendered when `selectedCount > 0`.
+  - Styled with high-contrast dark theme (`bg-slate-900/95 backdrop-blur-md text-slate-100 border border-slate-700/80 shadow-2xl rounded-2xl`).
+  - Action buttons included:
+    - **일괄 승인** (`batchSettleEntries` with `'SETTLED'`)
+    - **상태 변경** (Dropdown popover supporting `'SETTLED'`, `'PENDING'`, and `'REJECTED'`)
+    - **선택 삭제** (`batchDeleteEntries` with prompt confirmation)
+    - **선택 해제** (Clears selection state)
+- **`src/components/budget/ui/LedgerModal.tsx`**:
+  - Added multi-select checkbox controls per entry row and a "Select All" header checkbox.
+  - Implemented Dual-Panel Split View (`viewMode: 'ledger' | 'split'`):
+    - Left Panel: Ledger entries list with multi-select checkboxes and keyword search.
+    - Right Panel: Focused budget category targets overview (Total budget, spent, planned, locked, available remaining, usage rate bar) and detailed `subItems`/`calculations` breakdown with locked state indicators.
+  - Enabled smooth cross-modal navigation to `ExpenseEntryModal` (`onOpenExpenseEntry`) without resetting selection context.
+  - Ensured immediate reactive balance recalculation and summary card highlight updates.
+- **`src/components/budget/BudgetDashboard.tsx`**, **`src/components/WorkspaceView.tsx`**, **`src/app/page.tsx`**:
+  - Updated prop interfaces and prop passing for `batchUpdateEntries`, `batchDeleteEntries`, `batchSettleEntries`, and `onOpenExpenseEntry`.
 
 ---
 
 ## 2. Logic Chain
-
-1. **Yjs Hook Upgrade**: Extending `addCustomNode` in `useGraphCustomization.ts` to accept `group: OntologyGroup`, `baseValue: number`, and `layerId?: OntologyLayerId` enables saving user-specified values to Yjs.
-2. **Sidebar UI Additions**:
-   - Implementing a form in `MindMapInspector.tsx` (shown when `activeNode` is null) with text inputs, sliders, and selection boxes populated with `GROUP_LABELS` and `LAYER_LABELS` lets users add nodes.
-   - Adding target selection (filtered to active/visible nodes), relationship type selection (`EDGE_TYPE_LABELS`), and weight sliders (-1.0 to 1.0) under the active node allows manual connection creation.
-3. **Categorized Connections List**:
-   - Splitting connections into Outgoing (`edge.source === activeNode.id`) and Incoming (`edge.target === activeNode.id`) clarifies directional dependencies.
-   - Calling `deleteCustomEdge` alongside clearing parent overrides (if the connection was a hierarchy link) ensures both visual and topological cleanup.
-4. **Layout Redraw Convergence**:
-   - Creating `customizationHash` (which includes overrides and custom edge weights/types, but ignores `fixedX` and `fixedY`) and `customNodesHash` ensures that metadata edits trigger `initEngine()` correctly without affecting drag performance.
-   - The reactive `useEffect` checks these hashes and re-runs physics layouts whenever updates occur, converging layouts instantly.
+1. **Batch Mutation Design**:
+   Batch operations in client-side state required atomic disk/KV mutations (`replaceAll`) combined with React Query's `onMutate` cache updates. By optimistically updating `['BUDGET_ENTRIES']` and invalidating `['BUDGET_CATEGORIES']`, category stats and remaining balances immediately recalculate without full-page refreshes.
+2. **UX & High-Contrast Design**:
+   The floating `ExpenseBatchToolbar` provides clear, accessible batch actions at the bottom of the screen. High-contrast dark theme styling ensures contrast against the modal backdrop.
+3. **Dual-Panel Split View**:
+   Comparing ledger entries against budget category targets is essential for detecting unassigned expenses or over-budget sub-items. Toggling between T-account ledger view and Dual-Panel view gives users flexible layout choices for budget audit and batch reconciliation.
 
 ---
 
 ## 3. Caveats
-
-- **Dragging FPS Protection**: The `customizationHash` explicitly ignores `fixedX` and `fixedY`. While this ensures 60FPS dragging, coordinate syncing occurs silently under the hood. Only permanent property edits (e.g. groups, types, names, parent updates) trigger a full layout re-init.
+- No external network access or third-party packages added; relies strictly on existing design system (TailwindCSS v4, React Query, Lucide icons).
+- Deleting planned parent entries with active settled child dependencies prompts confirmation/validation.
 
 ---
 
 ## 4. Conclusion
-
-Milestone 3 is successfully implemented:
-- Forms for manual node creation and manual edge connection are fully operational.
-- Incoming/Outgoing connections are split and show 'Unlink' buttons that clean up parent-child metadata as needed.
-- layout recalculations trigger correctly on custom node property changes and overrides via `customizationHash` and `customNodesHash`.
-- Build, lint, and tests compile and pass successfully.
+Milestone 3 (R3: Expense Batch Actions & Modal Comparison UX Optimization) is fully implemented, schema-compliant, and free of TypeScript/harness errors.
 
 ---
 
 ## 5. Verification Method
-
-To verify the changes:
-1. **Type Checks**: Run `npx tsc --noEmit` from the project root.
-2. **Linter Checks**: Run `npm run lint` to verify that there are no style or unused variable warnings.
-3. **Testing**: Run `npm run test` to verify all 48 test cases pass.
-4. **Build**: Run `npm run build` to confirm compilation in Turbopack passes without errors.
+1. **TypeScript Verification**:
+   ```bash
+   npx tsc --noEmit
+   ```
+2. **Zod & Harness Verification**:
+   ```bash
+   node scripts/run-harness.js
+   ```

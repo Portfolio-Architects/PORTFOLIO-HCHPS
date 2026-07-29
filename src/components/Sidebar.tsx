@@ -2,7 +2,9 @@
 
 import React from 'react';
 import { ModuleType } from '@/types';
-import { Archive, Zap, LayoutDashboard, FolderGit2, Terminal } from 'lucide-react';
+import { Archive, Zap, LayoutDashboard, FolderGit2 } from 'lucide-react';
+
+import { LocalhostStatusHUD } from '@/components/layout/LocalhostStatusHUD';
 
 interface TopNavProps {
   activeModule: ModuleType;
@@ -66,18 +68,9 @@ export function Sidebar({ activeModule, onModuleChange, appMode, onPreloadModule
               </nav>
             </div>
 
-            {/* Right side: App Daemon Logs Tab */}
-            <div className="flex items-center gap-2 max-w-[200px] w-full pr-1.5">
-              <button
-                onClick={onOpenLogs}
-                className="w-full flex items-center justify-between px-3 py-1.5 bg-slate-500/5 hover:bg-slate-500/8 border border-slate-200/40 rounded-full text-[11px] font-semibold text-slate-500 hover:text-slate-800 transition-all select-none cursor-pointer"
-              >
-                <div className="flex items-center gap-2 truncate">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="truncate">구동 로그 기록</span>
-                </div>
-                <Terminal size={12} className="text-slate-400" />
-              </button>
+            {/* Right side: Localhost Health & Daemon Status HUD */}
+            <div className="flex items-center gap-2 pr-1.5">
+              <LocalhostStatusHUD onOpenLogs={onOpenLogs} />
             </div>
 
           </div>

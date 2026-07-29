@@ -1,46 +1,29 @@
-# Handoff Report - Milestone 1 (R1) Refinement
+# Handoff Report — Requirement R1 (Table Inline-Editing & Keyboard Navigation System)
 
 ## 1. Observation
-- **Test Compilation & Lint Failures**:
-  - `__tests__/semantic-review-r1.test.tsx` had unused `@ts-ignore` (now `@ts-expect-error`) warnings, a `require` import warning (`@typescript-eslint/no-require-imports`), and a type error accessing `.value` on a generic `HTMLElement`.
-  - The integration test verified clean Korean label on `"노드_19 조사"` which could not be pruned by `cleanKoreanLabel` since `"조사"` (postposition/investigation) is a valid Korean noun.
-  - The module `@testing-library/jest-dom` was missing from `devDependencies` in `package.json`, causing the test suite to fail when imported.
-- **Tailwind Color Definition**:
-  - Non-existent color `indigo-650` was used in `src/components/SemanticReviewModal.tsx`.
-- **Background Polling Silencing**:
-  - `SemanticReviewModal.tsx` evaluated skipped items against the live `pendingNodes` and `pendingEdges` props, which could change because of background polling, leading to noise or incorrect blacklist registration.
-- **Synchronization Delay / Deleted Items Resurrection**:
-  - When a user deleted a node or edge, the deletion took up to 2500ms to sync to the cloud database. During this window, the polling loop (`runPoll`) fetched the old state from the database. Since the deleted item was no longer in the active Yjs maps, the polling loop resurrected it as a "new custom node/edge" and popped up the review modal.
+- **Inspected Files**:
+  - `src/components/budget/ui/InlineEditCell.tsx` (Lines 1–146): Verified local state `tempValue` buffering, render-phase prop sync (`prevValue !== value`), `handleKeyDown` keyboard listener for `Tab`, `Shift+Tab`, `Enter`, `Ctrl+Enter`, and `Escape`, and number string sanitization (`tempValue.replace(/,/g, '')`).
+  - `src/components/budget/ui/PolicyGroupCard.tsx` (Lines 252–270, 490–555): Confirmed expense entry cell IDs (`${entry.id}:date`, `${entry.id}:docRegNum`, `${entry.id}:purpose`, `${entry.id}:amount`) and integration with `updateEntry` mutation callback.
+  - `src/components/budget/ui/BudgetCategoryCardItem.tsx` (Lines 128–162, 200–314): Confirmed category cell IDs (`${cat.id}:statItem`, `${cat.id}:totalBudget`, `${cat.id}:sub:${idx}:name`, `${cat.id}:sub:${idx}:amount`) and integration with `updateCategory` mutation callback.
+- **Verification Commands & Results**:
+  - `npx tsc --noEmit`: Executed successfully with **0 errors**.
+  - `npx eslint src/components/budget/ui/InlineEditCell.tsx src/components/budget/ui/BudgetCategoryCardItem.tsx src/components/budget/ui/PolicyGroupCard.tsx`: **0 errors, 0 warnings**.
+  - `node scripts/run-harness.js`: Executed successfully with **0 Zod schema errors** across `TASKS`, `BUDGET_CATEGORIES`, `BUDGET_ENTRIES`, and `PROJECTS`.
 
 ## 2. Logic Chain
-- **Test Compilation & Lint Fixes**:
-  - Added `@testing-library/jest-dom` to `package.json` devDependencies and ran `npm install`.
-  - Deleted the unused `// @ts-expect-error` (originally `@ts-ignore`) comments in `__tests__/semantic-review-r1.test.tsx`.
-  - Cast the `HTMLElement` to `HTMLInputElement` to access `.value` in a TS-compliant way.
-  - Changed `require('@/app/api/llm/extract/route')` to `await import('@/app/api/llm/extract/route')` to satisfy the strict ES imports rule.
-  - Changed the mock node label for `node_19` from `노드_19은` to `노드_19의` (and verified it is cleaned to `노드_19` by the label cleaner).
-- **Tailwind Color Definition**:
-  - Replaced all 10 occurrences of `indigo-650` with standard Tailwind v4 color `indigo-600` inside `src/components/SemanticReviewModal.tsx`.
-- **Background Polling Silencing**:
-  - Added `initialNodes` and `initialEdges` states in `SemanticReviewModal.tsx` to act as a snapshot.
-  - Used a `lastIsOpenRef` to capture `pendingNodes` and `pendingEdges` once when the modal is opened, preventing background prop updates from polluting the snapshot.
-  - Modified `handleApprove` to calculate skipped items against `initialNodes` and `initialEdges`.
-- **Deleted Items Resurrection**:
-  - Updated `runPoll` in `src/hooks/useGraphCustomization.ts` to check `deletedEdgesMap` from Yjs.
-  - Added a local registry `recentlyDeletedNodes` (Set) with a 5000ms TTL. When `deleteCustomNode` is called, the node ID is registered there.
-  - Modified `runPoll` to check and filter out any nodes in `recentlyDeletedNodes` and any edges where the source or target node is in `recentlyDeletedNodes` or the edge key is in `deletedEdgesMap`.
+1. **0ms Input Latency & Render-Phase Sync**: By buffering typing keystrokes in `tempValue` within `InlineEditCell`, `onChange` events modify local component state without triggering React Query network calls or parent component re-renders. Syncing `tempValue` when `value` prop changes is handled during render (`prevValue !== value`), eliminating cascading effect re-renders.
+2. **Keyboard Focus & Navigation**: `handleKeyDown` listens for `Tab`/`Shift+Tab` to execute `handleCommit()` and invoke `onNavigate('next'|'prev')`, which computes the next active cell ID in `entryCellIdList`/`cellIdList` and sets `activeCellId`. The target `InlineEditCell` becomes `isEditing={true}`, triggering auto-focus and text selection via `useRef`.
+3. **Save/Commit & Cancel**: `Enter` or `Ctrl+Enter` triggers `handleCommit()`, committing changes to `updateEntry`/`updateCategory` and setting `activeCellId` to `null` to exit edit mode. `Esc` restores initial value and exits edit mode without calling `onSave`.
+4. **Number Parsing & Schema Safety**: Numbers are cleaned of commas using `.replace(/,/g, '')` and parsed with `Number()` prior to invoking mutation props (`updateEntry` / `updateCategory`), ensuring payloads adhere strictly to `BudgetCategorySchema` and `BudgetEntrySchema` Zod definitions.
 
 ## 3. Caveats
-- The local registry `recentlyDeletedNodes` has a 5000ms expiration time. If database sync takes longer than 5 seconds, resurrection could still occur. However, the sync debounce is 2500ms, making 5000ms more than sufficient.
-- Only the active user's local deletions are tracked in `recentlyDeletedNodes` for the node resurrection fix, which is the exact scenario causing the feedback loop on the local machine during editing.
+- No caveats. All target components (`PolicyGroupCard.tsx`, `BudgetCategoryCardItem.tsx`, `InlineEditCell.tsx`) operate cleanly with zero backend schema or hook contract alterations.
 
 ## 4. Conclusion
-- All issues reported by Reviewers and Challengers have been fully resolved with minimal, clean code modifications.
+Requirement R1 (Table Inline-Editing & Keyboard Navigation System) has been fully implemented, verified, and integrated into `src/components/budget/ui/`.
 
 ## 5. Verification Method
-- TypeScript compiler verification:
-  `npx tsc --noEmit` -> Passed with exit code 0.
-- ESLint verification:
-  `npm run lint` -> Passed with exit code 0.
-- Jest verification:
-  `npm test` -> Passed with exit code 0 (all 7 suites, 48 tests passed).
+Run the following commands in the terminal from the workspace root:
+1. `npx tsc --noEmit` — Verifies TypeScript compilation.
+2. `npx eslint src/components/budget/ui/InlineEditCell.tsx src/components/budget/ui/BudgetCategoryCardItem.tsx src/components/budget/ui/PolicyGroupCard.tsx` — Verifies component linting.
+3. `node scripts/run-harness.js` — Verifies Zod database integrity.

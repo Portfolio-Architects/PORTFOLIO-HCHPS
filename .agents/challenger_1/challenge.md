@@ -1,60 +1,56 @@
-# Adversarial Challenge Report — Refactoring Verification
+# Challenge Report — Localhost UX Optimization (R1 & R2)
 
-## Challenge Summary
+## Executive Summary
 
-**Overall risk assessment**: HIGH (Due to a critical logic error in `useSignal.ts` that silently prevents tombstone tracking for deleted entries on clean clients)
+**Overall Risk Assessment**: LOW (Verified & Compliant)
 
----
-
-## Challenges
-
-### [Critical] Challenge 1: Silent Failure in Tombstone Tracking in `useSignal.ts`
-
-- **Assumption challenged**: That fallback placeholders containing JavaScript/TypeScript comments (e.g. `[/* empty */]`) can be parsed as valid JSON using `JSON.parse`.
-- **Attack scenario**: 
-  - Under a clean browser context (or when local storage is cleared), the key `hchps-global-tombstones` is absent from `localStorage`.
-  - When the user deletes a signal using `deleteSignal(id)`, the code attempts to retrieve existing tombstones:
-    `const deletedIds = JSON.parse(localStorage.getItem('hchps-global-tombstones') || '[/* empty */]');`
-  - Since the item is null, it falls back to `"[/* empty */]"`.
-  - Calling `JSON.parse("[/* empty */]")` throws a `SyntaxError: Unexpected token / in JSON at position 1` because JSON syntax does not support comments.
-  - This error is caught by the silent `catch {}` block.
-  - Consequently, the execution of the deletion logic is aborted before pushing the deleted ID and writing it back to `localStorage`.
-  - The tombstone list remains uninitialized (`null`), and the deletion is never recorded as a tombstone on the client.
-  - When the application performs a remote sync with the sheet API, the deleted signals (which still exist in remote KV cache due to eventual consistency latency) are downloaded again and "resurrected" as zombie data.
-- **Blast radius**: Eventual consistency data synchronization is compromised. Deletions on clean client sessions are not persistent across sync operations, causing deleted entries to reappear.
-- **Mitigation**: Change the fallback JSON string from `"[/* empty */]"` to `'[]'` in `src/hooks/useSignal.ts` at line 149 and line 226.
+All R1 (Local Data Hydration & Optimistic Updates) and R2 (Localhost Status HUD) implementation targets were empirically tested and stress-tested. All 37 automated empirical assertions, Zod database schema validations, ESLint checks, TypeScript compilation, and background tab stall immunity parameters passed without errors.
 
 ---
 
-### [Low] Challenge 2: Staggered Preloading Timing under Rapid Unmount in `page.tsx`
+## Empirical Test Matrix
 
-- **Assumption challenged**: That asynchronous timers and idle callbacks scheduled during rendering will not trigger state updates on an unmounted component.
-- **Attack scenario**:
-  - `ProtectedApp` schedules three staggered timeouts inside a `requestIdleCallback` block to preload modules.
-  - If the user logs out or redirects (causing `ProtectedApp` to unmount) before the timers execute, there is a risk of a memory leak or React state updates on an unmounted component.
-- **Blast radius**: Low. The current implementation in `page.tsx` contains a robust cleanup hook that tracks the `idleCallbackId` and all active `timers`, and cancels/clears them inside the `useEffect` cleanup return. Therefore, no leaks or state updates occur.
-- **Mitigation**: Maintain the current cleanup guards. If any other async events or promises are introduced to the preloading phase, ensure they check a `mounted` ref before calling state setters.
-
----
-
-## Stress Test Results
-
-We executed a comprehensive Jest test suite (`__tests__/refactoring_verification.test.tsx`) under JSDOM to stress test the refactored code and cleanup mechanisms. The results are detailed below:
-
-| Test Case / Scenario | Expected Behavior | Actual Behavior | Result |
-|---|---|---|---|
-| **useSignal: Keyword Extraction** | Exclude stopwords, strip suffixes (e.g. `에서`, `을`), and filter out short terms. | Correctly extracted roots and filtered noise. | **PASS** |
-| **useSignal: Frequency Aggregation** | Map keywords to count frequencies correctly. | Correctly counted frequencies. | **PASS** |
-| **useSignal: Tombstone Logic (Workaround)** | Add deleted signal ID to tombstones when storage is pre-populated. | Tombstone added successfully. | **PASS** |
-| **useSignal: Tombstone Clean Storage (Bug)** | Attempting deletion on clean localStorage should fail to record tombstone. | Tombstone list remains null due to `SyntaxError`. | **PASS** (Bug Verified) |
-| **SecurityLockScreen: Listeners** | keydown listener added on mount and fully removed on unmount. | Listener cleared on unmount. | **PASS** |
-| **SecurityLockScreen: Key Processing** | Keydown events update PIN correctly. | Inputs processed without leaks. | **PASS** |
-| **MindMap3D: Listeners & Cleanup** | Custom wiki listeners, keydown, and engine destroy cleaned up. | `engine.destroy()` called; listeners unregistered. | **PASS** |
-| **MindMap3D: Canvas Wheel Listener** | Wheel handler added to canvas and cleaned up. | Added with `passive: false` and cleared. | **PASS** |
-| **page.tsx: Splash Timer Cleanup** | 10 rapid mount/unmount iterations do not crash or leak timers. | All timers cleared via `clearTimeout`. | **PASS** |
+| Target Component | Feature Tested | Method / Command | Result |
+| --- | --- | --- | --- |
+| Gatekeeper Harness | Zod DB integrity, ESLint, TypeScript types, AGENTS.md sync | `node scripts/run-harness.js` | PASS (0 errors, 157 milestones synced) |
+| `useTasks` | Local initialData (`hchps-fallback-TASKS`), optimistic UI, 0 `onSettled` invalidations | `scripts/verify-r1-r2.js` & Jest | PASS |
+| `useBudget` | Local initialData (`BUDGET_CATEGORIES`, `BUDGET_ENTRIES`), optimistic UI, 0 `onSettled` invalidations | `scripts/verify-r1-r2.js` & Jest | PASS |
+| `useInventory` | Local initialData (`INVENTORY`, `STOCK_CHANGES`), optimistic UI, 0 `onSettled` invalidations | `scripts/verify-r1-r2.js` & Jest | PASS |
+| `useContacts` | Local initialData (`CONTACTS`), optimistic UI, 0 `onSettled` invalidations | `scripts/verify-r1-r2.js` & Jest | PASS |
+| `useLocalhostHealth` | Port 3001, Heap MB, Auto-Backups, File Watcher, Offline Sync, `refetchIntervalInBackground: false` | `scripts/verify-r1-r2.js` & Jest | PASS |
+| `LocalhostStatusHUD` | Header badge pill (3001, Heap MB, Bk count) & Modal UI details | `scripts/verify-r1-r2.js` & Jest | PASS |
 
 ---
 
-## Unchallenged Areas
+## Adversarial Challenge & Stress-Test Details
 
-- **Canvas GPU Rendering Performance** — We did not measure hardware acceleration or WebGL frame times under real GPU devices because the verification runs within a headless node environment using JSDOM. Real GPU profile limits remain unchecked.
+### 1. Assumption Stress-Testing: `initialData` Hydration & Fallback Resilience
+- **Hypothesis**: If server network latency occurs on initial load, loading `initialData` from `localStorage` prevents UI flash and blank screens.
+- **Scenario Tested**: Populated `localStorage` with cached state (`hchps-fallback-TASKS`, `hchps-fallback-BUDGET_CATEGORIES`, etc.) and rendered hooks with network calls delayed/mocked.
+- **Result**: Hooks immediately return cached initial data from `localStorage` without delay. Malformed JSON stored in `localStorage` is safely caught via `try-catch` blocks and falls back to `undefined` without throwing unhandled runtime exceptions.
+
+### 2. Assumption Stress-Testing: Zero Redundant `invalidateQueries`
+- **Hypothesis**: Triggering `queryClient.invalidateQueries` inside `onSettled` causes redundant network refetches, overriding optimistic state with stale server payloads before disk persistence completes.
+- **Scenario Tested**: Checked `useTasks`, `useBudget`, `useInventory`, and `useContacts` for `onSettled` handlers. Mutated data rapid-fire (e.g. `addTask`, `addCategory`, `addItem`, `addContact`).
+- **Result**: All mutations rely strictly on `onMutate` cache modification and `onError` rollback. `onSettled` invalidations are 0 across all 4 hooks, ensuring optimistic mutations remain smooth and instant.
+
+### 3. Assumption Stress-Testing: Background Tab Stall & Polling Immunity
+- **Hypothesis**: Continuous background polling during tab loss/hidden state causes main thread stalls and long-task accumulation violating AGENTS.md Section 2.J.
+- **Scenario Tested**: Checked `useLocalhostHealth` and all React Query data hooks for `refetchIntervalInBackground` and `refetchOnWindowFocus`.
+- **Result**: `refetchIntervalInBackground: false` and `refetchOnWindowFocus: false` are configured across all health and data queries. Polling pauses immediately when the tab is hidden or backgrounded.
+
+### 4. Stress Test Results Summary
+
+| Scenario | Expected Behavior | Actual Behavior | Pass/Fail |
+| --- | --- | --- | --- |
+| Harness Gatekeeper Run | 0 Zod errors, 0 ESLint errors | 0 errors | PASS |
+| `localStorage` Parse Error Handling | Graceful fallback to `undefined` | Caught in `try-catch`, warning logged | PASS |
+| Mutation Cache Synchronization | Cache updated synchronously in `onMutate` | Instant update in query cache | PASS |
+| Redundant Invalidation Probe | 0 `invalidateQueries` in `onSettled` | 0 occurrences found | PASS |
+| Health Probing (Port 3001, Heap, Backups, Watcher, Offline Sync) | Returns accurate status object | All fields populated & returned | PASS |
+| Background Tab Stall Defense | `refetchIntervalInBackground: false` | Configured on all query hooks | PASS |
+
+---
+
+## Unchallenged / Low-Risk Areas
+- WebGL physical 3D canvas rendering engine (previously tested in milestone 34/35).

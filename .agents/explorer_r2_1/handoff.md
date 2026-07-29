@@ -1,92 +1,65 @@
-# Handoff Report — Requirement 2 (R2): 3D WebGL Frame Pause & Physics Freezing
+# 5-Component Handoff Report: R2 Localhost Health & Daemon Status HUD
 
 ## 1. Observation
-- **Parent SPA Navigation**: In `src/app/page.tsx` (lines 683–700), `MindMap3D` is kept mounted in the DOM when navigating between tabs via `<div className={activeModule === 'mindmap' ? 'block' : 'hidden'}>`, passing `isActive={activeModule === 'mindmap'}`.
-- **Component Active State Debounce**: In `src/components/MindMap3D.tsx` (lines 158–170), `engineActive` is updated via a 150ms `setTimeout`:
-  ```tsx
-  useEffect(() => {
-    if (!isActive) {
-      setEngineActive(false);
-      return;
-    }
-    const timer = setTimeout(() => {
-      setEngineActive(true);
-    }, 150);
-    return () => clearTimeout(timer);
-  }, [isActive]);
-  ```
-- **Animation Loop Scheduling**: In `src/components/MindMap3D.tsx`:
-  - Line 823: `animationRef.current = requestAnimationFrame(loop);` inside `loop()`.
-  - Line 837: `animationRef.current = requestAnimationFrame(loop);` inside `resumePhysicsLoopRef.current`.
-  - Line 715: `resizeTimeout = requestAnimationFrame(...)` inside `resize()`.
-- **Loop Cleanup on Inactive**: In `src/components/MindMap3D.tsx` (lines 858–867), cleanup executes:
-  ```tsx
-  if (animationRef.current) {
-    cancelAnimationFrame(animationRef.current);
-    animationRef.current = 0;
-  }
-  ```
-- **Physics Integration & Dampening**: In `src/lib/OntologyCanvasEngine.ts`:
-  - Lines 751–770: `vx` and `vy` are damped (`damping = 0.75`), clamped (`[-8.0, 8.0]`), dead-zone filtered (`speedSq < 0.012`), and integrated: `node.worldX += vx * physicsAlpha`.
-  - Lines 845–851: `idleFramesCount` triggers sleep after 90 idle frames.
-  - Line 125: `wakeUp()` method exists:
-    ```typescript
-    public wakeUp(): void {
-      this.physicsFrameCount = 0;
-      this.physicsAlpha = 1.0;
-      this.idleFramesCount = 0;
-      this.needsRedraw = true;
-    }
+- **Layout & Navigation Structure**:
+  - `src/app/page.tsx:615-623`: `<Sidebar>` is mounted as the top sticky header component.
+  - `src/components/Sidebar.tsx:29`: Header element rendered with `sticky top-0 left-0 right-0 z-50 pointer-events-auto bg-[var(--color-card)]/70 backdrop-blur-md`.
+  - `src/components/Sidebar.tsx:70-81`: Right section of the top navigation contains a button for opening daemon logs:
+    ```tsx
+    <div className="flex items-center gap-2 max-w-[200px] w-full pr-1.5">
+      <button
+        onClick={onOpenLogs}
+        className="w-full flex items-center justify-between px-3 py-1.5 bg-slate-500/5 hover:bg-slate-500/8 border border-slate-200/40 rounded-full text-[11px] font-semibold text-slate-500 hover:text-slate-800 transition-all select-none cursor-pointer"
+      >
+        <div className="flex items-center gap-2 truncate">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="truncate">구동 로그 기록</span>
+        </div>
+        <Terminal size={12} className="text-slate-400" />
+      </button>
+    </div>
     ```
-  - **No `freeze()` or `pause()` method** currently exists in `OntologyCanvasEngine.ts` to zero out velocity vectors and clear physics momentum on tab departure.
-- **Timestamp Delta Computation**: In `src/components/MindMap3D.tsx` (lines 763–765):
-  ```typescript
-  const now = performance.now();
-  const delta = now - lastFrameTime;
-  lastFrameTime = now;
-  ```
-  If `lastFrameTime` is not reset immediately before resuming or if `delta` is un-clamped when waking from a background browser tab, `delta` can exceed several thousand milliseconds.
+- **Existing Metric & Log Endpoints**:
+  - `src/app/api/app-logs/route.ts:57`: Server heap memory is probed using `Math.round(process.memoryUsage().heapUsed / 1024 / 1024)`.
+  - `src/app/api/app-logs/route.ts:114-119`: Returns JSON response containing `{ success: true, data: sortedLogs, daemonActive: false, watchDir: 'd:/Desktop' }`.
+  - `src/app/api/data/route.ts:195-260`: Auto-backups are maintained across `backups/[sheet]`, `backups/daily/[sheet]`, and `backups/weekly/[sheet]` (storing 20 recent, 7 daily, 4 weekly backup JSON files per sheet).
+  - `src/hooks/useYjsStore.ts:82-84`: Host resolution for CRDT PartyKit: `window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'`.
+- **Existing Modal Theme**:
+  - `src/components/AppLogModal.tsx:102`: Uses light terminal theme for full console, while `src/components/mindmap/ui/MindMapHUD.tsx:65` uses `bg-slate-900` high-contrast dark backdrop.
 
 ---
 
 ## 2. Logic Chain
-1. **Observation**: `MindMap3D.tsx` receives `isActive` prop from `page.tsx`, which turns `false` when `activeModule !== 'mindmap'`.
-2. **Reasoning**: Setting `isActive` to `false` triggers `setEngineActive(false)` and runs the main `useEffect` cleanup, calling `cancelAnimationFrame(animationRef.current)`.
-3. **Observation**: `OntologyCanvasEngine` remains alive in `engineRef.current` without being destroyed during tab switches.
-4. **Reasoning**: Node physical velocities (`vx`, `vy`) and LERP targets (`targetWorldX/Y`) remain un-cleared in `engineRef.current` memory when leaving the tab.
-5. **Observation**: Browser tab switching (`document.visibilityState`) does not change `activeModule` or `isActive`.
-6. **Reasoning**: If a user switches browser tabs, `isActive` stays `true`, leaving `requestAnimationFrame` to be throttled by the browser while `performance.now()` continues advancing.
-7. **Observation**: Upon tab wake-up, `loop()` calculates `delta = now - lastFrameTime`. If `lastFrameTime` was set in the past, `delta` spikes.
-8. **Conclusion**: To achieve complete 0% CPU overhead and zero whiplash:
-   - Combine `isActive`, `engineActive`, and `document.visibilityState` into `isEffectiveActive`.
-   - On `isEffectiveActive = false`: Cancel `rAF` and invoke `engine.freeze()` to zero velocities and lock coordinates.
-   - On `isEffectiveActive = true`: Force `lastFrameTime = performance.now()`, clamp `delta` to `16.67ms` if `delta > 100ms`, and call `engine.wakeUp()`.
+1. **Observation 1** (`Sidebar.tsx:29, 70-81`) shows that the application header is a sticky top bar rendered on every page view and currently houses a static button for "구동 로그 기록" in the top-right corner.
+2. **Logic Step 1**: Placing the new `LocalhostStatusHUD` component in `src/components/Sidebar.tsx` (replacing/enhancing the daemon logs pill) provides persistent, 100% viewport visibility across all modules without cluttering dashboard card grids or obscuring floating bottom UI tools.
+3. **Observation 2** (`app-logs/route.ts:57` & `data/route.ts:195`) shows server heap memory and multi-tier backup paths are already active on the Node.js backend.
+4. **Logic Step 2**: Client JS memory can be probed locally using standard browser `(performance as any).memory?.usedJSHeapSize`, while server heap, watcher state, and backup file counts can be fetched via a React Query hook (`useLocalhostHealth.ts`) targeting an expanded `/api/app-logs` or dedicated `/api/health` route.
+5. **Observation 3** (`AGENTS.md:Section 2.I & 2.J` & `useYjsStore.ts`) mandates 0-stall, tab visibility pausing (`refetchIntervalInBackground: false`), dynamic imports for heavy modals, and Tailwind v4 high-contrast dark theme styling for system widgets.
+6. **Logic Step 3**: The HUD component should consist of a lightweight **Compact Badge Pill** in the header and a dynamically imported **Expanded Dark Theme HUD Modal** (`LocalhostDaemonHUD`), ensuring minimal initial JS bundle impact and zero main-thread freezing.
 
 ---
 
 ## 3. Caveats
-- **No Direct Source Changes Made**: As an explorer, no changes were written to `MindMap3D.tsx` or `OntologyCanvasEngine.ts`.
-- **Canvas Context Loss**: WebGL context loss is not applicable here because `OntologyCanvasEngine` utilizes standard HTML5 Canvas 2D (`CanvasRenderingContext2D`), so context restoration events (`webglcontextlost`) are not required.
-- **ResizeObserver Timing**: When switching tabs, container dimensions may temporarily report `0x0` in hidden state (`display: none`). Resizing must occur AFTER `isEffectiveActive` becomes `true` and container is visible (`display: block`).
+- **Browser Memory API Scope**: `performance.memory` is non-standard and supported primarily in Blink engines (Chrome, Edge, Opera). On Safari or Firefox, client JS heap reading will return `undefined`; the HUD must gracefully fall back to server heap metrics without crashing.
+- **Port Detection**: In static SSG / decoupled proxy environments, `window.location.port` might reflect an upstream port (e.g. 80/443). In local Next.js dev mode (`http://localhost:3001`), `window.location.port` accurately returns `'3001'`.
 
 ---
 
 ## 4. Conclusion
-Requirement 2 (R2) can be fully satisfied with localized modifications in `src/components/MindMap3D.tsx` and `src/lib/OntologyCanvasEngine.ts`:
-1. Add `freeze()` method to `OntologyCanvasEngine.ts` to reset velocities and physics alpha.
-2. Add `document.visibilityState` listener to `MindMap3D.tsx`.
-3. Clamp `delta` to `16.67ms` on wake-up inside `loop()` in `MindMap3D.tsx`.
-4. Ensure `lastFrameTime` is synchronized to `performance.now()` before scheduling the resume frame.
+1. **Optimal Component Placement**: Embed `LocalhostStatusHUD` into the top sticky header (`src/components/Sidebar.tsx`), occupying the right-hand action slot.
+2. **Data Fetching Architecture**: Create `useLocalhostHealth.ts` utilizing `@tanstack/react-query` to fetch combined server metrics (`/api/app-logs` or `/api/health`) and merge with client browser metrics (`performance.memory`, `navigator.onLine`).
+3. **UI/UX Design**: Standardize on a two-tier layout:
+   - **Tier 1 (Compact Pill)**: Status LED + `:3001` + `Heap MB` + `Backup Count` + `Sync Icon` in sticky header.
+   - **Tier 2 (Expanded HUD Modal)**: 4-card metric dashboard in Tailwind v4 high-contrast dark theme (`slate-950` / `slate-800`), featuring memory usage gauges, backup stats, file watcher path, CRDT connection status, and log console triggers.
 
 ---
 
 ## 5. Verification Method
-1. **Inspect Report Files**:
-   - Verify `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\explorer_r2_1\analysis.md`
-   - Verify `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\explorer_r2_1\handoff.md`
-2. **Code Inspection**:
-   - Inspect `src/components/MindMap3D.tsx` lines 715–840 for `requestAnimationFrame` loop handles.
-   - Inspect `src/lib/OntologyCanvasEngine.ts` lines 125, 498–806, 808–900 for physics ticks and sleep logic.
-3. **Behavioral Invalidation Conditions**:
-   - If `requestAnimationFrame` continues running while `isActive === false` or `document.hidden === true`.
-   - If returning to the MindMap tab causes nodes to jump, vibrate, or explode outwards due to delta spike.
+1. **Type & Rule Verification**:
+   - Run `npx tsc --noEmit` from project root to ensure zero TypeScript errors.
+   - Run `node scripts/run-harness.js` to ensure Zod, ESLint, and MVC ontology rules pass with 0 errors.
+2. **File Inspection**:
+   - Inspect `d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL\.agents\explorer_r2_1\analysis.md` and `handoff.md`.
+3. **Invalidation Conditions**:
+   - Component placed outside `Sidebar.tsx` header causing layout shift or card occlusion.
+   - Background polling active when `document.hidden` is true (violating Rule 2.J).

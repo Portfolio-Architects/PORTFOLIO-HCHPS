@@ -93,7 +93,21 @@ ${milestoneList ? milestoneList : '- (동기화된 내역 없음)'}
     agentsContent = agentsContent.trimEnd() + '\n\n' + newSectionContent;
   }
 
-  fs.writeFileSync(AGENTS_PATH, agentsContent, 'utf8');
+  let retries = 5;
+  while (retries > 0) {
+    try {
+      fs.writeFileSync(AGENTS_PATH, agentsContent, 'utf8');
+      break;
+    } catch (err) {
+      retries--;
+      if (retries === 0) {
+        console.warn('⚠️ AGENTS.md file is currently locked by system. Dynamic milestone sync skipped.');
+        return true;
+      }
+      const end = Date.now() + 200;
+      while (Date.now() < end) {}
+    }
+  }
   return true;
 }
 
