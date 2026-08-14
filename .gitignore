@@ -46,7 +46,9 @@ next-env.d.ts
 
 # local database backups
 /data/backups/
+/data/.diagnose_cache.json
 
-# scratch dependencies
-/scratch/**/node_modules/
+# agents and scratch
+/.agents/
+/scratch/
 

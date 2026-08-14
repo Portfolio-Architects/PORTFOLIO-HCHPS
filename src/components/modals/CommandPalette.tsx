@@ -292,7 +292,7 @@ export function CommandPalette({
       >
         {/* Search Input Bar */}
         <div className="flex items-center px-4 py-3.5 border-b border-slate-800 bg-slate-900/50">
-          <Search className="w-5 h-5 text-slate-400 shrink-0" />
+          <Search className="w-5 h-5 text-slate-400 shrink-0 pointer-events-none" />
           <input
             ref={inputRef}
             type="text"

@@ -29,7 +29,6 @@ export function LedgerModal({
   entries,
   getCategoryStats,
   onSettle,
-  batchUpdateEntries: _batchUpdateEntries,
   batchDeleteEntries,
   batchSettleEntries,
   onOpenExpenseEntry
@@ -49,6 +48,14 @@ export function LedgerModal({
   
   // Search filter inside Ledger Modal
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>('');
+
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   // Group entries by categoryId in O(E) time
   const entriesByCatId = useMemo(() => {
@@ -66,20 +73,23 @@ export function LedgerModal({
 
   // Filtered entries for Ledger/Split views
   const filteredEntries = useMemo(() => {
-    if (!searchTerm.trim()) return entries;
-    const term = searchTerm.toLowerCase().trim();
+    if (!debouncedSearchTerm.trim()) return entries;
+    const term = debouncedSearchTerm.toLowerCase().trim();
     return entries.filter(e =>
       e.purpose?.toLowerCase().includes(term) ||
       e.docRegNum?.toLowerCase().includes(term) ||
       e.memo?.toLowerCase().includes(term) ||
       e.amount.toString().includes(term)
     );
-  }, [entries, searchTerm]);
+  }, [entries, debouncedSearchTerm]);
 
   // All visible entry IDs (for select all toggle)
   const allVisibleEntryIds = useMemo(() => {
     return filteredEntries.map(e => e.id);
   }, [filteredEntries]);
+
+  // Filtered entry IDs set for O(1) time complexity lookup
+  const filteredEntryIdSet = useMemo(() => new Set(filteredEntries.map(e => e.id)), [filteredEntries]);
 
   // Toggle individual selection
   const toggleSelectEntry = useCallback((id: string) => {
@@ -193,16 +203,16 @@ export function LedgerModal({
           {/* Center/Right: Search & Select All */}
           <div className="flex items-center gap-3 flex-1 max-w-md justify-end">
             <div className="relative flex-1">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
               <input
                 type="text"
                 placeholder="지출 목적, 문서번호, 금액 실시간 검색..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                className="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-text"
               />
               {searchTerm && (
-                <button onClick={() => setSearchTerm('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 hover:text-slate-600">✕</button>
+                <button type="button" onClick={() => setSearchTerm('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 hover:text-slate-600 cursor-pointer">✕</button>
               )}
             </div>
 
@@ -238,7 +248,7 @@ export function LedgerModal({
             {categories
               .map(cat => {
                 const stats = getCategoryStats(cat.id);
-                const catEntries = (entriesByCatId[cat.id] || []).filter(e => filteredEntries.some(fe => fe.id === e.id));
+                const catEntries = (entriesByCatId[cat.id] || []).filter(e => filteredEntryIdSet.has(e.id));
                 
                 // Left side: planned & issuances
                 const plannedTasks = catEntries.filter(e => e.isPlanned && !e.isSettled).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());

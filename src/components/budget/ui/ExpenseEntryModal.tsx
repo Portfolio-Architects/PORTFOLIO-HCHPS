@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { BudgetCategory, BudgetEntry, BudgetActionType, BudgetSubItem, BudgetCalculation } from '@/types';
 import { Modal } from '@/components/ui/modal';
 import { CategoryStats } from '@/hooks/useBudget';
@@ -229,6 +229,10 @@ export function ExpenseEntryModal({
     onClose();
   };
 
+  const selectedCategory = useMemo(() => {
+    return categories.find(c => c.id === selectedCatId) || null;
+  }, [categories, selectedCatId]);
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={isEdit ? '지출/집행 내역 수정' : '새 지출/집행 내역 등록'}>
       <form onSubmit={handleSave} className="space-y-4">
@@ -337,14 +341,14 @@ export function ExpenseEntryModal({
           </select>
         </div>
 
-        {selectedCatId && categories.find(c => c.id === selectedCatId)?.subItems && categories.find(c => c.id === selectedCatId)!.subItems!.length > 0 && (
+        {selectedCategory?.subItems && selectedCategory.subItems.length > 0 && (
           <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
              <label className="block text-xs font-bold text-gray-700 mb-1.5 flex justify-between items-center">
                 <span>연결 대상 산출내역 {(actionType === 'transfer' || actionType === 'correction' || actionType === 'settle') && <span className="text-red-500">* (이 유형은 선택 필수)</span>}</span>
              </label>
              <select value={entryLinkedSubItemId} onChange={e => setEntryLinkedSubItemId(e.target.value)} className={inputClass}>
                <option value="">-- 산출내역 연결 안함 (과목 전체 포괄지출) --</option>
-               {categories.find(c => c.id === selectedCatId)?.subItems?.flatMap((sub, sIdx) => {
+               {selectedCategory.subItems.flatMap((sub, sIdx) => {
                   const opts = [];
                   const subKey = sub.id || `sub-${sIdx}`;
                   const subVal = sub.id || sub.name || `sub-${sIdx}`;

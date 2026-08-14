@@ -80,6 +80,8 @@ export const LAYER_LABELS: Record<OntologyLayerId, string> = {
   3: '위키/문서 (Knowledge)',
 };
 
+export type VerificationStatus = 'uncompleted' | 'in-progress' | 'verified' | 'risk-warning';
+
 export interface OntologyNode {
   id: string;
   label: string;
@@ -88,6 +90,7 @@ export interface OntologyNode {
   parentId?: string;           // Optional parent ID for radial branch alignment
   layerId?: OntologyLayerId;   // 0: 인물, 1: 예산/비품, 2: 업무/회의, 3: 위키/문서
   meta?: Record<string, any>;  // Custom payload for specific nodes
+  verificationStatus?: VerificationStatus; // Investigator verification status
   // === User Overrides ===
   fixedX?: number;             // User pinned X coordinate
   fixedY?: number;             // User pinned Y coordinate

@@ -2,6 +2,82 @@
 
 ## 8. 최근 엔지니어링 마일스톤 (요약)
 
+### [M1: Corkboard & Red String 3D UI Reform] Corkboard background texture, dark wooden frame border (#3d2314), Post-it paper cards (-5°~+5° tilt, dog-eared fold), glossy 3D push pin heads, thick crimson red string catenary sag, investigator status stamps & hazard tape badges. (2026-08-13)
+* **개요 및 개발 목적**:
+  - 3D 마인드맵 캔버스를 형사 수사 보드(Detective Investigation Board) 스타일로 전면 개편하여 코르크 배경 질감, 다크 우든 프레임 테두리(#3d2314), 사각형 Post-it 노드 카드(-5°~+5° 랜덤 기울임, 모서리 접힘 디테일), 입체 3D 핀 헤드, 카테너리 중력 처짐을 반영한 진홍색 빨간 실선(Crimson Red String, #d62828), 수사관 검증 상태 고무 도장 패치 및 위험 경고 테이프 배지를 탑재함.
+* **핵심 변경 내역**:
+  - **Corkboard & Border Frame (`MindMap3D.tsx`, `OntologyRenderer.ts`)**: 캔버스 배경에 코르크 질감 패턴 및 #3d2314 다크 우든 테두리 오버레이 배치.
+  - **Post-It Paper Cards & Push Pins (`OntologyRenderer.ts`, `OntologyCanvasEngine.ts`)**: 직사각형 포스트잇 노드 렌더링, 수식 기반 그림자/모서리 접힘 연산, 3D 광택 핀 헤드 및 사각형 hitTest 드래그 판정 통합.
+  - **Catenary Sag Crimson Red Strings (`OntologyRenderer.ts`)**: 핀 헤드 간 연결선에 이차 베지에 곡선 기반 카테너리 처짐 적용.
+  - **Investigator Status Badges & Stamps (`OntologyRenderer.ts`, `MindMapInspector.tsx`)**: 4가지 수사관 상태(uncompleted, in-progress, verified, risk-warning) 고무 도장 및 위험 경고 테이프 렌더링, Inspector 폼 연동.
+* **정량적 검증 성과**:
+  - `npx tsc --noEmit` 실행 결과 0 errors.
+  - `node scripts/run-harness.js` 검증 완료: 0 Zod errors, 0 ESLint warnings, 0 MVC violations, 0 perf bottlenecks 통과.
+  - `node scripts/sync-rules.js` 자동 실행으로 `AGENTS.md` 마일스톤 로그 최신화 완료.
+
+### [M2: Festival 5-Domain Presets & 3D Auto-Layout] 5 Symmetrical Pentagonal Hubs (Permits & Safety, Stage/Performance/Sound, PR/Marketing, Food & Booths, Budget & Contracts), 26 sub-nodes, 60M KRW budget dataset, Yjs 1-Click preset loading pipeline, radial pentagonal domain clustering layout math with fixed node coordinate preservation guard. (2026-08-13)
+* **개요 및 개발 목적**:
+  - 5~7천만원 규모 축제 행사의 실패 위험을 보완하기 위해 5대 도메인(인허가/안전관리, 무대/공연/음향, 홍보/마케팅, 먹거리/부스, 예산/계약) 템플릿 데이터셋(26개 서브노드, 6천만원 예산 연동)과 1-Click Preset 로딩 파이프라인 및 정오각형 수평 방사형 3D 자동 레이아웃 엔진 구축.
+* **핵심 변경 내역**:
+  - **Festival 5-Domain Preset Dataset (`src/lib/presets/festival5DomainPreset.ts`)**: 5개 오각형 도메인 허브 노드(`festival-hub-permits`, `festival-hub-stage`, `festival-hub-pr`, `festival-hub-food`, `festival-hub-budget`), 26개 서브노드, 6천만원 지출 내역 정의.
+  - **1-Click Preset Loading Pipeline (`src/hooks/useGraphCustomization.ts`)**: Yjs CRDT 협업 스토어(`customNodesMap`, `customEdgesMap`, `overrides`) 및 예산 시뮬레이터 연동 자동 배치.
+  - **Pentagonal Radial 3D Layout Engine (`src/lib/engine/OntologyLayout.ts`)**: R=280px 5방향 정오각형 허브 배치 및 R=110px 서브노드 부채꼴 방사 클러스터링 산출식 적용, 고정 좌표 보존 가드 추가.
+* **정량적 검증 성과**:
+  - `npx tsc --noEmit` 실행 결과 0 errors.
+  - `node scripts/run-harness.js` 검증 완료: 0 Zod errors, 0 ESLint warnings, 0 MVC violations, 0 perf bottlenecks 통과.
+  - `node scripts/sync-rules.js` 자동 실행으로 `AGENTS.md` 마일스톤 로그 최신화 완료.
+
+### [M3: Zero-Mistake Real-Time Validation & Alert Engine] Essential permit auto-warning guard for 4 mandatory items (지자체 신고, 경찰 도로점용, 소방 안전점검, 안전관리계획서), 50-70M KRW budget scale validator, Detective Validation HUD floating banner, crimson pulsating risk node aura (#FF0044), 1-Click missing permit auto-injector. (2026-08-13)
+* **개요 및 개발 목적**:
+  - 행정 및 인허가 누락으로 인한 행사 취소/사고 방지를 위해 4대 필수 인허가 항목(지자체 신고, 경찰 도로점용, 소방 안전점검, 안전관리계획서) 정규식 실시간 검증 가드, 5~7천만원 예산 규모 범위/초과 검증기, Detective Validation HUD 캔버스 플로팅 배너, 진홍색 맥동 위험 펄스 렌더링(#FF0044) 및 누락 항목 1-Click 자동 생성 파이프라인 개발.
+* **핵심 변경 내역**:
+  - **Essential Permit Auto-Warning Guard (`src/hooks/useFestivalValidation.ts`)**: 4대 필수 인허가 제출 상태 정규식 파싱 및 MISSING / INCOMPLETE / VERIFIED 상태 분류 엔진.
+  - **Budget Scale & Overrun Validator (`src/hooks/useFestivalValidation.ts`)**: 50M~70M KRW 예산 적정 범위 검증, 세부 통계목 예산 초과 및 미입력 도메인 실시간 분석.
+  - **Detective Validation HUD & Risk Node Aura (`DetectiveValidationHUD.tsx`, `OntologyRenderer.ts`)**: 캔버스 상단 종합 검증 상태 HUD 팝업 오버레이 및 경고 노드 주변 #FF0044 맥동 링 렌더링. 1-Click 누락 인허가 자동 주입 기능 탑재.
+* **정량적 검증 성과**:
+  - `npx tsc --noEmit` 실행 결과 0 errors.
+  - `node scripts/run-harness.js` 검증 완료: 0 Zod errors, 0 ESLint warnings, 0 MVC violations, 0 perf bottlenecks 통과.
+  - `node scripts/sync-rules.js` 자동 실행으로 `AGENTS.md` 마일스톤 로그 최신화 완료.
+
+### [M4: Final System Integration & Harness Verification] Full system integration, 0 TSC errors, 0 Zod schema errors, 0 ESLint warnings, 0 architectural violations, AGENTS.md manifest rule synchronization. (2026-08-13)
+* **개요 및 개발 목적**:
+  - M1, M2, M3 시스템 개편 결과를 전체 앱 환경에 완벽 통합하고, TypeScript 타입 검증, Zod 스키마 검증, ESLint 린트 규칙, MVC 아키텍처 규칙 및 마일스톤 동기화 파이프라인을 최종 검증·동기화함.
+* **핵심 변경 내역**:
+  - **Full System Integration & Unit Test Verification (`src/__tests__/m4_e2e_integration_stress.test.ts`)**: 20개 전체 Jest 테스트 스위트 (148개 단위 테스트) 100% PASS 검증 완료.
+  - **Gatekeeper Verification (`run-harness.js`)**: 0 TSC errors, 0 Zod schema errors, 0 ESLint warnings, 0 architectural violations 달성.
+  - **Manifest Rule Synchronization (`scripts/sync-rules.js`)**: `PORTFOLIO VITAL - Engineering Milestones.md` 및 `PORTFOLIO VITAL - Engineering Report.md`를 바탕으로 `AGENTS.md` Section 5 마일스톤 동기화 로그 100% 최신화.
+* **정량적 검증 성과**:
+  - `npx tsc --noEmit` 실행 결과 0 errors.
+  - `node scripts/run-harness.js` 검증 완료: 0 Zod errors, 0 ESLint warnings, 0 MVC violations, 0 perf bottlenecks 통과.
+  - `npx jest` 20개 테스트 스위트 (148개 테스트) 100% 통과.
+
+### [Budget Simulator UX Optimization] 통계목별 잔액 메인 탭 설정, 세부사업별 그룹화 계층 및 접기/펼치기(Expand/Collapse), 화이트 테마 및 금액 텍스트 20% 확대 패치 (2026-08-03)
+* **개요 및 개발 목적**:
+  - 사용자 요구사항에 따라 예산 시뮬레이터 결과 대시보드의 기본 활성 탭을 '통계목별 잔액' 탭으로 전환하고, 세부사업별 통계목 항목들을 그룹핑하여 카테고리 헤더 클릭 시 하위 통계목 행들이 Smooth하게 접히고 펼쳐지는 Expand/Collapse UX를 구현함.
+  - 다크 테마에서 프리미엄 화이트/라이트 테마로 전면 리팩토링하고, 숫자의 시각적 직관성을 향상시키기 위해 모든 금액(원화 `₩...`) 및 수치 텍스트의 크기를 20% 확대 적용.
+* **핵심 변경 내역**:
+  - **Main Tab & Grouping Logic (`SimulationResultTable.tsx`)**: `default viewMode`를 `'stat'`(통계목별 잔액)으로 변경. `groupedStatItems` memoized 연산을 탑재하여 세부사업(`detailedProject`) 단위로 통계목 및 소계 수치(총 예산, 집행액, 집행 잔액, 예정액, 최종 예상 잔액, 초과 경고 배지)를 집계함.
+  - **Expand/Collapse Interaction (`SimulationResultTable.tsx`)**: `collapsedProjects` React State 및 `toggleProjectCollapse`, `toggleAllCollapse` 함수 구현. 세부사업 그룹 헤더 행 클릭 및 상단 `[모두 펼침/접힘]` 버튼을 통해 하위 통계목 행을 자유롭게 제어 가능. 하위 행에는 `CornerDownRight` 아이콘 및 들여쓰기(`pl-10`) 계층감 부여.
+  - **Amount Font Scale-up (+20%) (`SimulationSummaryCards.tsx`, `SimulationResultTable.tsx`)**: 상단 요약 카드 수치 (`text-lg/xl` → `text-xl/2xl`), 그룹 헤더 소계 수치 (`text-sm` → `text-base`), 테이블 셀 수치 (`text-xs` → `text-sm/base`), 하단 합계 수치 (`text-sm` → `text-base/lg`) 등 전반적인 수치 폰트 크기를 약 20% 확대 적용.
+* **정량적 검증 성과**:
+  - `npx tsc --noEmit` 실행 결과 0 errors.
+  - `node scripts/run-harness.js` 검증 완료: 0 Zod errors, 0 ESLint warnings, 0 MVC violations, 0 perf bottlenecks 통과.
+  - `node scripts/sync-rules.js` 자동 실행으로 `AGENTS.md` 마일스톤 로그 동기화 완료.
+
+### [Budget Simulator Module] R1~R3 예산 시뮬레이터(Budget Simulator) 모듈 구축 및 실시간 잔액 계산 엔진 통합 패치 (2026-08-03)
+* **개요 및 개발 목적**:
+  - 기존 PORTFOLIO - VITAL 예산 관리 체계(`useBudget`, `data/BUDGET_CATEGORIES.json`, `data/BUDGET_ENTRIES.json`)와 연동하여, 현재 집행 잔액을 기준으로 향후 사용할 확정 지출 예정 내역을 시뮬레이션하고 세부사업 및 통계목별 최종 예상 잔액과 추가 집행 필요 금액을 실시간 추산하는 독립 '예산 시뮬레이터(Budget Simulator)' 모듈 구축.
+* **핵심 변경 내역**:
+  - **Data Model & Types (`src/types/index.ts`)**: `ModuleType`에 `'simulator'` 탭 타입 추가. `SimulationEntry` (id, name, detailedProject, statItem, unitPrice, quantity, amount, memo, createdAt), `ProjectSimulationSummary` (세부사업별 totalBudget, currentSpent, currentRemaining, simulatedExpenditure, finalExpectedBalance, executionRate, isDeficit), `StatItemSimulationSummary` (통계목별 잔액 집계) 도메인 인터페이스 정의.
+  - **`useBudgetSimulator` Custom Hook (`src/hooks/useBudgetSimulator.ts`)**: $O(1) \sim O(N)$ memoized 연산으로 현재 집행 잔액 기반 예상 잔액(`currentRemaining - simulatedExpenditure`) 및 추가 필요 금액을 실시간 계산하는 엔진 탑재. 지출 예정 항목 CRUD(추가/수정/삭제/초기화/테스트 프리셋) 기능, `localStorage` 기반 백업/복원, 세부사업 및 통계목 동적 필터링 제공.
+  - **Simulation Input Form UI (`src/components/budget/ui/SimulationInputForm.tsx`)**: 항목명, 금액, 수량, 관련 세부사업, 통계목 매핑 및 드롭다운 선택 입력을 수용하는 지출 예정 항목 등록/수정 인터페이스 구현. 3가지 사전 테스트 프리셋(사무용품/출장비/연구용역) 즉시 주입 기능 탑재.
+  - **Summary Cards & Result Table (`src/components/budget/ui/SimulationSummaryCards.tsx`, `SimulationResultTable.tsx`, `SimulationEntryList.tsx`)**: 상단 핵심 수치 카드(총 집행 예산, 확정 지출 예정액, 최종 예상 잔액, 예산 소진률 게이지) 및 세부사업/통계목별 시뮬레이션 결과 테이블 구현. 예산 초과(음수 잔액, `rose-500`) 및 안정 잔액(`emerald-500`) 고대비 시각 경고 하이라이트 제공. `useVirtualList` 가상화 그리드 기반 항목 리스트 렌더링.
+  - **Hydration Isolation & Tab Integration (`src/components/WorkspaceView.tsx`, `src/components/Sidebar.tsx`, `src/app/page.tsx`)**: `WorkspaceView.tsx` 내 "예산관리" 하위 sub-tab으로 `'simulator'` 탭 연동. Next.js `dynamic(() => import(...), { ssr: false })` 지연 임포트 및 `BudgetSimulatorSkeleton.tsx` fallback 가드 적용. `Sidebar.tsx` 및 `page.tsx` 라우터 등록.
+* **정량적 검증 성과**:
+  - `npx tsc --noEmit` 실행 결과 0 errors (TypeScript 타입 체크 무결성 달성).
+  - `node scripts/run-harness.js` 검증 통과: Zod Gatekeeper 0 errors, ESLint 0 warnings, MVC Ontology 0 violations, Performance Bottlenecks 0건 달성.
+  - `node scripts/sync-rules.js` 자동화 동기화를 통해 `AGENTS.md` 마일스톤 로그 최신화 완료.
+
 ### [Gatekeeper Verification] R4 Gatekeeper Verification & Sync Rules 패치 (2026-07-23)
 * **Gatekeeper Verification & Sync Rules**:
   - `npx tsc --noEmit`: 0 TypeScript compiler errors verified.

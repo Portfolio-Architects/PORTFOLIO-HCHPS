@@ -4,6 +4,10 @@ import { extractKeywords, useSignal } from '@/hooks/useSignal';
 import { SecurityLockScreen } from '@/components/SecurityLockScreen';
 import { MindMap3D } from '@/components/MindMap3D';
 import Home from '@/app/page';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+const createTestQueryClient = () => new QueryClient({ defaultOptions: { queries: { retry: false } } });
+const renderHome = () => render(<QueryClientProvider client={createTestQueryClient()}><Home /></QueryClientProvider>);
 
 // ─── Mocks for External APIs and Hooks ───
 
@@ -534,7 +538,7 @@ describe('Refactoring Correctness and Leak Verification Suite', () => {
 
       // Stress test: rapid render and unmount sequence (10 iterations)
       for (let i = 0; i < 10; i++) {
-        const { unmount } = render(<Home />);
+        const { unmount } = renderHome();
         unmount();
       }
 

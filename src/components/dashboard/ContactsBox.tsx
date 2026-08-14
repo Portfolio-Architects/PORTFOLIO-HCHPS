@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { useContacts } from '@/hooks/useContacts';
-import { BookOpen, UserPlus, Search, Phone, Mail, FileText, Trash2, ShieldAlert, Pencil } from 'lucide-react';
+import { BookOpen, UserPlus, Search, Phone, Mail, FileText, Trash2, ShieldAlert, Pencil, X } from 'lucide-react';
 import { Contact } from '@/types';
 
 // ============ Memoized ContactCard Subcomponent ============
@@ -75,16 +75,14 @@ ContactCard.displayName = 'ContactCard';
 const ContactsBoxComponent: React.FC = () => {
   const { contacts, loading, addContact, updateContact, deleteContact } = useContacts();
 
-  // 검색 상태 (한글 IME 조합 및 백스페이스 버그 방지를 위해 디바운스 적용)
-  const [searchTerm, setSearchTerm] = useState('');
+  // 검색 상태 (직관적인 실시간 반응 및 IME 조합 호환)
   const [localSearchTerm, setLocalSearchTerm] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
-  React.useEffect(() => {
-    const timer = setTimeout(() => {
-      setSearchTerm(localSearchTerm);
-    }, 150);
-    return () => clearTimeout(timer);
-  }, [localSearchTerm]);
+  const handleClearSearch = useCallback(() => {
+    setLocalSearchTerm('');
+    searchInputRef.current?.focus();
+  }, []);
 
   // 폼 등록 및 수정 상태
   const [editingContactId, setEditingContactId] = useState<string | null>(null);
@@ -112,17 +110,29 @@ const ContactsBoxComponent: React.FC = () => {
     setError(null);
   };
 
-  // 검색 필터링 적용 목록
+  // 검색 필터링 적용 목록 (이름, 하이픈/공백 제거된 전화번호, 이메일, 메모 통합 검색)
   const filteredContacts = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
+    const term = localSearchTerm.trim().toLowerCase();
     if (!term) return contacts;
-    return contacts.filter(
-      (c) =>
-        c.name.toLowerCase().includes(term) ||
-        c.phone.toLowerCase().includes(term) ||
-        (c.notes && c.notes.toLowerCase().includes(term))
-    );
-  }, [contacts, searchTerm]);
+
+    const termNormalized = term.replace(/[\s\-\,]/g, '');
+
+    return contacts.filter((c) => {
+      const nameStr = c.name.toLowerCase();
+      const rawPhone = c.phone.toLowerCase();
+      const cleanPhone = rawPhone.replace(/[\s\-\,]/g, '');
+      const mailStr = (c.email || '').toLowerCase();
+      const notesStr = (c.notes || '').toLowerCase();
+
+      return (
+        nameStr.includes(term) ||
+        rawPhone.includes(term) ||
+        (termNormalized.length > 0 && cleanPhone.includes(termNormalized)) ||
+        mailStr.includes(term) ||
+        notesStr.includes(term)
+      );
+    });
+  }, [contacts, localSearchTerm]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -266,15 +276,32 @@ const ContactsBoxComponent: React.FC = () => {
         {/* Contacts List (right side) */}
         <div className="lg:col-span-8 flex flex-col min-w-0">
           {/* Search bar */}
-          <div className="relative mb-4">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-400" />
+          <div 
+            className="relative mb-4 cursor-text"
+            onClick={() => searchInputRef.current?.focus()}
+          >
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-400 pointer-events-none" />
             <input
+              ref={searchInputRef}
               type="text"
               value={localSearchTerm}
               onChange={(e) => setLocalSearchTerm(e.target.value)}
               placeholder="이름, 전화번호, 비고 키워드로 주소록 검색..."
-              className="w-full pl-11 pr-4.5 py-3 rounded-2xl border border-slate-200/60 text-sm font-semibold text-slate-700 bg-white/30 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder:text-slate-450"
+              className="w-full pl-11 pr-10 py-3 rounded-2xl border border-slate-300/80 text-sm font-semibold text-slate-800 bg-white/80 hover:bg-white focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all placeholder:text-slate-400 shadow-3xs cursor-text"
             />
+            {localSearchTerm && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleClearSearch();
+                }}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors cursor-pointer"
+                title="검색어 초기화"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
           </div>
 
           {loading ? (

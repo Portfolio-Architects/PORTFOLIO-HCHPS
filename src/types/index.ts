@@ -173,7 +173,43 @@ export interface DocumentEntry {
   status: 'draft' | 'ready' | 'done'; // 상태
 }
 
-export type ModuleType = 'workspace' | 'mindmap' | 'dashboard' | 'project';
+export type ModuleType = 'workspace' | 'mindmap' | 'dashboard' | 'project' | 'simulator';
+
+// ============ Budget Simulator Module ============
+export interface SimulationEntry {
+  id: string;
+  name: string;             // 지출 예정 항목명
+  detailedProject: string;  // 세부사업명
+  statItem: string;         // 통계목명 (ex: "201-01 사무관리비")
+  categoryId?: string;      // 매핑된 BudgetCategory ID (선택사항)
+  unitPrice: number;        // 단가
+  quantity: number;         // 수량
+  amount: number;           // 총액 (unitPrice * quantity)
+  memo?: string;            // 비고/메모
+  createdAt: string;        // 생성일시 (ISO string)
+}
+
+export interface ProjectSimulationSummary {
+  detailedProject: string;
+  totalBudget: number;         // 총 예산액
+  currentSpent: number;        // 현재 집행액
+  currentRemaining: number;    // 현재 집행 잔액 (totalBudget - currentSpent)
+  simulatedExpenditure: number;// 확정 지출 예정액 합계
+  finalExpectedBalance: number;// 최종 예상 잔액 (currentRemaining - simulatedExpenditure)
+  executionRate: number;       // 집행률 (%)
+  isDeficit: boolean;          // finalExpectedBalance < 0
+}
+
+export interface StatItemSimulationSummary {
+  statItem: string;
+  detailedProject: string;
+  totalBudget: number;
+  currentSpent: number;
+  currentRemaining: number;
+  simulatedExpenditure: number;
+  finalExpectedBalance: number;
+  isDeficit: boolean;
+}
 
 // ============ Weekly Scheduler Module ============
 export type ScheduleType = 'security' | 'meeting' | 'education' | 'other';

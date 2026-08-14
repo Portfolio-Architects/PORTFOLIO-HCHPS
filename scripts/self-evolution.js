@@ -34,7 +34,7 @@ function writeFileSyncWithRetry(filePath, content, encoding = 'utf8', retries = 
 // 1. Run codebase diagnostics to update data/diagnose_report.json
 try {
   console.log('  ↳ Running diagnose-targets.js to update report...');
-  execSync('node scripts/diagnose-targets.js', { stdio: 'inherit' });
+  execSync('node scripts/diagnose-targets.js --force', { stdio: 'inherit' });
 } catch (e) {
   console.warn('  ⚠️ Diagnostics failed to run, utilizing existing report if available:', e.message);
 }
@@ -322,7 +322,7 @@ if (!mutationsApplied) {
 let validationPassed = false;
 try {
   console.log('🔍 Executing run-harness.js for validation...');
-  execSync('node scripts/run-harness.js', { stdio: 'inherit' });
+  execSync('node scripts/run-harness.js --no-diag', { stdio: 'inherit' });
   validationPassed = true;
 } catch (err) {
   console.error('❌ Validation harness failed:', err.message);

@@ -408,7 +408,23 @@ export class OntologyLayout {
             node.worldX = node.fixedX;
             node.worldY = node.fixedY;
           } else {
-            if (depth === 1) {
+            if (parentNode && (parentNode.id.startsWith('festival-hub') || parentNode.id.includes('hub'))) {
+              // Outward sector arc clustering for domain hubs
+              const hubX = parentNode.fixedX ?? parentNode.targetWorldX ?? 0;
+              const hubY = parentNode.fixedY ?? parentNode.targetWorldY ?? 0;
+              const hubAngle = Math.atan2(hubY, hubX);
+              const siblings = treeChildrenMap.get(parentNode.id) || [];
+              const N = siblings.length;
+              const sibIdx = siblings.indexOf(nodeId);
+              const spread = (70 * Math.PI) / 180;
+              const startA = hubAngle - spread / 2;
+              const stepA = N > 1 ? spread / (N - 1) : 0;
+              const childA = N > 1 ? startA + sibIdx * stepA : hubAngle;
+              const sectorR = 110;
+
+              node.targetWorldX = hubX + sectorR * Math.cos(childA) * ELLIPSE_RATIO;
+              node.targetWorldY = hubY + sectorR * Math.sin(childA);
+            } else if (depth === 1) {
               // 1차 카테고리: 절대 반경 145px
               const R = OntologyLayout.getOrbitRadius(1);
               node.targetWorldX = R * Math.cos(assignedAngle) * ELLIPSE_RATIO;
@@ -795,7 +811,12 @@ export class OntologyLayout {
               }
 
               // worldX, worldY 즉시 싱크
-              if (nodeA.orbitIndex !== 0) {
+              if (nodeA.fixedX !== undefined && nodeA.fixedX !== null && nodeA.fixedY !== undefined && nodeA.fixedY !== null) {
+                nodeA.targetWorldX = nodeA.fixedX;
+                nodeA.targetWorldY = nodeA.fixedY;
+                nodeA.worldX = nodeA.fixedX;
+                nodeA.worldY = nodeA.fixedY;
+              } else if (nodeA.orbitIndex !== 0) {
                 const radiusA = OntologyLayout.getOrbitRadius(nodeA.orbitIndex || 1);
                 const rOffsetA = nodeA.radialOffset ?? 0;
                 nodeA.targetWorldX = (radiusA + rOffsetA) * (nodeA.orbitCos ?? Math.cos(nodeA.orbitAngle)) * ELLIPSE_RATIO;
@@ -809,7 +830,12 @@ export class OntologyLayout {
                 nodeA.worldY = 0;
               }
 
-              if (nodeB.orbitIndex !== 0) {
+              if (nodeB.fixedX !== undefined && nodeB.fixedX !== null && nodeB.fixedY !== undefined && nodeB.fixedY !== null) {
+                nodeB.targetWorldX = nodeB.fixedX;
+                nodeB.targetWorldY = nodeB.fixedY;
+                nodeB.worldX = nodeB.fixedX;
+                nodeB.worldY = nodeB.fixedY;
+              } else if (nodeB.orbitIndex !== 0) {
                 const radiusB = OntologyLayout.getOrbitRadius(nodeB.orbitIndex || 1);
                 const rOffsetB = nodeB.radialOffset ?? 0;
                 nodeB.targetWorldX = (radiusB + rOffsetB) * (nodeB.orbitCos ?? Math.cos(nodeB.orbitAngle)) * ELLIPSE_RATIO;

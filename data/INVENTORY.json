@@ -12,6 +12,11 @@
   {
     "id": "mqj0hao3lav7ovh2v",
     "currentStock": 2100,
-    "updatedAt": "2026-06-18T04:40:36.716Z"
+    "updatedAt": "2026-06-18T04:40:36.716Z",
+    "_enc": "{\"name\":\"손목아대\",\"category\":\"\",\"unit\":\"개\"}"
+  },
+  {
+    "id": "mspptak8yefdxkr3g",
+    "_enc": "{\"name\":\"줄넘기\",\"category\":\"홍보물\",\"currentStock\":135,\"unit\":\"개\",\"budgetEntryIds\":[],\"createdAt\":\"2026-08-12T06:35:27.032Z\",\"updatedAt\":\"2026-08-12T06:35:27.032Z\"}"
   }
 ]

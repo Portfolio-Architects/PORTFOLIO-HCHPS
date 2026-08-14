@@ -137,7 +137,11 @@ export function useLocalhostHealth(enabled = true) {
       };
     },
     enabled,
-    refetchInterval: enabled ? 5000 : false,
+    refetchInterval: () => {
+      if (!enabled) return false;
+      if (typeof document !== 'undefined' && document.hidden) return false;
+      return 30000;
+    },
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: false,
   });

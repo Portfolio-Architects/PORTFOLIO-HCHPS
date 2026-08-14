@@ -369,7 +369,7 @@ export function InventoryList({ items, addItem, updateItem, deleteItem, adjustSt
 
       <div className="glass-panel rounded-[2rem] p-5 shadow-2xs border border-white/20 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="relative flex-1">
-          <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
+          <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 pointer-events-none">
             <Search size={16} />
           </span>
           <input 
@@ -377,7 +377,7 @@ export function InventoryList({ items, addItem, updateItem, deleteItem, adjustSt
             placeholder="품목명 또는 분류 검색..." 
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-500 transition-all font-medium"
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-500 transition-all font-medium cursor-text"
           />
         </div>
         {uniqueCategories.length > 0 && (

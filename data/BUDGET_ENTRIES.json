@@ -526,18 +526,94 @@
   },
   {
     "id": "mra49pg945epxx5q3",
-    "_enc": "{\"categoryId\":\"mnrcir0v56b8pixdb\",\"amount\":3282400,\"date\":\"2026-07-06\",\"purpose\":\"(일상경비)금연·건강증진 합동 캠페인 운영 홍보물품 구매(손목 아대)\",\"memo\":\"\",\"docRegNum\":\"보건행정과-8086\",\"actionType\":\"daily_expense\",\"isPlanned\":false}"
+    "categoryId": "mnrcir0v56b8pixdb",
+    "amount": 3282400,
+    "date": "2026-07-06",
+    "purpose": "(일상경비)금연·건강증진 합동 캠페인 운영 홍보물품 구매(손목 아대)",
+    "memo": "",
+    "docRegNum": "보건행정과-8086",
+    "actionType": "daily_expense",
+    "isPlanned": false
   },
   {
     "id": "ms41fwjjf4lhgysr9",
-    "_enc": "{\"categoryId\":\"mnrcir0v56b8pixdb\",\"amount\":1243000,\"date\":\"2026-07-20\",\"purpose\":\"(일상경비) 헬스체크업 건강 운동 리플릿 제작비 지급\",\"memo\":\"\",\"docRegNum\":\"보건행정과-8775\",\"actionType\":\"daily_expense\",\"isPlanned\":false}"
+    "categoryId": "mnrcir0v56b8pixdb",
+    "amount": 1243000,
+    "date": "2026-07-20",
+    "purpose": "(일상경비) 헬스체크업 건강 운동 리플릿 제작비 지급",
+    "memo": "",
+    "docRegNum": "보건행정과-8775",
+    "actionType": "daily_expense",
+    "isPlanned": false
   },
   {
     "id": "ms41hgvzkoyfj9dnl",
-    "_enc": "{\"categoryId\":\"mnrcir0voap2bpm8z\",\"amount\":263200,\"date\":\"2026-07-24\",\"purpose\":\"(일상경비)건강생활실천 사업, 캠페인 근무복(조끼) 구매비 지급\",\"memo\":\"\",\"docRegNum\":\"보건행정과-9008\",\"actionType\":\"daily_expense\",\"isPlanned\":false}"
+    "categoryId": "mnrcir0voap2bpm8z",
+    "amount": 263200,
+    "date": "2026-07-24",
+    "purpose": "(일상경비)건강생활실천 사업, 캠페인 근무복(조끼) 구매비 지급",
+    "memo": "",
+    "docRegNum": "보건행정과-9008",
+    "actionType": "daily_expense",
+    "isPlanned": false
   },
   {
     "id": "ms5qd4tzp4xvkouac",
-    "_enc": "{\"categoryId\":\"mnrcir0v5zjn4qxyg\",\"amount\":7413400,\"date\":\"2026-07-29\",\"purpose\":\"2026년 7월 서울체력장 강남센터 기간제근로자 인건비 지출\",\"memo\":\"\",\"docRegNum\":\"보건행정과-9142\",\"actionType\":\"general\",\"isPlanned\":false}"
+    "categoryId": "mnrcir0v5zjn4qxyg",
+    "amount": 7413400,
+    "date": "2026-07-29",
+    "purpose": "2026년 7월 서울체력장 강남센터 기간제근로자 인건비 지출",
+    "memo": "",
+    "docRegNum": "보건행정과-9142",
+    "actionType": "general",
+    "isPlanned": false
+  },
+  {
+    "id": "mspp3b21msxz10bl0",
+    "categoryId": "mnrcir0v0vx5ae1qd",
+    "amount": 540000,
+    "date": "2026-08-05",
+    "purpose": "(일상경비 교부요청)헬스체크업 프로그램 운영 물품 구매 일상경비 교부",
+    "memo": "",
+    "docRegNum": "보건행정과-9591",
+    "actionType": "issuance",
+    "isPlanned": false,
+    "fundingSource": "구비"
+  },
+  {
+    "id": "mspp5hfjgy8b21qi0",
+    "categoryId": "mnrcir0vhyhg1xb87",
+    "amount": 1200000,
+    "date": "2026-08-06",
+    "purpose": "비만예방 운동 프로그램 강사료 지급(7월)",
+    "memo": "",
+    "docRegNum": "보건행정과-9654",
+    "actionType": "general",
+    "isPlanned": false,
+    "fundingSource": "시비"
+  },
+  {
+    "id": "mspp6fr7zs82dev2p",
+    "categoryId": "mnrcir0vpun1ops6x",
+    "amount": 1012500,
+    "date": "2026-08-11",
+    "purpose": "(일상경비 교부요청)혈액 검사 소모품 구매비 일상경비 교부",
+    "memo": "",
+    "docRegNum": "보건행정과-9849",
+    "actionType": "issuance",
+    "isPlanned": false,
+    "fundingSource": "구비"
+  },
+  {
+    "id": "mspp7ebc6xyh36qpo",
+    "categoryId": "mnrcir0v0vx5ae1qd",
+    "amount": 540000,
+    "date": "2026-08-12",
+    "purpose": "(일상경비) 헬스체크업 운동 프로그램 운영 물품 구매",
+    "memo": "",
+    "docRegNum": "보건행정과-9865",
+    "actionType": "daily_expense",
+    "isPlanned": false,
+    "fundingSource": "구비"
   }
 ]

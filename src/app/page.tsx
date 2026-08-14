@@ -281,6 +281,13 @@ const ProjectManagementPage = dynamic(() => import('@/components/project/Project
   ssr: false,
   loading: () => <ProjectManagementPageSkeleton />
 });
+
+import BudgetSimulatorSkeleton from '@/components/budget/ui/BudgetSimulatorSkeleton';
+
+const BudgetSimulator = dynamic(() => import('@/components/budget/BudgetSimulator').then(mod => mod.BudgetSimulator), {
+  ssr: false,
+  loading: () => <BudgetSimulatorSkeleton />
+});
 import { AlertTriangle, RefreshCw, Sparkles, X } from 'lucide-react';
 import { useSecurityLock } from '@/hooks/useSecurityLock';
 const SecurityLockScreen = dynamic(() => import('@/components/SecurityLockScreen').then(mod => mod.SecurityLockScreen), {
@@ -364,6 +371,7 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
     mindmap: false,
     workspace: false,
     project: false,
+    simulator: false,
   });
   const [isQuickInputOpen, setIsQuickInputOpen] = useState(false);
   const [isLogsOpen, setIsLogsOpen] = useState(false);
@@ -429,6 +437,8 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
         import('@/components/WorkspaceView');
         import('@/components/budget/BudgetDashboard');
         import('@/components/inventory/InventoryList');
+      } else if (module === 'simulator') {
+        import('@/components/budget/BudgetSimulator');
       } else if (module === 'mindmap') {
         import('@/components/MindMap3D');
       } else if (module === 'project') {
@@ -605,7 +615,7 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
     
     // Minimum horizontal swipe distance
     if (Math.abs(distance) > 60) {
-      const order: ModuleType[] = ['dashboard', 'workspace', 'mindmap', 'project'];
+      const order: ModuleType[] = ['dashboard', 'workspace', 'simulator', 'mindmap', 'project'];
       const currentIndex = order.indexOf(activeModule);
       
       if (distance > 0 && currentIndex < order.length - 1) {
@@ -691,6 +701,8 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
                         ? '마인드맵' 
                         : activeModule === 'workspace' 
                         ? '예산관리' 
+                        : activeModule === 'simulator'
+                        ? '예산 시뮬레이터'
                         : activeModule === 'project' 
                         ? '사업관리' 
                         : ''
@@ -772,6 +784,13 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
             {visitedModules.project && (
               <div className={activeModule === 'project' ? 'block' : 'hidden'}>
                 <ProjectManagementPage />
+              </div>
+            )}
+
+            {/* Budget Simulator */}
+            {visitedModules.simulator && (
+              <div className={activeModule === 'simulator' ? 'block' : 'hidden'}>
+                <BudgetSimulator />
               </div>
             )}
           </div>

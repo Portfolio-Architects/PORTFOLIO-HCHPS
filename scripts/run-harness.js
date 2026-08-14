@@ -2,6 +2,10 @@ const fs = require('fs');
 const path = require('path');
 const { z } = require('zod');
 
+const args = process.argv.slice(2);
+const isQuick = args.includes('--quick') || args.includes('--db-only');
+const noDiag = args.includes('--no-diag');
+
 console.log('====================================================');
 console.log('🚀 Zod Gatekeeper: Starting Database Integrity Test...');
 console.log('====================================================');
@@ -191,6 +195,15 @@ if (failedCount === 0) {
   console.error(`🚨 [FAIL] Zod Gatekeeper: ${failedCount} validation errors found.`);
 }
 
+if (isQuick) {
+  if (failedCount === 0) {
+    console.log('⚡ [QUICK] Quick mode enabled. Database Zod schema check complete.');
+    process.exit(0);
+  } else {
+    process.exit(1);
+  }
+}
+
 // 2. 소스 코드 린트/타입 상태 자동 진단 및 자가 치유(Code Auto-Fixing)
 console.log('\n====================================================');
 console.log('🔍 Lint/Type Gatekeeper: Checking source code syntax & warnings...');
@@ -237,8 +250,10 @@ console.log('====================================================');
 // 4. Run codebase diagnostics
 try {
   const diagPath = path.join(process.cwd(), 'scripts', 'diagnose-targets.js');
-  if (fs.existsSync(diagPath)) {
-    execSync('node scripts/diagnose-targets.js', { stdio: 'inherit' });
+  if (fs.existsSync(diagPath) && !noDiag) {
+    execSync('node scripts/diagnose-targets.js --skip-eslint', { stdio: 'inherit' });
+  } else if (noDiag) {
+    console.log('  ↳ ℹ️  [SKIP] Diagnostics skipped via --no-diag flag.');
   }
 } catch (diagErr) {
   console.error('  ↳ ❌ [FAIL] Codebase diagnostics failed:', diagErr.message);

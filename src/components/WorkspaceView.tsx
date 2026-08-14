@@ -82,6 +82,16 @@ const InventoryList = dynamic(
   }
 );
 
+import BudgetSimulatorSkeleton from '@/components/budget/ui/BudgetSimulatorSkeleton';
+
+const BudgetSimulator = dynamic(
+  () => import('@/components/budget/BudgetSimulator').then((mod) => mod.BudgetSimulator),
+  {
+    ssr: false,
+    loading: () => <BudgetSimulatorSkeleton />,
+  }
+);
+
 interface WorkspaceViewProps {
   // Budget
   budgetCategories: BudgetCategory[];
@@ -110,14 +120,15 @@ interface WorkspaceViewProps {
   getItemHistory: (itemId: string) => StockChange[];
   // Signal (상위 컴포넌트 호환용)
   addSignal?: (text: string) => void;
+  initialTab?: 'budget' | 'inventory' | 'simulator';
 }
 
 function WorkspaceViewComponent(props: WorkspaceViewProps) {
-  const [activeTab, setActiveTab] = useState<'budget' | 'inventory'>('budget');
+  const [activeTab, setActiveTab] = useState<'budget' | 'inventory' | 'simulator'>(props.initialTab || 'budget');
   const [, startTransition] = useTransition();
   const [zodError, setZodError] = useState<{ sheetName: string; rowId: string; errors: any } | null>(null);
 
-  const handleTabChange = (tab: 'budget' | 'inventory') => {
+  const handleTabChange = (tab: 'budget' | 'inventory' | 'simulator') => {
     startTransition(() => {
       setActiveTab(tab);
     });
@@ -136,6 +147,7 @@ function WorkspaceViewComponent(props: WorkspaceViewProps) {
       window.requestIdleCallback(() => {
         import('@/components/budget/BudgetDashboard');
         import('@/components/inventory/InventoryList');
+        import('@/components/budget/BudgetSimulator');
       });
     }
 
@@ -147,26 +159,39 @@ function WorkspaceViewComponent(props: WorkspaceViewProps) {
   return (
     <div className="w-full flex flex-col gap-4">
       {/* Tab Switcher */}
-      <div className="flex border-b border-slate-200 gap-1 overflow-x-auto pb-px">
+      <div className="flex border-b border-slate-200/80 gap-2 overflow-x-auto pb-px bg-slate-50/50 p-1.5 rounded-2xl border border-slate-200/60 shadow-xs mb-2">
         <button
           onClick={() => handleTabChange('budget')}
-          className={`flex items-center gap-2 px-5 py-3 border-b-2 font-bold text-xs sm:text-sm tracking-wide transition-all cursor-pointer whitespace-nowrap ${
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-extrabold text-xs sm:text-sm tracking-tight transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'budget'
-              ? 'border-indigo-650 text-indigo-650 bg-indigo-50/20'
-              : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+              ? 'bg-white text-indigo-600 shadow-md border border-slate-200/60'
+              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/60'
           }`}
         >
+          <span className="w-2 h-2 rounded-full bg-indigo-500" />
           예산 대조보드
         </button>
         <button
           onClick={() => handleTabChange('inventory')}
-          className={`flex items-center gap-2 px-5 py-3 border-b-2 font-bold text-xs sm:text-sm tracking-wide transition-all cursor-pointer whitespace-nowrap ${
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-extrabold text-xs sm:text-sm tracking-tight transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'inventory'
-              ? 'border-indigo-650 text-indigo-650 bg-indigo-50/20'
-              : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+              ? 'bg-white text-indigo-600 shadow-md border border-slate-200/60'
+              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/60'
           }`}
         >
+          <span className="w-2 h-2 rounded-full bg-emerald-500" />
           홍보물 관리
+        </button>
+        <button
+          onClick={() => handleTabChange('simulator')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-extrabold text-xs sm:text-sm tracking-tight transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === 'simulator'
+              ? 'bg-white text-indigo-600 shadow-md border border-slate-200/60'
+              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/60'
+          }`}
+        >
+          <span className="w-2 h-2 rounded-full bg-purple-500" />
+          예산 시뮬레이터
         </button>
       </div>
 
@@ -208,7 +233,7 @@ function WorkspaceViewComponent(props: WorkspaceViewProps) {
           getCategoryStats={props.getCategoryStats}
           overallStats={props.overallStats}
         />
-      ) : (
+      ) : activeTab === 'inventory' ? (
         <InventoryList
           items={props.inventoryItems}
           addItem={props.addItem}
@@ -217,6 +242,8 @@ function WorkspaceViewComponent(props: WorkspaceViewProps) {
           adjustStock={props.adjustStock}
           getItemHistory={props.getItemHistory}
         />
+      ) : (
+        <BudgetSimulator />
       )}
     </div>
   );

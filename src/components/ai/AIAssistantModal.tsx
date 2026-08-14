@@ -1,11 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Sparkles, X, Settings, Send, Trash2, Loader2, Bot, User } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import { useAIChat } from '@/hooks/useAIChat';
 import { BudgetCategory, BudgetEntry } from '@/types';
 import { SignalEntry } from '@/hooks/useSignal';
 import { buildSignalGraph } from '@/lib/signal-graph';
 import { OntologyNetwork } from '@/lib/engine/OntologyNetwork';
-import { AgentStatusBoard } from './AgentStatusBoard';
+
+const AgentStatusBoard = dynamic(
+  () => import('./AgentStatusBoard').then((mod) => mod.AgentStatusBoard),
+  { ssr: false }
+);
 
 interface AIAssistantModalProps {
   isOpen: boolean;

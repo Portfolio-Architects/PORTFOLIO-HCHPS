@@ -207,10 +207,76 @@ Working directory: d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL
 
 ## Acceptance Criteria
 
+
 ### Performance & Verification
 - [ ] No UI thread long task (> 100ms) on entering the Budget Management page.
 - [ ] `npx tsc --noEmit` completes with 0 errors.
 - [ ] `node scripts/run-harness.js` passes clean.
 
+## Follow-up — 2026-08-03T07:19:51Z
+
+현재 남은 예산(집행 잔액)을 기준으로 앞으로 사용할 확정 지출 내역을 입력하여, 세부사업 및 통계목별로 남는 예산과 추가 집행 필요 금액을 실시간으로 추산하고 시뮬레이션하는 '예산 시뮬레이터(Budget Simulator)' 모듈 개발.
+
+Working directory: d:\Desktop\PORTFOLIO\PORTFOLIO - VITAL
+Integrity mode: development
+
+## Requirements
+
+### R1. PORTFOLIO - VITAL 기존 예산 데이터 연동 및 지출 예정 입력 UI
+- 기존 `useBudget` 훅 및 `data/` 로컬 예산 데이터(세부사업, 통계목별 집행 현황)와 연동.
+- 향후 사용할 확정 지출 예정 항목(항목명, 금액, 수량, 관련 세부사업, 통계목 매핑)을 추가/수정/삭제/테스트할 수 있는 시뮬레이션 입력 인터페이스 구현.
+- 세부사업 및 통계목 입력 시 자동 매핑 및 세부사업/통계목별 즉각적인 드롭다운 필터링 제공.
+
+### R2. 세부사업 & 통계목별 잔액 계산 엔진 (Zero-Stall $O(1)$ ~ $O(N)$)
+- [현재 집행 잔액] - [입력된 확정 지출 예정액] = [최종 예상 잔액]을 실시간으로 계산.
+- 세부사업별, 통계목별로 남는 예산(잔액)과 목표 집행 대비 추가로 더 집행해야 하는 필요 금액(집행 과부족액)을 동적 산출.
+
+### R3. 시뮬레이션 대시보드 UI & 예산 잔액 현황 시각화
+- 통계목별/세부사업별 시뮬레이션 결과 테이블 및 가상화 그리드 적용.
+- 예산 초과(음수 잔액) 또는 과다 잔여 발생 시 고대비 시각 경고 하이라이팅 표시.
+- 기존 대시보드 뷰와의 매끄러운 탭 전환 및 하이드레이션 격리 규칙 적용.
+
+## Acceptance Criteria
+
+### 핵심 시뮬레이션 검증 (Functional Criteria)
+- [ ] 세부사업 및 통계목별 현재 잔액과 입력된 확정 지출 예정액의 연산 결과(예상 잔액, 추가 집행 필요액)가 정확히 대조/표시되는가?
+- [ ] 세부사업 및 통계목 드롭다운 선택 시 해당 범주의 시뮬레이션 내역이 즉시 자동 필터링되는가?
+- [ ] 예산 소진/초과 항목에 대한 시각적 경고(UI 하이라이트)가 제공되는가?
+- [ ] `npx tsc --noEmit` 컴파일 및 `node scripts/run-harness.js` 검증 오류가 0건인가?
 
 
+
+
+
+
+## Follow-up — 2026-08-13T13:16:11+09:00
+
+지역축제(예산 5~7천만원 규모) 개최의 실수를 최소화하고 완벽한 행사를 진행할 수 있도록 3D 마인드맵 페이지를 형사들의 '수사 보드(Detective Investigation Board)' 스타일의 이벤트 종합 트래킹 및 검증 시스템으로 개편합니다.
+
+Working directory: d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL
+Integrity mode: development
+
+## Requirements
+
+### R1. 형사 수사 보드(Corkboard & Red String) 스타일 UI 및 캔버스 개편
+- 3D 마인드맵/캔버스에 코르크 보드 분위기 및 핀, 빨간 연결선(Red String), 증거/서류 포스트잇 카드 노드 렌더링
+- 노드 상태별(미완료/진행중/검증완료/위험경고) 수사관 검증 배지 및 시각적 알림 핀 표시
+
+### R2. 축제 전용 템플릿 프리셋 및 도메인 자동 배치
+- 5~7천만원 축제 규모에 최적화된 5대 도메인 템플릿 프리셋 주입 (인허가/안전관리, 무대/공연/음향, 홍보/마케팅, 먹거리/부스, 예산/계약)
+- 1-Click 템플릿 즉시 로드 및 세부 구성 요소 자동 노드화 파이프라인
+
+### R3. 실수 제로(Zero-Mistake) 실시간 검증 & 경고 엔진
+- 인허가(지자체 신고, 경찰 도로점용, 소방 안전점검, 안전관리계획서) 필수 제출 항목 누락 방지 자동 경고 가드
+- 5~7천만원 예산 범위 대비 세부 항목 지출 비율 및 집행 초과/미입력 항목 실시간 탐지 알림
+
+## Acceptance Criteria
+
+### 기능 및 UI 무결성
+- [ ] 수사 보드 테마 (코르크 배경, 핀, 빨간 실선 엣지) 캔버스 정상 렌더링
+- [ ] 축제 전용 5대 도메인 템플릿 프리셋 로드 및 노드 구성
+- [ ] 필수 인허가/안전 항목 미비 시 캔버스 내 위험 알림 배지 및 경고 노출
+
+### 코드 및 품질 무결성
+- [ ] TypeScript (`npx tsc --noEmit`) 0 오류 통과
+- [ ] 시스템 게이트키퍼 (`node scripts/run-harness.js`) 0 오류, 0 린트 경고, 0 아키텍처 위반 통과

@@ -530,8 +530,8 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                       </div>
                     )}
  
-                    {/* Node Attributes Toggles: Highlight */}
-                    <div className="grid grid-cols-1 gap-2">
+                    {/* Node Attributes Toggles: Highlight & Verification Status */}
+                    <div className="grid grid-cols-1 gap-2.5">
                       <div className="flex flex-col bg-amber-500/5 border border-amber-500/15 p-3 rounded-xl shadow-2xs">
                         <div className="flex justify-between items-center mb-1">
                           <label className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">노드 항상 강조</label>
@@ -551,6 +551,94 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                           </button>
                         </div>
                         <span className="text-[9px] text-amber-600 font-bold leading-tight">선택 여부와 관계없이 3D 캔버스 내 글로우 후광 상시 유지</span>
+                      </div>
+
+                      {/* 📋 노드 검증 상태 (Verification Status) */}
+                      <div className="flex flex-col bg-slate-900/5 border border-slate-700/15 p-3 rounded-xl shadow-2xs gap-2">
+                        <div className="flex justify-between items-center">
+                          <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
+                            📋 노드 검증 상태
+                          </label>
+                          <span className="text-[9.5px] font-bold text-slate-600">
+                            {activeNode.verificationStatus === 'verified' ? '✅ 검증완료' :
+                             activeNode.verificationStatus === 'in-progress' ? '🔍 검토 진행중' :
+                             activeNode.verificationStatus === 'risk-warning' ? '⚠️ 위험경고' : '❓ 미완료'}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <button
+                            onClick={() => {
+                              const newStatus = 'uncompleted';
+                              setNodeOverride(activeNode.id, { verificationStatus: newStatus });
+                              if (engineRef.current) {
+                                const n = engineRef.current.nodes.find((x: OrbitalNode) => x.id === activeNode.id);
+                                if (n) n.verificationStatus = newStatus;
+                                setActiveNode({ ...activeNode, verificationStatus: newStatus });
+                              }
+                            }}
+                            className={`px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all border text-center ${
+                              (!activeNode.verificationStatus || activeNode.verificationStatus === 'uncompleted')
+                                ? 'bg-slate-700 text-white border-slate-800 shadow-2xs'
+                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                            }`}
+                          >
+                            ❓ 미완료
+                          </button>
+                          <button
+                            onClick={() => {
+                              const newStatus = 'in-progress';
+                              setNodeOverride(activeNode.id, { verificationStatus: newStatus });
+                              if (engineRef.current) {
+                                const n = engineRef.current.nodes.find((x: OrbitalNode) => x.id === activeNode.id);
+                                if (n) n.verificationStatus = newStatus;
+                                setActiveNode({ ...activeNode, verificationStatus: newStatus });
+                              }
+                            }}
+                            className={`px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all border text-center ${
+                              activeNode.verificationStatus === 'in-progress'
+                                ? 'bg-blue-600 text-white border-blue-700 shadow-2xs'
+                                : 'bg-white text-blue-600 border-blue-200 hover:bg-blue-50'
+                            }`}
+                          >
+                            🔍 검토중
+                          </button>
+                          <button
+                            onClick={() => {
+                              const newStatus = 'verified';
+                              setNodeOverride(activeNode.id, { verificationStatus: newStatus });
+                              if (engineRef.current) {
+                                const n = engineRef.current.nodes.find((x: OrbitalNode) => x.id === activeNode.id);
+                                if (n) n.verificationStatus = newStatus;
+                                setActiveNode({ ...activeNode, verificationStatus: newStatus });
+                              }
+                            }}
+                            className={`px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all border text-center ${
+                              activeNode.verificationStatus === 'verified'
+                                ? 'bg-emerald-600 text-white border-emerald-700 shadow-2xs'
+                                : 'bg-white text-emerald-600 border-emerald-200 hover:bg-emerald-50'
+                            }`}
+                          >
+                            ✅ 검증완료
+                          </button>
+                          <button
+                            onClick={() => {
+                              const newStatus = 'risk-warning';
+                              setNodeOverride(activeNode.id, { verificationStatus: newStatus });
+                              if (engineRef.current) {
+                                const n = engineRef.current.nodes.find((x: OrbitalNode) => x.id === activeNode.id);
+                                if (n) n.verificationStatus = newStatus;
+                                setActiveNode({ ...activeNode, verificationStatus: newStatus });
+                              }
+                            }}
+                            className={`px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all border text-center ${
+                              activeNode.verificationStatus === 'risk-warning'
+                                ? 'bg-rose-600 text-white border-rose-700 shadow-2xs'
+                                : 'bg-white text-rose-600 border-rose-200 hover:bg-rose-50'
+                            }`}
+                          >
+                            ⚠️ 위험경고
+                          </button>
+                        </div>
                       </div>
                     </div>
 

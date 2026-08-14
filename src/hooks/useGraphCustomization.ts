@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useCallback, useMemo, useSyncExternalStore, useRef, useState } from 'react';
-import { OntologyNode, OntologyEdge, EdgeType, OntologyGroup, OntologyLayerId } from '@/lib/ontology.types';
+import { OntologyNode, OntologyEdge, EdgeType, OntologyGroup, OntologyLayerId, VerificationStatus } from '@/lib/ontology.types';
 import { useYjsStore, globalYDoc } from './useYjsStore';
 import * as Y from 'yjs';
 import { readSheet, replaceAll } from '@/lib/sheets-api';
+import { getFestivalPresetGraphData, FESTIVAL_PRESET_SIMULATION_ENTRIES } from '@/lib/presets/festival5DomainPreset';
 
 // Global variables for pending items and listeners
 let globalPendingNodes: OntologyNode[] = [];
@@ -76,6 +77,7 @@ export interface NodeOverride {
   dueDate?: string | null;
   isHighlighted?: boolean | null;
   isCompleted?: boolean | null;
+  verificationStatus?: VerificationStatus | null;
   hidden?: boolean | null;
   hideDefaultGraph?: boolean | null;
   useCustomContext?: boolean | null;
@@ -637,6 +639,59 @@ export function useGraphCustomization(enabled = true) {
     }
   }, [store]);
 
+  const applyFestivalPreset = useCallback(() => {
+    const { nodes, edges, overrides } = getFestivalPresetGraphData();
+
+    ydoc.transact(() => {
+      const overridesMap = ydoc.getMap('overrides') as Y.Map<NodeOverride>;
+      const customNodesMap = ydoc.getMap('customNodesMap') as Y.Map<OntologyNode>;
+      const customEdgesMap = ydoc.getMap('customEdgesMap') as Y.Map<OntologyEdge>;
+      const deletedEdgesMap = ydoc.getMap('deletedEdgesMap') as Y.Map<boolean>;
+
+      Array.from(overridesMap.keys()).forEach(k => overridesMap.delete(k));
+      Array.from(customNodesMap.keys()).forEach(k => customNodesMap.delete(k));
+      Array.from(customEdgesMap.keys()).forEach(k => customEdgesMap.delete(k));
+      Array.from(deletedEdgesMap.keys()).forEach(k => deletedEdgesMap.delete(k));
+
+      // Set hideDefaultGraph: true on root-HCHPS override
+      overridesMap.set('root-HCHPS', { hideDefaultGraph: true });
+
+      // Injects 5 domain hubs + sub-nodes into customNodesMap
+      nodes.forEach((n: OntologyNode) => {
+        customNodesMap.set(n.id, n);
+      });
+
+      // Injects cross-domain edges into customEdgesMap
+      edges.forEach((e: OntologyEdge) => {
+        const key = `${e.source}|||${e.target}`;
+        customEdgesMap.set(key, e);
+      });
+
+      // Injects overrides
+      Object.entries(overrides).forEach(([id, ov]) => {
+        if (id !== 'root-HCHPS') {
+          overridesMap.set(id, ov as NodeOverride);
+        }
+      });
+    });
+
+    if (typeof window !== 'undefined') {
+      try {
+        const presetEntriesWithIds = FESTIVAL_PRESET_SIMULATION_ENTRIES.map((item) => ({
+          ...item,
+          id: `sim-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+          createdAt: new Date().toISOString()
+        }));
+        localStorage.setItem('hchps-budget-simulations', JSON.stringify(presetEntriesWithIds));
+        window.dispatchEvent(new Event('storage'));
+      } catch (err) {
+        console.warn('[applyFestivalPreset] Failed to sync simulation entries:', err);
+      }
+    }
+
+    syncToCloud(true);
+  }, [ydoc, syncToCloud]);
+
   const fetchFromCloud = useCallback(async (silent = false) => {
     if (!silent && !confirm('클라우드에서 최신 데이터를 불러오시겠습니까? (현재 로컬의 캔버스 내용은 모두 덮어씌워집니다)')) return;
     try {
@@ -828,6 +883,7 @@ export function useGraphCustomization(enabled = true) {
     clearOverrides,
     resetLayoutOverrides,
     clearAll,
+    applyFestivalPreset,
     syncToCloud,
     fetchFromCloud,
     pendingNodes,

@@ -1,5 +1,13 @@
 import { z } from 'zod';
 
+// ============ Investigator Verification Status ============
+export const VerificationStatusSchema = z.enum([
+  'uncompleted',
+  'in-progress',
+  'verified',
+  'risk-warning'
+]).catch('uncompleted');
+
 // ============ Task Module ============
 export const TaskStatusSchema = z.enum(['todo', 'in-progress', 'done']);
 export const TaskPrioritySchema = z.enum(['low', 'medium', 'high']);
@@ -103,6 +111,22 @@ export const BudgetEntrySchema = z.object({
 
 export type BudgetEntryDto = z.infer<typeof BudgetEntrySchema>;
 
+// ============ Budget Simulator Module ============
+export const SimulationEntrySchema = z.object({
+  id: z.string().catch('unknown-sim-id'),
+  name: z.string().catch('지출 예정 항목'),
+  detailedProject: z.string().catch('기본운영'),
+  statItem: z.string().catch('일반운영비'),
+  categoryId: z.string().optional().catch(undefined),
+  unitPrice: z.number().catch(0),
+  quantity: z.number().catch(1),
+  amount: z.number().catch(0),
+  memo: z.string().optional().catch(''),
+  createdAt: z.string().catch(new Date().toISOString()),
+});
+
+export type SimulationEntryDto = z.infer<typeof SimulationEntrySchema>;
+
 // ============ Project Module ============
 export const ChecklistItemSchema = z.object({
   id: z.string().catch('unknown-item'),
@@ -186,6 +210,7 @@ export const getDomainSchema = (sheetName: string) => {
     case 'TASKS': return TaskSchema;
     case 'BUDGET_CATEGORIES': return BudgetCategorySchema;
     case 'BUDGET_ENTRIES': return BudgetEntrySchema;
+    case 'SIMULATION_ENTRIES': return SimulationEntrySchema;
     case 'PROJECTS': return ProjectSchema;
     case 'EXTERNAL_DOCS': return ExternalDocSchema;
     case 'CLASSIFICATION_WORDS': return ClassificationWordsSchema;

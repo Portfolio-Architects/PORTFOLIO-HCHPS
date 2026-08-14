@@ -1,8 +1,0 @@
-{
-  "step_index": 252,
-  "source": "MODEL",
-  "type": "CODE_ACTION",
-  "status": "DONE",
-  "created_at": "2026-06-02T02:39:22Z",
-  "content": "Created At: 2026-06-02T02:39:22Z\nCompleted At: 2026-06-02T02:39:23Z\nThe following changes were made by the replace_file_content tool to: d:\\Desktop\\PORTFOLIO\\PORTFOLIO - VITAL\\src\\lib\\engine\\OntologyLayout.ts. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.\n[diff_block_start]\n@@ -343,13 +343,15 @@\n       const worldY = node.worldY || 0;\r\n       \r\n       // 레이어 수직 높이 (Z축 방향 높이: 0층이 가장 아래, 3층이 가장 위)\r\n-      // Z값이 높을수록 위로 적층되며, 3D 수식에 따라 기울여 렌더링\r\n       const h = effectiveLayer * LAYER_GAP;\r\n \r\n-      // 3D X축 회전 변환 공식 적용\r\n-      // Z축 높이 h를 더해 수직으로 층을 쌓아 올립니다.\r\n+      // 3D 조감도 뷰 (위에서 아래를 내려다보는 뷰)를 위해 깊이(depth) 계산에서 레이어 관계를 역전\r\n+      // L3(꼭대기 위키)가 카메라에 가장 가깝고 크게 보이고, L0(바닥 인물)이 가장 깊숙하여 작게 보입니다.\r\n+      const depthH = (3 - effectiveLayer) * LAYER_GAP;\r\n+\r\n+      // 3D X축 회전 변환 공식 적용 (depthH를 활용해 원근 배율 조정)\r\n       const rotatedY = worldY * Math.cos(tiltAngle) - h * Math.sin(tiltAngle);\r\n-      const depth = worldY * Math.sin(tiltAngle) + h * Math.cos(tiltAngle);\r\n+      const depth = worldY * Math.sin(tiltAngle) + depthH * Math.cos(tiltAngle);\r\n       \r\n       const perspectiveScale = cameraDist / (cameraDist + depth);\r\n \r\n[diff_block_end]\n\nPlease note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown."
-}

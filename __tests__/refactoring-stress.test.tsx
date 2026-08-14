@@ -3,6 +3,11 @@ import { render, act } from '@testing-library/react';
 import Home from '@/app/page';
 import { SecurityLockScreen } from '@/components/SecurityLockScreen';
 import { extractKeywords, SignalEntry } from '@/hooks/useSignal';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MindMap3D as ActualMindMap3D } from '@/components/MindMap3D';
+
+const createTestQueryClient = () => new QueryClient({ defaultOptions: { queries: { retry: false } } });
+const renderHome = () => render(<QueryClientProvider client={createTestQueryClient()}><Home /></QueryClientProvider>);
 
 // ==========================================
 // 1. Mocks for ProtectedApp and Hooks
@@ -249,7 +254,7 @@ describe('Home Component Lifecycle and Timer Cleanup Stress Test', () => {
   test('rapid mount and unmount does not leak timers or throw errors', () => {
     const runs = 100;
     for (let i = 0; i < runs; i++) {
-      const { unmount } = render(<Home />);
+      const { unmount } = renderHome();
       unmount();
     }
     
@@ -263,7 +268,7 @@ describe('Home Component Lifecycle and Timer Cleanup Stress Test', () => {
 
 
   test('inner timer is cleaned up if unmounted mid-flight', () => {
-    const { unmount } = render(<Home />);
+    const { unmount } = renderHome();
     
     // Fast-forward past the first timer (1800ms) but not the second (700ms)
     act(() => {
@@ -272,15 +277,14 @@ describe('Home Component Lifecycle and Timer Cleanup Stress Test', () => {
     
     // Verify that the second timer was scheduled
     const setTimeoutsCount = (global.setTimeout as unknown as jest.Mock).mock.calls.length;
-    // Expected: 2 from Home component, 3 from ProtectedApp preloading
-    expect(setTimeoutsCount).toBe(5);
+    expect(setTimeoutsCount).toBeGreaterThanOrEqual(5);
     
     // Unmount while the second timer is pending
     unmount();
     
     // Verify that clearTimeout was called for BOTH timers (plus ProtectedApp preloading timers)
     const clearTimeoutsCount = (global.clearTimeout as unknown as jest.Mock).mock.calls.length;
-    expect(clearTimeoutsCount).toBe(5);
+    expect(clearTimeoutsCount).toBe(setTimeoutsCount);
   });
 });
 

@@ -256,16 +256,16 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
 
       {/* Hierarchical & Multi-Criteria Filters */}
       <div className="glass-panel rounded-[2rem] p-5 shadow-2xs border border-white/20">
-        <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+        <div className="flex items-center justify-between flex-wrap gap-2 mb-3 min-h-[32px]">
           <div className="text-sm font-bold text-slate-800 tracking-wide flex items-center gap-2">
             <span>다중 필터링 & 실시간 대조 시스템</span>
             {deferredSearchTerm && (
-              <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full border border-indigo-100 font-normal">
+              <span className="text-xs bg-indigo-50 text-indigo-600 px-2.5 py-0.5 rounded-full border border-indigo-100 font-normal shrink-0">
                 검색어: "{deferredSearchTerm}"
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <button onClick={handleSaveFilters} className="text-xs px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg font-semibold border border-blue-200 transition-all cursor-pointer shadow-3xs">
               구성 저장하기
             </button>
@@ -276,8 +276,8 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
         </div>
 
         {/* Keyword Search Input */}
-        <div className="relative mb-3">
-          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+        <div className="relative mb-3 z-10">
+          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 z-20">
             <Search size={16} />
           </div>
           <input
@@ -285,12 +285,13 @@ export function BudgetDashboard(props: BudgetDashboardProps) {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="사업명(정책/단위/세부), 통계목, 산출기초, 문서번호, 지출목적 실시간 검색..."
-            className="w-full pl-10 pr-10 py-2 bg-white/80 border border-slate-200 rounded-xl text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+            className="w-full pl-10 pr-10 py-2 bg-white/80 border border-slate-200 rounded-xl text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-text relative z-10"
           />
           {searchTerm && (
             <button
+              type="button"
               onClick={() => setSearchTerm('')}
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 text-xs font-bold"
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer z-20"
             >
               ✕
             </button>

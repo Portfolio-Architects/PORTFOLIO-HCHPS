@@ -126,36 +126,16 @@ export async function POST(req: Request) {
 
     const genAI = new GoogleGenerativeAI(apiKey);
 
-    const systemPrompt = `당신은 비정형 문서 텍스트로부터 핵심 개체(Node)와 이들의 관계(Edge)를 추출하여 시맨틱 온톨로지 지식 그래프를 구성하는 데이터 추출기입니다.
-제공된 텍스트를 정밀 분석하고, 반드시 다음 JSON 형식에 정확히 매칭되는 구조화된 데이터를 생성해 주세요.
+    const systemPrompt = `Analyze text and extract key nodes and edges for a semantic ontology knowledge graph.
 
 <RULES>
-1. 답변은 다른 생각이나 서론, 결론 없이 오직 유효한 단일 JSON 문자열만 출력해야 합니다. 마크다운의 \`\`\`json 이나 \`\`\` 마크업도 절대 포함하지 말고, 순수한 JSON 괄호로 시작해 괄호로 끝나도록 하세요.
-2. 노드의 layerId 판정 기준:
-   - 0: 인물 (직원명, 담당관, 부서, 외부 기관명 등)
-   - 1: 예산/비품 (금액, 예산 계정, 구매 비품, 장비 임대비 등)
-   - 2: 업무/회의 (수행 태스크, 과제, 회의록 제목, 추진 일련 활동 등)
-   - 3: 위키/문서 (참조할 지식 문서명, 보고서 파일명 등)
-3. 엣지의 type 판정 기준:
-   - ASSIGNEE: 인물 노드(0)가 업무 노드(2)를 담당할 때. (예: 인물 -> 업무)
-   - BUDGET_SOURCE: 특정 예산 노드(1)가 다른 업무(2)나 비품(1)의 재원일 때. (예: 예산 -> 업무)
-   - COMPONENTS: 어떤 노드가 다른 노드의 구성 요소일 때.
-   - CAUSAL_DRIVE: 한 현상이 다른 현상을 인과적으로 유발하거나 밀어줄 때.
-   - DEPENDENCY: 특정 업무나 자원이 완수되어야 다른 업무가 시작될 수 있을 때.
-   - BOTTLENECK: 병목 현상을 유발할 때.
-4. 노드의 group 판정 기준:
-   - CORE_PROJECT: 핵심 전략적인 프로젝트 관련
-   - MACRO_RESEARCH: 조사 및 분석 관련
-   - INFRASTRUCTURE: 기초 환경이나 자원 관련
-   - SYSTEM_RISK: 예산 부족, 기한 마감 임박 등 주의가 필요한 요소 관련
-   - OTHER: 기타 분류
-5. 텍스트에 나타나지 않은 가상의 사실을 과도하게 생성하지 마세요. 본문에 직접적으로 등장하는 개체와 관계 위주로 정확하게 요약하세요.
-6. 핵심 명사(Core Nouns)만 노드 표시명(label)으로 추출하고, 무의미한 조사(은/는/이/가/을/를/의/에/와/과/로 등), 접미사, 또는 수식어(형용사/관형사)는 철저히 배제하십시오. 예: "예산안의" -> "예산안", "회의를" -> "회의", "주요 사업" -> "사업".
+1. LayerId: 0 (Person/Dept), 1 (Budget/Asset), 2 (Task/Activity), 3 (Wiki/Doc).
+2. Edge types: ASSIGNEE, BUDGET_SOURCE, COMPONENTS, CAUSAL_DRIVE, DEPENDENCY, BOTTLENECK.
+3. Extract core nouns for labels without trailing postpositions or modifiers.
 </RULES>
 
-사용자 텍스트:
-${contentToExtract}
-`;
+Text:
+${contentToExtract}`;
 
     const modelsToTry = ['gemini-3.5-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
     let responseText = '';

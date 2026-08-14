@@ -192,7 +192,17 @@ function validateDataPayload(sheet: string, data: any[]): boolean {
   return true;
 }
 
+const lastBackupTimes = new Map<string, number>();
+
 async function backupDataFile(sheet: string, data: any[]): Promise<void> {
+  const nowMs = Date.now();
+  const lastTime = lastBackupTimes.get(sheet) || 0;
+  // Debounce: at most 1 backup write per sheet every 5 seconds
+  if (nowMs - lastTime < 5000) {
+    return;
+  }
+  lastBackupTimes.set(sheet, nowMs);
+
   try {
     const dataStr = JSON.stringify(data, null, 2);
     const now = new Date();
@@ -202,22 +212,21 @@ async function backupDataFile(sheet: string, data: any[]): Promise<void> {
     const timestamp = now.toISOString().replace(/[:.]/g, '-');
     const backupFile = path.join(backupDir, `${timestamp}_${sheet}.json`);
     
-    // 직접 안전 파일 쓰기
     await safeWriteFile(backupFile, dataStr);
     
     // Prune old backups (keep only the 20 most recent)
-    const files = await fs.readdir(backupDir);
-    const jsonFiles = files.filter(f => f.endsWith('.json') && !f.endsWith('.tmp')).sort(); // Lexicographical sort works chronologically
-    if (jsonFiles.length > 20) {
-      const toDelete = jsonFiles.slice(0, jsonFiles.length - 20);
-      for (const file of toDelete) {
-        try {
-          await fs.unlink(path.join(backupDir, file));
-        } catch (unlinkErr) {
-          console.error(`[Backup] Failed to prune backup file ${file}:`, unlinkErr);
+    try {
+      const files = await fs.readdir(backupDir);
+      const jsonFiles = files.filter(f => f.endsWith('.json') && !f.endsWith('.tmp')).sort();
+      if (jsonFiles.length > 20) {
+        const toDelete = jsonFiles.slice(0, jsonFiles.length - 20);
+        for (const file of toDelete) {
+          try {
+            await fs.unlink(path.join(backupDir, file));
+          } catch {}
         }
       }
-    }
+    } catch {}
 
     // 2. Father 백업 (일별 아카이브 - 최대 7일 보존)
     const dailyDir = path.join(process.cwd(), 'data', 'backups', 'daily', sheet);
@@ -226,17 +235,17 @@ async function backupDataFile(sheet: string, data: any[]): Promise<void> {
     
     await safeWriteFile(dailyFile, dataStr);
     
-    const dailyFiles = (await fs.readdir(dailyDir)).filter(f => f.endsWith('.json') && !f.endsWith('.tmp')).sort();
-    if (dailyFiles.length > 7) {
-      const toDelete = dailyFiles.slice(0, dailyFiles.length - 7);
-      for (const file of toDelete) {
-        try {
-          await fs.unlink(path.join(dailyDir, file));
-        } catch (err) {
-          console.error(`[Backup] Pruning Daily failed for ${file}:`, err);
+    try {
+      const dailyFiles = (await fs.readdir(dailyDir)).filter(f => f.endsWith('.json') && !f.endsWith('.tmp')).sort();
+      if (dailyFiles.length > 7) {
+        const toDelete = dailyFiles.slice(0, dailyFiles.length - 7);
+        for (const file of toDelete) {
+          try {
+            await fs.unlink(path.join(dailyDir, file));
+          } catch {}
         }
       }
-    }
+    } catch {}
 
     // 3. Grandfather 백업 (주별 아카이브 - 최대 4주 보존)
     const weeklyDir = path.join(process.cwd(), 'data', 'backups', 'weekly', sheet);
@@ -246,17 +255,17 @@ async function backupDataFile(sheet: string, data: any[]): Promise<void> {
     
     await safeWriteFile(weeklyFile, dataStr);
     
-    const weeklyFiles = (await fs.readdir(weeklyDir)).filter(f => f.endsWith('.json') && !f.endsWith('.tmp')).sort();
-    if (weeklyFiles.length > 4) {
-      const toDelete = weeklyFiles.slice(0, weeklyFiles.length - 4);
-      for (const file of toDelete) {
-        try {
-          await fs.unlink(path.join(weeklyDir, file));
-        } catch (err) {
-          console.error(`[Backup] Pruning Weekly failed for ${file}:`, err);
+    try {
+      const weeklyFiles = (await fs.readdir(weeklyDir)).filter(f => f.endsWith('.json') && !f.endsWith('.tmp')).sort();
+      if (weeklyFiles.length > 4) {
+        const toDelete = weeklyFiles.slice(0, weeklyFiles.length - 4);
+        for (const file of toDelete) {
+          try {
+            await fs.unlink(path.join(weeklyDir, file));
+          } catch {}
         }
       }
-    }
+    } catch {}
 
   } catch (backupErr) {
     console.error(`[Backup] Failed to backup sheet ${sheet}:`, backupErr);

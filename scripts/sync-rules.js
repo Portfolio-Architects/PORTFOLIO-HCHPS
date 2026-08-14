@@ -93,6 +93,13 @@ ${milestoneList ? milestoneList : '- (동기화된 내역 없음)'}
     agentsContent = agentsContent.trimEnd() + '\n\n' + newSectionContent;
   }
 
+  // 0-Disk Write Guard: Avoid unnecessary file modifications if content is unchanged
+  const existingContent = fs.readFileSync(AGENTS_PATH, 'utf8');
+  if (existingContent === agentsContent) {
+    console.log('  ↳ ℹ️  [SKIP] AGENTS.md manifest is already up to date. Disk write bypassed.');
+    return true;
+  }
+
   let retries = 5;
   while (retries > 0) {
     try {

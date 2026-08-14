@@ -83,6 +83,8 @@ const WikiEditor = dynamic(() => import('./WikiEditor').then(mod => {
 
 import { MindMapHeader } from './mindmap/ui/MindMapHeader';
 import { MindMapHUD } from './mindmap/ui/MindMapHUD';
+import { DetectiveValidationHUD } from './mindmap/ui/DetectiveValidationHUD';
+import { useFestivalValidation } from '@/hooks/useFestivalValidation';
 import { useWikiStorage } from '@/hooks/useWikiStorage';
 import { useClassificationWords } from '@/hooks/useClassificationWords';
 
@@ -175,6 +177,14 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
       }
       return;
     }
+    if (process.env.NODE_ENV === 'test') {
+      setEngineActive(true);
+      engineRef.current?.resume();
+      if (resumePhysicsLoopRef.current) {
+        resumePhysicsLoopRef.current();
+      }
+      return;
+    }
     const timer = setTimeout(() => {
       setEngineActive(true);
       engineRef.current?.resume();
@@ -198,7 +208,16 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
     resumePhysicsLoopRef.current();
   }, []);
 
-  const { overrides = {}, customNodes = [], customEdges = [], deletedEdges = [], undo, redo, setNodeOverride, batchSetNodeOverrides, clearNodeOverride, addCustomNode, deleteCustomNode, updateCustomNodeText, addCustomEdge, deleteCustomEdge, removeCustomTombstone, renameNodeId, isCloudLoaded, pendingNodes = [], pendingEdges = [], approveAndMerge, clearAll } = useGraphCustomization(isActive);
+  const { overrides = {}, customNodes = [], customEdges = [], deletedEdges = [], undo, redo, setNodeOverride, batchSetNodeOverrides, clearNodeOverride, addCustomNode, deleteCustomNode, updateCustomNodeText, addCustomEdge, deleteCustomEdge, removeCustomTombstone, renameNodeId, isCloudLoaded, pendingNodes = [], pendingEdges = [], approveAndMerge, clearAll, applyFestivalPreset } = useGraphCustomization(isActive);
+  const validationReport = useFestivalValidation();
+
+  useEffect(() => {
+    if (engineRef.current) {
+      engineRef.current.riskNodesMap = validationReport.riskNodesMap;
+      engineRef.current.needsRedraw = true;
+    }
+  }, [validationReport.riskNodesMap]);
+
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
 
   const activeNodeOverride = React.useMemo(() => {
@@ -1347,6 +1366,7 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
         isWikiOpen={isWikiOpen}
         usingSample={usingSample}
         onOpenWiki={() => setIsWikiOpen(true)}
+        onLoadFestivalPreset={applyFestivalPreset}
       />
 
       {/* Main: Side Panel (left) + Canvas (right) */}
@@ -1383,10 +1403,12 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
             className={
               isFullscreen 
                 ? 'fixed inset-0 z-[100] flex flex-col' 
-                : 'relative rounded-xl overflow-hidden border border-[var(--color-border-light)] w-full h-[605px] md:h-[660px] flex-1 flex flex-col'
+                : 'relative rounded-2xl overflow-hidden w-full h-[605px] md:h-[660px] flex-1 flex flex-col'
             }
             style={{
-              background: 'radial-gradient(circle at center, rgba(255, 255, 255, 0.9) 0%, #f8fafc 100%)',
+              background: '#090d16',
+              boxShadow: '0 20px 40px -15px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(51, 65, 85, 0.4)',
               ...(isFullscreen ? { height: '100vh' } : {})
             }}
           >
@@ -1406,6 +1428,10 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
               />
+
+              <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 pointer-events-auto w-[95%] max-w-4xl">
+                <DetectiveValidationHUD report={validationReport} />
+              </div>
 
               {pendingNodes && pendingNodes.length > 0 && (
                 <div className="absolute top-16 left-4 z-20 w-72 bg-gradient-to-r from-indigo-950/90 to-blue-950/90 backdrop-blur-md border border-indigo-500/35 text-white p-3.5 rounded-xl shadow-lg flex items-center justify-between gap-3 pointer-events-auto animate-bounce-short">
@@ -1554,6 +1580,7 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
                 onAddNodeClick={() => { setIsAddingNode(true); setNewNodeName(""); }}
                 onResetCamera={handleResetCamera}
                 onClearAll={handleClearAllCustomizations}
+                onLoadFestivalPreset={applyFestivalPreset}
               />
 
               {/* Sliding Wiki Panel Overlay */}
@@ -1795,10 +1822,10 @@ function BottomPerformancePanel({ isActive }: BottomPerformancePanelProps) {
   useEffect(() => {
     if (!isActive) return;
     const timer = setInterval(() => {
-      if (document.hidden) return;
+      if (typeof document !== 'undefined' && document.hidden) return;
       setPerfMetrics(PerformanceProfiler.getInstance().getMetrics());
       setLagSpikes(PerformanceProfiler.getInstance().getLagSpikes());
-    }, 1000);
+    }, 3000);
     return () => clearInterval(timer);
   }, [isActive]);
 

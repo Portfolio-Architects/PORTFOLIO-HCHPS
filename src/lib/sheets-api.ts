@@ -5,7 +5,7 @@
  * E2EE (End-to-End Encryption) 및 Token 인증 추가
  */
 
-import { encryptPayload, decryptPayload, getAuthToken } from '@/lib/crypto';
+import { decryptPayload, getAuthToken } from '@/lib/crypto';
 import { getDomainSchema } from '@/lib/schemas';
 import { z } from 'zod';
 import * as Y from 'yjs';
@@ -42,233 +42,246 @@ interface CacheEntry {
 }
 
 const clientCache = new Map<string, CacheEntry>();
+const inFlightRequests = new Map<string, Promise<any>>();
 
 export async function readSheet<T>(sheetName: string): Promise<T[]> {
-  try {
-    const cached = clientCache.get(sheetName);
-    const now = Date.now();
+  const cached = clientCache.get(sheetName);
+  const now = Date.now();
 
-    // 5분 캐시 가드: 캐시가 존재하고 5분 미만 경과했으면 네트워크 RTT 및 JSON 파싱 없이 즉각 반환
-    if (cached && cached.lastMetaCheck && (now - cached.lastMetaCheck) < 300000) {
-      return cached.data as T[];
-    }
-
-    let url = `${API_BASE}?sheet=${encodeURIComponent(sheetName)}&_t=${Date.now()}`;
-    if (cached && cached.mtime && cached.size) {
-      url += `&clientMtime=${cached.mtime}&clientSize=${cached.size}`;
-    }
-    const res = await fetch(url, {
-      headers: { 
-        ...getAuthHeaders(),
-        'Cache-Control': 'no-cache, no-store, must-revalidate'
-      },
-      cache: 'no-store'
-    });
-    if (!res.ok) {
-      throw new Error(`HTTP error ${res.status}`);
-    }
-    const json = await res.json();
-    if (json.success && json.notModified && cached) {
-      cached.lastMetaCheck = Date.now();
-      return cached.data as T[];
-    }
-    if (!json.success || !Array.isArray(json.data)) {
-      throw new Error(json.error || 'API returned success=false or invalid data');
-    }
-    
-    // E2EE Decryption
-    let rawRows: any[];
-    const isE2EEBypass = json.data.length === 0 || json.data.every((row: Record<string, unknown>) => {
-      if (!row._enc) return true;
-      const encStr = (row._enc as string).trim();
-      return encStr.startsWith('{') || encStr.startsWith('[');
-    });
-
-    if (isE2EEBypass) {
-      rawRows = json.data.map((row: Record<string, unknown>) => {
-        if (row._enc) {
-          try {
-            const dec = JSON.parse(row._enc as string) as Record<string, any>;
-            let finalDec = { ...dec };
-            
-            // Self-Healing: 복호화된 BUDGET_CATEGORIES의 calculations가 지출 내역 purpose로 오염되었을 경우 디스크 평문 백업 데이터로 복구
-            if (sheetName === 'BUDGET_CATEGORIES' && row.subItems && Array.isArray(row.subItems) && dec.subItems && Array.isArray(dec.subItems)) {
-              finalDec.subItems = dec.subItems.map((decSub: any) => {
-                const originalSub = (row.subItems as any[]).find((s: any) => s.id === decSub.id || s.name === decSub.name);
-                if (originalSub) {
-                  const restoredSub = { ...decSub };
-                  if (originalSub.calculations && Array.isArray(originalSub.calculations)) {
-                    const decCalcs = Array.isArray(decSub.calculations) ? decSub.calculations : [];
-                    const decCalcsMap = new Map<string, any>();
-                    decCalcs.forEach((c: any) => {
-                      if (c && c.id) decCalcsMap.set(c.id, c);
-                    });
-                    restoredSub.calculations = originalSub.calculations.map((origCalc: any) => {
-                      const decCalc = decCalcsMap.get(origCalc.id) || {};
-                      return {
-                        ...origCalc,
-                        isLocked: typeof decCalc.isLocked === 'boolean' ? decCalc.isLocked : (origCalc.isLocked || false)
-                      };
-                    });
-                  } else {
-                    restoredSub.calculations = [];
-                  }
-                  return restoredSub;
-                }
-                return decSub;
-              });
-            }
-            
-            return { id: row.id, ...finalDec };
-          } catch (e) {
-            console.error('Synchronous parsing failed for row', row.id, e);
-            throw e;
-          }
-        }
-        return row; // Legacy plaintext fallback
-      });
-    } else {
-      const decryptedPromises = json.data.map(async (row: Record<string, unknown>) => {
-        if (row._enc) {
-          try {
-            const dec = await decryptPayload(row._enc as string) as Record<string, any>;
-            let finalDec = { ...dec };
-            
-            // Self-Healing: 복호화된 BUDGET_CATEGORIES의 calculations가 지출 내역 purpose로 오염되었을 경우 디스크 평문 백업 데이터로 복구
-            if (sheetName === 'BUDGET_CATEGORIES' && row.subItems && Array.isArray(row.subItems) && dec.subItems && Array.isArray(dec.subItems)) {
-              finalDec.subItems = dec.subItems.map((decSub: any) => {
-                const originalSub = (row.subItems as any[]).find((s: any) => s.id === decSub.id || s.name === decSub.name);
-                if (originalSub) {
-                  const restoredSub = { ...decSub };
-                  if (originalSub.calculations && Array.isArray(originalSub.calculations)) {
-                    const decCalcs = Array.isArray(decSub.calculations) ? decSub.calculations : [];
-                    const decCalcsMap = new Map<string, any>();
-                    decCalcs.forEach((c: any) => {
-                      if (c && c.id) decCalcsMap.set(c.id, c);
-                    });
-                    restoredSub.calculations = originalSub.calculations.map((origCalc: any) => {
-                      const decCalc = decCalcsMap.get(origCalc.id) || {};
-                      return {
-                        ...origCalc,
-                        isLocked: typeof decCalc.isLocked === 'boolean' ? decCalc.isLocked : (origCalc.isLocked || false)
-                      };
-                    });
-                  } else {
-                    restoredSub.calculations = [];
-                  }
-                  return restoredSub;
-                }
-                return decSub;
-              });
-            }
-            
-            return { id: row.id, ...finalDec };
-          } catch (e) {
-            console.error('Decryption failed for row', row.id, e);
-            throw e; // Decryption failure must propagate to prevent silent empty overwrites!
-          }
-        }
-        return row; // Legacy plaintext fallback
-      });
-      rawRows = await Promise.all(decryptedPromises);
-    }
-    
-    // Global Tombstone: Filter out deleted items to prevent Cloudflare KV eventual consistency zombie data
-    const deletedIds = getTombstones().map(t => t.id);
-    
-    // Zod Runtimes Validation (Fail-Safe)
-    const schema = getDomainSchema(sheetName);
-    const validRows: Record<string, unknown>[] = [];
-    for (const row of rawRows) {
-      if (deletedIds.includes(row.id)) continue; // 🚀 Kill Zombies
-      if ('safeParse' in schema) {
-        const result = schema.safeParse(row);
-        if (result.success) {
-          validRows.push(result.data);
-        } else {
-          // HARNESS SYSTEM: Loud Failure for Self-Reinforcing AI loops
-          console.error(`\n======================================================`);
-          console.error(`🚨 [HARNESS ZOD ERROR] Schema Validation Failed!`);
-          console.error(`Sheet: ${sheetName}`);
-          console.error(`Row ID: ${row.id || 'unknown'}`);
-          console.error(`Errors:`, JSON.stringify(result.error.format(), null, 2));
-          console.error(`======================================================\n`);
- 
-          // 1. Zod 에러 이벤트를 발송하여 UI에 경고/복구 유도
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('hchps-zod-error', {
-              detail: { sheetName, rowId: row.id, errors: result.error.format() }
-            }));
-          }
- 
-          // 2. Sandboxing: 깨진 필드만 기본값으로 자동 보정하여 화면 붕괴(다운타임) 방지
-          try {
-            const sanitized = sanitizeRowWithFallback(row, schema);
-            validRows.push(sanitized);
-          } catch (sanitizeErr) {
-            console.error('[API Sandboxing] Failed to sanitize row:', sanitizeErr);
-          }
-        }
-      } else {
-        validRows.push(row);
-      }
-    }
-    const finalData = validRows as T[];
-    const mtime = json.mtime || Date.now();
-    const size = json.size || 0;
-    clientCache.set(sheetName, {
-      mtime,
-      size,
-      data: finalData,
-      lastMetaCheck: now
-    });
-    // localStorage 오프라인 캐시 저장 (휘발성/오프라인 복원용)
-    if (typeof window !== 'undefined') {
-      setTimeout(() => {
-        try {
-          localStorage.setItem(`hchps-fallback-${sheetName}`, JSON.stringify(finalData));
-        } catch (lsErr) {
-          console.warn(`[sheets-api] Failed to save offline fallback for ${sheetName}:`, lsErr);
-        }
-      }, 0);
-    }
-    return finalData;
-  } catch (err) {
-    console.warn(`[sheets-api] 데이터 읽기 실패: ${sheetName}, 캐시/로컬 복구 시도.`, err);
-    
-    // 1. 메모리 캐시 반환 시도
-    const cached = clientCache.get(sheetName);
-    if (cached) {
-      console.info(`[sheets-api] 메모리 캐시 데이터를 복구하여 반환합니다: ${sheetName}`);
-      return cached.data as T[];
-    }
-    
-    // 2. localStorage 오프라인 백업 반환 시도
-    if (typeof window !== 'undefined') {
-      try {
-        const localFallback = localStorage.getItem(`hchps-fallback-${sheetName}`);
-        if (localFallback) {
-          const parsed = JSON.parse(localFallback);
-          if (Array.isArray(parsed)) {
-            console.info(`[sheets-api] localStorage 오프라인 캐시 데이터를 복구하여 반환합니다: ${sheetName}`);
-            
-            // 메모리 캐시에 적재
-            clientCache.set(sheetName, {
-              mtime: Date.now(),
-              size: localFallback.length,
-              data: parsed,
-              lastMetaCheck: Date.now()
-            });
-            
-            return parsed as T[];
-          }
-        }
-      } catch (lsErr) {
-        console.error(`[sheets-api] localStorage fallback read failed for ${sheetName}:`, lsErr);
-      }
-    }
-    throw err; // Propagate the error so callers (especially React Query or fallback logic) are aware
+  // 5분 캐시 가드: 캐시가 존재하고 5분 미만 경과했으면 네트워크 RTT 및 JSON 파싱 없이 즉각 반환
+  if (cached && cached.lastMetaCheck && (now - cached.lastMetaCheck) < 300000) {
+    return cached.data as T[];
   }
+
+  // Deduplicate concurrent in-flight requests for the same sheet
+  if (inFlightRequests.has(sheetName)) {
+    return inFlightRequests.get(sheetName) as Promise<T[]>;
+  }
+
+  const fetchPromise = (async (): Promise<T[]> => {
+    try {
+      let url = `${API_BASE}?sheet=${encodeURIComponent(sheetName)}&_t=${Date.now()}`;
+      if (cached && cached.mtime && cached.size) {
+        url += `&clientMtime=${cached.mtime}&clientSize=${cached.size}`;
+      }
+      const res = await fetch(url, {
+        headers: { 
+          ...getAuthHeaders(),
+          'Cache-Control': 'no-cache, no-store, must-revalidate'
+        },
+        cache: 'no-store'
+      });
+      if (!res.ok) {
+        throw new Error(`HTTP error ${res.status}`);
+      }
+      const json = await res.json();
+      if (json.success && json.notModified && cached) {
+        cached.lastMetaCheck = Date.now();
+        return cached.data as T[];
+      }
+      if (!json.success || !Array.isArray(json.data)) {
+        throw new Error(json.error || 'API returned success=false or invalid data');
+      }
+
+      // E2EE Decryption
+      let rawRows: any[];
+      const isE2EEBypass = json.data.length === 0 || json.data.every((row: Record<string, unknown>) => {
+        if (!row._enc) return true;
+        const encStr = (row._enc as string).trim();
+        return encStr.startsWith('{') || encStr.startsWith('[');
+      });
+
+      if (isE2EEBypass) {
+        rawRows = json.data.map((row: Record<string, unknown>) => {
+          if (row._enc) {
+            try {
+              const dec = JSON.parse(row._enc as string) as Record<string, any>;
+              let finalDec = { ...dec };
+              
+              // Self-Healing: 복호화된 BUDGET_CATEGORIES의 calculations가 지출 내역 purpose로 오염되었을 경우 디스크 평문 백업 데이터로 복구
+              if (sheetName === 'BUDGET_CATEGORIES' && row.subItems && Array.isArray(row.subItems) && dec.subItems && Array.isArray(dec.subItems)) {
+                finalDec.subItems = dec.subItems.map((decSub: any) => {
+                  const originalSub = (row.subItems as any[]).find((s: any) => s.id === decSub.id || s.name === decSub.name);
+                  if (originalSub) {
+                    const restoredSub = { ...decSub };
+                    if (originalSub.calculations && Array.isArray(originalSub.calculations)) {
+                      const decCalcs = Array.isArray(decSub.calculations) ? decSub.calculations : [];
+                      const decCalcsMap = new Map<string, any>();
+                      decCalcs.forEach((c: any) => {
+                        if (c && c.id) decCalcsMap.set(c.id, c);
+                      });
+                      restoredSub.calculations = originalSub.calculations.map((origCalc: any) => {
+                        const decCalc = decCalcsMap.get(origCalc.id) || {};
+                        return {
+                          ...origCalc,
+                          isLocked: typeof decCalc.isLocked === 'boolean' ? decCalc.isLocked : (origCalc.isLocked || false)
+                        };
+                      });
+                    } else {
+                      restoredSub.calculations = [];
+                    }
+                    return restoredSub;
+                  }
+                  return decSub;
+                });
+              }
+              
+              return { id: row.id, ...finalDec };
+            } catch (e) {
+              console.error('Synchronous parsing failed for row', row.id, e);
+              throw e;
+            }
+          }
+          return row; // Legacy plaintext fallback
+        });
+      } else {
+        const decryptedPromises = json.data.map(async (row: Record<string, unknown>) => {
+          if (row._enc) {
+            try {
+              const dec = await decryptPayload(row._enc as string) as Record<string, any>;
+              let finalDec = { ...dec };
+              
+              // Self-Healing: 복호화된 BUDGET_CATEGORIES의 calculations가 지출 내역 purpose로 오염되었을 경우 디스크 평문 백업 데이터로 복구
+              if (sheetName === 'BUDGET_CATEGORIES' && row.subItems && Array.isArray(row.subItems) && dec.subItems && Array.isArray(dec.subItems)) {
+                finalDec.subItems = dec.subItems.map((decSub: any) => {
+                  const originalSub = (row.subItems as any[]).find((s: any) => s.id === decSub.id || s.name === decSub.name);
+                  if (originalSub) {
+                    const restoredSub = { ...decSub };
+                    if (originalSub.calculations && Array.isArray(originalSub.calculations)) {
+                      const decCalcs = Array.isArray(decSub.calculations) ? decSub.calculations : [];
+                      const decCalcsMap = new Map<string, any>();
+                      decCalcs.forEach((c: any) => {
+                        if (c && c.id) decCalcsMap.set(c.id, c);
+                      });
+                      restoredSub.calculations = originalSub.calculations.map((origCalc: any) => {
+                        const decCalc = decCalcsMap.get(origCalc.id) || {};
+                        return {
+                          ...origCalc,
+                          isLocked: typeof decCalc.isLocked === 'boolean' ? decCalc.isLocked : (origCalc.isLocked || false)
+                        };
+                      });
+                    } else {
+                      restoredSub.calculations = [];
+                    }
+                    return restoredSub;
+                  }
+                  return decSub;
+                });
+              }
+              
+              return { id: row.id, ...finalDec };
+            } catch (e) {
+              console.error('Decryption failed for row', row.id, e);
+              throw e; // Decryption failure must propagate to prevent silent empty overwrites!
+            }
+          }
+          return row; // Legacy plaintext fallback
+        });
+        rawRows = await Promise.all(decryptedPromises);
+      }
+      
+      // Global Tombstone: Filter out deleted items to prevent Cloudflare KV eventual consistency zombie data
+      const deletedIds = getTombstones().map(t => t.id);
+      
+      // Zod Runtimes Validation (Fail-Safe)
+      const schema = getDomainSchema(sheetName);
+      const validRows: Record<string, unknown>[] = [];
+      for (const row of rawRows) {
+        if (deletedIds.includes(row.id)) continue; // 🚀 Kill Zombies
+        if ('safeParse' in schema) {
+          const result = schema.safeParse(row);
+          if (result.success) {
+            validRows.push(result.data);
+          } else {
+            // HARNESS SYSTEM: Loud Failure for Self-Reinforcing AI loops
+            console.error(`\n======================================================`);
+            console.error(`🚨 [HARNESS ZOD ERROR] Schema Validation Failed!`);
+            console.error(`Sheet: ${sheetName}`);
+            console.error(`Row ID: ${row.id || 'unknown'}`);
+            console.error(`Errors:`, JSON.stringify(result.error.format(), null, 2));
+            console.error(`======================================================\n`);
+
+            // 1. Zod 에러 이벤트를 발송하여 UI에 경고/복구 유도
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('hchps-zod-error', {
+                detail: { sheetName, rowId: row.id, errors: result.error.format() }
+              }));
+            }
+
+            // 2. Sandboxing: 깨진 필드만 기본값으로 자동 보정하여 화면 붕괴(다운타임) 방지
+            try {
+              const sanitized = sanitizeRowWithFallback(row, schema);
+              validRows.push(sanitized);
+            } catch (sanitizeErr) {
+              console.error('[API Sandboxing] Failed to sanitize row:', sanitizeErr);
+            }
+          }
+        } else {
+          validRows.push(row);
+        }
+      }
+      const finalData = validRows as T[];
+      const mtime = json.mtime || Date.now();
+      const size = json.size || 0;
+      clientCache.set(sheetName, {
+        mtime,
+        size,
+        data: finalData,
+        lastMetaCheck: now
+      });
+      // localStorage 오프라인 캐시 저장 (휘발성/오프라인 복원용)
+      if (typeof window !== 'undefined') {
+        setTimeout(() => {
+          try {
+            localStorage.setItem(`hchps-fallback-${sheetName}`, JSON.stringify(finalData));
+          } catch (lsErr) {
+            console.warn(`[sheets-api] Failed to save offline fallback for ${sheetName}:`, lsErr);
+          }
+        }, 0);
+      }
+      return finalData;
+    } catch (err) {
+      console.warn(`[sheets-api] 데이터 읽기 실패: ${sheetName}, 캐시/로컬 복구 시도.`, err);
+      
+      // 1. 메모리 캐시 반환 시도
+      const cached = clientCache.get(sheetName);
+      if (cached) {
+        console.info(`[sheets-api] 메모리 캐시 데이터를 복구하여 반환합니다: ${sheetName}`);
+        return cached.data as T[];
+      }
+      
+      // 2. localStorage 오프라인 백업 반환 시도
+      if (typeof window !== 'undefined') {
+        try {
+          const localFallback = localStorage.getItem(`hchps-fallback-${sheetName}`);
+          if (localFallback) {
+            const parsed = JSON.parse(localFallback);
+            if (Array.isArray(parsed)) {
+              console.info(`[sheets-api] localStorage 오프라인 캐시 데이터를 복구하여 반환합니다: ${sheetName}`);
+              
+              // 메모리 캐시에 적재
+              clientCache.set(sheetName, {
+                mtime: Date.now(),
+                size: localFallback.length,
+                data: parsed,
+                lastMetaCheck: Date.now()
+              });
+              
+              return parsed as T[];
+            }
+          }
+        } catch (lsErr) {
+          console.error(`[sheets-api] localStorage fallback read failed for ${sheetName}:`, lsErr);
+        }
+      }
+      throw err; // Propagate the error so callers (especially React Query or fallback logic) are aware
+    } finally {
+      inFlightRequests.delete(sheetName);
+    }
+  })();
+
+  inFlightRequests.set(sheetName, fetchPromise);
+  return fetchPromise;
 }
 
 // ============ Write ============
@@ -277,26 +290,9 @@ async function writeData(sheetName: string, action: string, data?: unknown, id?:
   try {
     let payload = data;
     
-    // E2EE Encryption
-    if (data && typeof data === 'object') {
-      if (Array.isArray(data)) {
-        payload = await Promise.all(data.map(async (row) => {
-          if (!row.id) return row;
-          const { id, ...rest } = row;
-          const _enc = await encryptPayload(rest);
-          return { id, _enc };
-        }));
-      } else {
-        const { id, ...rest } = data as Record<string, unknown>;
-        if (id) {
-          const _enc = await encryptPayload(rest);
-          payload = { id, _enc };
-        } else {
-          // Fallback encryption without ID mapping if ID doesn't exist
-          payload = { _enc: await encryptPayload(data) };
-        }
-      }
-    }
+    // E2EE Encryption (Bypassed for local performance and plain JSON persistence)
+    // Send data as-is without _enc string wrapping
+    payload = data;
 
     const res = await fetch(API_BASE, {
       method: 'POST',

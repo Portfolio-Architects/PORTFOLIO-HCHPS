@@ -10,6 +10,7 @@ interface MindMapHeaderProps {
   isWikiOpen: boolean;
   usingSample: boolean;
   onOpenWiki: () => void;
+  onLoadFestivalPreset?: () => void;
 }
 
 export function MindMapHeader({
@@ -17,7 +18,8 @@ export function MindMapHeader({
   activeNode,
   isWikiOpen,
   usingSample,
-  onOpenWiki
+  onOpenWiki,
+  onLoadFestivalPreset
 }: MindMapHeaderProps) {
   return (
     <div className="flex items-center justify-between py-1">
@@ -30,6 +32,15 @@ export function MindMapHeader({
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
           연결 <span className="text-slate-900 dark:text-white font-bold ml-0.5">{stats.edges}</span>개
         </div>
+        {onLoadFestivalPreset && (
+          <button
+            onClick={onLoadFestivalPreset}
+            className="flex items-center justify-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-amber-500 to-rose-500 text-white text-[11px] font-bold hover:opacity-90 shadow-sm border-0 cursor-pointer transition-all"
+            title="50-70M KRW 축제 5대 도메인 템플릿 로드"
+          >
+            🎪 5-도메인 축제 템플릿 로드
+          </button>
+        )}
       </div>
       <div className="flex items-center gap-2">
         {activeNode && !isWikiOpen && (

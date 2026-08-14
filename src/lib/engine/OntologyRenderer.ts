@@ -1,4 +1,4 @@
-import { OrbitalNode, OntologyEdge, EDGE_TYPE_LABELS, EdgeType } from '../ontology.types';
+import { OrbitalNode, OntologyEdge, EDGE_TYPE_LABELS, EdgeType, VerificationStatus } from '../ontology.types';
 import { CULL_MARGIN, OntologyLayout, ELLIPSE_RATIO } from './OntologyLayout';
 import { PerformanceProfiler } from './PerformanceProfiler';
 
@@ -24,6 +24,7 @@ export interface RenderContext {
   isInteractive?: boolean;
   isOrbiting?: boolean;
   centralitySortedNodes?: OrbitalNode[];
+  riskNodesMap?: Map<string, { riskLevel: 'CRITICAL' | 'WARNING'; reason: string }>;
 }
 
 export interface BatchedEdge {
@@ -31,6 +32,8 @@ export interface BatchedEdge {
   y1: number;
   x2: number;
   y2: number;
+  midX?: number;
+  midY?: number;
   cpDist?: number;
   leftY?: number;
   rightY?: number;
@@ -346,10 +349,71 @@ export class OntologyRenderer {
     PerformanceProfiler.getInstance().recordNodes(tNd1 - tNd0);
   }
 
+  private static cachedCorkPatternCanvas: HTMLCanvasElement | null = null;
+  private static cachedCorkPattern: CanvasPattern | null = null;
+
+  private static getCorkPattern(ctx: CanvasRenderingContext2D): CanvasPattern | null {
+    if (this.cachedCorkPattern) return this.cachedCorkPattern;
+    if (typeof document === 'undefined') return null;
+
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 120;
+      canvas.height = 120;
+      const pCtx = canvas.getContext('2d');
+      if (!pCtx) return null;
+
+      // Base warm cork tone #c59b67
+      pCtx.fillStyle = '#c59b67';
+      pCtx.fillRect(0, 0, 120, 120);
+
+      // Procedural noise & speckles
+      for (let i = 0; i < 350; i++) {
+        const x = Math.random() * 120;
+        const y = Math.random() * 120;
+        const r = 0.5 + Math.random() * 1.5;
+        const alpha = 0.05 + Math.random() * 0.22;
+        const isDark = Math.random() > 0.45;
+        pCtx.fillStyle = isDark ? `rgba(60, 35, 15, ${alpha})` : `rgba(240, 215, 175, ${alpha})`;
+        pCtx.beginPath();
+        pCtx.arc(x, y, r, 0, Math.PI * 2);
+        pCtx.fill();
+      }
+
+      this.cachedCorkPatternCanvas = canvas;
+      this.cachedCorkPattern = ctx.createPattern(canvas, 'repeat');
+      return this.cachedCorkPattern;
+    } catch {
+      return null;
+    }
+  }
+
+  private static hashString(str: string): number {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = (hash << 5) - hash + str.charCodeAt(i);
+      hash |= 0;
+    }
+    return Math.abs(hash);
+  }
+
   private static renderBackground(ctx: CanvasRenderingContext2D, width: number, height: number): void {
-    // 캔버스 배경에 무거운 radial gradient를 그리지 않고 clearRect로 픽셀을 완전히 비웁니다.
-    // 배경은 wrapper div의 CSS radial-gradient를 활용해 브라우저 하드웨어 가속(GPU)으로 렌더링되게 이관합니다.
     ctx.clearRect(0, 0, width, height);
+
+    // 1. Modern dark slate canvas background (#090d16)
+    ctx.fillStyle = '#090d16';
+    ctx.fillRect(0, 0, width, height);
+
+    // 2. Subtle ambient radial glow in center
+    const cx = width / 2;
+    const cy = height / 2;
+    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(width, height) * 0.7);
+    glow.addColorStop(0, 'rgba(30, 58, 138, 0.15)');
+    glow.addColorStop(0.5, 'rgba(15, 23, 42, 0.08)');
+    glow.addColorStop(1, 'rgba(9, 13, 22, 0)');
+
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, width, height);
   }
 
   private static renderBackgroundLayers(rc: RenderContext): void {
@@ -362,27 +426,21 @@ export class OntologyRenderer {
     const sinTilt = Math.sin(OntologyLayout.tiltAngle);
     const cameraDist = 800;
     
-    // 레이어 L0 ~ L3의 3D 아크릴 판 그리기 (뒤에서부터 조감도로 정렬되어 아래서부터 그림)
+    // 레이어 L0 ~ L3의 미려한 글래스모피즘 영역 블록 (Modern Layer Plates)
     const layers = [3, 2, 1, 0];
-    const width = 350; // 아크릴 판 가로 반지름
-    const height = 280; // 아크릴 판 세로 반지름
+    const width = 350;
+    const height = 280;
     const wE = width * ELLIPSE_RATIO;
     
     for (const layer of layers) {
       if (OntologyLayout.filterLayers && !OntologyLayout.filterLayers.has(layer)) continue;
       
       const h = layer * OntologyLayout.LAYER_GAP;
-      
-      // Re-use static cornersCache objects to avoid allocations:
       const pCache = OntologyRenderer.cornersCache[layer];
       
-      // Corner 1: -wE, -height
       OntologyRenderer.projectTo(-wE, -height, h, cosTilt, sinTilt, cameraDist, cx, cy, zoom, pCache.p1);
-      // Corner 2: wE, -height
       OntologyRenderer.projectTo(wE, -height, h, cosTilt, sinTilt, cameraDist, cx, cy, zoom, pCache.p2);
-      // Corner 3: wE, height
       OntologyRenderer.projectTo(wE, height, h, cosTilt, sinTilt, cameraDist, cx, cy, zoom, pCache.p3);
-      // Corner 4: -wE, height
       OntologyRenderer.projectTo(-wE, height, h, cosTilt, sinTilt, cameraDist, cx, cy, zoom, pCache.p4);
       
       const minX = Math.min(pCache.p1.x, pCache.p2.x, pCache.p3.x, pCache.p4.x);
@@ -391,18 +449,18 @@ export class OntologyRenderer {
       const maxY = Math.max(pCache.p1.y, pCache.p2.y, pCache.p3.y, pCache.p4.y);
       
       if (maxX < -CULL_MARGIN || minX > canvasW + CULL_MARGIN || maxY < -CULL_MARGIN || minY > canvasH + CULL_MARGIN) {
-        continue; // Culled!
+        continue;
       }
       
-      // 판 채우기 및 테두리선 그리기
-      const colors = [
-        { fill: 'rgba(59, 130, 246, 0.012)', stroke: 'rgba(59, 130, 246, 0.08)', label: 'L0 인물 (Agent)' },
-        { fill: 'rgba(16, 185, 129, 0.012)', stroke: 'rgba(16, 185, 129, 0.08)', label: 'L1 예산 (Resource)' },
-        { fill: 'rgba(245, 158, 11, 0.012)', stroke: 'rgba(245, 158, 11, 0.08)', label: 'L2 업무 (Execution)' },
-        { fill: 'rgba(139, 92, 246, 0.012)', stroke: 'rgba(139, 92, 246, 0.08)', label: 'L3 위키 (Knowledge)' }
+      // Modern Glassmorphism Section Plates with clean labels
+      const dossiers = [
+        { fill: 'rgba(15, 23, 42, 0.45)', stroke: 'rgba(51, 65, 85, 0.5)', label: '🌐 LAYER 0: DOMAIN HUBS & CORE NODES' },
+        { fill: 'rgba(15, 23, 42, 0.45)', stroke: 'rgba(51, 65, 85, 0.5)', label: '📂 LAYER 1: BUDGET & STAGE INFRASTRUCTURE' },
+        { fill: 'rgba(15, 23, 42, 0.45)', stroke: 'rgba(51, 65, 85, 0.5)', label: '📋 LAYER 2: EXECUTION & TASKS' },
+        { fill: 'rgba(15, 23, 42, 0.45)', stroke: 'rgba(51, 65, 85, 0.5)', label: '📚 LAYER 3: KNOWLEDGE & CONTRACTS' }
       ];
       
-      const { fill, stroke, label } = colors[layer];
+      const { fill, stroke, label } = dossiers[layer];
       
       ctx.fillStyle = fill;
       ctx.strokeStyle = stroke;
@@ -416,11 +474,11 @@ export class OntologyRenderer {
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
-      
-      // 레이어 이름 텍스트 그리기
-      ctx.fillStyle = layer === 0 ? '#3B82F6' : layer === 1 ? '#10B981' : layer === 2 ? '#F59E0B' : '#8B5CF6';
-      ctx.font = "bold 9px 'Pretendard', sans-serif";
-      ctx.fillText(label, pCache.p1.x + 10, pCache.p1.y + 15);
+
+      // Section Plate Label
+      ctx.fillStyle = 'rgba(148, 163, 184, 0.7)';
+      ctx.font = "bold 10px 'Pretendard', sans-serif";
+      ctx.fillText(label, pCache.p1.x + 12, pCache.p1.y + 18);
     }
     
     ctx.restore();
@@ -553,84 +611,71 @@ export class OntologyRenderer {
       if (src.renderY < -CULL_MARGIN && tgt.renderY < -CULL_MARGIN) continue;
       if (src.renderY > canvasH + CULL_MARGIN && tgt.renderY > canvasH + CULL_MARGIN) continue;
 
-      // Smooth step bezier variables (좌에서 우로)
-      // 콤팩트해진 텍스트 박스 크기에 맞춰 선의 시작점을 안쪽으로 축소
-      const leftScale = leftNode.perspectiveScale ?? 1.0;
-      const rightScale = rightNode.perspectiveScale ?? 1.0;
-      const avgScale = (leftScale + rightScale) / 2;
+      // Crimson Red Strings attached to Push Pin heads at top center of Post-it cards
+      const leftZoom = leftNode._localZoom || (rc.zoom * (leftNode.perspectiveScale ?? 1.0) * (0.8 + 0.5 * (leftNode.renderSize ?? 0.5)));
+      const rightZoom = rightNode._localZoom || (rc.zoom * (rightNode.perspectiveScale ?? 1.0) * (0.8 + 0.5 * (rightNode.renderSize ?? 0.5)));
+      const avgScale = (leftZoom + rightZoom) / 2;
 
-      // 도트 노드의 정중앙 좌표를 직선 시작/끝 영점으로 완벽 동조시킵니다 (기존 사각형 카드용 30px 오프셋 제거)
-      const leftRightX = leftNode.renderX;
-      const rightLeftX = rightNode.renderX;
-      
-      const cpDist = Math.max(15, Math.abs(rightLeftX - leftRightX) / 2);
-      
-      // 엣지 투명도 및 두께 조절
-      let themeColor = tgt.themeColor || '#94A3B8';
+      // Push Pin Head Attachment Coordinates: (x, y - cardH/2 + 2)
+      // Modern MindMap Connecting Line Coordinates (Node Centers)
+      const p1x = leftNode.renderX;
+      const p1y = leftNode.renderY;
+      const p2x = rightNode.renderX;
+      const p2y = rightNode.renderY;
 
-      // 레이어 교차 간선 (Layer-Crossing Edge)에 대한 특수 시맨틱 색상 매핑
-      const srcLayer = src.effectiveLayer ?? 3;
-      const tgtLayer = tgt.effectiveLayer ?? 3;
+      const midX = (p1x + p2x) / 2;
+      const midY = (p1y + p2y) / 2;
+      const sagAmount = 0;
       
-      if (srcLayer !== tgtLayer) {
-        const lMin = Math.min(srcLayer, tgtLayer);
-        const lMax = Math.max(srcLayer, tgtLayer);
-        
-        if (lMin === 0 && lMax === 2) {
-          // 인물 (L0) <-> 업무 (L2) = Indigo (중첩적 관계성 표현)
-          themeColor = '#6366F1'; 
-        } else if (lMin === 1 && lMax === 2) {
-          // 예산 (L1) <-> 업무 (L2) = Teal (지출 집행 흐름)
-          themeColor = '#0D9488';
-        } else if (lMin === 2 && lMax === 3) {
-          // 업무 (L2) <-> 위키 (L3) = Orange (업무 산출물/지식 자산화)
-          themeColor = '#F97316';
-        } else if (lMin === 0 && lMax === 3) {
-          // 인물 (L0) <-> 위키 (L3) = Pink (인물 이력/위키)
-          themeColor = '#EC4899';
-        } else {
-          themeColor = '#8E9CB2';
-        }
+      // Modern MindMap Connecting Lines Color Palette
+      let themeColor = '#3b82f6'; // Clean Blue
+      const nodeLayer = leftNode.effectiveLayer ?? (leftNode.layerId ?? 0);
+      if (isDirectlyConnectedToActive) {
+        themeColor = '#38bdf8'; // Sky Blue
+      } else if (nodeLayer === 1) {
+        themeColor = '#10b981'; // Emerald
+      } else if (nodeLayer === 2) {
+        themeColor = '#f59e0b'; // Amber
+      } else if (nodeLayer === 3) {
+        themeColor = '#8b5cf6'; // Purple
+      } else if (src.group === 'SYSTEM_RISK' || tgt.group === 'SYSTEM_RISK' || (src.riskFactor && src.riskFactor > 0.3)) {
+        themeColor = '#ef4444'; // Red
       }
 
-
-      let alpha = 0.15;
-      let lineWidth = 0.5 * rc.zoom * avgScale;
+      let alpha = 0.75;
+      let lineWidth = 2.2 * rc.zoom * (avgScale / rc.zoom);
 
       const isConnectedToTree = activeNodeId && activeTreeSet.has(src.id) && activeTreeSet.has(tgt.id);
 
       if (isDirectlyConnectedToActive) {
-          alpha = 0.22; // 직접 선택된 노드의 엣지 강조를 극도로 제한
-          lineWidth = 0.8 * rc.zoom * avgScale;
+        alpha = 0.95;
+        lineWidth = 2.8 * rc.zoom;
       } else if (isConnectedToTree) {
-          alpha = 0.18; // 활성 트리에 속한 엣지도 은은하게
-          lineWidth = 0.6 * rc.zoom * avgScale;
+        alpha = 0.85;
+        lineWidth = 2.4 * rc.zoom;
       } else if (activeNodeId) {
-          // 외부 엣지도 최소 0.08 이상의 alpha를 부여하여 외곽 노드 간 결속 관계 파악이 가능하게 보정
-          alpha = 0.08;
-          lineWidth = 0.3 * rc.zoom * avgScale;
+        alpha = 0.35;
+        lineWidth = 1.6 * rc.zoom;
       } else if (isCrossEdge) {
-          alpha = 0.06; 
-          lineWidth = 0.3 * rc.zoom * avgScale;
+        alpha = 0.5;
+        lineWidth = 1.8 * rc.zoom;
       }
       
-      const finalAlpha = alpha * Math.max(0.3, avgScale);
+      const finalAlpha = Math.min(1.0, alpha);
       const isDashed = edge.weight < 0;
 
-      // 3차 최적화: 스타일 키 이산 양자화 (0.2 및 0.1 단위) + 부동소수점 오차 박멸용 포맷팅
       const roundedLineWidth = Number((Math.round(lineWidth * 5) / 5).toFixed(2));
       const roundedAlpha = Number((Math.round(finalAlpha * 10) / 10).toFixed(2));
 
-      // 16차 최적화: 문자열 키 생성 오버헤드와 가비지 컬렉션을 차단하기 위해 스타일 요소를 32비트 정수로 인코딩
       let colorId: number;
       if (themeColor === tgt.themeColor && tgt._themeColorId !== undefined) {
         colorId = tgt._themeColorId;
       } else {
         colorId = OntologyRenderer.getColorId(themeColor);
       }
-      const lwInt = Math.round(roundedLineWidth * 5) & 0xFF; // 8비트
-      const aInt = Math.round(roundedAlpha * 10) & 0xFF; // 8비트
-      const dashInt = isDashed ? 1 : 0; // 1비트
+      const lwInt = Math.round(roundedLineWidth * 5) & 0xFF;
+      const aInt = Math.round(roundedAlpha * 10) & 0xFF;
+      const dashInt = isDashed ? 1 : 0;
       const styleKeyInt = (colorId << 17) | (lwInt << 9) | (aInt << 1) | dashInt;
 
       let batch = OntologyRenderer.edgeBatches.get(styleKeyInt);
@@ -650,7 +695,6 @@ export class OntologyRenderer {
         batch.isDashed = isDashed;
       }
 
-      // 17차 최적화: 매 프레임 객체 리터럴 생성을 방지하기 위한 간선 오브젝트 풀 적용
       let batchedEdge: BatchedEdge;
       if (OntologyRenderer.edgePoolUsed < OntologyRenderer.edgePool.length) {
         batchedEdge = OntologyRenderer.edgePool[OntologyRenderer.edgePoolUsed++];
@@ -659,13 +703,15 @@ export class OntologyRenderer {
         OntologyRenderer.edgePool.push(batchedEdge);
         OntologyRenderer.edgePoolUsed++;
       }
-      batchedEdge.x1 = leftRightX;
-      batchedEdge.y1 = leftNode.renderY;
-      batchedEdge.x2 = rightLeftX;
-      batchedEdge.y2 = rightNode.renderY;
-      batchedEdge.cpDist = cpDist;
-      batchedEdge.leftY = leftNode.renderY;
-      batchedEdge.rightY = rightNode.renderY;
+      batchedEdge.x1 = p1x;
+      batchedEdge.y1 = p1y;
+      batchedEdge.x2 = p2x;
+      batchedEdge.y2 = p2y;
+      batchedEdge.midX = midX;
+      batchedEdge.midY = midY;
+      batchedEdge.cpDist = sagAmount;
+      batchedEdge.leftY = p1y;
+      batchedEdge.rightY = p2y;
       batchedEdge.arrowX = undefined;
       batchedEdge.arrowY = undefined;
       batchedEdge.arrowAngle = undefined;
@@ -680,8 +726,8 @@ export class OntologyRenderer {
           const ux = dx / dist;
           const uy = dy / dist;
           
-          const srcR = src.nodeRadius * rc.zoom * (src.perspectiveScale ?? 1.0);
-          const tgtR = tgt.nodeRadius * rc.zoom * (tgt.perspectiveScale ?? 1.0);
+          const srcR = (src.nodeRadius || 35) * rc.zoom * (src.perspectiveScale ?? 1.0);
+          const tgtR = (tgt.nodeRadius || 35) * rc.zoom * (tgt.perspectiveScale ?? 1.0);
           
           batchedEdge.x1 = src.renderX + ux * srcR;
           batchedEdge.y1 = src.renderY + uy * srcR;
@@ -691,78 +737,19 @@ export class OntologyRenderer {
           batchedEdge.arrowX = batchedEdge.x2;
           batchedEdge.arrowY = batchedEdge.y2;
           batchedEdge.arrowAngle = Math.atan2(dy, dx);
-          batchedEdge.arrowSize = 6.5 * rc.zoom * avgScale;
+          batchedEdge.arrowSize = 6.5 * rc.zoom;
         }
       }
 
       batch.edgesList.push(batchedEdge);
 
-      const isFlowActive = false;
-      if (isFlowActive) {
-        const time = performance.now();
-        const flows = [
-          (time / 2000) % 1.0,
-          ((time / 2000) + 0.5) % 1.0
-        ];
-        const isLinear = layoutMode === 'orbit' || (rc.zoom < 0.5);
-        const isCluster = layoutMode === 'cluster';
-        
-        for (const flowT of flows) {
-          let px = 0;
-          let py = 0;
-          
-          if (isLinear || isCluster) {
-            // 직선 보간
-            px = batchedEdge.x1 + (batchedEdge.x2 - batchedEdge.x1) * flowT;
-            py = batchedEdge.y1 + (batchedEdge.y2 - batchedEdge.y1) * flowT;
-          } else {
-            // 3차 베지어 곡선 보간
-            const cp1x = batchedEdge.x1 + cpDist;
-            const cp1y = leftNode.renderY;
-            const cp2x = batchedEdge.x2 - cpDist;
-            const cp2y = rightNode.renderY;
-            
-            const mt = 1 - flowT;
-            const mt2 = mt * mt;
-            const mt3 = mt2 * mt;
-            const t2 = flowT * flowT;
-            const t3 = t2 * flowT;
-            
-            px = mt3 * batchedEdge.x1 + 3 * mt2 * flowT * cp1x + 3 * mt * t2 * cp2x + t3 * batchedEdge.x2;
-            py = mt3 * batchedEdge.y1 + 3 * mt2 * flowT * cp1y + 3 * mt * t2 * cp2y + t3 * rightNode.renderY;
-          }
-          
-          let particle;
-          if (OntologyRenderer.flowParticlesPoolUsed < OntologyRenderer.flowParticlesPool.length) {
-            particle = OntologyRenderer.flowParticlesPool[OntologyRenderer.flowParticlesPoolUsed++];
-          } else {
-            particle = { x: 0, y: 0, color: '', size: 0, alpha: 0 };
-            OntologyRenderer.flowParticlesPool.push(particle);
-            OntologyRenderer.flowParticlesPoolUsed++;
-          }
-          
-          particle.x = px;
-          particle.y = py;
-          particle.color = themeColor;
-          particle.size = 2.0 * rc.zoom * Math.max(0.4, avgScale);
-          const edgeAlpha = Math.sin(flowT * Math.PI) * 0.85; 
-          particle.alpha = edgeAlpha * roundedAlpha;
-          
-          OntologyRenderer.flowParticlesList.push(particle);
-        }
-      }
-
       const isDirectlyConnectedToHover = rc.hoveredNodeId && (rc.hoveredNodeId === src.id || rc.hoveredNodeId === tgt.id);
 
-      // 4. 활성화된 노드나 마우스가 올라간 노드에 연결된 엣지 중, 불필요한 노이즈를 방지하기 위해 
-      // 기본 '의존성(DEPENDENCY)'을 제외한 특수 관계만 라벨 렌더링
       const shouldDrawLabel = (isDirectlyConnectedToActive || isDirectlyConnectedToHover) && 
                               !isCrossEdge && 
                               edge.type !== 'DEPENDENCY';
 
       if (shouldDrawLabel) {
-        const midX = (leftRightX + rightLeftX) / 2;
-        const midY = (leftNode.renderY + rightNode.renderY) / 2;
         if (midX >= -CULL_MARGIN && midX <= canvasW + CULL_MARGIN &&
             midY >= -CULL_MARGIN && midY <= canvasH + CULL_MARGIN) {
           let labelItem;
@@ -771,11 +758,11 @@ export class OntologyRenderer {
           } else {
             labelItem = {
               edge,
-              leftRightX,
-              rightLeftX,
+              leftRightX: p1x,
+              rightLeftX: p2x,
               leftNode,
               rightNode,
-              cpDist,
+              cpDist: sagAmount,
               avgScale,
               themeColor,
               alpha
@@ -784,11 +771,11 @@ export class OntologyRenderer {
             OntologyRenderer.labelsToDrawPoolUsed++;
           }
           labelItem.edge = edge;
-          labelItem.leftRightX = leftRightX;
-          labelItem.rightLeftX = rightLeftX;
+          labelItem.leftRightX = p1x;
+          labelItem.rightLeftX = p2x;
           labelItem.leftNode = leftNode;
           labelItem.rightNode = rightNode;
-          labelItem.cpDist = cpDist;
+          labelItem.cpDist = sagAmount;
           labelItem.avgScale = avgScale;
           labelItem.themeColor = themeColor;
           labelItem.alpha = alpha;
@@ -798,67 +785,43 @@ export class OntologyRenderer {
       }
     }
 
-    // 일괄 배치 렌더링 시작 (Draw calls 극단적 최적화)
+    // Crimson Red String Batch Drawing Pass
     for (const [, batch] of OntologyRenderer.edgeBatches) {
       if (batch.edgesList.length === 0) continue;
-      ctx.globalAlpha = batch.alpha;
-      ctx.strokeStyle = batch.themeColor;
-      ctx.lineWidth = batch.lineWidth;
-      
-      if (batch.isDashed) ctx.setLineDash([4, 4]);
+
+      // 1. Thread Shadow Pass
+      ctx.globalAlpha = batch.alpha * 0.4;
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
+      ctx.lineWidth = Math.max(1.0, batch.lineWidth * 0.75);
+      if (batch.isDashed) ctx.setLineDash([6, 4]);
       else ctx.setLineDash([]);
 
       ctx.beginPath();
-      const isLinear = true;
-      const isCluster = layoutMode === 'cluster';
-
-      if (isLinear) {
-        for (const e of batch.edgesList) {
-          ctx.moveTo(e.x1, e.y1);
-          ctx.lineTo(e.x2, e.y2);
-        }
-      } else if (isCluster) {
-        for (const e of batch.edgesList) {
-          if (e.x1 !== undefined && e.y1 !== undefined && e.x2 !== undefined && e.y2 !== undefined) {
-            ctx.moveTo(e.x1, e.y1);
-            ctx.lineTo(e.x2, e.y2);
-          }
-        }
-      } else {
-        for (const e of batch.edgesList) {
-          ctx.moveTo(e.x1, e.y1);
-          ctx.bezierCurveTo(
-            e.x1 + e.cpDist!, e.leftY!,
-            e.x2 - e.cpDist!, e.rightY!,
-            e.x2, e.rightY!
-          );
+      for (const e of batch.edgesList) {
+        ctx.moveTo(e.x1 + 1.5, e.y1 + 2.5);
+        if (e.midX !== undefined && e.midY !== undefined) {
+          ctx.quadraticCurveTo(e.midX + 1.5, e.midY + 2.5, e.x2 + 1.5, e.y2 + 2.5);
+        } else {
+          ctx.lineTo(e.x2 + 1.5, e.y2 + 2.5);
         }
       }
       ctx.stroke();
 
-      // 포도송이 모드 화살표 머리 깃 드로잉
-      if (layoutMode === 'cluster') {
-        for (const e of batch.edgesList) {
-          if (e.arrowX !== undefined && e.arrowY !== undefined && e.arrowAngle !== undefined) {
-            ctx.save();
-            ctx.beginPath();
-            ctx.moveTo(e.arrowX, e.arrowY);
-            ctx.lineTo(
-              e.arrowX - e.arrowSize! * Math.cos(e.arrowAngle - Math.PI / 6),
-              e.arrowY - e.arrowSize! * Math.sin(e.arrowAngle - Math.PI / 6)
-            );
-            ctx.lineTo(
-              e.arrowX - e.arrowSize! * Math.cos(e.arrowAngle + Math.PI / 6),
-              e.arrowY - e.arrowSize! * Math.sin(e.arrowAngle + Math.PI / 6)
-            );
-            ctx.closePath();
-            ctx.fillStyle = batch.themeColor;
-            ctx.globalAlpha = batch.alpha;
-            ctx.fill();
-            ctx.restore();
-          }
+      // 2. Crimson Red String Main Pass
+      ctx.globalAlpha = batch.alpha;
+      ctx.strokeStyle = batch.themeColor;
+      ctx.lineWidth = Math.max(1.6, batch.lineWidth);
+
+      ctx.beginPath();
+      for (const e of batch.edgesList) {
+        ctx.moveTo(e.x1, e.y1);
+        if (e.midX !== undefined && e.midY !== undefined) {
+          ctx.quadraticCurveTo(e.midX, e.midY, e.x2, e.y2);
+        } else {
+          ctx.lineTo(e.x2, e.y2);
         }
       }
+      ctx.stroke();
     }
 
     // flowParticlesList 에 쌓인 펄스 파티클들을 렌더링
@@ -968,376 +931,171 @@ export class OntologyRenderer {
   // Legacy getColorPalette removed -> We use Flat Design and themeColor inheritance
 
   private static renderNodes(rc: RenderContext): void {
-    const { ctx, sortedNodesBuffer, activeNodeId, hoveredNodeId, activeTreeSet, canvasW, canvasH, zoom, layoutMode = 'mindmap', nodeMap } = rc;
+    const { ctx, sortedNodesBuffer, activeNodeId, hoveredNodeId, canvasW, canvasH, zoom } = rc;
     const isFastPath = !!(rc.isInteractive || rc.isOrbiting);
 
-    // activeNodeId가 존재할 때 그의 이웃 노드들을 O(1) 조회용 Set으로 구성 (매 프레임 edges 순회 방지 캐싱)
-    if (activeNodeId !== this.lastActiveNodeId) {
-      this.cachedNeighborsSet.clear();
-      if (activeNodeId) {
-        for (const edge of rc.edges) {
-          if (edge.source === activeNodeId) {
-            this.cachedNeighborsSet.add(edge.target);
-          } else if (edge.target === activeNodeId) {
-            this.cachedNeighborsSet.add(edge.source);
-          }
-        }
-      }
-      this.lastActiveNodeId = activeNodeId;
-    }
-    const neighborsSet = this.cachedNeighborsSet;
-
-    // activeNodeId가 변경되었을 때 하위 자손 노드들을 캐싱 (BFS)
-    if (activeNodeId !== this.lastActiveNodeIdForDescendants) {
-      this.cachedDescendantsSet.clear();
-      if (activeNodeId && activeNodeId !== 'root-HCHPS') {
-        const queue = [activeNodeId];
-        while (queue.length > 0) {
-          const currentId = queue.shift()!;
-          const children = OntologyLayout.lastTreeChildrenMap.get(currentId) || [];
-          for (const childId of children) {
-            if (!this.cachedDescendantsSet.has(childId)) {
-              this.cachedDescendantsSet.add(childId);
-              queue.push(childId);
-            }
-          }
-        }
-      }
-      this.lastActiveNodeIdForDescendants = activeNodeId;
-    }
-    const descendantsSet = this.cachedDescendantsSet;
-
-    // 1. 전역 텍스트 겹침 방지(Text Overlap Prevention) 사전 계산 (textBoxPool 활용을 통한 GC 프리)
-    this.drawnTextBoxesList.length = 0;
-    let poolIdx = 0;
-    const getTextBoxFromPool = (x1: number, y1: number, x2: number, y2: number) => {
-      if (poolIdx >= this.textBoxPool.length) {
-        this.textBoxPool.push({ x1: 0, y1: 0, x2: 0, y2: 0 });
-      }
-      const box = this.textBoxPool[poolIdx++];
-      box.x1 = x1;
-      box.y1 = y1;
-      box.x2 = x2;
-      box.y2 = y2;
-      return box;
-    };
-    OntologyRenderer.textAllowedSet.clear();
-
-    // 중요도(renderSize) 내림차순으로 정렬된 노드 리스트 복사본 생성 (캐시가 있으면 캐시 사용)
-    const centralitySorted = rc.centralitySortedNodes || [...sortedNodesBuffer].sort((a, b) => {
-      const sizeA = a.renderSize ?? 0.5;
-      const sizeB = b.renderSize ?? 0.5;
-      return sizeB - sizeA;
-    });
-
-    if (isFastPath) {
-      // 상호작용(드래그, 줌, 패닝, 공전 등) 중일 때는 오버헤드가 큰 겹침 검사를 전면 생략하고
-      // 오직 루트 노드, 활성 노드, 호버 노드, 핵심 노드, 그리고 활성 노드의 이웃 노드 및 활성 트리 노드에 텍스트 드로잉 허용
-      for (const node of centralitySorted) {
-        if (node.layoutHidden) continue;
-        if (node.renderX < -CULL_MARGIN || node.renderX > canvasW + CULL_MARGIN ||
-            node.renderY < -CULL_MARGIN || node.renderY > canvasH + CULL_MARGIN) {
-          continue;
-        }
-        const isActive = node.id === activeNodeId;
-        const isHovered = node.id === hoveredNodeId;
-        const isCenter = node.orbitIndex === 0;
-        const isHighlyCentral = (node.renderSize ?? 0.5) > 0.85;
-        const isNeighbor = activeNodeId && neighborsSet.has(node.id);
-        const isTreeActive = activeNodeId && activeTreeSet.has(node.id);
-        const isDirectChild = !!(activeNodeId && node.parentId === activeNodeId);
-
-        if (isCenter || isActive || isHovered || isHighlyCentral || isDirectChild || isNeighbor || isTreeActive) {
-          OntologyRenderer.textAllowedSet.add(node.id);
-        }
-      }
-    } else {
-      OntologyRenderer.spatialGrid.clear();
-      OntologyRenderer.cellArrayPoolUsed = 0;
-      const gridCellSize = 120;
-
-      for (const node of centralitySorted) {
-        if (node.layoutHidden) continue;
-        if (node.renderX < -CULL_MARGIN || node.renderX > canvasW + CULL_MARGIN ||
-            node.renderY < -CULL_MARGIN || node.renderY > canvasH + CULL_MARGIN) {
-          continue;
-        }
-        
-        const isActive = node.id === activeNodeId;
-        const isHovered = node.id === hoveredNodeId;
-
-        // 최상위 루트 노드, 활성 노드, 호버 노드는 무조건 텍스트 표시 허용 (자식/이웃 노드는 겹침 검사 단계로 이양)
-        if (node.orbitIndex === 0 || isActive || isHovered) {
-          OntologyRenderer.textAllowedSet.add(node.id);
-          
-          // 예상 바운딩 박스 계산 및 등록
-          const nodeScale = node.perspectiveScale ?? 1.0;
-          const sizeFactor = 0.8 + 0.5 * (node.renderSize ?? 0.5);
-          const localZoom = zoom * nodeScale * sizeFactor;
-          const dotRadius = Math.max(0.1, (4 + 6 * sizeFactor) * localZoom * (isActive || isHovered ? 1.15 : 1.0));
-          const textOffsetX = dotRadius + 6 * localZoom;
-          const fontSize = Math.round((10 * localZoom) / 2) * 2;
-          
-          let textWidth = (node.label || '').length * 7.5;
-          if (node._cachedTextWidth) {
-            const cache = node._cachedTextWidth;
-            textWidth = cache['600'] || cache['500'] || textWidth;
-          }
-          
-          const textH = fontSize + 4 * localZoom;
-          const textW = textWidth + 8 * localZoom;
-          const x1 = node.renderX + textOffsetX - 4 * localZoom - 6;
-          const y1 = node.renderY - textH / 2 - 3;
-          const x2 = x1 + textW + 12;
-          const y2 = y1 + textH + 6;
-          
-          const box = getTextBoxFromPool(x1, y1, x2, y2);
-          this.drawnTextBoxesList.push(box);
-          OntologyRenderer.addBoxToGrid(box, gridCellSize);
-          continue;
-        }
-
-        // 텍스트 라벨 최대 등록 한계 설정 (줌이 극도로 작을 때는 복잡도 방지를 위해 100개로 축소 제한)
-        const maxTextLimit = zoom < 0.5 ? 100 : 220;
-        if (this.drawnTextBoxesList.length >= maxTextLimit) {
-          continue;
-        }
-
-        // 텍스트 바운딩 박스 계산
-        const nodeScale = node.perspectiveScale ?? 1.0;
-        const sizeFactor = 0.8 + 0.5 * (node.renderSize ?? 0.5);
-        const localZoom = zoom * nodeScale * sizeFactor;
-        const dotRadius = Math.max(0.1, (4 + 6 * sizeFactor) * localZoom);
-        const textOffsetX = dotRadius + 6 * localZoom;
-        const fontSize = Math.round((10 * localZoom) / 2) * 2;
-        
-        let textWidth = (node.label || '').length * 7.5;
-        if (node._cachedTextWidth) {
-          const cache = node._cachedTextWidth;
-          textWidth = cache['600'] || cache['500'] || textWidth;
-        }
-        
-        const textH = fontSize + 4 * localZoom;
-        const textW = textWidth + 8 * localZoom;
-        
-        // 여유 마진 버퍼를 포함하여 겹침 검사 (줌 배율이 작을 시 충돌 마진 대폭 축소)
-        const marginX = zoom < 0.5 ? 2 : 8;
-        const marginY = zoom < 0.5 ? 1 : 4;
-        const x1 = node.renderX + textOffsetX - 4 * localZoom - marginX;
-        const y1 = node.renderY - textH / 2 - marginY;
-        const x2 = x1 + textW + (marginX * 2);
-        const y2 = y1 + textH + (marginY * 2);
-
-        const rect = { x1, y1, x2, y2 };
-        
-        // 이미 그려진 텍스트 박스들과의 겹침 검사 (공간 분할 테이블 조회)
-        const hasOverlap = OntologyRenderer.checkOverlapWithGrid(rect, gridCellSize);
-
-        if (!hasOverlap) {
-          OntologyRenderer.textAllowedSet.add(node.id);
-          const box = getTextBoxFromPool(x1, y1, x2, y2);
-          this.drawnTextBoxesList.push(box);
-          OntologyRenderer.addBoxToGrid(box, gridCellSize);
-        }
-      }
-    }
-
-    // 2. Compute animation clock cache once per frame:
-    const riskPulse = 1.0 + 0.4 * Math.sin(Date.now() / 250);
-
-    // ─── Pass 1: Draw Node Spheres/Dots ───
     for (const node of sortedNodesBuffer) {
       if (node.layoutHidden) continue;
       if (node.renderX < -CULL_MARGIN || node.renderX > canvasW + CULL_MARGIN) continue;
       if (node.renderY < -CULL_MARGIN || node.renderY > canvasH + CULL_MARGIN) continue;
 
       const isActive = node.id === activeNodeId;
-      const isTreeActive = activeNodeId && activeTreeSet.has(node.id);
       const isHovered = node.id === hoveredNodeId;
-      const isNeighbor = activeNodeId && neighborsSet.has(node.id);
-      
-      const isInactiveOutsideFocus = !!(activeNodeId && !isActive && !isTreeActive && !isNeighbor && node.id !== 'root-HCHPS');
 
       const nodeScale = node.perspectiveScale ?? 1.0;
       const weight = node.renderSize ?? 0.5;
       const sizeFactor = 0.8 + 0.5 * weight;
-      const localZoom = zoom * nodeScale * sizeFactor;
-      
-      // Cache localZoom for Pass 2/3:
+      const localZoom = Math.max(0.2, zoom * nodeScale * sizeFactor);
       node._localZoom = localZoom;
 
-      // ─── Semantic Zooming (LOD 2.0) ───
-      let isLODDot = !OntologyRenderer.textAllowedSet.has(node.id);
+      const cardW = 115 * localZoom;
+      const cardH = 75 * localZoom;
+      node.nodeRadius = Math.max(cardW, cardH) / (2 * Math.max(0.1, zoom));
 
-      if (activeNodeId && nodeMap) {
-        const activeNode = nodeMap.get(activeNodeId);
-        const isActiveNode = node.id === activeNodeId;
-        const isParentNode = activeNode && node.id === activeNode.parentId;
-        const isDirectChildNode = node.parentId === activeNodeId;
-        if (!isActiveNode && !isParentNode && !isDirectChildNode) {
-          isLODDot = true;
+      // Modern MindMap Node Card Styling
+      const layer = node.effectiveLayer ?? (node.layerId ?? 0);
+      let cardBgColor = '#1e293b'; // Slate-800
+      let accentColor = '#3b82f6'; // Blue for L0
+
+      if (layer === 1 || node.group === 'MACRO_RESEARCH') {
+        accentColor = '#10b981'; // Emerald for L1
+      } else if (layer === 2 || node.group === 'DCF_MODELING' || node.group === 'DATA_PIPELINE') {
+        accentColor = '#f59e0b'; // Amber for L2
+      } else if (layer === 3 || node.group === 'INFRASTRUCTURE' || node.group === 'OTHER') {
+        accentColor = '#8b5cf6'; // Purple for L3
+      }
+
+      if (node.customColor) {
+        accentColor = node.customColor;
+      }
+
+      // Straight 0° alignment (no tilt)
+      const tiltAngle = 0;
+
+      ctx.save();
+      ctx.translate(node.renderX, node.renderY);
+      ctx.rotate(tiltAngle);
+
+      // 1. Subtle Node Drop Shadow
+      if (!isFastPath) {
+        ctx.shadowColor = (isActive || isHovered) ? 'rgba(56, 189, 248, 0.45)' : 'rgba(0, 0, 0, 0.35)';
+        ctx.shadowBlur = (isActive || isHovered ? 12 : 6) * localZoom;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 3 * localZoom;
+      }
+
+      // 2. Node Rect Body
+      const halfW = cardW / 2;
+      const halfH = cardH / 2;
+      const cornerR = Math.max(4, 6 * localZoom);
+
+      // Crimson Pulsating Aura Glow Ring (#FF0044) for risk nodes
+      const isRiskNode = (rc.riskNodesMap && rc.riskNodesMap.has(node.id)) || (node as any).verificationStatus === 'risk-warning';
+      if (isRiskNode) {
+        const pulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.005);
+        ctx.save();
+        ctx.shadowColor = '#FF0044';
+        ctx.shadowBlur = (18 + 12 * pulse) * localZoom;
+        ctx.strokeStyle = `rgba(255, 0, 68, ${0.75 + 0.25 * pulse})`;
+        ctx.lineWidth = (3.5 + 1.5 * pulse) * localZoom;
+
+        ctx.beginPath();
+        if (ctx.roundRect) {
+          ctx.roundRect(-halfW - 4 * localZoom, -halfH - 4 * localZoom, cardW + 8 * localZoom, cardH + 8 * localZoom, cornerR + 2 * localZoom);
+        } else {
+          ctx.rect(-halfW - 4 * localZoom, -halfH - 4 * localZoom, cardW + 8 * localZoom, cardH + 8 * localZoom);
         }
-      }
-
-      // Cache isLODDot:
-      node._isLODDot = isLODDot;
-
-      const isCluster = layoutMode === 'cluster';
-      const baseRadius = isCluster ? (24 + weight * 26) : (4 + 6 * sizeFactor);
-      const dotRadius = Math.max(0.1, baseRadius * localZoom * (isActive || isHovered ? 1.15 : 1.0));
-      
-      // Cache dotRadius:
-      node._computedDotRadius = dotRadius;
-
-      const themeColor = node.themeColor || '#94A3B8';
-
-      const risk = node.riskFactor ?? 0;
-      const isRiskOrigin = node.group === 'SYSTEM_RISK';
-      const isRiskAffected = risk > 0.3;
-      const isRiskHigh = isRiskOrigin || isRiskAffected;
-
-      const needsShadow = node.isHighlighted || isActive || isHovered || isRiskHigh;
-      const needsGlow = isActive || isHovered || isRiskHigh;
-
-      if ((needsShadow || needsGlow) && !isFastPath) {
-        ctx.beginPath();
-        const glowRadius = dotRadius * (isActive || isHovered ? 1.25 : 1.15);
-        ctx.arc(node.renderX, node.renderY, glowRadius, 0, Math.PI * 2);
-        OntologyRenderer.setFillStyle(ctx, isRiskHigh ? 'rgba(239, 68, 68, 0.15)' : (node.isHighlighted ? 'rgba(245, 158, 11, 0.15)' : 'rgba(255, 255, 255, 0.15)'));
-        ctx.fill();
-      }
-
-      if (isRiskHigh && !isFastPath) {
-        ctx.beginPath();
-        ctx.arc(node.renderX, node.renderY, dotRadius * (1.2 + riskPulse * 0.15), 0, Math.PI * 2);
-        OntologyRenderer.setStrokeStyle(ctx, `rgba(239, 68, 68, ${0.45 - riskPulse * 0.15})`);
-        OntologyRenderer.setLineWidth(ctx, 1.5 * localZoom);
         ctx.stroke();
+        ctx.restore();
       }
-
-      ctx.beginPath();
-      ctx.arc(node.renderX, node.renderY, dotRadius, 0, Math.PI * 2);
-      OntologyRenderer.setFillStyle(ctx, themeColor);
-      ctx.fill();
-
-      const strokeStyle = isLODDot 
-        ? (isInactiveOutsideFocus ? 'rgba(255, 255, 255, 0.4)' : '#FFFFFF')
-        : ((isActive || isHovered) ? '#FFFFFF' : 'rgba(255, 255, 255, 0.85)');
-      const strokeWidth = (isActive || isHovered ? 2.25 : (isCluster ? 2.0 : 1.25)) * localZoom;
-
-      OntologyRenderer.setStrokeStyle(ctx, strokeStyle);
-      OntologyRenderer.setLineWidth(ctx, strokeWidth);
-      ctx.stroke();
-
-      node.nodeRadius = dotRadius / zoom;
-    }
-
-    // ─── Pass 2: Draw capsules for backing plates ───
-    OntologyRenderer.setFillStyle(ctx, 'rgba(255, 255, 255, 0.88)');
-    for (const node of sortedNodesBuffer) {
-      if (node.layoutHidden) continue;
-      if (node.renderX < -CULL_MARGIN || node.renderX > canvasW + CULL_MARGIN) continue;
-      if (node.renderY < -CULL_MARGIN || node.renderY > canvasH + CULL_MARGIN) continue;
-      if (node._isLODDot) continue;
-
-      const isCluster = layoutMode === 'cluster';
-      if (isCluster) {
-        // Cluster text is drawn directly inside the node in Pass 3/later, skip backing capsule
-        continue;
-      }
-
-      const isActive = node.id === activeNodeId;
-      const isTreeActive = activeNodeId && activeTreeSet.has(node.id);
-      const isHovered = node.id === hoveredNodeId;
-
-      const localZoom = node._localZoom!;
-      const dotRadius = node._computedDotRadius!;
-
-      const isCenter = node.orbitIndex === 0;
-      let labelText = node.label || '';
-      const isCategoryNode = node.orbitIndex !== undefined && node.orbitIndex <= 3;
-      const isCategory1 = node.orbitIndex === 1;
-      const isDirectChild = activeNodeId && node.parentId === activeNodeId;
-      const isDescendant = activeNodeId && descendantsSet.has(node.id);
-      
-      const skipTruncate = isActive || isHovered || isCenter || isDirectChild || isDescendant || isCategory1 || (!activeNodeId && isCategoryNode);
-      if (!skipTruncate && labelText.length > 7) {
-        labelText = labelText.substring(0, 7) + '...';
-      }
-
-      const weightStyle = (isActive || isTreeActive) ? '600' : '500';
-      const cacheKey = `${weightStyle}_${labelText}`;
-      if (!node._cachedTextWidth) node._cachedTextWidth = {};
-      if (!node._cachedTextWidth[cacheKey]) {
-          node._cachedTextWidth[cacheKey] = this.getTextWidth(ctx, labelText, `${weightStyle} 12px 'Pretendard', sans-serif`);
-      }
-      const textWidth = node._cachedTextWidth[cacheKey] * localZoom;
-      const fontSize = Math.max(9.5, Math.round((12 * localZoom) / 2) * 2);
-
-      const textOffsetX = dotRadius + 6 * localZoom;
-      const textY = node.renderY;
-      const textH = fontSize + 4 * localZoom;
-      const textW = textWidth + 8 * localZoom;
 
       ctx.beginPath();
       if (ctx.roundRect) {
-        ctx.roundRect(node.renderX + textOffsetX - 4 * localZoom, textY - textH / 2, textW, textH, Math.max(0.1, 4 * localZoom));
+        ctx.roundRect(-halfW, -halfH, cardW, cardH, cornerR);
       } else {
-        ctx.rect(node.renderX + textOffsetX - 4 * localZoom, textY - textH / 2, textW, textH);
+        ctx.rect(-halfW, -halfH, cardW, cardH);
+      }
+
+      ctx.fillStyle = cardBgColor;
+      ctx.fill();
+
+      // Reset shadow for crisp inner details
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+
+      // 3. Modern Card Border
+      ctx.strokeStyle = (isActive || isHovered) ? '#38bdf8' : 'rgba(71, 85, 105, 0.6)';
+      ctx.lineWidth = (isActive || isHovered ? 2.0 : 1.0) * localZoom;
+      ctx.stroke();
+
+      // 4. Left Accent Indicator Bar
+      ctx.fillStyle = accentColor;
+      ctx.beginPath();
+      if (ctx.roundRect) {
+        ctx.roundRect(-halfW, -halfH, 4 * localZoom, cardH, [cornerR, 0, 0, cornerR]);
+      } else {
+        ctx.rect(-halfW, -halfH, 4 * localZoom, cardH);
       }
       ctx.fill();
-    }
 
-    // ─── Pass 3: Draw Text Labels ───
-    for (const node of sortedNodesBuffer) {
-      if (node.layoutHidden) continue;
-      if (node.renderX < -CULL_MARGIN || node.renderX > canvasW + CULL_MARGIN) continue;
-      if (node.renderY < -CULL_MARGIN || node.renderY > canvasH + CULL_MARGIN) continue;
-      if (node._isLODDot) continue;
+      // 5. Verification Status Pill Badges at Top Right Corner
+      const vStatus: VerificationStatus = (node as any).verificationStatus || 'uncompleted';
 
-      const isActive = node.id === activeNodeId;
-      const isTreeActive = activeNodeId && activeTreeSet.has(node.id);
-      const isHovered = node.id === hoveredNodeId;
-
-      const localZoom = node._localZoom!;
-      const dotRadius = node._computedDotRadius!;
-
-      const isCluster = layoutMode === 'cluster';
-
-      if (isCluster) {
-        this.drawNodeTextInside(ctx, node, dotRadius, localZoom, isActive, isTreeActive || false, isFastPath);
-      } else {
-        const isCenter = node.orbitIndex === 0;
-        let labelText = node.label || '';
-        const isCategoryNode = node.orbitIndex !== undefined && node.orbitIndex <= 3;
-        const isCategory1 = node.orbitIndex === 1;
-        const isDirectChild = activeNodeId && node.parentId === activeNodeId;
-        const isDescendant = activeNodeId && descendantsSet.has(node.id);
-        
-        const skipTruncate = isActive || isHovered || isCenter || isDirectChild || isDescendant || isCategory1 || (!activeNodeId && isCategoryNode);
-        if (!skipTruncate && labelText.length > 7) {
-          labelText = labelText.substring(0, 7) + '...';
-        }
-
-        const weightStyle = (isActive || isTreeActive) ? '500' : '400';
-        const fontSize = Math.max(8.0, Math.round((10 * localZoom) / 2) * 2);
-
-        const textOffsetX = dotRadius + 6 * localZoom;
-        const textY = node.renderY;
-
-        OntologyRenderer.setFont(ctx, `${weightStyle} ${fontSize}px 'Pretendard', sans-serif`);
-        ctx.textAlign = 'left';
+      if (vStatus === 'verified') {
+        const badgeX = halfW - 8 * localZoom;
+        const badgeY = -halfH + 8 * localZoom;
+        ctx.beginPath();
+        ctx.arc(badgeX, badgeY, 5.5 * localZoom, 0, Math.PI * 2);
+        ctx.fillStyle = '#16a34a';
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `bold ${Math.max(5, 6 * localZoom)}px sans-serif`;
+        ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-
-        OntologyRenderer.setFillStyle(ctx, (isActive || isTreeActive) ? '#0F172A' : '#475569');
-        ctx.fillText(labelText, node.renderX + textOffsetX, textY);
+        ctx.fillText('✓', badgeX, badgeY);
+      } else if (vStatus === 'in-progress') {
+        const badgeX = halfW - 8 * localZoom;
+        const badgeY = -halfH + 8 * localZoom;
+        ctx.beginPath();
+        ctx.arc(badgeX, badgeY, 5.5 * localZoom, 0, Math.PI * 2);
+        ctx.fillStyle = '#2563eb';
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `bold ${Math.max(5, 6 * localZoom)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('🔍', badgeX, badgeY);
+      } else if (vStatus === 'risk-warning') {
+        const badgeX = halfW - 8 * localZoom;
+        const badgeY = -halfH + 8 * localZoom;
+        ctx.beginPath();
+        ctx.arc(badgeX, badgeY, 6 * localZoom, 0, Math.PI * 2);
+        ctx.fillStyle = '#dc2626';
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `bold ${Math.max(5.5, 6.5 * localZoom)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('!', badgeX, badgeY);
       }
-    }
 
-    ctx.globalAlpha = 1.0;
-    ctx.shadowColor = 'transparent';
-    ctx.shadowBlur = 0;
-    ctx.shadowOffsetY = 0;
+      // 6. Node Label Text inside Card
+      let labelText = node.label || '';
+      if (labelText.length > 14) {
+        labelText = labelText.substring(0, 13) + '...';
+      }
+
+      const fontSize = Math.max(8.5, 10.5 * localZoom);
+      ctx.font = `bold ${fontSize}px 'Pretendard', sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#f8fafc'; // Crisp White
+      ctx.fillText(labelText, 2 * localZoom, 0);
+
+      ctx.restore();
+    }
   }
 
   private static drawNodeTextInside(

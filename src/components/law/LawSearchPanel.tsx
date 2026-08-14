@@ -123,7 +123,7 @@ export function LawSearchPanel() {
       <div className="flex flex-col gap-3">
         <form onSubmit={handleSearch} className="flex gap-2">
           <div className="relative flex-1">
-            <Search className="absolute left-4 top-3.5 text-slate-400" size={16} />
+            <Search className="absolute left-4 top-3.5 text-slate-400 pointer-events-none" size={16} />
             <input
               type="text"
               value={query}
@@ -132,7 +132,7 @@ export function LawSearchPanel() {
                 target === 'admrul' ? '행정규칙명 (예: 세출예산 집행기준)' :
                 target === 'ordin' ? '조례/자치법규명 (예: 강남구 조례)' : '법령명 (예: 지방재정법)'
               }을 입력하세요...`}
-              className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-medium placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 shadow-3xs"
+              className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-medium placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 shadow-3xs cursor-text"
             />
           </div>
           <button

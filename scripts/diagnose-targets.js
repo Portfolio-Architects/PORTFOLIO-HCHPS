@@ -2,9 +2,56 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
+const args = process.argv.slice(2);
+const isForce = args.includes('--force');
+const skipEslint = args.includes('--skip-eslint');
+const isCompact = args.includes('--compact');
+
 console.log('🔍 Starting Codebase Diagnostics (diagnose-targets.js)...');
 
 const reportPath = path.join(process.cwd(), 'data', 'diagnose_report.json');
+const cachePath = path.join(process.cwd(), 'data', '.diagnose_cache.json');
+const LOCK_GUARD_MS = 180 * 1000;
+
+// Helper to get latest mtime under src/
+function getLatestSrcMtime(dir) {
+  let maxMtime = 0;
+  if (!fs.existsSync(dir)) return maxMtime;
+  const files = fs.readdirSync(dir);
+  for (const file of files) {
+    const full = path.join(dir, file);
+    const stat = fs.statSync(full);
+    if (stat.isDirectory()) {
+      if (file !== 'node_modules' && file !== '.next') {
+        maxMtime = Math.max(maxMtime, getLatestSrcMtime(full));
+      }
+    } else if (file.endsWith('.ts') || file.endsWith('.tsx') || file.endsWith('.js') || file.endsWith('.json')) {
+      maxMtime = Math.max(maxMtime, stat.mtimeMs);
+    }
+  }
+  return maxMtime;
+}
+
+// 180s Lock Guard & Cache Check
+if (!isForce && fs.existsSync(cachePath) && fs.existsSync(reportPath)) {
+  try {
+    const cacheData = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
+    const now = Date.now();
+    const elapsed = now - (cacheData.timestampMs || 0);
+    const srcDir = path.join(process.cwd(), 'src');
+    const latestSrcMtime = getLatestSrcMtime(srcDir);
+    const sourceUnchanged = latestSrcMtime <= (cacheData.timestampMs || 0);
+
+    if (elapsed < LOCK_GUARD_MS && sourceUnchanged) {
+      const remainingSec = Math.round((LOCK_GUARD_MS - elapsed) / 1000);
+      console.log(`  ↳ ⏱️  [LOCK GUARD] Cache valid (${remainingSec}s remaining, 0 source modifications). Bypassing scan.`);
+      process.exit(0);
+    }
+  } catch (cacheErr) {
+    // Ignore cache parse error, proceed to full scan
+  }
+}
+
 const report = {
   timestamp: new Date().toISOString(),
   lintWarnings: [],
@@ -18,40 +65,44 @@ const report = {
 };
 
 // 1. Run ESLint to gather formatting/style/type issues
-try {
-  console.log('  ↳ Running ESLint syntax check...');
-  // eslint --format json outputs valid json. It will return non-zero exit code if there are errors, so we catch in try/catch.
-  let eslintOutput = '';
+if (!skipEslint) {
   try {
-    eslintOutput = execSync('npx eslint --format json src', { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'ignore'] });
-  } catch (err) {
-    // If lint issues exist, it throws an error but outputs json to stdout
-    eslintOutput = err.stdout || '';
-  }
+    console.log('  ↳ Running ESLint syntax check...');
+    // eslint --format json outputs valid json. It will return non-zero exit code if there are errors, so we catch in try/catch.
+    let eslintOutput = '';
+    try {
+      eslintOutput = execSync('npx eslint --format json src', { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'ignore'] });
+    } catch (err) {
+      // If lint issues exist, it throws an error but outputs json to stdout
+      eslintOutput = err.stdout || '';
+    }
 
-  if (eslintOutput.trim()) {
-    const results = JSON.parse(eslintOutput);
-    results.forEach(fileResult => {
-      const messages = fileResult.messages || [];
-      const relevantMessages = messages.filter(m => m.severity >= 1); // 1 = warning, 2 = error
-      
-      if (relevantMessages.length > 0) {
-        const relativeFilePath = path.relative(process.cwd(), fileResult.filePath);
-        relevantMessages.forEach(msg => {
-          report.lintWarnings.push({
-            file: relativeFilePath.replace(/\\/g, '/'),
-            line: msg.line,
-            column: msg.column,
-            ruleId: msg.ruleId,
-            message: msg.message,
-            severity: msg.severity === 2 ? 'error' : 'warning'
+    if (eslintOutput.trim()) {
+      const results = JSON.parse(eslintOutput);
+      results.forEach(fileResult => {
+        const messages = fileResult.messages || [];
+        const relevantMessages = messages.filter(m => m.severity >= 1); // 1 = warning, 2 = error
+        
+        if (relevantMessages.length > 0) {
+          const relativeFilePath = path.relative(process.cwd(), fileResult.filePath);
+          relevantMessages.forEach(msg => {
+            report.lintWarnings.push({
+              file: relativeFilePath.replace(/\\/g, '/'),
+              line: msg.line,
+              column: msg.column,
+              ruleId: msg.ruleId,
+              message: msg.message,
+              severity: msg.severity === 2 ? 'error' : 'warning'
+            });
           });
-        });
-      }
-    });
+        }
+      });
+    }
+  } catch (eslintFatal) {
+    console.warn('  ⚠️ ESLint diagnostic failed or yielded invalid JSON:', eslintFatal.message);
   }
-} catch (eslintFatal) {
-  console.warn('  ⚠️ ESLint diagnostic failed or yielded invalid JSON:', eslintFatal.message);
+} else {
+  console.log('  ↳ ℹ️  [SKIP] ESLint subprocess skipped via --skip-eslint flag.');
 }
 
 // Helper to recursively list files
@@ -201,9 +252,34 @@ report.summary.totalWarnings = report.lintWarnings.length;
 report.summary.totalViolations = report.architecturalViolations.length;
 report.summary.totalBottlenecks = report.performanceBottlenecks.length;
 
-// Write report to file
+const isClean = report.summary.totalWarnings === 0 && 
+                report.summary.totalViolations === 0 && 
+                report.summary.totalBottlenecks === 0;
+
+let outputContent;
+if (isClean || isCompact) {
+  outputContent = JSON.stringify({
+    ts: report.timestamp,
+    clean: isClean,
+    summary: {
+      w: report.summary.totalWarnings,
+      v: report.summary.totalViolations,
+      b: report.summary.totalBottlenecks
+    },
+    ...(isClean ? {} : {
+      warn: report.lintWarnings.map(w => ({ f: w.file, l: w.line, r: w.ruleId })),
+      viol: report.architecturalViolations.map(v => ({ f: v.file, l: v.line, m: v.message })),
+      bot: report.performanceBottlenecks.map(b => ({ f: b.file, l: b.line, m: b.message }))
+    })
+  });
+} else {
+  outputContent = JSON.stringify(report, null, 2);
+}
+
+// Write report and cache to file
 try {
-  fs.writeFileSync(reportPath, JSON.stringify(report, null, 2), 'utf-8');
+  fs.writeFileSync(reportPath, outputContent, 'utf-8');
+  fs.writeFileSync(cachePath, JSON.stringify({ timestampMs: Date.now() }), 'utf-8');
   console.log(`🎉 Diagnostic report successfully compiled to data/diagnose_report.json!`);
   console.log(`   - Lint Warnings: ${report.summary.totalWarnings}`);
   console.log(`   - Arch Violations: ${report.summary.totalViolations}`);

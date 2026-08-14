@@ -1,5 +1,5 @@
  
-import { useState, useEffect, useMemo, useDeferredValue } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { BudgetCategory, BudgetEntry } from '@/types';
 
 function formatN(n: number) { return n.toLocaleString('ko-KR'); }
@@ -64,8 +64,15 @@ export function useBudgetFilters(
   const [filterMonth, setFilterMonth] = useState<string>(initialSaved.month);
   const [filterStatus, setFilterStatus] = useState<string>(initialSaved.status);
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>('');
 
-  const deferredSearchTerm = useDeferredValue(searchTerm);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
   const [isLoaded] = useState(true);
 
   const handleSaveFilters = () => {
@@ -88,6 +95,7 @@ export function useBudgetFilters(
     setFilterMonth('전체');
     setFilterStatus('전체');
     setSearchTerm('');
+    setDebouncedSearchTerm('');
     localStorage.removeItem('hchps-budget-filters-v2');
   };
 
@@ -104,13 +112,31 @@ export function useBudgetFilters(
   }, [filterMonth]);
 
   const searchKeyword = useMemo(() => {
-    return deferredSearchTerm.trim().toLowerCase();
-  }, [deferredSearchTerm]);
+    return debouncedSearchTerm.trim().toLowerCase();
+  }, [debouncedSearchTerm]);
+
+  // Pre-index matching category IDs from entries in O(Entries) time for ultra-fast lookup
+  const matchingCategoryIdsFromEntries = useMemo(() => {
+    if (!searchKeyword) return null;
+    const set = new Set<string>();
+    for (let i = 0; i < entries.length; i++) {
+      const e = entries[i];
+      if (
+        (e.docRegNum || '').toLowerCase().includes(searchKeyword) ||
+        (e.purpose || '').toLowerCase().includes(searchKeyword) ||
+        (e.memo || '').toLowerCase().includes(searchKeyword)
+      ) {
+        set.add(e.categoryId);
+      }
+    }
+    return set;
+  }, [entries, searchKeyword]);
 
   const { uniquePolicies, unitOptions, detailOptions, statOptions, filteredCategoriesTree } = useMemo(() => {
     const policySums: Record<string, number> = {};
     const unitSums: Record<string, number> = {};
     const detailSums: Record<string, number> = {};
+    const detailUsedSums: Record<string, number> = {};
     const statSums: Record<string, number> = {};
     const tree: BudgetCategory[] = [];
 
@@ -161,13 +187,7 @@ export function useBudgetFilters(
           (s.prefix || '').toLowerCase().includes(searchKeyword) ||
           (s.calculation || '').toLowerCase().includes(searchKeyword)
         );
-        const inEntries = entries.some(e => 
-          e.categoryId === c.id && (
-            (e.docRegNum || '').toLowerCase().includes(searchKeyword) ||
-            (e.purpose || '').toLowerCase().includes(searchKeyword) ||
-            (e.memo || '').toLowerCase().includes(searchKeyword)
-          )
-        );
+        const inEntries = matchingCategoryIdsFromEntries ? matchingCategoryIdsFromEntries.has(c.id) : false;
         searchMatch = inPolicy || inUnit || inDetail || inName || inStat || inFormation || inManagement || inSubItems || inEntries;
       }
 
@@ -179,6 +199,10 @@ export function useBudgetFilters(
       }
       if (pMatch && uMatch && c.detailedProject) {
         detailSums[c.detailedProject] = (detailSums[c.detailedProject] || 0) + c.totalBudget;
+        const catStats = getCategoryStats(c.id);
+        if (catStats) {
+          detailUsedSums[c.detailedProject] = (detailUsedSums[c.detailedProject] || 0) + (catStats.spent + catStats.planned);
+        }
       }
       if (pMatch && uMatch && dMatch && c.statItem) {
         statSums[c.statItem] = (statSums[c.statItem] || 0) + c.totalBudget;
@@ -192,11 +216,16 @@ export function useBudgetFilters(
     return {
       uniquePolicies: Object.keys(policySums).map(p => ({ value: p, suffix: `${formatN(policySums[p])}원` })),
       unitOptions: Object.keys(unitSums).map(u => ({ value: u, suffix: `${formatN(unitSums[u])}원` })),
-      detailOptions: Object.keys(detailSums).map(d => ({ value: d, suffix: `${formatN(detailSums[d])}원` })),
+      detailOptions: Object.keys(detailSums).map(d => {
+        const total = detailSums[d] || 0;
+        const used = detailUsedSums[d] || 0;
+        const rate = total > 0 ? ((used / total) * 100).toFixed(1) : '0.0';
+        return { value: d, suffix: `${formatN(total)}원 (${rate}%)` };
+      }),
       statOptions: Object.keys(statSums).map(s => ({ value: s, suffix: `${formatN(statSums[s])}원` })),
       filteredCategoriesTree: tree
     };
-  }, [categories, entries, policySet, unitSet, detailSet, statSet, filterStatus, monthNum, searchKeyword, getCategoryStats]);
+  }, [categories, entries, policySet, unitSet, detailSet, statSet, filterStatus, monthNum, searchKeyword, matchingCategoryIdsFromEntries, getCategoryStats]);
 
   const groupedByPolicy = useMemo(() => {
     const groupsMap: Record<string, BudgetCategory[]> = {};
@@ -248,7 +277,7 @@ export function useBudgetFilters(
     filterMonth, setFilterMonth,
     filterStatus, setFilterStatus,
     searchTerm, setSearchTerm,
-    deferredSearchTerm,
+    deferredSearchTerm: debouncedSearchTerm,
     isLoaded,
     handleSaveFilters,
     handleResetFilters,

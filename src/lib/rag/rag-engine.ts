@@ -81,8 +81,8 @@ export class RAGEngine {
     }
   }
 
-  // 3. Simple text chunking by paragraph and size
-  public static chunkText(text: string, maxLen = 400): string[] {
+  // 3. Simple text chunking by paragraph, sentence, and hard size limit
+  public static chunkText(text: string, maxLen = 650): string[] {
     if (!text) return [];
     
     // Split by paragraphs
@@ -90,13 +90,27 @@ export class RAGEngine {
     const chunks: string[] = [];
     let currentChunk = '';
 
+    const pushChunk = (chunkStr: string) => {
+      const trimmed = chunkStr.trim();
+      if (!trimmed) return;
+      if (trimmed.length <= maxLen) {
+        chunks.push(trimmed);
+      } else {
+        for (let i = 0; i < trimmed.length; i += maxLen) {
+          const slice = trimmed.slice(i, i + maxLen).trim();
+          if (slice) chunks.push(slice);
+        }
+      }
+    };
+
     for (const para of paragraphs) {
       const trimmed = para.trim();
       if (!trimmed) continue;
 
       if ((currentChunk + '\n' + trimmed).length > maxLen) {
         if (currentChunk) {
-          chunks.push(currentChunk.trim());
+          pushChunk(currentChunk);
+          currentChunk = '';
         }
         
         // If single paragraph is longer than maxLen, split by sentences
@@ -105,16 +119,28 @@ export class RAGEngine {
           let sentenceChunk = '';
           for (const sentence of sentences) {
             if ((sentenceChunk + ' ' + sentence).length > maxLen) {
-              if (sentenceChunk) chunks.push(sentenceChunk.trim());
-              sentenceChunk = sentence;
+              if (sentenceChunk) {
+                pushChunk(sentenceChunk);
+                sentenceChunk = '';
+              }
+              if (sentence.length > maxLen) {
+                for (let i = 0; i < sentence.length; i += maxLen) {
+                  const part = sentence.slice(i, i + maxLen);
+                  if (i + maxLen < sentence.length) {
+                    pushChunk(part);
+                  } else {
+                    sentenceChunk = part;
+                  }
+                }
+              } else {
+                sentenceChunk = sentence;
+              }
             } else {
-              sentenceChunk = (sentenceChunk + ' ' + sentence).trim();
+              sentenceChunk = sentenceChunk ? (sentenceChunk + ' ' + sentence) : sentence;
             }
           }
           if (sentenceChunk) {
             currentChunk = sentenceChunk;
-          } else {
-            currentChunk = '';
           }
         } else {
           currentChunk = trimmed;
@@ -125,10 +151,23 @@ export class RAGEngine {
     }
     
     if (currentChunk) {
-      chunks.push(currentChunk.trim());
+      pushChunk(currentChunk);
     }
 
-    return chunks.filter(c => c.length > 5);
+    // Final safety guarantee: forcibly split any remaining chunk > maxLen into hard slices
+    const finalChunks: string[] = [];
+    for (const c of chunks) {
+      if (c.length <= maxLen) {
+        finalChunks.push(c);
+      } else {
+        for (let i = 0; i < c.length; i += maxLen) {
+          const slice = c.slice(i, i + maxLen).trim();
+          if (slice) finalChunks.push(slice);
+        }
+      }
+    }
+
+    return finalChunks.filter(c => c.length > 5);
   }
 
   // 4. Korean NLP Bi-gram tokenizer for keyword scoring
@@ -324,11 +363,23 @@ export class RAGEngine {
         }
       }
 
-      // Sort by score descending and return top limit
-      return results
+      // Sort by score descending and filter by threshold > 0.25
+      const filtered = results
         .sort((a, b) => b.score - a.score)
-        .slice(0, limit)
-        .filter(r => r.score > 0.05); // Filter out zero/negligible relations
+        .filter(r => r.score > 0.25);
+
+      // Intra-document chunk deduplication
+      const seenChunks = new Set<string>();
+      const deduplicated: SearchResult[] = [];
+      for (const item of filtered) {
+        const key = `${item.nodeId}:${item.chunk.trim()}`;
+        if (!seenChunks.has(key)) {
+          seenChunks.add(key);
+          deduplicated.push(item);
+        }
+      }
+
+      return deduplicated.slice(0, limit);
     } catch (err) {
       console.error('[RAGEngine] Search failed:', err);
       return [];

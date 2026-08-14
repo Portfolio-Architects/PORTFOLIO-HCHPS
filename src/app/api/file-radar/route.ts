@@ -90,7 +90,7 @@ export async function GET(req: Request) {
       if (!fileData) {
         // Fallback to local AI generation if cache does not exist
         const filePath = path.join(scratchDir, fName);
-        const fileContent = fs.readFileSync(filePath, 'utf-8').slice(0, 4000); // 4k characters max
+        const fileContent = fs.readFileSync(filePath, 'utf-8').slice(0, 2000);
 
         console.log(`[File Radar API] Generating summary/contacts for untracked file: ${fName}`);
 
@@ -100,27 +100,16 @@ export async function GET(req: Request) {
             const genAI = new GoogleGenerativeAI(apiKey);
             const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
             
-            const prompt = `당신은 보건행정 및 보건사업 문서 요약 전문가입니다. 다음 문서 내용을 분석하여 반드시 지정된 JSON 형식으로만 출력하십시오. 다른 설명문이나 코드블록 마크다운(\`\`\`json) 기호 등은 일절 제외하고 순수 JSON 문자열만 출력하십시오.
-            
-            지정된 JSON 형식:
-            {
-              "displayName": "사업 명칭을 간략히 정리한 한글 표시명 (15자 내외)",
-              "summary": [
-                "사업의 핵심 목적이나 주 내용 3줄 요약 중 첫 번째 줄",
-                "예산 규모, 장소 또는 추진 일정 등 3줄 요약 중 두 번째 줄",
-                "기대 효과 및 주요 실행 상세 내용 등 3줄 요약 중 세 번째 줄"
-              ],
-              "contacts": [
-                {
-                  "name": "담당 주무관 또는 팀장 이름 (식별 가능할 경우 기입, 없으면 생략)",
-                  "role": "담당 직무 및 역할 (예: 주무관 (장비 조달))",
-                  "phone": "전화번호 (예: 02-3423-XXXX)"
-                }
-              ]
-            }
-            
-            문서 내용:
-            ${fileContent}`;
+            const prompt = `Analyze document and output JSON only.
+Format:
+{
+  "displayName": "사업 명칭 (15자 내외)",
+  "summary": ["요약 1줄", "요약 2줄", "요약 3줄"],
+  "contacts": [{"name": "이름", "role": "직무", "phone": "전화번호"}]
+}
+
+Content:
+${fileContent}`;
 
             const res = await model.generateContent(prompt);
             const rawText = res.response.text().trim();

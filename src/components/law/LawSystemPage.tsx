@@ -2,7 +2,12 @@
 
 import React, { useState, useMemo } from 'react';
 import { BookOpen, FileText, Search, Scale, Check, Copy, AlertCircle } from 'lucide-react';
-import { LawSearchPanel } from './LawSearchPanel';
+import dynamic from 'next/dynamic';
+
+const LawSearchPanel = dynamic(
+  () => import('./LawSearchPanel').then((mod) => mod.LawSearchPanel),
+  { ssr: false }
+);
 
 interface DictionaryTerm {
   term: string;
@@ -172,7 +177,7 @@ export default function LawSystemPage() {
           <div className="flex flex-col gap-5 animate-fade-in">
             {/* Dictionary Search Bar */}
             <div className="relative w-full">
-              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
+              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 pointer-events-none">
                 <Search size={16} />
               </span>
               <input
@@ -180,7 +185,7 @@ export default function LawSystemPage() {
                 placeholder="용어명, 영문명 또는 정의 검색..."
                 value={dictSearch}
                 onChange={e => setDictSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-semibold placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 shadow-3xs"
+                className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-semibold placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 shadow-3xs cursor-text"
               />
             </div>
 

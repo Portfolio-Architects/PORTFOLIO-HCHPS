@@ -57,7 +57,7 @@ describe('Multi-Agent self-healing loop integration test', () => {
 
     // Verify feedback was passed to the generator in the third call
     const generatorCallArgs = mockLlama.mock.calls[2][0][0].content;
-    expect(generatorCallArgs).toContain('CRITICAL ERROR FROM PREVIOUS ATTEMPT');
+    expect(generatorCallArgs).toMatch(/(FIX ERRORS|CRITICAL ERROR) FROM PREVIOUS ATTEMPT/);
     expect(generatorCallArgs).toContain('Field [age] - Invalid input: expected number, received string');
   });
 

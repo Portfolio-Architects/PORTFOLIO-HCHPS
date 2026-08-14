@@ -7,6 +7,14 @@ const PIN = '0509';
 const CRYPTO_SALT = new TextEncoder().encode('HCHPS-E2EE-SALT');
 
 let cachedMasterKey: CryptoKey | null = null;
+let cachedDecryptedHistory: Record<string, any> | null = null;
+let lastHistoryMtime = 0;
+
+let cachedBackupStats: { son: number; father: number; grandfather: number; total: number } | null = null;
+let lastBackupStatsCheck = 0;
+
+let cachedDiagnoseData: any = null;
+let lastDiagnoseCheck = 0;
 
 async function getMasterKey() {
   if (cachedMasterKey) return cachedMasterKey;
@@ -49,7 +57,13 @@ async function decryptData(encryptedBase64: string): Promise<any> {
   }
 }
 
-async function getBackupStats() {
+async function getBackupStats(): Promise<{ son: number; father: number; grandfather: number; total: number }> {
+  const now = Date.now();
+  // 30-second in-memory cache to prevent blocking file system recursion on every request
+  if (cachedBackupStats && (now - lastBackupStatsCheck < 30000)) {
+    return cachedBackupStats;
+  }
+
   let sonCount = 0;
   let fatherCount = 0;
   let grandfatherCount = 0;
@@ -87,17 +101,21 @@ async function getBackupStats() {
     } catch {}
   } catch {}
 
-  return {
+  cachedBackupStats = {
     son: sonCount,
     father: fatherCount,
     grandfather: grandfatherCount,
     total: sonCount + fatherCount + grandfatherCount
   };
+  lastBackupStatsCheck = now;
+
+  return cachedBackupStats;
 }
 
 export async function GET() {
   try {
     const logs: Array<{ timestamp: string; level: 'info' | 'warn' | 'error'; message: string }> = [];
+    const nowMs = Date.now();
 
     // 1. Next.js status & System Environment log entries
     const memUsage = Math.round(process.memoryUsage().heapUsed / 1024 / 1024);
@@ -107,51 +125,60 @@ export async function GET() {
       message: `[VITAL Daemon] Next.js dev server listening on port 3001. Heap: ${memUsage}MB.`
     });
     logs.push({
-      timestamp: new Date(Date.now() - 2000).toISOString(),
+      timestamp: new Date(nowMs - 2000).toISOString(),
       level: 'info',
       message: `[Watcher Daemon] Disabled file auto-parsing daemon (Manual mindmap mode active).`
     });
 
-    // 2. Read diagnose report
+    // 2. Read diagnose report (cached 15s)
     const diagnosePath = path.join(process.cwd(), 'data', 'diagnose_report.json');
-    try {
-      const diagRaw = await fs.readFile(diagnosePath, 'utf-8');
-      const diagData = JSON.parse(diagRaw);
-      const diagTime = diagData.timestamp || new Date().toISOString();
-      const warnCount = diagData.summary?.totalWarnings || 0;
-      
+    if (!cachedDiagnoseData || (nowMs - lastDiagnoseCheck > 15000)) {
+      try {
+        const diagRaw = await fs.readFile(diagnosePath, 'utf-8');
+        cachedDiagnoseData = JSON.parse(diagRaw);
+        lastDiagnoseCheck = nowMs;
+      } catch {}
+    }
+
+    if (cachedDiagnoseData) {
+      const diagTime = cachedDiagnoseData.timestamp || new Date().toISOString();
+      const warnCount = cachedDiagnoseData.summary?.totalWarnings || 0;
       logs.push({
         timestamp: diagTime,
         level: warnCount > 0 ? 'warn' : 'info',
-        message: `[Lint check] Compiled code syntax check. Warnings: ${warnCount}, Architectural Violations: ${diagData.summary?.totalViolations || 0}, Bottlenecks: ${diagData.summary?.totalBottlenecks || 0}.`
+        message: `[Lint check] Compiled code syntax check. Warnings: ${warnCount}, Architectural Violations: ${cachedDiagnoseData.summary?.totalViolations || 0}, Bottlenecks: ${cachedDiagnoseData.summary?.totalBottlenecks || 0}.`
       });
-    } catch {}
+    }
 
-    // 3. Read watcher history
+    // 3. Read watcher history (cached by mtime)
     const historyPath = path.join(process.cwd(), 'data', 'WATCHER_HISTORY.json');
     try {
-      const histRaw = await fs.readFile(historyPath, 'utf-8');
-      const parsed = JSON.parse(histRaw);
-      if (parsed && parsed[0] && parsed[0]._enc) {
-        const decryptedHistory = await decryptData(parsed[0]._enc);
-        if (decryptedHistory) {
-          const files = Object.keys(decryptedHistory);
-          files.forEach((file, index) => {
-            const fileMeta = decryptedHistory[file];
-            const displayPath = path.basename(file);
-            // Stagger timestamps slightly for nice sorting
-            const itemTime = new Date(fileMeta.mtime || (Date.now() - (index * 60000))).toISOString();
-            
-            logs.push({
-              timestamp: itemTime,
-              level: 'info',
-              message: `[File Scanner] Detected file scanned & synced: ${displayPath} (Size: ${(fileMeta.size / 1024).toFixed(1)} KB)`
-            });
-          });
+      const stat = await fs.stat(historyPath);
+      if (stat.mtimeMs !== lastHistoryMtime) {
+        const histRaw = await fs.readFile(historyPath, 'utf-8');
+        const parsed = JSON.parse(histRaw);
+        if (parsed && parsed[0] && parsed[0]._enc) {
+          cachedDecryptedHistory = await decryptData(parsed[0]._enc);
+          lastHistoryMtime = stat.mtimeMs;
         }
       }
-    } catch (e: any) {
-      console.warn('[Logs API] Watcher history reading skipped:', e?.message || e);
+
+      if (cachedDecryptedHistory) {
+        const files = Object.keys(cachedDecryptedHistory);
+        files.forEach((file, index) => {
+          const fileMeta = cachedDecryptedHistory![file];
+          const displayPath = path.basename(file);
+          const itemTime = new Date(fileMeta.mtime || (nowMs - (index * 60000))).toISOString();
+          
+          logs.push({
+            timestamp: itemTime,
+            level: 'info',
+            message: `[File Scanner] Detected file scanned & synced: ${displayPath} (Size: ${(fileMeta.size / 1024).toFixed(1)} KB)`
+          });
+        });
+      }
+    } catch {
+      // Ignored for performance
     }
 
     // Sort logs ascending by timestamp (chronological order)

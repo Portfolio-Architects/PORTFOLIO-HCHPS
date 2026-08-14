@@ -198,6 +198,9 @@ describe('R2 Empirical Challenge: Physics Loop & Tab Visibility', () => {
     beforeEach(() => {
       originalHidden = document.hidden;
       requestAnimationFrameSpy = jest.spyOn(window, 'requestAnimationFrame').mockImplementation((_cb: FrameRequestCallback) => {
+        if (typeof _cb === 'function') {
+          try { _cb(performance.now()); } catch {}
+        }
         return 12345 as any;
       });
       cancelAnimationFrameSpy = jest.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});

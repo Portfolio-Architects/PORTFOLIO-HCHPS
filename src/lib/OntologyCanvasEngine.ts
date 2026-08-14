@@ -41,6 +41,7 @@ export class OntologyCanvasEngine {
   centerNode: OrbitalNode | null = null;
   activeNode: OrbitalNode | null = null;
   hoveredNode: OrbitalNode | null = null;
+  riskNodesMap?: Map<string, { riskLevel: 'CRITICAL' | 'WARNING'; reason: string }>;
 
   // Camera
   zoom = 1;
@@ -1141,7 +1142,8 @@ export class OntologyCanvasEngine {
       layoutMode: 'mindmap',
       isInteractive: isInteractive,
       isOrbiting: this.isOrbiting,
-      centralitySortedNodes: this.centralitySortedNodes
+      centralitySortedNodes: this.centralitySortedNodes,
+      riskNodesMap: this.riskNodesMap
     });
   }
 
@@ -1174,18 +1176,28 @@ export class OntologyCanvasEngine {
       const rx = node.renderX;
       const ry = node.renderY;
       // 화면 밖 노드는 마우스 충돌 연산에서 완전 배제 (Frustum Culling)
-      if (rx < -15 || rx > this.canvasW + 15 || ry < -15 || ry > this.canvasH + 15) {
+      if (rx < -60 || rx > this.canvasW + 60 || ry < -60 || ry > this.canvasH + 60) {
         continue;
       }
 
-      const dx = mx - rx;
-      const dy = my - ry;
-      const distSq = dx * dx + dy * dy;
-      const hitRadius = node.nodeRadius * this.zoom * 0.6 + 12;
-      const hitRadiusSq = hitRadius * hitRadius;
-      if (distSq < hitRadiusSq && distSq < minDistSq) {
-        minDistSq = distSq;
-        closest = node;
+      const nodeScale = node.perspectiveScale ?? 1.0;
+      const weight = node.renderSize ?? 0.5;
+      const sizeFactor = 0.8 + 0.5 * weight;
+      const localZoom = Math.max(0.2, this.zoom * nodeScale * sizeFactor);
+
+      const cardW = 115 * localZoom;
+      const cardH = 75 * localZoom;
+
+      const dx = Math.abs(mx - rx);
+      const dy = Math.abs(my - ry);
+
+      // Post-it 사각형 카드 바운딩 박스 타격 테스트 (여유 유격 +4px)
+      if (dx <= (cardW / 2 + 4) && dy <= (cardH / 2 + 4)) {
+        const distSq = (mx - rx) * (mx - rx) + (my - ry) * (my - ry);
+        if (distSq < minDistSq) {
+          minDistSq = distSq;
+          closest = node;
+        }
       }
     }
     return closest;
@@ -1375,23 +1387,10 @@ export class OntologyCanvasEngine {
     this.draggedNode = null;
     this.draggedSubTree = [];
 
-    // 드래그 시작
-
-    let closestId = null;
-    let minDist = Infinity;
-    for (const node of this.nodes) {
-      if (node.id === 'root-HCHPS') continue;
-      const dx = nx - node.renderX;
-      const dy = ny - node.renderY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < minDist && dist <= node.nodeRadius * this.zoom + 15) {
-        minDist = dist;
-        closestId = node.id;
-      }
-    }
-
-    if (closestId) {
-      this.draggedNode = this.nodeMap.get(closestId)!;
+    // 드래그 시작 (hitTest 사각형 바운딩 박스 타격 테스트 결과와 연동)
+    const hitNode = this.hitTest(nx, ny);
+    if (hitNode && hitNode.id !== 'root-HCHPS') {
+      this.draggedNode = hitNode;
     }
   }
 

@@ -14,6 +14,7 @@ interface MindMapHUDProps {
   onAddNodeClick?: () => void;
   onResetCamera?: () => void;
   onClearAll?: () => void;
+  onLoadFestivalPreset?: () => void;
   zoomSliderRef: React.RefObject<HTMLInputElement | null>;
   zoomLabelRef: React.RefObject<HTMLSpanElement | null>;
   onZoomChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
@@ -29,19 +30,14 @@ export const MindMapHUD = React.memo(function MindMapHUD({
   onAddNodeClick,
   onResetCamera,
   onClearAll,
+  onLoadFestivalPreset,
   zoomSliderRef,
   zoomLabelRef,
   onZoomChange
 }: MindMapHUDProps) {
 
-
-
-
-
   return (
     <>
-
-
       {/* Hover tooltip (for nodes that are NOT active) */}
       {hoveredNode && hoveredNode.id !== activeNode?.id && (
         <div
@@ -63,6 +59,18 @@ export const MindMapHUD = React.memo(function MindMapHUD({
 
       {/* Controls - Bottom Right */}
       <div className="absolute bottom-24 md:bottom-4 right-4 z-10 flex items-center gap-2 bg-slate-900/10 backdrop-blur-md p-1.5 rounded-xl border border-white/20 shadow-lg">
+
+        {onLoadFestivalPreset && (
+          <button
+            onClick={onLoadFestivalPreset}
+            className="bg-gradient-to-r from-amber-500 to-rose-500 text-white rounded-lg px-3 py-2 text-xs font-bold shadow-sm hover:opacity-90 cursor-pointer flex items-center gap-1.5 transition-colors border-0"
+            title="50-70M KRW 축제 5대 도메인 템플릿 로드"
+          >
+            <span>🎪 5-도메인 축제 템플릿 로드</span>
+          </button>
+        )}
+
+        {onLoadFestivalPreset && <div className="w-px h-6 bg-slate-300/40 mx-0.5"></div>}
 
         {onAddNodeClick && (
           <button
@@ -88,8 +96,6 @@ export const MindMapHUD = React.memo(function MindMapHUD({
         )}
 
         {onResetCamera && <div className="w-px h-6 bg-slate-300/40 mx-1"></div>}
-
-
 
         {/* Zoom Ratio Slider */}
         <div className="bg-white/80 backdrop-blur-md border border-slate-200/50 rounded-lg px-3 py-1.5 shadow-sm flex items-center gap-2 select-none h-[38px]">

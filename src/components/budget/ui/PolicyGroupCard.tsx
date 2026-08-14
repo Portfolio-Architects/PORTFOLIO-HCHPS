@@ -156,6 +156,8 @@ const PolicyGroupCardComponent = ({
       detailCats.sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
 
       let detailTotalBudget = 0;
+      let detailTotalSpent = 0;
+      let detailTotalPlanned = 0;
       let detailDailyIssued = 0;
       let detailDailySpent = 0;
       let detailDailyRemaining = 0;
@@ -168,6 +170,8 @@ const PolicyGroupCardComponent = ({
 
         const st = getCategoryStats(c.id);
         if (st) {
+          detailTotalSpent += st.spent;
+          detailTotalPlanned += st.planned;
           detailDailyIssued += st.dailyExpenseIssued;
           detailDailySpent += st.dailyExpenseSpent;
           detailDailyRemaining += st.dailyExpenseRemaining;
@@ -189,10 +193,17 @@ const PolicyGroupCardComponent = ({
         }
       }
 
+      const detailTotalUsed = detailTotalSpent + detailTotalPlanned;
+      const detailUsageRate = detailTotalBudget > 0 ? (detailTotalUsed / detailTotalBudget) * 100 : 0;
+
       return {
         detailName: detail,
         cats: detailCats,
         detailTotalBudget,
+        detailTotalSpent,
+        detailTotalPlanned,
+        detailTotalUsed,
+        detailUsageRate,
         detailDailyIssued,
         detailDailySpent,
         detailDailyRemaining,
@@ -366,6 +377,8 @@ const PolicyGroupCardComponent = ({
               detailName,
               cats: detailCats,
               detailTotalBudget,
+              detailTotalUsed,
+              detailUsageRate,
               detailDailyIssued,
               detailDailySpent,
               detailDailyRemaining,
@@ -397,7 +410,44 @@ const PolicyGroupCardComponent = ({
                     {detailFunding.map(f => (
                       <span key={f} className={`font-semibold rounded-lg border bg-teal-50/80 text-teal-700 border-teal-200/60 shadow-3xs ${hidePolicyHeader ? 'text-xs px-2 py-0.5' : 'text-[11px] px-1.5 py-0.5'}`}>{f}</span>
                     ))}
-                    <span className={`font-bold text-blue-700 bg-blue-50/80 rounded-lg border border-blue-100/60 mr-2 font-mono tabular-nums shadow-3xs ${hidePolicyHeader ? 'text-sm px-2.5 py-0.5' : 'text-[13px] px-2 py-0.5'}`}>{formatN(detailTotalBudget)}원</span>
+                    <span className={`font-bold text-blue-700 bg-blue-50/80 rounded-lg border border-blue-100/60 font-mono tabular-nums shadow-3xs ${hidePolicyHeader ? 'text-sm px-2.5 py-0.5' : 'text-[13px] px-2 py-0.5'}`}>
+                      예산 {formatN(detailTotalBudget)}원
+                    </span>
+
+                    {/* 세부사업별 총예산 대비 사용액 % 표시 */}
+                    <span className={`font-extrabold rounded-lg border font-mono tabular-nums shadow-3xs flex items-center gap-1.5 ${
+                      detailUsageRate >= 95 
+                        ? 'bg-rose-50 text-rose-700 border-rose-200/80' 
+                        : detailUsageRate >= 80 
+                          ? 'bg-amber-50 text-amber-700 border-amber-200/80' 
+                          : 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
+                    } ${hidePolicyHeader ? 'text-xs px-2.5 py-0.5' : 'text-[12px] px-2 py-0.5'}`}>
+                      <span>사용 {formatN(detailTotalUsed)}원</span>
+                      <span className={`font-black px-1.5 py-0.2 rounded shadow-3xs ${
+                        detailUsageRate >= 95 
+                          ? 'bg-rose-100 text-rose-800' 
+                          : detailUsageRate >= 80 
+                            ? 'bg-amber-100 text-amber-800' 
+                            : 'bg-emerald-100 text-emerald-800'
+                      }`}>
+                        {detailUsageRate.toFixed(1)}%
+                      </span>
+                    </span>
+
+                    {/* 세부사업 집행률 미니 프로그래스 바 */}
+                    <div className="w-16 h-2 bg-slate-200/70 rounded-full overflow-hidden border border-slate-200/50 inline-flex items-center align-middle shrink-0 mr-1" title={`세부사업 집행률: ${detailUsageRate.toFixed(1)}%`}>
+                      <div 
+                        className={`h-full rounded-full transition-all duration-300 ${
+                          detailUsageRate >= 95 
+                            ? 'bg-rose-500' 
+                            : detailUsageRate >= 80 
+                              ? 'bg-amber-500' 
+                              : 'bg-emerald-500'
+                        }`} 
+                        style={{ width: `${Math.min(100, detailUsageRate)}%` }} 
+                      />
+                    </div>
+
                     {detailDailyIssued > 0 && (
                       <span className={`font-bold text-amber-700 bg-amber-50 border border-amber-200 mr-2 font-mono tabular-nums shadow-3xs flex items-center gap-1 ${hidePolicyHeader ? 'text-xs px-2.5 py-0.5' : 'text-[12px] px-2 py-0.5'}`}>
                         🪙 일상경비: 교부 {formatN(detailDailyIssued)}원 | 지출 {formatN(detailDailySpent)}원 (잔액 <strong className="text-amber-800">{formatN(detailDailyRemaining)}원</strong>)

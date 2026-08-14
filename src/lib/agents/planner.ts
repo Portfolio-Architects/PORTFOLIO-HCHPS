@@ -5,7 +5,7 @@
 import { askLlama } from '@/lib/llm-client';
 
 export async function createPlan(prompt: string): Promise<string[]> {
-  const sysPrompt = `You are an AI Planner Agent. Decompose the following goal into a numbered list of 3-5 concise, actionable steps for a Generator Agent to execute.\n\nGoal: ${prompt}\n\nOutput only the steps as a JSON array of strings (e.g., ["Step 1", "Step 2"]). No markdown blocks.`;
+  const sysPrompt = `Decompose goal into 3-5 concise step strings. Output JSON array only: ["Step 1", "Step 2"].\nGoal: ${prompt}`;
   
   try {
     const response = await askLlama([{ role: 'user', content: sysPrompt }]);
