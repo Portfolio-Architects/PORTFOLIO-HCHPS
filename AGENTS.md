@@ -133,7 +133,7 @@
    - 무인 자율 구동 시 위 3개 검증 스위트를 통과한 변경 건만 자율 배포(Auto-Merge)되며, 패치 완료 시 `node scripts/sync-rules.js`를 구동하여 `AGENTS.md` 하단 마일스톤 로그를 100% 최신 상태로 유지합니다.
 
 ## 5. 최신 동기화된 마일스톤 (Synced Milestones Log)
-- **최신 동기화 일자:** 2026-08-14
+- **최신 동기화 일자:** 2026-08-19
 - **동기화된 마일스톤:**
   - [M1: Corkboard & Red String 3D UI Reform] Corkboard background texture, dark wooden frame border (#3d2314), Post-it paper cards (-5°~+5° tilt, dog-eared fold), glossy 3D push pin heads, thick crimson red string catenary sag, investigator status stamps & hazard tape badges. (2026-08-13)
   - [M2: Festival 5-Domain Presets & 3D Auto-Layout] 5 Symmetrical Pentagonal Hubs (Permits & Safety, Stage/Performance/Sound, PR/Marketing, Food & Booths, Budget & Contracts), 26 sub-nodes, 60M KRW budget dataset, Yjs 1-Click preset loading pipeline, radial pentagonal domain clustering layout math with fixed node coordinate preservation guard. (2026-08-13)

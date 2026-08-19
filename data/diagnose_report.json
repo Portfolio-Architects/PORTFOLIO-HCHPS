@@ -1,1 +1,20 @@
-{"ts":"2026-08-14T08:35:41.086Z","clean":true,"summary":{"w":0,"v":0,"b":0}}
+{
+  "timestamp": "2026-08-19T09:29:53.038Z",
+  "lintWarnings": [
+    {
+      "file": "src/hooks/useContacts.ts",
+      "line": 33,
+      "column": 9,
+      "ruleId": "@typescript-eslint/no-unused-vars",
+      "message": "'replaceContactsMut' is assigned a value but never used.",
+      "severity": "warning"
+    }
+  ],
+  "architecturalViolations": [],
+  "performanceBottlenecks": [],
+  "summary": {
+    "totalWarnings": 1,
+    "totalViolations": 0,
+    "totalBottlenecks": 0
+  }
+}

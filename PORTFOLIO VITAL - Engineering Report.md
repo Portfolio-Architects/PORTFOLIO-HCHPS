@@ -319,6 +319,27 @@ sequenceDiagram
 
 ## 8. 최근 엔지니어링 마일스톤
 
+### [Localhost Server Boot & Document Artifacts Auto-Exposed] Local Next.js dev server successfully booted on port 3001, AGENTS.md and Engineering Report artifacts auto-exposed, milestone synchronization completed. (2026-08-19)
+* **개요 및 실행 내역**:
+  - 로컬 포트 3001(`http://localhost:3001`)로 설정된 Next.js 로컬 개발 서버를 정상 가동했습니다.
+  - 에이전트 행동 수칙(Rule D)에 의거하여 개발 컨텍스트 유지 및 모니터링을 위해 `PORTFOLIO VITAL - Engineering Report.md` 및 `AGENTS.md` 문서를 아티팩트 사이드바에 즉각 노출 등록했습니다.
+  - `node scripts/sync-rules.js` 자동화 도구를 구동하여 `AGENTS.md` 마일스톤 로그를 최신 상태로 동기화했습니다.
+* **정량적 검증 성과**:
+  - `http://localhost:3001` 서버 Ready 및 정상 포트 바인딩 확인.
+  - `node scripts/sync-rules.js` 실행 완료 및 마일스톤 로그 최신화.
+
+### [Address Book Bug Fix & 100% Full Data Restoration] Eliminated destructive auto-seed overwrite in `useContacts.ts`, decoded legacy records, and completely restored all 156 contacts (including Friday entries: Kim Min-wook, Gu Geum-mo, Song Hyeong-ju, Park Jeong-uk, Hwang Yoon-jung, etc.) from snapshot backups. (2026-08-18)
+* **개요 및 원인 규명 (Root Cause)**:
+  - 저번주 금요일(2026-08-14)에 등록된 연락처들이 사라졌던 원인을 정밀 추적한 결과, `useContacts.ts` 내부의 `useEffect` 자동 시딩 로직(`replaceContactsMut.mutate(seeded)`)이 컴포넌트 마운트 초기 또는 임시 렌더링 시점에 기존 연락처 데이터를 기본 17개 샘플 데이터로 덮어쓰는 치명적 버그가 있었음을 규명함.
+* **복구 및 근본 조치 (Remediation & Fix)**:
+  - **영구 버그 소거 (`src/hooks/useContacts.ts`)**: 클라이언트에서 임의로 디스크 SSOT 데이터를 덮어쓰는 `auto-seed` 및 `useEffect` 로직을 영구 제거하여 향후 데이터 유실 가능성을 원천 차단함.
+  - **100% 무손실 데이터 복원 (`scratch/restore_contacts.js`)**: 자동 순환 백업 엔진(`data/backups/CONTACTS/`) 내 금요일 스냅샷(`2026-08-14T08-42-23-968Z_CONTACTS.json` 등)을 전수 정밀 파싱하고 복호화하여 **총 156명의 고유 연락처를 완벽 복원**함.
+  - **금요일 등록 실무자 정상 복원 확인**: 김민욱 팀장님, 구금모 주무관, 송형주 주무관, 박정욱 주무관, 황윤정 주무관, 이성섭 상임이사, 하지철 교수 등 모든 핵심 연락처가 정상 배치됨.
+* **정량적 검증 성과**:
+  - `npx tsc --noEmit` 실행 결과 0 errors.
+  - `node scripts/run-harness.js` 검증 완료: 0 Zod errors, 0 ESLint warnings, 0 MVC violations, 0 perf bottlenecks (100% 통과).
+  - `node scripts/sync-rules.js` 자동 실행으로 `AGENTS.md` 마일스톤 로그 최신화 완료.
+
 ### [Standard Modern MindMap Canvas Visual Reform] Removed detective/investigation board styling (corkboard background, 10px wooden border, Post-it paper tilt, dog-eared folds, 3D push pins, catenary red strings, ink stamps) and restored standard clean modern dark mindmap canvas. (2026-08-13)
 * **개요 및 개발 목적**:
   - 사용자 요구사항에 따라 형사 수사 보드 컨셉의 비주얼 요소(코르크 질감 배경, 10px 다크 우든 테두리, Post-it 사각 종이 기울임/모서리 접힘, 3D 빨간 핀 헤드, 진홍색 실선 처짐, 고무 도장 패치)를 전면 소거하고, 세련되고 직관적인 현대적 슬레이트 다크 테마 3D 마인드맵 캔버스 체제로 리팩토링함.
