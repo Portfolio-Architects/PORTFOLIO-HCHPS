@@ -59,8 +59,8 @@ async function decryptData(encryptedBase64: string): Promise<any> {
 
 async function getBackupStats(): Promise<{ son: number; father: number; grandfather: number; total: number }> {
   const now = Date.now();
-  // 30-second in-memory cache to prevent blocking file system recursion on every request
-  if (cachedBackupStats && (now - lastBackupStatsCheck < 30000)) {
+  // 60-second in-memory cache to prevent blocking file system recursion on every request
+  if (cachedBackupStats && (now - lastBackupStatsCheck < 60000)) {
     return cachedBackupStats;
   }
 

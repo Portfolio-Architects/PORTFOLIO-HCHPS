@@ -376,7 +376,6 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
   const [isQuickInputOpen, setIsQuickInputOpen] = useState(false);
   const [isLogsOpen, setIsLogsOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
-  const [buttonBottom, setButtonBottom] = useState<number | null>(null);
   // Hooks
   const { tasks, updateTask, stats: taskStats } = useTasks();
   const { categories: budgetCategories, entries: budgetEntries, addCategory, updateCategory, deleteCategory, replaceCategories, addEntry, updateEntry, deleteEntry, batchUpdateEntries, batchDeleteEntries, batchSettleEntries, getCategoryStats, overallStatsActual } = useBudget();
@@ -521,54 +520,6 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
   useEffect(() => {
     document.title = 'PORTFOLIO - VITAL';
   }, []);
-
-  // AI button position listener to prevent overlapping with footer
-  useEffect(() => {
-    const handleScroll = () => {
-      const footer = document.getElementById('dashboard-footer');
-      const isMobile = window.innerWidth < 640;
-      const defaultBottom = isMobile ? 96 : 32; // bottom-24 is 96px, sm:bottom-8 is 32px
-
-      if (!footer) {
-        setButtonBottom(defaultBottom);
-        return;
-      }
-
-      const footerRect = footer.getBoundingClientRect();
-      const visibleFooterHeight = window.innerHeight - footerRect.top;
-      
-      if (visibleFooterHeight > 0) {
-        // Push the button up so it stays at least 16px above the footer
-        const targetBottom = visibleFooterHeight + 16;
-        setButtonBottom(Math.max(defaultBottom, targetBottom));
-      } else {
-        setButtonBottom(defaultBottom);
-      }
-    };
-
-    // Listen to scroll events anywhere on the page (capture phase)
-    window.addEventListener('scroll', handleScroll, { capture: true, passive: true });
-    window.addEventListener('resize', handleScroll);
-    
-    // Initial calculation
-    handleScroll();
-    
-    // Monitor DOM changes inside the scroll container to handle accordion collapses/expands
-    const scrollContainer = document.getElementById('main-scroll-container');
-    let mutationObserver: MutationObserver | null = null;
-    if (scrollContainer) {
-      mutationObserver = new MutationObserver(handleScroll);
-      mutationObserver.observe(scrollContainer, { childList: true, subtree: true });
-    }
-
-    return () => {
-      window.removeEventListener('scroll', handleScroll, { capture: true });
-      window.removeEventListener('resize', handleScroll);
-      if (mutationObserver) {
-        mutationObserver.disconnect();
-      }
-    };
-  }, [activeModule]);
 
   const handleLogout = useCallback(async () => {
     try {
@@ -831,10 +782,7 @@ function ProtectedApp({ appMode, onModeChange, isInitializingGlobal }: Protected
       />
 
       {/* Floating LLM Button & Popover */}
-      <div 
-        className="fixed bottom-24 sm:bottom-8 right-4 sm:right-8 z-50 flex flex-col items-end gap-3"
-        style={buttonBottom !== null ? { bottom: `${buttonBottom}px` } : undefined}
-      >
+      <div className="fixed bottom-24 sm:bottom-8 right-4 sm:right-8 z-50 flex flex-col items-end gap-3">
         {isQuickInputOpen && (
           <AIAssistantModal 
             isOpen={isQuickInputOpen} 
