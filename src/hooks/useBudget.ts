@@ -27,20 +27,6 @@ export function useBudget() {
     staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
     refetchIntervalInBackground: false,
-    initialData: () => {
-      if (typeof window !== 'undefined') {
-        try {
-          const item = localStorage.getItem('hchps-fallback-BUDGET_CATEGORIES');
-          if (item) {
-            const parsed = JSON.parse(item);
-            if (Array.isArray(parsed)) return parsed as BudgetCategory[];
-          }
-        } catch (err) {
-          console.warn('[useBudget] Initial categories parse error:', err);
-        }
-      }
-      return undefined;
-    },
   });
 
   const { data: entries = [], isLoading: entryLoading } = useQuery({
@@ -49,33 +35,41 @@ export function useBudget() {
     staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
     refetchIntervalInBackground: false,
-    initialData: () => {
-      if (typeof window !== 'undefined') {
-        try {
-          const item = localStorage.getItem('hchps-fallback-BUDGET_ENTRIES');
-          if (item) {
-            const parsed = JSON.parse(item);
-            if (Array.isArray(parsed)) return parsed as BudgetEntry[];
-          }
-        } catch (err) {
-          console.warn('[useBudget] Initial entries parse error:', err);
-        }
-      }
-      return undefined;
-    },
   });
 
   // Deduplicate categories based on a composite key to prevent double-counting
   // FIX: Include 'name' in the key to prevent merging distinct categories
   const uniqueCategories = useMemo(() => {
-    const seen = new Set();
-    return rawCategories.filter(c => {
+    const seen = new Set<string>();
+    const result: BudgetCategory[] = [];
+    for (let i = 0; i < rawCategories.length; i++) {
+      const c = rawCategories[i];
       const key = `${c.name}-${c.policyProject}-${c.unitProject}-${c.detailedProject}-${c.statItem}-${c.budgetType || '본예산'}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+      if (!seen.has(key)) {
+        seen.add(key);
+        result.push(c);
+      }
+    }
+    return result;
   }, [rawCategories]);
+
+  // Pre-indexed O(1) lookup Map for categories by ID
+  const categoriesByIdMap = useMemo(() => {
+    const map = new Map<string, BudgetCategory>();
+    for (const c of rawCategories) {
+      map.set(c.id, c);
+    }
+    return map;
+  }, [rawCategories]);
+
+  // Pre-indexed O(1) lookup Map for entries by ID
+  const entriesByIdMap = useMemo(() => {
+    const map = new Map<string, BudgetEntry>();
+    for (const e of entries) {
+      map.set(e.id, e);
+    }
+    return map;
+  }, [entries]);
 
   // ================= Category Mutations =================
   const addCategoryMut = useMutation({
@@ -93,8 +87,18 @@ export function useBudget() {
 
   const updateCategoryMut = useMutation({
     mutationFn: async ({ id, updates }: { id: string, updates: Partial<BudgetCategory> }) => {
-      // E2EE requires full payload replacement. Merge frontend state first.
-      const existing = queryClient.getQueryData<BudgetCategory[]>(['BUDGET_CATEGORIES'])?.find(c => c.id === id);
+      // E2EE requires full payload replacement. Merge frontend state first with O(1) Map lookup.
+      const cached = queryClient.getQueryData<BudgetCategory[]>(['BUDGET_CATEGORIES']);
+      let existing: BudgetCategory | undefined;
+      if (cached) {
+        const catMap = new Map<string, BudgetCategory>();
+        for (let i = 0; i < cached.length; i++) {
+          catMap.set(cached[i].id, cached[i]);
+        }
+        existing = catMap.get(id);
+      } else {
+        existing = categoriesByIdMap.get(id);
+      }
       if (!existing) throw new Error("Item not found in cache");
       const fullItem = { ...existing, ...updates };
       return updateRow('BUDGET_CATEGORIES', id, fullItem);
@@ -152,8 +156,18 @@ export function useBudget() {
 
   const updateEntryMut = useMutation({
     mutationFn: async ({ id, updates }: { id: string, updates: Partial<BudgetEntry> }) => {
-      // E2EE requires full payload replacement. Merge frontend state first.
-      const existing = queryClient.getQueryData<BudgetEntry[]>(['BUDGET_ENTRIES'])?.find(e => e.id === id);
+      // E2EE requires full payload replacement. Merge frontend state first with O(1) Map lookup.
+      const cached = queryClient.getQueryData<BudgetEntry[]>(['BUDGET_ENTRIES']);
+      let existing: BudgetEntry | undefined;
+      if (cached) {
+        const entryMap = new Map<string, BudgetEntry>();
+        for (let i = 0; i < cached.length; i++) {
+          entryMap.set(cached[i].id, cached[i]);
+        }
+        existing = entryMap.get(id);
+      } else {
+        existing = entriesByIdMap.get(id);
+      }
       if (!existing) throw new Error("Item not found in cache");
       const fullItem = { ...existing, ...updates };
       return updateRow('BUDGET_ENTRIES', id, fullItem);
@@ -313,6 +327,23 @@ export function useBudget() {
     return statsMap;
   }, [uniqueCategories, entries]);
 
+
+  // Pre-indexed O(1) lookup Map for entries with relatedPlanId
+  const childEntriesByPlanIdMap = useMemo(() => {
+    const map = new Map<string, BudgetEntry[]>();
+    for (const e of entries) {
+      if (e.relatedPlanId) {
+        let list = map.get(e.relatedPlanId);
+        if (!list) {
+          list = [];
+          map.set(e.relatedPlanId, list);
+        }
+        list.push(e);
+      }
+    }
+    return map;
+  }, [entries]);
+
   // Derived Stats - O(1) zero-allocation lookup from pre-cached stats Map
   const getCategoryStats = useCallback((categoryId: string, excludePlanned = false): CategoryStats | null => {
     const cached = categoryStatsMap.get(categoryId);
@@ -329,7 +360,7 @@ export function useBudget() {
     
     let oldAmount = 0;
     if (entryId) {
-      const oldEntry = entries.find(e => e.id === entryId);
+      const oldEntry = entriesByIdMap.get(entryId);
       if (oldEntry && oldEntry.categoryId === categoryId) {
         oldAmount = oldEntry.amount;
       }
@@ -353,7 +384,7 @@ export function useBudget() {
       }
     }
     return true;
-  }, [entries, getCategoryStats]);
+  }, [entriesByIdMap, getCategoryStats]);
 
   const addEntry = useCallback((entry: Omit<BudgetEntry, 'id'>) => {
     if (!checkLimit(entry.categoryId, entry.amount, entry.actionType, undefined, entry.transferDirection, entry.isPlanned)) {
@@ -365,7 +396,7 @@ export function useBudget() {
   }, [addEntryMut, checkLimit]);
 
   const updateEntry = useCallback((id: string, updates: Partial<BudgetEntry>) => {
-    const existing = entries.find(e => e.id === id);
+    const existing = entriesByIdMap.get(id);
     if (existing) {
       const targetCatId = updates.categoryId || existing.categoryId;
       const targetAmount = updates.amount !== undefined ? updates.amount : existing.amount;
@@ -378,19 +409,19 @@ export function useBudget() {
       }
     }
     updateEntryMut.mutate({ id, updates });
-  }, [updateEntryMut, entries, checkLimit]);
+  }, [updateEntryMut, entriesByIdMap, checkLimit]);
 
   const deleteEntry = useCallback((id: string) => {
-    const entryToDelete = entries.find(e => e.id === id);
+    const entryToDelete = entriesByIdMap.get(id);
     if (entryToDelete && entryToDelete.isPlanned) {
-      const hasSettledChildren = entries.some(e => e.relatedPlanId === id);
-      if (hasSettledChildren) {
+      const childList = childEntriesByPlanIdMap.get(id);
+      if (childList && childList.length > 0) {
         alert('이 품의서(원인행위)에 연결된 실제 지출 내역이 존재하여 삭제할 수 없습니다. 연결된 지출 내역을 먼저 삭제하거나 수정해주세요.');
         return;
       }
     }
     deleteEntryMut.mutate(id);
-  }, [deleteEntryMut, entries]);
+  }, [deleteEntryMut, entriesByIdMap, childEntriesByPlanIdMap]);
 
   // ================= Batch Entry Mutations =================
   const batchUpdateEntriesMut = useMutation({
@@ -533,7 +564,7 @@ export function useBudget() {
       const ids = idsOrUpdates as string[];
       if (updates) {
         for (const id of ids) {
-          const existing = entries.find(e => e.id === id);
+          const existing = entriesByIdMap.get(id);
           if (existing) {
             const targetCatId = updates.categoryId || existing.categoryId;
             const targetAmount = updates.amount !== undefined ? updates.amount : existing.amount;
@@ -559,7 +590,7 @@ export function useBudget() {
     } else {
       const items = idsOrUpdates as Array<{ id: string; [key: string]: any }>;
       for (const item of items) {
-        const existing = entries.find(e => e.id === item.id);
+        const existing = entriesByIdMap.get(item.id);
         if (existing) {
           const targetCatId = item.categoryId || existing.categoryId;
           const targetAmount = item.amount !== undefined ? item.amount : existing.amount;
@@ -582,15 +613,16 @@ export function useBudget() {
       }
       batchUpdateEntriesMut.mutate({ items });
     }
-  }, [batchUpdateEntriesMut, entries, checkLimit]);
+  }, [batchUpdateEntriesMut, entriesByIdMap, checkLimit]);
 
   const batchDeleteEntries = useCallback((ids: string[]) => {
     if (!ids || ids.length === 0) return;
     const idSet = new Set(ids);
     for (const id of ids) {
-      const entryToDelete = entries.find(e => e.id === id);
+      const entryToDelete = entriesByIdMap.get(id);
       if (entryToDelete && entryToDelete.isPlanned) {
-        const hasSettledChildren = entries.some(e => e.relatedPlanId === id && !idSet.has(e.id));
+        const childList = childEntriesByPlanIdMap.get(id);
+        const hasSettledChildren = childList && childList.some(e => !idSet.has(e.id));
         if (hasSettledChildren) {
           alert('이 품의서(원인행위)에 연결된 실제 지출 내역이 존재하여 삭제할 수 없습니다. 연결된 지출 내역을 먼저 삭제하거나 수정해주세요.');
           return;
@@ -598,7 +630,7 @@ export function useBudget() {
       }
     }
     batchDeleteEntriesMut.mutate(ids);
-  }, [batchDeleteEntriesMut, entries]);
+  }, [batchDeleteEntriesMut, entriesByIdMap, childEntriesByPlanIdMap]);
 
   const batchSettleEntries = useCallback((ids: string[], status: 'SETTLED' | 'PENDING' | 'REJECTED') => {
     if (!ids || ids.length === 0) return;
@@ -635,31 +667,17 @@ export function useBudget() {
   }, [categoryStatsMap]);
 
   const overallStatsActual = useMemo(() => {
-    let totalBudget = 0;
-    let totalSpent = 0;
-    let totalLocked = 0;
-    let dailyExpenseIssued = 0;
-    let dailyExpenseSpent = 0;
-
-    for (const { excludePlanned: st } of categoryStatsMap.values()) {
-      totalBudget += st.totalBudget;
-      totalSpent += st.spent;
-      totalLocked += st.locked;
-      dailyExpenseIssued += st.dailyExpenseIssued;
-      dailyExpenseSpent += st.dailyExpenseSpent;
-    }
-    
     return { 
-      totalBudget, 
-      totalSpent, 
+      totalBudget: overallStats.totalBudget, 
+      totalSpent: overallStats.totalSpent, 
       totalPlanned: 0, 
-      totalLocked,
-      remaining: totalBudget - totalSpent - totalLocked,
-      dailyExpenseIssued,
-      dailyExpenseSpent,
-      dailyExpenseRemaining: dailyExpenseIssued - dailyExpenseSpent
+      totalLocked: overallStats.totalLocked,
+      remaining: overallStats.totalBudget - overallStats.totalSpent - overallStats.totalLocked,
+      dailyExpenseIssued: overallStats.dailyExpenseIssued,
+      dailyExpenseSpent: overallStats.dailyExpenseSpent,
+      dailyExpenseRemaining: overallStats.dailyExpenseRemaining
     };
-  }, [categoryStatsMap]);
+  }, [overallStats]);
 
   return { 
     categories: uniqueCategories, 

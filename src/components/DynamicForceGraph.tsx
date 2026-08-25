@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from 'next/dynamic';
-import React, { forwardRef } from 'react';
+import React from 'react';
 
 // ForceGraph2D heavily relies on window and document (canvas), so it must be dynamically imported.
 const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), {
@@ -19,12 +19,10 @@ const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), {
 });
 
 type ForceGraph2DType = typeof import('react-force-graph-2d').default;
-type DynamicForceGraphProps = React.ComponentProps<ForceGraph2DType>;
+type DynamicForceGraphProps = React.ComponentProps<ForceGraph2DType> & {
+  ref?: React.Ref<any>;
+};
 
-const DynamicForceGraph = forwardRef<unknown, DynamicForceGraphProps>((props, ref) => {
+export default function DynamicForceGraph({ ref, ...props }: DynamicForceGraphProps) {
   return <ForceGraph2D {...props} ref={ref as any} />;
-});
-
-DynamicForceGraph.displayName = 'DynamicForceGraph';
-
-export default DynamicForceGraph;
+}

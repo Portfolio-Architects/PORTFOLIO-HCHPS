@@ -1,11 +1,9 @@
-import React, { useState, useMemo, useEffect, useSyncExternalStore } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { PieChart, Pie, Cell, Line, Bar, ReferenceLine, XAxis, YAxis, Tooltip as RechartsTooltip, Area, CartesianGrid, ComposedChart } from 'recharts';
 import { Task, BudgetCategory, BudgetEntry } from '@/types';
 import { usePortfolioAnalytics } from '@/hooks/usePortfolioAnalytics';
 import dynamic from 'next/dynamic';
 
-const emptySubscribe = () => () => {};
-const useIsMounted = () => useSyncExternalStore(emptySubscribe, () => true, () => false);
 
 function deferIdle(cb: () => void, timeout: number, fallbackMs: number) {
   if (typeof window === 'undefined') return () => {};
@@ -103,9 +101,27 @@ const CustomComposedTooltip = React.memo(({ active, payload, label, chartType, i
 });
 CustomComposedTooltip.displayName = 'CustomComposedTooltip';
 
+function observeWidth(el: HTMLElement | null, setWidth: React.Dispatch<React.SetStateAction<number>>) {
+  if (!el) return () => {};
+  let raf: number | null = null;
+  const ro = new ResizeObserver(([e]) => {
+    const w = e?.contentRect?.width;
+    if (!w) return;
+    if (raf) cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => {
+      const r = Math.round(w / 20) * 20;
+      setWidth(p => (Math.abs(p - r) >= 20 ? r : p));
+    });
+  });
+  ro.observe(el);
+  return () => {
+    if (raf) cancelAnimationFrame(raf);
+    ro.disconnect();
+  };
+}
+
 function PortfolioDashboardViewComponent({ budgetCategories, budgetEntries, appMode = 'VITAL' }: DashboardProps) {
   const [chartType, setChartType] = useState<'monthly' | 'cumulative'>('monthly');
-  const isMounted = useIsMounted();
   const chartContainerRef = React.useRef<HTMLDivElement>(null);
   const [chartWidth, setChartWidth] = useState<number>(0);
 
@@ -113,26 +129,8 @@ function PortfolioDashboardViewComponent({ budgetCategories, budgetEntries, appM
   const renderCharts = useDeferredChartMount();
 
   useEffect(() => {
-    if (!isMounted || !chartContainerRef.current) return;
-    
-    let animFrame: number | null = null;
-    const observer = new ResizeObserver((entries) => {
-      if (!entries || entries.length === 0) return;
-      const { width } = entries[0].contentRect;
-      if (width <= 0) return;
-      if (animFrame) cancelAnimationFrame(animFrame);
-      animFrame = requestAnimationFrame(() => {
-        const rounded = Math.round(width / 20) * 20;
-        setChartWidth(prev => (Math.abs(prev - rounded) >= 20 ? rounded : prev));
-      });
-    });
-    
-    observer.observe(chartContainerRef.current);
-    return () => {
-      if (animFrame) cancelAnimationFrame(animFrame);
-      observer.disconnect();
-    };
-  }, [isMounted]);
+    return observeWidth(chartContainerRef.current, setChartWidth);
+  }, []);
 
   const {
     selectedProject, setSelectedProject,
@@ -196,7 +194,7 @@ function PortfolioDashboardViewComponent({ budgetCategories, budgetEntries, appM
           <div className="flex-1 w-full h-[250px] flex flex-col sm:flex-row items-stretch justify-center mb-6 gap-6 sm:gap-8 md:gap-12 lg:gap-16">
             <div className="w-full sm:w-[260px] h-[250px] flex-shrink-0 flex justify-center items-center">
               <div className="w-[230px] h-[230px] relative flex-shrink-0">
-                {isMounted && renderCharts && (
+                {renderCharts && (
                   <PieChart width={230} height={230}>
                     <Pie
                       data={dynamicPieData}
@@ -362,7 +360,7 @@ function PortfolioDashboardViewComponent({ budgetCategories, budgetEntries, appM
 
             {/* Monthly Trend Chart */}
             <div ref={chartContainerRef} className="flex-1 mt-6 relative w-full min-h-[385px] h-[385px]">
-              {isMounted && renderCharts && chartWidth > 0 && (
+              {renderCharts && chartWidth > 0 && (
                 <ComposedChart width={chartWidth} height={385} data={monthlyExecutionData} margin={{ top: 25, right: 10, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorCumulative" x1="0" y1="0" x2="0" y2="1">

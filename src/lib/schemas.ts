@@ -177,7 +177,7 @@ export type ClassificationWordsDto = z.infer<typeof ClassificationWordsSchema>;
 export const ScheduleTypeSchema = z.enum(['security', 'meeting', 'education', 'other']);
 
 export const ScheduleSchema = z.object({
-  id: z.string().catch(() => Math.random().toString(36).substring(2, 9)),
+  id: z.string().catch('unknown-schedule'),
   date: z.string().catch(new Date().toISOString().split('T')[0]),
   endDate: z.string().optional().catch(undefined),
   startTime: z.string().catch('09:00'),
@@ -194,7 +194,7 @@ export type ScheduleDto = z.infer<typeof ScheduleSchema>;
 
 // ============ Contacts Module ============
 export const ContactSchema = z.object({
-  id: z.string().catch(() => Math.random().toString(36).substring(2, 9)),
+  id: z.string().catch('unknown-contact'),
   name: z.string().catch('이름 없음'),
   phone: z.string().catch(''),
   email: z.string().optional().catch(''),

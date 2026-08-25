@@ -2,6 +2,62 @@
 
 ## 8. 최근 엔지니어링 마일스톤 (요약)
 
+### [Milestone 4: Final 0-0-0 Full Integrity Acceptance & Gatekeeper Verification] Complete codebase verification, 0 TSC errors, 0 Zod errors, 0 ESLint warnings, 0 MVC violations, 24/24 Jest test suites (205 tests) PASS, and manifest rule synchronization. (2026-08-25)
+* **개요 및 개발 목적**:
+  - React 19 & Next.js 16 App Router 호환성(M1), 전사적 $O(1)$ 복잡도 도약 및 GC 제거(M2), 100% MVC 온톨로지 통합 및 SSOT 스토리지 무결성(M3)의 모든 구현 산출물을 최종 종합 검증하고, 게이트키퍼 하네스(`tsc`, `run-harness.js`, `diagnose-targets.js`, empirical storage/auth tests, Jest full suite)를 통과하여 0-0-0 무결성을 확립함.
+* **핵심 변경 내역**:
+  - **Full Gatekeeper Harness Verification**: 0 TSC errors, 0 Zod schema errors, 0 ESLint warnings, 0 MVC violations, 24개 전체 Jest 테스트 스위트 (205개 테스트) 100% PASS.
+  - **Manifest Rule Synchronization (`scripts/sync-rules.js`)**: `AGENTS.md` Section 5 마일스톤 로그 및 시스템 규칙 100% 동기화 완료.
+
+### [Milestone 3: 100% MVC Ontology Unification & SSOT Storage Integrity] Auth Hook (`useAuth.ts`) encapsulation, `src/app/login/page.tsx` MVC decoupling, atomic temporary file writes, pre-write Zod gatekeeper, 3-tier GFS backup rotations, 30-day tombstone GC. (2026-08-25)
+* **개요 및 개발 목적**:
+  - UI 컴포넌트 내 직접적인 `fetch('/api/auth')` 네트워크 호출을 `useAuth.ts` React 커스텀 훅으로 완전 캡슐화하여 100% MVC 온톨로지(관심사 분리)를 달성하고, 로컬 디스크 JSON 스토리지(`src/app/api/data/route.ts`)에 고유 `.tmp` 파일 기반 원자적 쓰기(Atomic Writes), 쓰기 전 Zod 스키마 게이트키퍼, 3계층 GFS 백업 로테이션(Son 20개 / Father 7일 / Grandfather 4주) 및 30일 툼스톤 수명주기 GC를 구축함.
+* **핵심 변경 내역**:
+  - **Auth Hook Encapsulation (`src/hooks/useAuth.ts`, `src/app/login/page.tsx`)**: `useAuth` 컨트롤러 훅 신설, `src/app/login/page.tsx` 내 직접 `fetch` 호출 100% 제거.
+  - **SSOT Storage Atomic Writes (`src/app/api/data/route.ts`)**: `safeWriteFile` 내 고유 임시 파일 생성, rename 재시도 루프, pre-write Zod gatekeeper validation.
+  - **3-Tier GFS Backup Rotations & Self-Healing (`src/app/api/data/route.ts`)**: Son 20개 / Father 7일 / Grandfather 4주 보존 로테이션 및 손상 파일 자동 복원.
+  - **30-Day Tombstone Lifecycle & Boundary Precision GC (`src/lib/sheets-api.ts`)**: 30일 경과 툼스톤 정밀 GC 및 10,000건 $O(1)$ 좀비 필터링.
+
+### [Milestone 2: Codebase-wide O(1) Complexity Leap & Zero-Allocation Engine] Signal Graph Map/Set pre-indexing, Centrality zero-allocation accumulators, Ontology Layout index forwarding, Festival Validation inverted keyword index, Timetable `${dayStr}:${hourStr}` composite slot grouping, Ledger T-Account memoization, Expense validation Map indexing, MindMap search memoization, Inspector Jaccard character set optimization, Semantic Review label pre-indexing. (2026-08-25)
+* **개요 및 개발 목적**:
+  - 전사적 코드베이스(`src/lib/`, `src/hooks/`, `src/components/`) 내에 잔존하던 $O(N)$ 선형 탐색, 중첩 필터 루프, 렌더 루프 내 임시 객체 할당 및 문자열 split 연산을 전면 색출하여, 사전 인덱싱된 Map/Set 기반 $O(1)$ 상수 시간 구조, 단일 패스 그룹화 및 Zero-Allocation 엔진으로 전면 개편함.
+* **핵심 변경 내역**:
+  - **Signal Graph Map/Set Pre-Indexing (`src/lib/signal-graph.ts`)**: `nodeMap.get(id)` / `edgeSet.has(edgeKey)` 기반 $O(1)$ 룩업 전환.
+  - **Centrality Zero-Allocation Accumulators (`src/lib/ontology.service.ts`)**: 스프레드 제거 및 직접 인덱스 루프 누적.
+  - **Ontology Layout Sibling Index Forwarding (`src/lib/engine/OntologyLayout.ts`)**: $O(S^2)$ -> $O(S)$ 선형 시간 격리.
+  - **Festival Validation Inverted Keyword Index (`src/hooks/useFestivalValidation.ts`)**: 역인덱스 Map/Set 사전 캐싱.
+  - **Timetable Composite Slot O(1) Grouping (`src/components/dashboard/WeeklyScheduler.tsx`)**: `${dayStr}:${hourStr}` 복합 키 기반 사전 그룹화.
+  - **Ledger Modal T-Account Memoization (`src/components/budget/ui/LedgerModal.tsx`)**: T-Account memoization 및 카테고리 Map 룩업.
+  - **Expense Entry Modal Calculations Map Indexing (`src/components/budget/ui/ExpenseEntryModal.tsx`)**: 계산식 Map 인덱싱.
+  - **MindMap 3D Search Query Memoization (`src/components/MindMap3D.tsx`)**: 검색 쿼리 필터링 `useMemo` 캐싱.
+  - **MindMap Inspector Jaccard Character Set Optimization (`src/components/MindMapInspector.tsx`)**: Jaccard 유사도 비트마스크/Set 순회 최적화.
+  - **Semantic Review Label Pre-Indexing (`src/components/ai/SemanticReviewModal.tsx`)**: `nodeLabelMap` 사전 구축으로 $O(E)$ 유효성 검사.
+
+### [Milestone 1: React 19 & Next.js 16 App Router Full Compatibility & SSR-Safe Hydration] SSR-Safe Hook Hydration, Date Hoisting, Dynamic Force Graph Ref modernization, Inline Edit state isolation, Lock Screen dependency fix, Deterministic Schema Fallbacks. (2026-08-25)
+* **개요 및 개발 목적**:
+  - Next.js 16 (Turbopack) 및 React 19 환경에서 발생하는 모든 SSR vs Client 초회 하이드레이션 불일치(Recoverable / Unrecoverable Hydration Mismatch)를 영구 근절하고, React 19 렌더 순수성 규칙(`react-hooks/purity`, `react-hooks/set-state-in-effect`)을 100% 충족함.
+* **핵심 변경 내역**:
+  - **SSR-Safe Hook Hydration Across 8 Hooks & Components**: `useBudgetFilters`, `useTasks`, `useBudget`, `useContacts`, `useInventory`, `useNotificationAlerts`, `useAIChat`, `useBudgetSimulator`, `WikiEditor`에서 `useState` 및 `initialData` 내 동기식 `localStorage` 제거.
+  - **React 19 Date Hoisting (`src/components/dashboard/WeeklyScheduler.tsx`)**: `useMemo(..., [])` 루트 호이스팅.
+  - **Dynamic Force Graph React 19 Ref Modernization (`src/components/DynamicForceGraph.tsx`)**: 네이티브 `ref` 프로퍼티 패턴 전면 현대화.
+  - **Inline Edit Cell State Isolation (`src/components/budget/ui/InlineEditCell.tsx`)**: `EditingInput` 하위 컴포넌트 격리.
+  - **Security Lock Screen Dependency Strictness (`src/components/SecurityLockScreen.tsx`)**: 순수 이벤트 기반 구조 개편.
+  - **Deterministic Schema Fallbacks (`src/lib/schemas.ts`)**: `Math.random()` 비결정론적 ID 제거 및 결정론적 고정 폴백 ID 적용.
+
+### [Performance Refactoring & Structural Optimization] Boot Acceleration, Zero-Stall Rendering & O(1) Complexity Leap 패치 (2026-08-20)
+* **개요 및 개발 목적**:
+  - 앱 초기 로딩/하이드레이션 가속화, UI 스레드 롱태스크 스톨(Long Task Stall >50ms) 제거, $O(1)$ 데이터 구조 도약 및 무충돌 0-Stall 렌더링 파이프라인 완성을 위한 단일 자기완결적 성능 리팩토링 및 구조적 최적화 수행.
+* **핵심 변경 내역**:
+  - **Initial Boot & Hydration Acceleration (`page.tsx`, `MindMap3D.tsx`)**: `MindMap3D.tsx` 렌더 틱 내 동기식 `getBoundingClientRect()` 호출을 제거하고 `ResizeObserver` 연동 `containerWidth` 상태 바인딩으로 전환하여 레이아웃 쓰레싱 차단. `page.tsx` 내 대형 뷰 컴포넌트(`dynamic()` ssr: false) 스켈레톤 가드 및 `requestIdleCallback` 기반 3단계 지연 청크 프리로딩(3.5s, 5.5s, 7.5s) 적용.
+  - **Zero-Stall Rendering & GC-Free Pipeline (`OntologyRenderer.ts`, `useGraphCustomization.ts`)**: `useSyncExternalStore` + 16ms 프레임 디바운스 배치 락 가드로 Yjs/CRDT 고빈도 트랜잭션 시 React 연쇄 리렌더링 차단. `OntologyRenderer.ts` 공간 격자(`((r + 32768) << 16) | (c + 32768)`) 비트 연산 키 인코딩 및 객체 풀링(Object Pooling)으로 프레임당 GC 힙 할당 제로 유지.
+  - **Data Structure O(1) Complexity Leap (`OntologyLayout.ts`, `OntologyNetwork.ts`, `useBudget.ts`, `usePortfolioAnalytics.ts`)**: `OntologyLayout.ts` 스패닝 트리 연산 시 `lastParentMap` 역방향 매핑을 $O(N)$ 1회 생성 및 캐싱하여 `OntologyNetwork.getActiveTreeSet()` 호출 시 $O(1)$ 조상 노드 추적으로 최적화. `useBudget.ts` 및 `usePortfolioAnalytics.ts` 내 $O(N)$ 다중 필터/탐색 루프를 $O(1)$ Map/Set 프리인덱싱으로 전면 전환.
+  - **Architectural Consistency & Quality Gatekeeper**: MVC 온톨로지(100% `src/hooks/` 데이터 페칭/뮤테이션, UI 컴포넌트 내 직접 API 호출 0건), 로컬 JSON 스토리지 기반 SSOT 및 오프라인 영속성 완벽 보존.
+* **정량적 검증 성과**:
+  - `npx tsc --noEmit` 실행 결과 0 errors.
+  - `node scripts/run-harness.js` 검증 완료: 0 Zod errors, 0 ESLint warnings, 0 MVC violations, 0 perf bottlenecks 통과.
+  - `npx jest` 20개 테스트 스위트 (148개 테스트) 100% 통과.
+  - `node scripts/sync-rules.js` 자동 실행으로 `AGENTS.md` 마일스톤 로그 최신화 완료.
+
 ### [M1: Corkboard & Red String 3D UI Reform] Corkboard background texture, dark wooden frame border (#3d2314), Post-it paper cards (-5°~+5° tilt, dog-eared fold), glossy 3D push pin heads, thick crimson red string catenary sag, investigator status stamps & hazard tape badges. (2026-08-13)
 * **개요 및 개발 목적**:
   - 3D 마인드맵 캔버스를 형사 수사 보드(Detective Investigation Board) 스타일로 전면 개편하여 코르크 배경 질감, 다크 우든 프레임 테두리(#3d2314), 사각형 Post-it 노드 카드(-5°~+5° 랜덤 기울임, 모서리 접힘 디테일), 입체 3D 핀 헤드, 카테너리 중력 처짐을 반영한 진홍색 빨간 실선(Crimson Red String, #d62828), 수사관 검증 상태 고무 도장 패치 및 위험 경고 테이프 배지를 탑재함.

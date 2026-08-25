@@ -80,6 +80,7 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
   const [connectedEdges, setConnectedEdges] = React.useState<Array<{ edge: OntologyEdge; otherNode: OrbitalNode }>>([]);
   const [parentLabel, setParentLabel] = React.useState<string | null>(null);
   const [engineNodes, setEngineNodes] = React.useState<OrbitalNode[]>([]);
+  const engineNodesMap = React.useMemo(() => new Map(engineNodes.map(n => [n.id, n])), [engineNodes]);
   const [isRecording, setIsRecording] = React.useState(false);
   const [recordSuccess, setRecordSuccess] = React.useState(false);
   const [aiTargetId, setAiTargetId] = React.useState<string>('');
@@ -132,7 +133,7 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
 
 
 
-  // 자카드 유사도 및 부분 일치 기반 노드 간 유사도 연산
+  // 자카드 유사도 및 부분 일치 기반 노드 간 유사도 연산 (Zero-Allocation)
   const calculateNodeSimilarity = React.useCallback((labelA: string, labelB: string) => {
     if (!labelA || !labelB) return 0;
     const cleanA = labelA.toLowerCase().replace(/\s+/g, '');
@@ -143,13 +144,18 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
       return (Math.min(cleanA.length, cleanB.length) / Math.max(cleanA.length, cleanB.length)) * 80;
     }
     
-    const setA = new Set(cleanA.split(''));
-    const setB = new Set(cleanB.split(''));
-    const intersection = new Set([...setA].filter(x => setB.has(x)));
-    const union = new Set([...setA, ...setB]);
-    if (union.size === 0) return 0;
+    const setA = new Set(cleanA);
+    const setB = new Set(cleanB);
+    let intersectionCount = 0;
+    for (const char of setA) {
+      if (setB.has(char)) {
+        intersectionCount++;
+      }
+    }
+    const unionSize = setA.size + setB.size - intersectionCount;
+    if (unionSize === 0) return 0;
     
-    return (intersection.size / union.size) * 50;
+    return (intersectionCount / unionSize) * 50;
   }, []);
 
   // 스마트 카테고리 퀵 추천 칩 목록
@@ -218,7 +224,7 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
         }
       }, 50);
     } else {
-      const parentNode = engineRef.current?.nodes.find((n: OrbitalNode) => n.id === parentId);
+      const parentNode = engineRef.current?.getNodeById ? engineRef.current.getNodeById(parentId) : engineRef.current?.nodes.find((n: OrbitalNode) => n.id === parentId);
       const newOrbit = parentNode ? parentNode.orbitIndex + 1 : undefined;
       removeCustomTombstone(activeNode.id, parentId);
       setNodeOverride(activeNode.id, { customParent: parentId, customOrbitIndex: newOrbit, fixedX: undefined, fixedY: undefined });
@@ -326,11 +332,10 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
   };
 
   React.useEffect(() => {
-    if (engineRef.current) {
-      const rawNodes = engineRef.current.nodes || [];
+    if (engineRef && engineRef.current) {
       const uniqueNodes: OrbitalNode[] = [];
       const seenIds = new Set<string>();
-      rawNodes.forEach((n: OrbitalNode) => {
+      engineRef.current.nodes.forEach((n: OrbitalNode) => {
         if (!seenIds.has(n.id)) {
           seenIds.add(n.id);
           uniqueNodes.push(n);
@@ -342,7 +347,7 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
         setConnectedEdges(edges || []);
         
         if (activeNode.parentId) {
-          const parent = engineRef.current.nodes.find((n: OrbitalNode) => n.id === activeNode.parentId);
+          const parent = engineRef.current.getNodeById ? engineRef.current.getNodeById(activeNode.parentId) : engineRef.current.nodes.find((n: OrbitalNode) => n.id === activeNode.parentId);
           setParentLabel(parent ? parent.label : null);
         } else {
           setParentLabel(null);
@@ -366,7 +371,7 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
       if (engine && engine.collapsedNodeIds) {
         while (parentId) {
           engine.collapsedNodeIds.delete(parentId);
-          const parentNode = engine.nodes.find((n: any) => n.id === parentId);
+          const parentNode = engine.getNodeById ? engine.getNodeById(parentId) : engine.nodes.find((n: any) => n.id === parentId);
           parentId = parentNode?.parentId;
         }
         engine.collapsedNodeIds.delete(node.id);
@@ -488,7 +493,7 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                                 }
                                 
                                 if (engineRef.current) {
-                                  const engineNode = engineRef.current.nodes.find((n: OrbitalNode) => n.id === activeNode.id);
+                                  const engineNode = engineRef.current.getNodeById ? engineRef.current.getNodeById(activeNode.id) : engineRef.current.nodes.find((n: OrbitalNode) => n.id === activeNode.id);
                                   if (engineNode) {
                                     engineNode.label = newName.trim();
                                     if (activeNode.id.startsWith('tag-') && !isUncategorized) {
@@ -540,7 +545,7 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                               const newVal = !activeNode.isHighlighted;
                               setNodeOverride(activeNode.id, { isHighlighted: newVal });
                               if (engineRef.current) {
-                                const engineNode = engineRef.current.nodes.find((n: OrbitalNode) => n.id === activeNode.id);
+                                const engineNode = engineRef.current.getNodeById ? engineRef.current.getNodeById(activeNode.id) : engineRef.current.nodes.find((n: OrbitalNode) => n.id === activeNode.id);
                                 if (engineNode) engineNode.isHighlighted = newVal;
                                 setActiveNode({ ...activeNode, isHighlighted: newVal });
                               }
@@ -571,7 +576,7 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                               const newStatus = 'uncompleted';
                               setNodeOverride(activeNode.id, { verificationStatus: newStatus });
                               if (engineRef.current) {
-                                const n = engineRef.current.nodes.find((x: OrbitalNode) => x.id === activeNode.id);
+                                const n = engineRef.current.getNodeById ? engineRef.current.getNodeById(activeNode.id) : engineRef.current.nodes.find((x: OrbitalNode) => x.id === activeNode.id);
                                 if (n) n.verificationStatus = newStatus;
                                 setActiveNode({ ...activeNode, verificationStatus: newStatus });
                               }
@@ -589,7 +594,7 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                               const newStatus = 'in-progress';
                               setNodeOverride(activeNode.id, { verificationStatus: newStatus });
                               if (engineRef.current) {
-                                const n = engineRef.current.nodes.find((x: OrbitalNode) => x.id === activeNode.id);
+                                const n = engineRef.current.getNodeById ? engineRef.current.getNodeById(activeNode.id) : engineRef.current.nodes.find((x: OrbitalNode) => x.id === activeNode.id);
                                 if (n) n.verificationStatus = newStatus;
                                 setActiveNode({ ...activeNode, verificationStatus: newStatus });
                               }
@@ -607,7 +612,7 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                               const newStatus = 'verified';
                               setNodeOverride(activeNode.id, { verificationStatus: newStatus });
                               if (engineRef.current) {
-                                const n = engineRef.current.nodes.find((x: OrbitalNode) => x.id === activeNode.id);
+                                const n = engineRef.current.getNodeById ? engineRef.current.getNodeById(activeNode.id) : engineRef.current.nodes.find((x: OrbitalNode) => x.id === activeNode.id);
                                 if (n) n.verificationStatus = newStatus;
                                 setActiveNode({ ...activeNode, verificationStatus: newStatus });
                               }
@@ -625,7 +630,7 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                               const newStatus = 'risk-warning';
                               setNodeOverride(activeNode.id, { verificationStatus: newStatus });
                               if (engineRef.current) {
-                                const n = engineRef.current.nodes.find((x: OrbitalNode) => x.id === activeNode.id);
+                                const n = engineRef.current.getNodeById ? engineRef.current.getNodeById(activeNode.id) : engineRef.current.nodes.find((x: OrbitalNode) => x.id === activeNode.id);
                                 if (n) n.verificationStatus = newStatus;
                                 setActiveNode({ ...activeNode, verificationStatus: newStatus });
                               }
@@ -790,7 +795,7 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                               disabled={!aiTargetId || aiLinkMut.isPending}
                               onClick={() => {
                                 if (!aiTargetId) return;
-                                const targetNode = engineNodes.find(n => n.id === aiTargetId);
+                                const targetNode = engineNodesMap.get(aiTargetId);
                                 if (!targetNode) return;
 
                                 aiLinkMut.mutate({
@@ -937,7 +942,7 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
 
                                 setNodeOverride(activeNode.id, { customOrbitIndex: resolvedOrbit, fixedX: undefined, fixedY: undefined });
                                 if (engineRef.current) {
-                                  const engineNode = engineRef.current.nodes.find((n: OrbitalNode) => n.id === activeNode.id);
+                                  const engineNode = engineRef.current.getNodeById ? engineRef.current.getNodeById(activeNode.id) : engineRef.current.nodes.find((n: OrbitalNode) => n.id === activeNode.id);
                                   if (engineNode) {
                                     engineNode.customOrbitIndex = resolvedOrbit;
                                     engineNode.fixedX = undefined;
@@ -969,7 +974,7 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                                 onClick={() => {
                                   setNodeOverride(activeNode.id, { fixedX: undefined, fixedY: undefined });
                                   if (engineRef.current) {
-                                    const engineNode = engineRef.current.nodes.find((n: OrbitalNode) => n.id === activeNode.id);
+                                    const engineNode = engineRef.current.getNodeById ? engineRef.current.getNodeById(activeNode.id) : engineRef.current.nodes.find((n: OrbitalNode) => n.id === activeNode.id);
                                     if (engineNode) {
                                       engineNode.fixedX = undefined;
                                       engineNode.fixedY = undefined;
@@ -1177,12 +1182,26 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                                   );
                                   
                                   if (cascadeDelete) {
+                                    // Pre-index children by parentId for O(1) traversal
+                                    const childrenByParent = new Map<string, OrbitalNode[]>();
+                                    for (const n of allNodes as OrbitalNode[]) {
+                                      if (n.parentId) {
+                                        let list = childrenByParent.get(n.parentId);
+                                        if (!list) {
+                                          list = [];
+                                          childrenByParent.set(n.parentId, list);
+                                        }
+                                        list.push(n);
+                                      }
+                                    }
+
                                     const queue = [activeNode.id];
                                     const visited = new Set<string>([activeNode.id]);
+                                    let head = 0;
                                     
-                                    while (queue.length > 0) {
-                                      const currentId = queue.shift()!;
-                                      const childNodes = allNodes.filter((n: OrbitalNode) => n.parentId === currentId);
+                                    while (head < queue.length) {
+                                      const currentId = queue[head++];
+                                      const childNodes = childrenByParent.get(currentId) || [];
                                       for (const child of childNodes) {
                                         if (!visited.has(child.id)) {
                                           visited.add(child.id);
@@ -1237,7 +1256,7 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                                   engineRef.current.edges = engineRef.current.edges.filter((e: OntologyEdge) => !deleteIdSet.has(e.source) && !deleteIdSet.has(e.target));
                                   
                                   if (parentId && !deleteIdSet.has(parentId)) {
-                                    parentNode = (engineRef.current.nodes as OrbitalNode[]).find((n: OrbitalNode) => n.id === parentId) || null;
+                                    parentNode = (engineRef.current.getNodeById ? engineRef.current.getNodeById(parentId) : (engineRef.current.nodes as OrbitalNode[]).find((n: OrbitalNode) => n.id === parentId)) || null;
                                   }
                                   
                                   if (parentNode) {
@@ -1352,7 +1371,7 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                             setTimeout(() => {
                               initEngine();
                               if (engineRef.current) {
-                                const addedNode = engineRef.current.nodes.find(n => n.id === newNode.id || n.label === name);
+                                const addedNode = (engineRef.current.getNodeById ? engineRef.current.getNodeById(newNode.id) : undefined) || engineRef.current.nodes.find(n => n.id === newNode.id || n.label === name);
                                 if (addedNode) {
                                   engineRef.current.activeNode = addedNode;
                                   engineRef.current.pendingCameraTargetId = addedNode.id;

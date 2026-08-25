@@ -4,8 +4,14 @@
  */
 
 export function csvToRows(csv: string): string[][] {
-  const lines = csv.split('\n').filter(l => l.trim().length > 0);
-  return lines.map(line => {
+  if (!csv) return [];
+  const lines = csv.split('\n');
+  const rows: string[][] = [];
+  
+  for (let lIdx = 0; lIdx < lines.length; lIdx++) {
+    const line = lines[lIdx];
+    if (line.trim().length === 0) continue;
+    
     const result: string[] = [];
     let current = '';
     let inQuotes = false;
@@ -26,6 +32,7 @@ export function csvToRows(csv: string): string[][] {
       }
     }
     result.push(current.trim());
-    return result;
-  });
+    rows.push(result);
+  }
+  return rows;
 }

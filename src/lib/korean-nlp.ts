@@ -251,29 +251,30 @@ export function extractAmount(text: string): { amount: number; matched: string }
 // ============ Person Extraction ============
 
 const TITLES = ['부장', '과장', '대리', '사원', '차장', '팀장', '실장', '본부장', '센터장', '이사', '상무', '전무', '부사장', '사장', '회장', '국장', '주임', '계장', '선생', '교수', '박사', '원장', '소장', '관장', '처장', '장관'];
+const TITLE_PATTERN = new RegExp(`([가-힣])\\s*(${TITLES.join('|')})(님)?`, 'g');
+const FULL_NAME_PATTERN = /([가-힣]{2,4})\s*님/g;
+const SKIP_PEOPLE_WORDS = new Set(['부장', '과장', '대리', '사원', '여러분', '선생', '담당자', '관계자', '참석자', '관련자']);
 
 export function extractPeople(text: string): string[] {
-  const people: string[] = [];
+  const peopleSet = new Set<string>();
 
   // 성 + 직급(님) pattern: 김부장, 이과장님
-  const titlePattern = new RegExp(`([가-힣])\\s*(${TITLES.join('|')})(님)?`, 'g');
-  let match;
-  while ((match = titlePattern.exec(text)) !== null) {
-    people.push(`${match[1]}${match[2]}`);
+  TITLE_PATTERN.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = TITLE_PATTERN.exec(text)) !== null) {
+    peopleSet.add(`${match[1]}${match[2]}`);
   }
 
   // Full name + 님: 홍길동님, 김철수 님
-  const fullNamePattern = /([가-힣]{2,4})\s*님/g;
-  while ((match = fullNamePattern.exec(text)) !== null) {
-    // Skip if it's a common word, not a name
+  FULL_NAME_PATTERN.lastIndex = 0;
+  while ((match = FULL_NAME_PATTERN.exec(text)) !== null) {
     const name = match[1];
-    const skipWords = ['부장', '과장', '대리', '사원', '여러분', '선생', '담당자', '관계자', '참석자', '관련자'];
-    if (!skipWords.includes(name) && !people.some(p => p.includes(name))) {
-      people.push(name);
+    if (!SKIP_PEOPLE_WORDS.has(name)) {
+      peopleSet.add(name);
     }
   }
 
-  return [...new Set(people)];
+  return Array.from(peopleSet);
 }
 
 // ============ Location Extraction ============

@@ -44,59 +44,29 @@ interface SearchResultModalProps {
 
 export function SearchResultModal({ isOpen, onClose, query, results: localResults, appMode = 'VITAL' }: SearchResultModalProps) {
   const [activeTab, setActiveTab] = useState<'wiki' | 'file'>('file');
-  const [semanticResults, setSemanticResults] = useState<VectorResult[]>([]);
-  
-  const [errorMsg, setErrorMsg] = useState('');
   const [copiedPath, setCopiedPath] = useState<string | null>(null);
   const [expandedFileIdx, setExpandedFileIdx] = useState<number | null>(null);
-
-  const [prevQuery, setPrevQuery] = useState('');
-  const [prevIsOpen, setPrevIsOpen] = useState(false);
 
   const semanticSearchMutation = useSemanticSearch();
   const driveSearchMutation = useDriveSearch();
 
-  if (query !== prevQuery || isOpen !== prevIsOpen) {
-    setPrevQuery(query);
-    setPrevIsOpen(isOpen);
-    setSemanticResults([]);
-    setErrorMsg('');
-    setExpandedFileIdx(null);
-    if (isOpen) {
-      setActiveTab('file');
-      driveSearchMutation.reset();
-    }
-  }
+  const { mutate: mutateSemantic } = semanticSearchMutation;
+  const { mutate: mutateDrive } = driveSearchMutation;
 
   useEffect(() => {
     if (!isOpen || !query) return;
 
     window.dispatchEvent(new CustomEvent('wiki:closeNode'));
 
-    let isMounted = true;
-
     // 1. 위키 시맨틱 벡터 검색 트리거
-    semanticSearchMutation.mutate({
+    mutateSemantic({
       query,
       limit: 5
-    }, {
-      onSuccess: (matches) => {
-        if (isMounted) {
-          setSemanticResults(matches);
-        }
-      },
-      onError: (err: any) => {
-        if (isMounted) {
-          setErrorMsg(err.message || 'Unknown network error');
-        }
-      }
     });
 
     // 2. 로컬 아카이브 문서 본문 검색 트리거
-    driveSearchMutation.mutate({ query });
-
-    return () => { isMounted = false; };
-  }, [isOpen, query, semanticSearchMutation, driveSearchMutation]);
+    mutateDrive({ query });
+  }, [isOpen, query, mutateSemantic, mutateDrive]);
 
   const handleCopyPath = (pathStr: string) => {
     navigator.clipboard.writeText(pathStr)
@@ -111,6 +81,8 @@ export function SearchResultModal({ isOpen, onClose, query, results: localResult
 
   const isPending = semanticSearchMutation.isPending;
   const isDrivePending = driveSearchMutation.isPending;
+  const semanticResults = semanticSearchMutation.data || [];
+  const errorMsg = semanticSearchMutation.error ? (semanticSearchMutation.error as Error).message : '';
   const driveResults = driveSearchMutation.data || [];
   const driveError = driveSearchMutation.error ? (driveSearchMutation.error as Error).message : '';
 

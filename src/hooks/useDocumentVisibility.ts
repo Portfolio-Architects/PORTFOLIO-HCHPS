@@ -1,28 +1,26 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useSyncExternalStore } from 'react';
+
+function subscribe(callback: () => void) {
+  if (typeof document === 'undefined') return () => {};
+  document.addEventListener('visibilitychange', callback);
+  return () => document.removeEventListener('visibilitychange', callback);
+}
+
+function getSnapshot(): boolean {
+  return typeof document !== 'undefined' ? !document.hidden : true;
+}
+
+function getServerSnapshot(): boolean {
+  return true;
+}
 
 /**
  * Hook to monitor tab/document visibility (AGENTS.md Rule 2-J compliance).
+ * Implemented via useSyncExternalStore for zero tearing and zero mount latency.
  * Returns true when the page is active/visible, and false when the tab is backgrounded/hidden.
  */
 export function useDocumentVisibility(): boolean {
-  const [isVisible, setIsVisible] = useState(() => 
-    typeof document !== 'undefined' ? !document.hidden : true
-  );
-
-  useEffect(() => {
-    if (typeof document === 'undefined') return;
-
-    const handleVisibilityChange = () => {
-      setIsVisible(!document.hidden);
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, []);
-
-  return isVisible;
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }

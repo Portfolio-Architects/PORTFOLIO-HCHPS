@@ -90,6 +90,35 @@ export function LedgerModal({
 
   // Filtered entry IDs set for O(1) time complexity lookup
   const filteredEntryIdSet = useMemo(() => new Set(filteredEntries.map(e => e.id)), [filteredEntries]);
+  const selectedEntryIdsSet = useMemo(() => new Set(selectedEntryIds), [selectedEntryIds]);
+  const categoriesMap = useMemo(() => new Map(categories.map(c => [c.id, c])), [categories]);
+
+  // Pre-calculate / memoize T-Account grouping and zero-allocation sorting
+  const tAccountData = useMemo(() => {
+    return categories
+      .map(cat => {
+        const stats = getCategoryStats(cat.id);
+        const catEntries = (entriesByCatId[cat.id] || []).filter(e => filteredEntryIdSet.has(e.id));
+        
+        // Left side: planned & issuances (zero-allocation date comparison)
+        const plannedTasks = catEntries
+          .filter(e => e.isPlanned && !e.isSettled)
+          .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        const issuances = catEntries
+          .filter(e => !e.isPlanned && e.actionType === 'issuance')
+          .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        const leftItems = [...plannedTasks, ...issuances]
+          .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+        // Right side: settled & actual expenses
+        const rightItems = catEntries
+          .filter(e => !e.isPlanned && e.actionType !== 'issuance')
+          .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+        return { cat, stats, leftItems, rightItems };
+      })
+      .filter(data => data.leftItems.length > 0 || data.rightItems.length > 0);
+  }, [categories, getCategoryStats, entriesByCatId, filteredEntryIdSet]);
 
   // Toggle individual selection
   const toggleSelectEntry = useCallback((id: string) => {
@@ -156,8 +185,8 @@ export function LedgerModal({
   };
 
   const selectedCategory = useMemo(() => {
-    return categories.find(c => c.id === selectedCatId) || categories[0];
-  }, [categories, selectedCatId]);
+    return (selectedCatId ? categoriesMap.get(selectedCatId) : undefined) || categories[0];
+  }, [categoriesMap, selectedCatId, categories]);
 
   const selectedCatStats = useMemo(() => {
     return selectedCategory ? getCategoryStats(selectedCategory.id) : null;
@@ -245,23 +274,7 @@ export function LedgerModal({
         {/* MODE 1: Standard Ledger T-Account View (Single View) */}
         {!isSplitView && (
           <div className="h-[65vh] overflow-y-auto space-y-4 pr-2 scrollbar-hide">
-            {categories
-              .map(cat => {
-                const stats = getCategoryStats(cat.id);
-                const catEntries = (entriesByCatId[cat.id] || []).filter(e => filteredEntryIdSet.has(e.id));
-                
-                // Left side: planned & issuances
-                const plannedTasks = catEntries.filter(e => e.isPlanned && !e.isSettled).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-                const issuances = catEntries.filter(e => !e.isPlanned && e.actionType === 'issuance').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-                const leftItems = [...plannedTasks, ...issuances].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-                // Right side: settled & actual expenses
-                const rightItems = catEntries.filter(e => !e.isPlanned && e.actionType !== 'issuance').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-                return { cat, stats, leftItems, rightItems };
-              })
-              .filter(data => data.leftItems.length > 0 || data.rightItems.length > 0)
-              .map((data, idx) => (
+            {tAccountData.map((data, idx) => (
                 <div key={data.cat.id} className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm hover:shadow transition-shadow">
                   <details className="group marker:content-['']" open={idx === 0}>
                     <summary className="flex items-center justify-between p-4 bg-gray-50/50 cursor-pointer hover:bg-gray-100 transition-colors list-none">
@@ -448,9 +461,9 @@ export function LedgerModal({
                   <div className="text-center py-12 text-xs text-slate-400 font-medium">검색 결과가 없습니다.</div>
                 )}
                 {filteredEntries.map(e => {
-                  const isSelected = selectedEntryIds.includes(e.id);
+                  const isSelected = selectedEntryIdsSet.has(e.id);
                   const isTargetCat = selectedCatId === e.categoryId;
-                  const parentCat = categories.find(c => c.id === e.categoryId);
+                  const parentCat = categoriesMap.get(e.categoryId);
 
                   return (
                     <div

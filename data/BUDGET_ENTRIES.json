@@ -615,5 +615,16 @@
     "actionType": "daily_expense",
     "isPlanned": false,
     "fundingSource": "구비"
+  },
+  {
+    "categoryId": "mnrcir0vpun1ops6x",
+    "amount": 1012500,
+    "date": "2026-08-19",
+    "purpose": "(일상경비)혈당 및 혈압 검사 소모품 구매비 지급",
+    "memo": "",
+    "docRegNum": "보건행정과-10223",
+    "actionType": "daily_expense",
+    "isPlanned": false,
+    "id": "mt2hd4koxjlckb1bh"
   }
 ]

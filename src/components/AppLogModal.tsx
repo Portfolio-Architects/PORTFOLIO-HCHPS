@@ -58,7 +58,10 @@ export function AppLogModal({ isOpen, onClose, appMode }: AppLogModalProps) {
 
   useEffect(() => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight; // scroll to bottom for chronological logs
+      const el = scrollRef.current;
+      requestAnimationFrame(() => {
+        el.scrollTop = el.scrollHeight;
+      });
     }
   }, [logs]);
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useSyncExternalStore } from 'react';
 import { useWikiSync } from '@/hooks/useWikiSync';
 import { PartialBlock } from '@blocknote/core';
 import { useCreateBlockNote, SuggestionMenuController, getDefaultReactSlashMenuItems, DefaultReactSuggestionItem } from '@blocknote/react';
@@ -17,6 +17,15 @@ interface WikiEditorProps {
   onClose?: () => void;
   addCustomEdge?: (source: string, target: string) => void;
 }
+
+const subscribeDarkMode = (callback: () => void) => {
+  if (typeof window === 'undefined') return () => {};
+  const media = window.matchMedia('(prefers-color-scheme: dark)');
+  media.addEventListener('change', callback);
+  return () => media.removeEventListener('change', callback);
+};
+const getDarkSnapshot = () => (typeof window !== 'undefined' ? window.matchMedia('(prefers-color-scheme: dark)').matches : false);
+const getDarkServerSnapshot = () => false;
 
 const getCustomSlashMenuItems = (editor: any): DefaultReactSuggestionItem[] => [
   ...getDefaultReactSlashMenuItems(editor),
@@ -60,21 +69,7 @@ export function WikiEditor(props: WikiEditorProps) {
   const { nodeId, nodeTitle, initialBlocks, onChange, onClose } = props;
 
   const wikiSyncMutation = useWikiSync();
-  const [isDark, setIsDark] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return window.matchMedia('(prefers-color-scheme: dark)').matches;
-    }
-    return false;
-  });
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const media = window.matchMedia('(prefers-color-scheme: dark)');
-      const listener = (e: MediaQueryListEvent) => setIsDark(e.matches);
-      media.addEventListener('change', listener);
-      return () => media.removeEventListener('change', listener);
-    }
-  }, []);
+  const isDark = useSyncExternalStore(subscribeDarkMode, getDarkSnapshot, getDarkServerSnapshot);
 
   // 에디터 인스턴스 생성 (협업 대신 단일 유저 로컬/클라우드 저장소 사용)
   const editor = useCreateBlockNote({

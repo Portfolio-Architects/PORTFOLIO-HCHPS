@@ -4,13 +4,13 @@
  */
 import { askLlama } from '@/lib/llm-client';
 
-function serializeContext(context: any): string {
+function serializeContext(context: unknown): string {
   if (context === undefined || context === null) return 'null';
   if (typeof context !== 'object') return String(context);
   return JSON.stringify(context, (k, v) => (Array.isArray(v) && v.length > 10 ? v.slice(0, 10) : v));
 }
 
-export async function generateContent(step: string, context: any, previousErrors?: string): Promise<string> {
+export async function generateContent(step: string, context: unknown, previousErrors?: string): Promise<string> {
   const cleanContext = serializeContext(context);
   let prompt = `Execute step & output ONLY valid JSON.\nStep: ${step}\nContext: ${cleanContext}`;
   

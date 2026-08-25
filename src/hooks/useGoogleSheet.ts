@@ -16,19 +16,18 @@ export function useGoogleSheet<T extends { id: string }>(
   localStorageKey: string,
   initialValue: T[] = []
 ): [T[], React.Dispatch<React.SetStateAction<T[]>>, boolean] {
-  const [data, setData] = useState<T[]>(initialValue);
-  const [loading, setLoading] = useState(true);
-  const initialLoadDone = useRef(false);
-
-  // Hydrate from localStorage once immediately after mount (prevents SSR mismatch)
-  useEffect(() => {
+  const [data, setData] = useState<T[]>(() => {
+    if (typeof window === 'undefined') return initialValue;
     try {
       const stored = localStorage.getItem(localStorageKey);
       if (stored) {
-        setData(JSON.parse(stored));
+        return JSON.parse(stored);
       }
     } catch { /* ignore */ }
-  }, [localStorageKey]);
+    return initialValue;
+  });
+  const [loading, setLoading] = useState(true);
+  const initialLoadDone = useRef(false);
 
   // Initial load from Google Sheets
   useEffect(() => {
@@ -45,9 +44,16 @@ export function useGoogleSheet<T extends { id: string }>(
         if (rows.length > 0) {
           let finalRows = rows;
           try {
-            const deletedIds = JSON.parse(localStorage.getItem('hchps-global-tombstones') || '[]');
-            if (deletedIds.length > 0) {
-              finalRows = rows.filter(r => !deletedIds.includes(r.id));
+            const deletedList = JSON.parse(localStorage.getItem('hchps-global-tombstones') || '[]');
+            if (Array.isArray(deletedList) && deletedList.length > 0) {
+              const tombstoneSet = new Set<string>(deletedList);
+              const filtered: T[] = [];
+              for (let i = 0; i < rows.length; i++) {
+                if (!tombstoneSet.has(rows[i].id)) {
+                  filtered.push(rows[i]);
+                }
+              }
+              finalRows = filtered;
             }
           } catch {}
           

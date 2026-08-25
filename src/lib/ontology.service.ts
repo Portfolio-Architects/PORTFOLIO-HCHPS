@@ -31,25 +31,29 @@ const VALID_EDGE_TYPES = new Set<string>([
 export function parseNodes(rawRows: string[][]): OntologyNode[] {
   if (rawRows.length < 2) return [];
 
-  return rawRows.slice(1) // skip header
-    .filter(row => row[0]?.trim())
-    .map(row => {
-      const id = row[0].trim();
-      const label = row[1]?.trim() || id;
-      const groupRaw = row[2]?.trim().toUpperCase().replace(/\s+/g, '_') || '';
-      const group: OntologyGroup = VALID_GROUPS.has(groupRaw)
-        ? groupRaw as OntologyGroup
-        : 'OTHER';
+  const nodes: OntologyNode[] = [];
+  for (let i = 1; i < rawRows.length; i++) {
+    const row = rawRows[i];
+    if (!row || !row[0]?.trim()) continue;
 
-      let baseValue = Math.max(0, Math.min(100, parseInt(row[3]) || 50));
+    const id = row[0].trim();
+    const label = row[1]?.trim() || id;
+    const groupRaw = row[2]?.trim().toUpperCase().replace(/\s+/g, '_') || '';
+    const group: OntologyGroup = VALID_GROUPS.has(groupRaw)
+      ? groupRaw as OntologyGroup
+      : 'OTHER';
 
-      // SYSTEM_RISK 노드는 base_value 31~40 강제 (프롬프트 제약)
-      if (group === 'SYSTEM_RISK') {
-        baseValue = Math.max(31, Math.min(40, baseValue));
-      }
+    let baseValue = Math.max(0, Math.min(100, parseInt(row[3]) || 50));
 
-      return { id, label, group, baseValue };
-    });
+    // SYSTEM_RISK 노드는 base_value 31~40 강제 (프롬프트 제약)
+    if (group === 'SYSTEM_RISK') {
+      baseValue = Math.max(31, Math.min(40, baseValue));
+    }
+
+    nodes.push({ id, label, group, baseValue });
+  }
+
+  return nodes;
 }
 
 export function parseEdges(rawRows: string[][], validNodeIds: Set<string>, nodeGroupMap?: Map<string, string>): OntologyEdge[] {
@@ -57,39 +61,41 @@ export function parseEdges(rawRows: string[][], validNodeIds: Set<string>, nodeG
 
   // Deduplicate: only one edge per pair (first wins → dominant single edge)
   const seen = new Set<string>();
+  const edges: OntologyEdge[] = [];
 
-  return rawRows.slice(1)
-    .filter(row => {
-      const src = row[0]?.trim();
-      const tgt = row[1]?.trim();
-      if (!src || !tgt || src === tgt) return false;
-      if (!validNodeIds.has(src) || !validNodeIds.has(tgt)) return false;
-      const key = [src, tgt].sort().join('|||');
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .map(row => {
-      const source = row[0].trim();
-      const target = row[1].trim();
-      const typeRaw = row[2]?.trim().toUpperCase().replace(/\s+/g, '_') || '';
-      let weight = Math.max(-1, Math.min(1, parseFloat(row[3]) || 0));
+  for (let i = 1; i < rawRows.length; i++) {
+    const row = rawRows[i];
+    if (!row) continue;
+    const src = row[0]?.trim();
+    const tgt = row[1]?.trim();
+    if (!src || !tgt || src === tgt) continue;
+    if (!validNodeIds.has(src) || !validNodeIds.has(tgt)) continue;
+    const key = src < tgt ? `${src}|||${tgt}` : `${tgt}|||${src}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
 
-      // SYSTEM_RISK 연결 시 음수 강제 (프롬프트 제약)
-      const targetGroup = nodeGroupMap?.get(target);
-      const sourceGroup = nodeGroupMap?.get(source);
-      if (targetGroup === 'SYSTEM_RISK' || sourceGroup === 'SYSTEM_RISK') {
-        if (weight > 0) weight = -weight; // 양수이면 음수로 뒤집기
-        weight = Math.min(-0.20, weight); // 최소 -0.20
-      }
+    const source = src;
+    const target = tgt;
+    const typeRaw = row[2]?.trim().toUpperCase().replace(/\s+/g, '_') || '';
+    let weight = Math.max(-1, Math.min(1, parseFloat(row[3]) || 0));
 
-      return {
-        source,
-        target,
-        type: (VALID_EDGE_TYPES.has(typeRaw) ? typeRaw : 'DEPENDENCY') as EdgeType,
-        weight,
-      };
+    // SYSTEM_RISK 연결 시 음수 강제 (프롬프트 제약)
+    const targetGroup = nodeGroupMap?.get(target);
+    const sourceGroup = nodeGroupMap?.get(source);
+    if (targetGroup === 'SYSTEM_RISK' || sourceGroup === 'SYSTEM_RISK') {
+      if (weight > 0) weight = -weight; // 양수이면 음수로 뒤집기
+      weight = Math.min(-0.20, weight); // 최소 -0.20
+    }
+
+    edges.push({
+      source,
+      target,
+      type: (VALID_EDGE_TYPES.has(typeRaw) ? typeRaw : 'DEPENDENCY') as EdgeType,
+      weight,
     });
+  }
+
+  return edges;
 }
 
 // ============ Eigenvector-Weighted Centrality ============
@@ -202,14 +208,21 @@ export function computeCentrality(
     riskFactors.set(node.id, maxRiskFromNeighbor);
   }
 
-  // 중심성 [0, 1] 범위로 Min-Max 정규화
-  const centValues = Array.from(centrality.values());
-  const minCent = Math.min(...centValues, 0);
-  const maxCent = Math.max(...centValues, 0.001);
+  // 중심성 [0, 1] 범위로 Min-Max 정규화 (Zero-Allocation Accumulator Loop)
+  let minCent = 0;
+  let maxCent = 0.001;
+  for (const v of centrality.values()) {
+    if (v < minCent) minCent = v;
+    if (v > maxCent) maxCent = v;
+  }
   const centRange = maxCent - minCent;
 
-  // 4. 레이어 보너스 (Layer Boost) 및 최종 renderSize 비선형 스케일 바인딩
-  const maxBaseValue = Math.max(...nodes.map(n => n.baseValue), 1);
+  // 4. 레이어 보너스 (Layer Boost) 및 최종 renderSize 비선형 스케일 바인딩 (Zero-Allocation Accumulator Loop)
+  let maxBaseValue = 1;
+  for (let i = 0; i < nodes.length; i++) {
+    const bv = nodes[i].baseValue;
+    if (bv > maxBaseValue) maxBaseValue = bv;
+  }
 
   return nodes.map(node => {
     const rawCent = centrality.get(node.id) || 0;

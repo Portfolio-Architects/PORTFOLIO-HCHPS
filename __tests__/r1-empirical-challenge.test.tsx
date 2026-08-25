@@ -16,7 +16,7 @@ if (typeof global.Headers === 'undefined') {
 }
 
 import '@testing-library/jest-dom';
-import { renderHook, render, act, screen, fireEvent } from '@testing-library/react';
+import { renderHook, render, act, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import { useMergedSignals } from '@/hooks/useMergedSignals';
 import { SignalEntry } from '@/hooks/useSignal';
@@ -308,8 +308,8 @@ describe('Empirical Challenge: useMergedSignals & ProtectedApp Tab Switching', (
     it('should render initial dashboard view and switch tabs cleanly without exceptions', async () => {
       renderPage();
       
-      // Dashboard should be active initially
-      expect(screen.getByTestId('dashboard-component')).toBeInTheDocument();
+      // Wait for client mount and initial dashboard view
+      await waitFor(() => expect(screen.getByTestId('dashboard-component')).toBeInTheDocument());
       expect(screen.getByTestId('active-nav')).toHaveTextContent('dashboard');
 
       // Click Nav Workspace
@@ -328,8 +328,10 @@ describe('Empirical Challenge: useMergedSignals & ProtectedApp Tab Switching', (
       expect(screen.getByTestId('active-nav')).toHaveTextContent('project');
     });
 
-    it('should handle rapid stress switching between all tabs without dropping state or throwing errors', () => {
+    it('should handle rapid stress switching between all tabs without dropping state or throwing errors', async () => {
       renderPage();
+
+      await waitFor(() => expect(screen.getByText('Nav Dashboard')).toBeInTheDocument());
 
       const navDashboard = screen.getByText('Nav Dashboard');
       const navWorkspace = screen.getByText('Nav Workspace');

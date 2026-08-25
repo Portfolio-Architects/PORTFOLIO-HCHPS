@@ -1,4 +1,4 @@
-import { renderHook, act, render, screen, fireEvent } from '@testing-library/react';
+import { renderHook, act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -48,14 +48,12 @@ describe('R1 & R2 Empirical Challenger Verification Suite', () => {
   // 1. R1: LOCAL DATA HYDRATION & OPTIMISTIC UPDATES VERIFICATION
   // =========================================================================
   describe('1. R1: React Query Local Hydration & Optimistic Updates', () => {
-    it('useTasks loads initialData from localStorage ("hchps-fallback-TASKS")', () => {
-      const mockTasks = [{ id: 'task-local-1', title: 'Local Task', status: 'todo', priority: 'high', category: 'General', tags: [] }];
-      localStorage.setItem('hchps-fallback-TASKS', JSON.stringify(mockTasks));
-
+    it('useTasks safely initializes with empty array for SSR and loads query data', async () => {
       const { Wrapper } = createWrapper();
       const { result } = renderHook(() => useTasks(), { wrapper: Wrapper });
 
-      expect(result.current.tasks).toEqual(mockTasks);
+      expect(result.current.tasks).toEqual([]);
+      await waitFor(() => expect(result.current.tasks.length).toBeGreaterThan(0));
     });
 
     it('useTasks performs optimistic updates and triggers zero redundant invalidateQueries onSettled', async () => {
@@ -65,37 +63,31 @@ describe('R1 & R2 Empirical Challenger Verification Suite', () => {
       const { result } = renderHook(() => useTasks(), { wrapper: Wrapper });
 
       // Wait for initial query fetch to settle
-      await act(async () => {
-        await new Promise(r => setTimeout(r, 20));
-      });
+      await waitFor(() => expect(result.current.tasks.length).toBeGreaterThan(0));
 
       // Perform optimistic task add and await async onMutate (cancelQueries microtask)
       await act(async () => {
         result.current.addTask({ title: 'New Task', status: 'todo', priority: 'medium', category: 'General', tags: [] });
-        await new Promise(r => setTimeout(r, 20));
       });
 
       // Optimistic update must reflect in query cache
-      const tasksInCache = queryClient.getQueryData<any[]>(['TASKS']);
-      expect(tasksInCache).toBeDefined();
-      expect(tasksInCache?.some(t => t.title === 'New Task')).toBe(true);
+      await waitFor(() => {
+        const tasksInCache = queryClient.getQueryData<any[]>(['TASKS']);
+        expect(tasksInCache).toBeDefined();
+        expect(tasksInCache?.some(t => t.title === 'New Task')).toBe(true);
+      });
 
       // Verify no invalidateQueries was executed in onSettled
       expect(invalidateSpy).not.toHaveBeenCalled();
     });
 
-    it('useBudget loads initialData from localStorage for Categories and Entries', () => {
-      const mockCats = [{ id: 'cat-local', name: 'Local Cat', totalBudget: 500000, policyProject: 'P', unitProject: 'U', detailedProject: 'D', statItem: 'S' }];
-      const mockEntries = [{ id: 'entry-local', categoryId: 'cat-local', amount: 20000, title: 'Local Expense' }];
-      
-      localStorage.setItem('hchps-fallback-BUDGET_CATEGORIES', JSON.stringify(mockCats));
-      localStorage.setItem('hchps-fallback-BUDGET_ENTRIES', JSON.stringify(mockEntries));
-
+    it('useBudget safely initializes with empty array for SSR and loads query data', async () => {
       const { Wrapper } = createWrapper();
       const { result } = renderHook(() => useBudget(), { wrapper: Wrapper });
 
-      expect(result.current.categories).toEqual(mockCats);
-      expect(result.current.entries).toEqual(mockEntries);
+      expect(result.current.categories).toEqual([]);
+      expect(result.current.entries).toEqual([]);
+      await waitFor(() => expect(result.current.categories.length).toBeGreaterThan(0));
     });
 
     it('useBudget performs optimistic updates without triggering invalidateQueries', async () => {
@@ -104,67 +96,58 @@ describe('R1 & R2 Empirical Challenger Verification Suite', () => {
 
       const { result } = renderHook(() => useBudget(), { wrapper: Wrapper });
 
-      await act(async () => {
-        await new Promise(r => setTimeout(r, 20));
-      });
+      await waitFor(() => expect(result.current.categories.length).toBeGreaterThan(0));
 
       await act(async () => {
         result.current.addCategory({ name: 'Optimistic Cat', totalBudget: 300000, color: '#3b82f6', policyProject: 'P2', unitProject: 'U2', detailedProject: 'D2', statItem: 'S2' });
-        await new Promise(r => setTimeout(r, 20));
       });
 
-      const catsInCache = queryClient.getQueryData<any[]>(['BUDGET_CATEGORIES']);
-      expect(catsInCache?.some(c => c.name === 'Optimistic Cat')).toBe(true);
+      await waitFor(() => {
+        const catsInCache = queryClient.getQueryData<any[]>(['BUDGET_CATEGORIES']);
+        expect(catsInCache?.some(c => c.name === 'Optimistic Cat')).toBe(true);
+      });
       expect(invalidateSpy).not.toHaveBeenCalled();
     });
 
-    it('useInventory loads initialData from localStorage and optimistic updates work', async () => {
-      const mockItems = [{ id: 'inv-local', name: 'Local Item', category: 'Supplies', currentStock: 50, unit: 'box', budgetEntryIds: [], createdAt: '', updatedAt: '' }];
-      localStorage.setItem('hchps-fallback-INVENTORY', JSON.stringify(mockItems));
-
+    it('useInventory loads initialData safely for SSR and optimistic updates work', async () => {
       const { queryClient, Wrapper } = createWrapper();
       const invalidateSpy = jest.spyOn(queryClient, 'invalidateQueries');
 
       const { result } = renderHook(() => useInventory(), { wrapper: Wrapper });
 
-      expect(result.current.items).toEqual(mockItems);
+      expect(result.current.items).toEqual([]);
 
-      await act(async () => {
-        await new Promise(r => setTimeout(r, 20));
-      });
+      await waitFor(() => expect(result.current.items.length).toBeGreaterThan(0));
 
       await act(async () => {
         result.current.addItem({ name: 'New Item', category: 'Supplies', currentStock: 5, unit: 'ea', budgetEntryIds: [] });
-        await new Promise(r => setTimeout(r, 20));
       });
 
-      const itemsInCache = queryClient.getQueryData<any[]>(['INVENTORY']);
-      expect(itemsInCache?.some(i => i.name === 'New Item')).toBe(true);
+      await waitFor(() => {
+        const itemsInCache = queryClient.getQueryData<any[]>(['INVENTORY']);
+        expect(itemsInCache?.some(i => i.name === 'New Item')).toBe(true);
+      });
       expect(invalidateSpy).not.toHaveBeenCalled();
     });
 
-    it('useContacts loads initialData from localStorage and optimistic updates work', async () => {
-      const mockContacts = [{ id: 'contact-local', name: 'Local Contact', phone: '010-9999-8888', email: '', notes: '' }];
-      localStorage.setItem('hchps-fallback-CONTACTS', JSON.stringify(mockContacts));
-
+    it('useContacts loads initialData safely for SSR and optimistic updates work', async () => {
       const { queryClient, Wrapper } = createWrapper();
       const invalidateSpy = jest.spyOn(queryClient, 'invalidateQueries');
 
       const { result } = renderHook(() => useContacts(), { wrapper: Wrapper });
 
-      expect(result.current.contacts).toEqual(mockContacts);
+      expect(result.current.contacts).toEqual([]);
 
-      await act(async () => {
-        await new Promise(r => setTimeout(r, 20));
-      });
+      await waitFor(() => expect(result.current.contacts.length).toBeGreaterThan(0));
 
       await act(async () => {
         result.current.addContact({ name: 'New Contact', phone: '010-0000-1111', email: '', notes: '' });
-        await new Promise(r => setTimeout(r, 20));
       });
 
-      const contactsInCache = queryClient.getQueryData<any[]>(['CONTACTS']);
-      expect(contactsInCache?.some(c => c.name === 'New Contact')).toBe(true);
+      await waitFor(() => {
+        const contactsInCache = queryClient.getQueryData<any[]>(['CONTACTS']);
+        expect(contactsInCache?.some(c => c.name === 'New Contact')).toBe(true);
+      });
       expect(invalidateSpy).not.toHaveBeenCalled();
     });
   });
@@ -196,9 +179,7 @@ describe('R1 & R2 Empirical Challenger Verification Suite', () => {
       const { Wrapper } = createWrapper();
       const { result } = renderHook(() => useLocalhostHealth(true), { wrapper: Wrapper });
 
-      await act(async () => {
-        await new Promise(r => setTimeout(r, 50));
-      });
+      await waitFor(() => expect(result.current.data).toBeDefined());
 
       const health = result.current.data;
       expect(health).toBeDefined();
@@ -219,9 +200,8 @@ describe('R1 & R2 Empirical Challenger Verification Suite', () => {
         </Wrapper>
       );
 
-      await act(async () => {
-        await new Promise(r => setTimeout(r, 50));
-      });
+      // Wait for async fetch to resolve and display backup count
+      await waitFor(() => expect(screen.getByText(/Bk:26/)).toBeInTheDocument());
 
       // Verify compact pill text
       expect(screen.getByText('3001')).toBeInTheDocument();

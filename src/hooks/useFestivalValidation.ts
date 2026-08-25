@@ -81,6 +81,18 @@ const MANDATORY_PERMITS: Array<{
   }
 ];
 
+// Pre-indexed static lookup maps for mandatory permit matching
+const PERMIT_KEYWORD_ENTRIES: Array<{
+  keyword: string;
+  permitKey: 'municipal_report' | 'police_road' | 'fire_safety' | 'safety_plan';
+}> = MANDATORY_PERMITS.flatMap(p =>
+  p.keywords.map(kw => ({ keyword: kw, permitKey: p.key }))
+);
+
+const PERMIT_NODE_ID_MAP = new Map<string, 'municipal_report' | 'police_road' | 'fire_safety' | 'safety_plan'>(
+  MANDATORY_PERMITS.map(p => [p.nodeId, p.key])
+);
+
 const FESTIVAL_DOMAINS = ['인허가/안전관리', '무대/공연/음향', '홍보/마케팅', '먹거리/부스', '예산/계약'];
 
 export function useFestivalValidation(): FestivalValidationReport {
@@ -93,20 +105,23 @@ export function useFestivalValidation(): FestivalValidationReport {
     const map = new Map<string, { id: string; label: string; verificationStatus?: VerificationStatus; permitKey?: string }>();
     
     // Preset nodes
-    FESTIVAL_5DOMAINS.forEach(hub => {
+    for (let i = 0; i < FESTIVAL_5DOMAINS.length; i++) {
+      const hub = FESTIVAL_5DOMAINS[i];
       map.set(hub.id, { id: hub.id, label: hub.label, verificationStatus: overrides[hub.id]?.verificationStatus || 'in-progress' });
-      hub.children.forEach(child => {
+      for (let j = 0; j < hub.children.length; j++) {
+        const child = hub.children[j];
         map.set(child.id, {
           id: child.id,
           label: child.label,
           verificationStatus: overrides[child.id]?.verificationStatus || child.verificationStatus || 'uncompleted',
           permitKey: child.permitKey
         });
-      });
-    });
+      }
+    }
 
     // Custom nodes
-    customNodes.forEach(node => {
+    for (let i = 0; i < customNodes.length; i++) {
+      const node = customNodes[i];
       const ov = overrides[node.id];
       map.set(node.id, {
         id: node.id,
@@ -114,63 +129,71 @@ export function useFestivalValidation(): FestivalValidationReport {
         verificationStatus: ov?.verificationStatus || (node as any).verificationStatus || 'uncompleted',
         permitKey: (node as any).permitKey
       });
-    });
+    }
 
     return map;
   }, [customNodes, overrides]);
 
-  // 1. Evaluate Permits Status
+  // 1. Evaluate Permits Status with O(1) Pre-Indexed Lookups
   const permits = useMemo<EssentialPermitStatus[]>(() => {
+    // Pre-index node matches across allNodesMap in a single O(N) pass
+    const permitNodeMatchMap = new Map<string, { id: string; isVerified: boolean }>();
+    for (const [id, node] of allNodesMap) {
+      let matchedPermitKey: string | undefined;
+      
+      if (node.permitKey) {
+        matchedPermitKey = node.permitKey;
+      } else if (PERMIT_NODE_ID_MAP.has(id)) {
+        matchedPermitKey = PERMIT_NODE_ID_MAP.get(id);
+      } else {
+        for (let i = 0; i < PERMIT_KEYWORD_ENTRIES.length; i++) {
+          if (node.label.includes(PERMIT_KEYWORD_ENTRIES[i].keyword)) {
+            matchedPermitKey = PERMIT_KEYWORD_ENTRIES[i].permitKey;
+            break;
+          }
+        }
+      }
+
+      if (matchedPermitKey && !permitNodeMatchMap.has(matchedPermitKey)) {
+        const status = overrides[id]?.verificationStatus || node.verificationStatus || 'uncompleted';
+        permitNodeMatchMap.set(matchedPermitKey, {
+          id,
+          isVerified: status === 'verified'
+        });
+      }
+    }
+
+    // Pre-index task matches across tasks in a single O(T) pass
+    const permitTaskMatchMap = new Map<string, { id: string; isDone: boolean }>();
+    for (let k = 0; k < tasks.length; k++) {
+      const t = tasks[k];
+      if (!t.title) continue;
+      for (let i = 0; i < PERMIT_KEYWORD_ENTRIES.length; i++) {
+        if (t.title.includes(PERMIT_KEYWORD_ENTRIES[i].keyword)) {
+          const pKey = PERMIT_KEYWORD_ENTRIES[i].permitKey;
+          if (!permitTaskMatchMap.has(pKey)) {
+            permitTaskMatchMap.set(pKey, {
+              id: t.id,
+              isDone: t.status === 'done'
+            });
+          }
+          break;
+        }
+      }
+    }
+
+    // Evaluate each permit in O(1) constant time
     return MANDATORY_PERMITS.map(config => {
-      let matchedNodeId: string | undefined;
-      let matchedTaskId: string | undefined;
-      let nodeExists = false;
-      let nodeIsVerified = false;
-      let taskExists = false;
-      let taskIsDone = false;
+      const nodeMatch = permitNodeMatchMap.get(config.key);
+      const taskMatch = permitTaskMatchMap.get(config.key);
 
-      // Search matching node
-      for (const [id, node] of Array.from(allNodesMap.entries())) {
-        const isIdMatch = id === config.nodeId;
-        const isPermitKeyMatch = node.permitKey === config.key;
-        let isLabelMatch = false;
-        for (let i = 0; i < config.keywords.length; i++) {
-          if (node.label.includes(config.keywords[i])) {
-            isLabelMatch = true;
-            break;
-          }
-        }
+      const matchedNodeId = nodeMatch?.id;
+      const nodeExists = !!nodeMatch;
+      const nodeIsVerified = !!nodeMatch?.isVerified;
 
-        if (isIdMatch || isPermitKeyMatch || isLabelMatch) {
-          matchedNodeId = id;
-          nodeExists = true;
-          const status = overrides[id]?.verificationStatus || node.verificationStatus || 'uncompleted';
-          if (status === 'verified') {
-            nodeIsVerified = true;
-          }
-          break;
-        }
-      }
-
-      // Search matching task
-      for (let k = 0; k < tasks.length; k++) {
-        const t = tasks[k];
-        let isTitleMatch = false;
-        for (let i = 0; i < config.keywords.length; i++) {
-          if (t.title.includes(config.keywords[i])) {
-            isTitleMatch = true;
-            break;
-          }
-        }
-        if (isTitleMatch) {
-          matchedTaskId = t.id;
-          taskExists = true;
-          if (t.status === 'done') {
-            taskIsDone = true;
-          }
-          break;
-        }
-      }
+      const matchedTaskId = taskMatch?.id;
+      const taskExists = !!taskMatch;
+      const taskIsDone = !!taskMatch?.isDone;
 
       let status: 'MISSING' | 'INCOMPLETE' | 'VERIFIED' = 'MISSING';
       if (nodeIsVerified || taskIsDone) {
@@ -234,39 +257,37 @@ export function useFestivalValidation(): FestivalValidationReport {
       }
     }
 
-    // Unentered Domains
-    const domainAmounts: Record<string, number> = {};
+    // Unentered Domains - O(1) Map Pre-Indexing
+    const domainAmountsMap = new Map<string, number>();
     for (let i = 0; i < FESTIVAL_DOMAINS.length; i++) {
-      domainAmounts[FESTIVAL_DOMAINS[i]] = 0;
+      domainAmountsMap.set(FESTIVAL_DOMAINS[i], 0);
     }
 
     // Sum entries by matching keywords or department
     for (let i = 0; i < entries.length; i++) {
       const e = entries[i];
-      const dp = e.detailedProject || '';
-      const memo = e.memo || '';
-      const name = e.name || '';
+      const combinedText = `${e.detailedProject || ''} ${e.memo || ''} ${e.name || ''}`;
       for (let j = 0; j < FESTIVAL_DOMAINS.length; j++) {
         const d = FESTIVAL_DOMAINS[j];
-        if (dp.includes(d) || memo.includes(d) || name.includes(d)) {
-          domainAmounts[d] += e.amount || 0;
+        if (combinedText.includes(d)) {
+          domainAmountsMap.set(d, (domainAmountsMap.get(d) || 0) + (e.amount || 0));
         }
       }
     }
 
     // Also check mindmap node departments
-    for (const [, node] of Array.from(allNodesMap.entries())) {
+    for (const node of allNodesMap.values()) {
       const ov = overrides[node.id];
       const dept = ov?.story5W1H?.department || '';
-      if (dept && domainAmounts[dept] !== undefined) {
-        domainAmounts[dept] += 1;
+      if (dept && domainAmountsMap.has(dept)) {
+        domainAmountsMap.set(dept, domainAmountsMap.get(dept)! + 1);
       }
     }
 
     const unenteredDomains: string[] = [];
     for (let i = 0; i < FESTIVAL_DOMAINS.length; i++) {
       const d = FESTIVAL_DOMAINS[i];
-      if (domainAmounts[d] === 0) {
+      if ((domainAmountsMap.get(d) || 0) === 0) {
         unenteredDomains.push(d);
       }
     }
@@ -288,16 +309,17 @@ export function useFestivalValidation(): FestivalValidationReport {
     const map = new Map<string, { riskLevel: 'CRITICAL' | 'WARNING'; reason: string }>();
 
     // Permit missing or incomplete nodes
-    permits.forEach(p => {
+    for (let i = 0; i < permits.length; i++) {
+      const p = permits[i];
       if (p.status === 'MISSING' && p.nodeId) {
         map.set(p.nodeId, { riskLevel: 'CRITICAL', reason: `${p.label} 필수 인허가 서류 누락` });
       } else if (p.status === 'INCOMPLETE' && p.nodeId) {
         map.set(p.nodeId, { riskLevel: 'WARNING', reason: `${p.label} 인허가 검증 미완료 (절차 진행중)` });
       }
-    });
+    }
 
     // Nodes with verificationStatus === 'risk-warning'
-    for (const [id, node] of Array.from(allNodesMap.entries())) {
+    for (const [id, node] of allNodesMap) {
       const ov = overrides[id];
       const vStatus = ov?.verificationStatus || node.verificationStatus;
       if (vStatus === 'risk-warning') {
@@ -319,7 +341,7 @@ export function useFestivalValidation(): FestivalValidationReport {
 
     let hasCriticalRiskNode = false;
     let hasWarningRiskNode = false;
-    for (const r of Array.from(riskNodesMap.values())) {
+    for (const r of riskNodesMap.values()) {
       if (r.riskLevel === 'CRITICAL') hasCriticalRiskNode = true;
       if (r.riskLevel === 'WARNING') hasWarningRiskNode = true;
     }
@@ -341,7 +363,13 @@ export function useFestivalValidation(): FestivalValidationReport {
   // 4. Inject Missing Permits Function
   const injectMissingPermits = useCallback(() => {
     const updates: Record<string, any> = {};
-    const permitStateMap = new Map(permits.map(p => [p.key, p]));
+    const permitStateMap = new Map<string, EssentialPermitStatus>();
+    for (let i = 0; i < permits.length; i++) {
+      permitStateMap.set(permits[i].key, permits[i]);
+    }
+
+    // Pre-index existing budget simulation entry names in a single O(E) pass
+    const combinedEntryNames = entries.map(e => e.name || '').join(' ');
 
     for (let i = 0; i < MANDATORY_PERMITS.length; i++) {
       const config = MANDATORY_PERMITS[i];
@@ -374,16 +402,8 @@ export function useFestivalValidation(): FestivalValidationReport {
         updateTask(permitState.taskId, { status: 'done' });
       }
 
-      // 3. Ensure simulation entry exists in budget simulator
-      let entryExists = false;
-      for (let j = 0; j < entries.length; j++) {
-        const eName = entries[j].name || '';
-        if (eName.includes(config.label) || eName.includes(config.nodeLabel)) {
-          entryExists = true;
-          break;
-        }
-      }
-
+      // 3. Ensure simulation entry exists in budget simulator (O(1) substring check)
+      const entryExists = combinedEntryNames.includes(config.label) || combinedEntryNames.includes(config.nodeLabel);
       if (!entryExists) {
         addEntry({
           name: config.nodeLabel,

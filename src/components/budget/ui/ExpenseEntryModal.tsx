@@ -78,13 +78,39 @@ export function ExpenseEntryModal({
     }
   }, [isOpen, initialData, preselectedCategoryId]);
 
+  const categoriesMap = useMemo(() => new Map(categories.map(c => [c.id, c])), [categories]);
+  const entriesMap = useMemo(() => new Map(entries.map(e => [e.id, e])), [entries]);
+
+  const selectedCategory = useMemo(() => {
+    return (selectedCatId ? categoriesMap.get(selectedCatId) : undefined) || null;
+  }, [categoriesMap, selectedCatId]);
+
+  const { subItemMap, parentSubItemMap } = useMemo(() => {
+    const subMap = new Map<string, BudgetSubItem | BudgetCalculation>();
+    const parentMap = new Map<string, BudgetSubItem>();
+    if (selectedCategory?.subItems) {
+      for (const sub of selectedCategory.subItems) {
+        if (sub.id) subMap.set(sub.id, sub);
+        if (sub.calculations) {
+          for (const calc of sub.calculations) {
+            if (calc.id) {
+              subMap.set(calc.id, calc);
+              parentMap.set(calc.id, sub);
+            }
+          }
+        }
+      }
+    }
+    return { subItemMap: subMap, parentSubItemMap: parentMap };
+  }, [selectedCategory]);
+
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCatId || !entryAmount || !entryDate || !entryPurpose) {
       setEntryError('모든 필수 항목을 입력해주세요.');
       return;
     }
-    const cat = categories.find(c => c.id === selectedCatId);
+    const cat = categoriesMap.get(selectedCatId);
     if (!cat) {
       setEntryError('유효하지 않은 예산 과목입니다.');
       return;
@@ -121,10 +147,7 @@ export function ExpenseEntryModal({
 
     // -- VALIDATION START --
     if (entryLinkedSubItemId && actionType !== 'settle') {
-      let targetSubItem: BudgetSubItem | BudgetCalculation | undefined = cat.subItems?.find(s => s.id === entryLinkedSubItemId);
-      if (!targetSubItem) {
-        targetSubItem = cat.subItems?.flatMap(s => s.calculations || []).find((c: BudgetCalculation) => c.id === entryLinkedSubItemId);
-      }
+      const targetSubItem: BudgetSubItem | BudgetCalculation | undefined = subItemMap.get(entryLinkedSubItemId);
       
       if (targetSubItem) {
         const linkedEntries = entries.filter(en => en.categoryId === selectedCatId && en.linkedSubItemId === entryLinkedSubItemId && en.id !== editEntryId && en.actionType !== 'settle');
@@ -149,7 +172,7 @@ export function ExpenseEntryModal({
 
         const isSelfLocked = targetSubItem.isLocked;
         let isParentLocked = false;
-        const parentSub = cat.subItems?.find(s => s.calculations?.some(c => c.id === entryLinkedSubItemId));
+        const parentSub = parentSubItemMap.get(entryLinkedSubItemId);
         if (parentSub && parentSub.isLocked) isParentLocked = true;
 
         if (isSelfLocked || isParentLocked) {
@@ -164,7 +187,7 @@ export function ExpenseEntryModal({
       const dailyRemaining = stats ? stats.dailyExpenseRemaining : 0;
       let adjustment = amt;
       if (editEntryId) {
-        const oldEntry = entries.find(e => e.id === editEntryId);
+        const oldEntry = entriesMap.get(editEntryId);
         if (oldEntry && oldEntry.actionType === 'daily_expense') {
           adjustment = amt - oldEntry.amount;
         }
@@ -187,7 +210,7 @@ export function ExpenseEntryModal({
       }
       
       if (editEntryId) {
-        const oldEntry = entries.find(e => e.id === editEntryId);
+        const oldEntry = entriesMap.get(editEntryId);
         if (oldEntry) {
           let oldAmountEffect = oldEntry.amount;
           if (oldEntry.actionType === 'transfer' && oldEntry.transferDirection !== 'out') {
@@ -228,10 +251,6 @@ export function ExpenseEntryModal({
     });
     onClose();
   };
-
-  const selectedCategory = useMemo(() => {
-    return categories.find(c => c.id === selectedCatId) || null;
-  }, [categories, selectedCatId]);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={isEdit ? '지출/집행 내역 수정' : '새 지출/집행 내역 등록'}>

@@ -9,6 +9,12 @@ export interface ValidationResult {
   type?: 'error' | 'warning' | 'confirm';
 }
 
+const FORBIDDEN_PURPOSE_REGEX = /자산취득|컴퓨터|장비/;
+const FORBIDDEN_CATEGORY_REGEX = /자산취득비|인건비/;
+const ADVISORY_PURPOSE_REGEX = /자문료|속기료|사례금|수수료/;
+const OPERATING_EXPENSE_REGEX = /일반수용비|210-01/;
+const TEMPORARY_LABOR_REGEX = /일용임금|행정보조/;
+
 export const BudgetRules = {
   /**
    * 예산 과목 생성 시 국비/지방비(시비) 매칭 비율 검증
@@ -36,7 +42,7 @@ export const BudgetRules = {
    */
   validateEntryCompliance(purpose: string, categoryName: string): ValidationResult {
     // 1. 금지 비목 차단 (블랙리스트)
-    if (purpose.includes('자산취득') || purpose.includes('컴퓨터') || purpose.includes('장비') || categoryName.includes('자산취득비') || categoryName.includes('인건비')) {
+    if (FORBIDDEN_PURPOSE_REGEX.test(purpose) || FORBIDDEN_CATEGORY_REGEX.test(categoryName)) {
       return { 
         valid: false, 
         message: '통합건강증진사업 지침상 자산취득성 사업비 및 인건비 편성이 불가합니다.', 
@@ -45,8 +51,8 @@ export const BudgetRules = {
     }
 
     // 2. 오분류 방지
-    if (purpose.includes('자문료') || purpose.includes('속기료') || purpose.includes('사례금') || purpose.includes('수수료')) {
-      if (!categoryName.includes('일반수용비') && !categoryName.includes('210-01')) {
+    if (ADVISORY_PURPOSE_REGEX.test(purpose)) {
+      if (!OPERATING_EXPENSE_REGEX.test(categoryName)) {
         return { 
           valid: false, 
           message: "지침 위반. 전문가 자문 등은 반드시 '일반수용비(210-01목)'로 집행해야 합니다.", 
@@ -56,7 +62,7 @@ export const BudgetRules = {
     }
 
     // 3. 편법 지출 방지 경고
-    if (purpose.includes('일용임금') || purpose.includes('행정보조')) {
+    if (TEMPORARY_LABOR_REGEX.test(purpose)) {
       return { 
         valid: true, 
         message: "계속 고용 금지 및 중복 계상 금지 지침 재확인 요망. 불필요한 일용인력 계속 고용은 감사 대상입니다. 계속 진행할까요?", 

@@ -19,14 +19,14 @@ export const SecurityLockScreen: React.FC<Props> = ({ hasSetupPIN, onVerify, onS
   const [isShaking, setIsShaking] = useState(false);
 
   // Trigger shake animation
-  const triggerError = (msg: string) => {
+  const triggerError = useCallback((msg: string) => {
     setErrorMsg(msg);
     setIsShaking(true);
     setTimeout(() => setIsShaking(false), 500);
     setPin('');
-  };
+  }, []);
 
-  const handlePinComplete = async (currentPin: string) => {
+  const handlePinComplete = useCallback(async (currentPin: string) => {
     if (hasSetupPIN) {
       const isValid = await onVerify(currentPin);
       if (!isValid) {
@@ -47,44 +47,39 @@ export const SecurityLockScreen: React.FC<Props> = ({ hasSetupPIN, onVerify, onS
         }
       }
     }
-  };
+  }, [hasSetupPIN, onVerify, setupStep, firstPin, onSetup, triggerError]);
 
-  useEffect(() => {
-    if (pin.length === PIN_LENGTH) {
-      handlePinComplete(pin);
+  const processDigit = useCallback((digit: string) => {
+    if (pin.length < PIN_LENGTH) {
+      const nextPin = pin + digit;
+      setPin(nextPin);
+      setErrorMsg('');
+      if (nextPin.length === PIN_LENGTH) {
+        handlePinComplete(nextPin);
+      }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pin]);
+  }, [pin, handlePinComplete]);
 
   // 물리적 키보드(키패드) 입력 지원
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     // 숫자 키 입력
     if (e.key >= '0' && e.key <= '9') {
-      setPin(prev => {
-        if (prev.length < PIN_LENGTH) return prev + e.key;
-        return prev;
-      });
-      setErrorMsg('');
+      processDigit(e.key);
     } 
     // 백스페이스 및 삭제 
     else if (e.key === 'Backspace' || e.key === 'Delete') {
       setPin(prev => prev.slice(0, -1));
       setErrorMsg('');
     }
-  }, [/* handleKeyDown */]);
+  }, [processDigit]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
-
-
   const handleNumberClick = (n: number) => {
-    if (pin.length < PIN_LENGTH) {
-      setPin(prev => prev + n.toString());
-      setErrorMsg('');
-    }
+    processDigit(n.toString());
   };
 
   const handleDelete = () => {

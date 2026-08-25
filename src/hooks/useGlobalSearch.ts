@@ -1,13 +1,47 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { SearchResultItem } from '@/components/SearchResultModal';
 import { MapCustomizationData } from '@/hooks/useGraphCustomization';
+
+function extractTextBuffer(blocks: unknown[], out: string[]) {
+  if (!Array.isArray(blocks)) return;
+  for (let bIdx = 0; bIdx < blocks.length; bIdx++) {
+    const block = blocks[bIdx] as { content?: unknown; children?: unknown[] };
+    if (block.content && Array.isArray(block.content)) {
+      for (let cIdx = 0; cIdx < block.content.length; cIdx++) {
+        const item = block.content[cIdx] as { text?: string };
+        if (item && item.text) out.push(item.text);
+      }
+      out.push('\n');
+    } else if (typeof block.content === 'string') {
+      out.push(block.content, '\n');
+    }
+    if (block.children && Array.isArray(block.children)) {
+      extractTextBuffer(block.children, out);
+      out.push('\n');
+    }
+  }
+}
+
+function matchesAllTerms(text: string, terms: string[]): boolean {
+  const lower = text.toLowerCase();
+  for (let j = 0; j < terms.length; j++) {
+    if (!lower.includes(terms[j])) return false;
+  }
+  return true;
+}
+
+function getSearchContext(text: string, firstTerm: string): string {
+  const matchIndex = firstTerm ? text.toLowerCase().indexOf(firstTerm) : 0;
+  const start = Math.max(0, matchIndex - 200);
+  return (start > 0 ? '... ' : '') + text.slice(start, start + 1000) + (text.length > start + 1000 ? '...' : '');
+}
 
 export function useGlobalSearch() {
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
 
-  const handleGlobalSearch = async (query: string) => {
+  const handleGlobalSearch = useCallback(async (query: string) => {
     setSearchQuery(query);
     
     // 제거할 특수문자들 (?, /) 을 지우고 실제 검색할 단어만 추출
@@ -15,38 +49,19 @@ export function useGlobalSearch() {
     if (!cleanQuery) return;
     
     const terms = cleanQuery.split(/\s+/);
-
-    const matchesTerms = (text: string) => {
-      const lower = text.toLowerCase();
-      return terms.every(t => lower.includes(t));
-    };
-
-    const extractTextFromBlocks = (blocks: unknown[]): string => {
-      if (!Array.isArray(blocks)) return '';
-      let text = '';
-      for (const b of blocks || []) {
-        const block = b as { content?: unknown, children?: unknown[] };
-        if (block.content && Array.isArray(block.content)) {
-          text += block.content.map((c: { text?: string }) => c.text || '').join('') + '\n';
-        } else if (typeof block.content === 'string') {
-          text += block.content + '\n';
-        }
-        if (block.children) text += extractTextFromBlocks(block.children) + '\n';
-      }
-      return text;
-    };
-
-    const getContext = (text: string): string => {
-      const firstTerm = terms[0] || '';
-      const matchIndex = firstTerm ? text.toLowerCase().indexOf(firstTerm) : 0;
-      const start = Math.max(0, matchIndex - 200);
-      return (start > 0 ? '... ' : '') + text.slice(start, start + 1000) + (text.length > start + 1000 ? '...' : '');
-    };
+    const firstTerm = terms[0] || '';
 
     let mapData: MapCustomizationData | null = null;
     try {
       mapData = JSON.parse(localStorage.getItem('hchps-map-customization') || '{}') as MapCustomizationData;
     } catch {}
+
+    const customNodesMap = new Map<string, string>();
+    if (mapData?.customNodes) {
+      for (const n of mapData.customNodes) {
+        if (n.label) customNodesMap.set(n.id, n.label);
+      }
+    }
 
     const wikiKeys: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
@@ -61,33 +76,31 @@ export function useGlobalSearch() {
     
     for (let i = 0; i < wikiKeys.length; i += chunkSize) {
       const chunk = wikiKeys.slice(i, i + chunkSize);
-      for (const key of chunk) {
+      for (let c = 0; c < chunk.length; c++) {
+        const key = chunk[c];
         try {
           const blocks = JSON.parse(localStorage.getItem(key) || '[]');
-          const text = extractTextFromBlocks(blocks);
+          const textChunks: string[] = [];
+          extractTextBuffer(blocks, textChunks);
+          const text = textChunks.join('');
           const nodeId = key.replace('HCHPS-Wiki-', '');
           
-          let nodeLabel = nodeId;
-          if (mapData) {
-            const cNode = mapData.customNodes?.find((n) => n.id === nodeId);
-            if (cNode && cNode.label) nodeLabel = cNode.label;
-            
-            const overrideLabel = mapData.overrides?.[nodeId]?.customLabel;
-            if (overrideLabel) nodeLabel = overrideLabel;
-          }
+          let nodeLabel = customNodesMap.get(nodeId) || (mapData?.overrides?.[nodeId]?.customLabel) || nodeId;
 
           if (nodeLabel === nodeId) {
-            const parts = nodeId.split('-');
-            nodeLabel = parts[parts.length - 1];
+            const lastHyphen = nodeId.lastIndexOf('-');
+            if (lastHyphen !== -1) {
+              nodeLabel = nodeId.slice(lastHyphen + 1);
+            }
           }
           
           const searchableText = `${nodeLabel}\n${text}`;
-          if (matchesTerms(searchableText)) {
+          if (matchesAllTerms(searchableText, terms)) {
             results.push({
               id: key,
               title: `온톨로지 문서 (${nodeLabel})`,
               source: '위키 저장소',
-              context: getContext(searchableText)
+              context: getSearchContext(searchableText, firstTerm)
             });
           }
         } catch (e) {
@@ -102,9 +115,11 @@ export function useGlobalSearch() {
 
     setSearchResults(results);
     setSearchModalOpen(true);
-  };
+  }, []);
 
-  const closeSearchModal = () => setSearchModalOpen(false);
+  const closeSearchModal = useCallback(() => {
+    setSearchModalOpen(false);
+  }, []);
 
   return {
     searchModalOpen,
@@ -114,3 +129,4 @@ export function useGlobalSearch() {
     closeSearchModal
   };
 }
+

@@ -26,7 +26,14 @@ const eslintConfig = defineConfig([
     "**/*.js",
     "scratch/**",
     "scripts/**",
-    "old-sheets-api.ts"
+    "old-sheets-api.ts",
+    ".partykit/**",
+    ".wrangler/**",
+    ".swc/**",
+    "test-results/**",
+    "playwright-report/**",
+    "hchps-work-manager/**",
+    "functions/**"
   ]),
 ]);
 

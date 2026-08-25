@@ -8,34 +8,44 @@ export interface FreezeEventDetail {
   timestamp: string;
 }
 
+let lastLogTime = 0;
+
 function recordFreezeSessionLog(logMessage: string, duration: number, currentModule: string) {
   if (typeof window === 'undefined') return;
+  const now = performance.now();
+  
+  // Throttle to at most 1 freeze log per 10 seconds to prevent event-loop cascades
+  if (now - lastLogTime < 10000) return;
+  lastLogTime = now;
+
   console.warn(logMessage);
 
   try {
     const existingRaw = sessionStorage.getItem('vital-freeze-logs');
     const existing: Array<{ timestamp: string; level: 'warn' | 'error'; message: string }> = existingRaw ? JSON.parse(existingRaw) : [];
     
-    if (existing.length >= 50) existing.shift();
+    if (existing.length >= 20) existing.shift();
     
     existing.push({
       timestamp: new Date().toISOString(),
-      level: duration > 300 ? 'error' : 'warn',
+      level: duration > 500 ? 'error' : 'warn',
       message: logMessage
     });
 
     sessionStorage.setItem('vital-freeze-logs', JSON.stringify(existing));
-  } catch (e) {
-    console.warn('[Freeze Detector] Failed to save freeze log to sessionStorage:', e);
+  } catch {
+    // Ignore session storage errors
   }
 
-  window.dispatchEvent(new CustomEvent('vital:freeze_logged', {
-    detail: {
-      duration,
-      module: currentModule,
-      timestamp: new Date().toISOString()
-    }
-  }));
+  try {
+    window.dispatchEvent(new CustomEvent('vital:freeze_logged', {
+      detail: {
+        duration,
+        module: currentModule,
+        timestamp: new Date().toISOString()
+      }
+    }));
+  } catch {}
 }
 
 function initPerformanceObserver(onFreeze: (duration: number, startTime: number) => void): PerformanceObserver | null {
@@ -119,22 +129,26 @@ export function useFreezeDetector(activeModule: string) {
     };
 
     const observer = initPerformanceObserver(handleFreeze);
+    let animFrameId: number | null = null;
 
-    const checkFrameDelta = (now: number) => {
-      if (document.hidden) {
+    if (!observer) {
+      const checkFrameDelta = (now: number) => {
+        if (document.hidden) {
+          lastTime = now;
+          animFrameId = requestAnimationFrame(checkFrameDelta);
+          return;
+        }
+
+        const delta = now - lastTime;
+        // Only report frame delta if not in background, realistic (< 2500ms), and well after visibility change
+        if (delta > 150 && delta <= 2500 && (now - lastVisibilityChangeTime >= 3500) && (now - mountTime >= 2000)) {
+          handleFreeze(delta);
+        }
         lastTime = now;
         animFrameId = requestAnimationFrame(checkFrameDelta);
-        return;
-      }
-
-      const delta = now - lastTime;
-      // Only report frame delta if not in background, realistic (< 2500ms), and well after visibility change
-      if (!observer && delta > 150 && delta <= 2500 && (now - lastVisibilityChangeTime >= 3500) && (now - mountTime >= 2000)) {
-        handleFreeze(delta);
-      }
-      lastTime = now;
+      };
       animFrameId = requestAnimationFrame(checkFrameDelta);
-    };
+    }
 
     const handleVisibilityChange = () => {
       lastTime = performance.now();
@@ -142,7 +156,6 @@ export function useFreezeDetector(activeModule: string) {
     };
 
     window.addEventListener('visibilitychange', handleVisibilityChange);
-    let animFrameId: number | null = requestAnimationFrame(checkFrameDelta);
 
     return () => {
       window.removeEventListener('visibilitychange', handleVisibilityChange);

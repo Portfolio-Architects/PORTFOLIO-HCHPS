@@ -66,8 +66,11 @@ export function useAgentStatus() {
     statusMap.clear();
   }, [statusMap]);
 
+  // Memoized array of statuses for reference stability
+  const statusList = useMemo(() => Object.values(statuses), [statuses]);
+
   return {
-    statuses: Object.values(statuses),
+    statuses: statusList,
     updateAgentStatus,
     resetAgentStatuses
   };

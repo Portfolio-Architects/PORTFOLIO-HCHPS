@@ -1,39 +1,28 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { decryptPayload, isCryptoReady } from '@/lib/crypto';
+import { readSheet } from '@/lib/sheets-api';
 
 export interface ClassificationWords {
+  id?: string;
   agents: string[];
   resources: string[];
   executions: string[];
 }
 
 export function useClassificationWords(isActive: boolean) {
-  const [cryptoReady, setCryptoReady] = useState(isCryptoReady());
-
-  useEffect(() => {
-    const handleReady = () => setCryptoReady(true);
-    window.addEventListener('crypto-ready', handleReady);
-    return () => window.removeEventListener('crypto-ready', handleReady);
-  }, []);
-
   return useQuery({
     queryKey: ['classification-words'],
     queryFn: async (): Promise<ClassificationWords | null> => {
-      const res = await fetch('/api/data?sheet=CLASSIFICATION_WORDS');
-      const json = await res.json();
-      if (json.success && json.data && json.data[0]) {
-        const entry = json.data[0];
-        if (entry._enc) {
-          const decrypted = await decryptPayload<ClassificationWords>(entry._enc);
-          return decrypted;
-        }
+      const data = await readSheet<ClassificationWords>('CLASSIFICATION_WORDS');
+      if (data && data.length > 0) {
+        return data[0];
       }
       return null;
     },
-    enabled: isActive && cryptoReady,
-    staleTime: Infinity,
+    enabled: isActive,
+    staleTime: 1000 * 60 * 10,
+    refetchOnWindowFocus: false,
+    refetchIntervalInBackground: false,
   });
 }

@@ -314,14 +314,16 @@ export function InventoryList({ items, addItem, updateItem, deleteItem, adjustSt
   }, [items]);
 
   const filteredItems = useMemo(() => {
-    const query = (searchQuery || '').toLowerCase();
+    const query = (searchQuery || '').trim().toLowerCase();
+    if (!query && !selectedCategory) return items;
     return items.filter(item => {
       if (!item) return false;
+      const matchesCategory = !selectedCategory || item.category === selectedCategory;
+      if (!matchesCategory) return false;
+      if (!query) return true;
       const itemName = (item.name || '').toLowerCase();
       const itemCategory = (item.category || '').toLowerCase();
-      const matchesSearch = itemName.includes(query) || itemCategory.includes(query);
-      const matchesCategory = !selectedCategory || item.category === selectedCategory;
-      return matchesSearch && matchesCategory;
+      return itemName.includes(query) || itemCategory.includes(query);
     });
   }, [items, searchQuery, selectedCategory]);
 

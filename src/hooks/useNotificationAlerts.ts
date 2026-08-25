@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback, useState, useMemo, useSyncExternalStore } from 'react';
 import { ScheduleAlert } from './useScheduleAlerts';
 
 const NOTIFICATION_COOLDOWN_MS = 30 * 60 * 1000; // 같은 알림 30분 내 재발송 방지
@@ -14,6 +14,25 @@ interface NotificationAlertOptions {
   enabled?: boolean;
 }
 
+const noopSubscribe = () => () => {};
+const getPermissionSnapshot = () => (typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'default');
+const getPermissionServerSnapshot = () => 'default' as NotificationPermission;
+
+const subscribeNotificationEnabled = (callback: () => void) => {
+  if (typeof window === 'undefined') return () => {};
+  const handler = (e: StorageEvent) => {
+    if (e.key === 'hchps_notification_enabled' || !e.key) callback();
+  };
+  window.addEventListener('storage', handler);
+  return () => window.removeEventListener('storage', handler);
+};
+const getAppEnabledSnapshot = () => {
+  if (typeof window === 'undefined') return true;
+  const saved = localStorage.getItem('hchps_notification_enabled');
+  return saved !== null ? saved === 'true' : true;
+};
+const getAppEnabledServerSnapshot = () => true;
+
 const URGENCY_CONFIG: Record<string, { icon: string; tag: string; priority: 'high' | 'default' | 'low' }> = {
   overdue:     { icon: '🔴', tag: '지남',    priority: 'high' },
   now:         { icon: '🟠', tag: '진행중',  priority: 'high' },
@@ -23,15 +42,18 @@ const URGENCY_CONFIG: Record<string, { icon: string; tag: string; priority: 'hig
 };
 
 function formatAlertTime(dt: Date): string {
+  const dtTime = dt.getTime();
   const now = new Date();
-  const isToday = dt.toDateString() === now.toDateString();
-  const time = dt.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
+  const nowDayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const tomorrowDayStart = nowDayStart + 86400000;
+  const dayAfterTomorrowStart = nowDayStart + 172800000;
+
+  const hours = String(dt.getHours()).padStart(2, '0');
+  const minutes = String(dt.getMinutes()).padStart(2, '0');
+  const time = `${hours}:${minutes}`;
   
-  if (isToday) return `오늘 ${time}`;
-  
-  const tomorrow = new Date(now);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  if (dt.toDateString() === tomorrow.toDateString()) return `내일 ${time}`;
+  if (dtTime >= nowDayStart && dtTime < tomorrowDayStart) return `오늘 ${time}`;
+  if (dtTime >= tomorrowDayStart && dtTime < dayAfterTomorrowStart) return `내일 ${time}`;
   
   return `${dt.getMonth() + 1}/${dt.getDate()} ${time}`;
 }
@@ -46,48 +68,42 @@ export function useNotificationAlerts(
     enabled = true,
   } = options;
 
-  const [permission, setPermission] = useState<NotificationPermission>('default');
+  const urgencySet = useMemo(() => new Set(urgencyLevels), [urgencyLevels]);
+
+  const permissionSnapshot = useSyncExternalStore(noopSubscribe, getPermissionSnapshot, getPermissionServerSnapshot);
+  const [permissionOverride, setPermissionOverride] = useState<NotificationPermission | null>(null);
+  const permission = permissionOverride ?? permissionSnapshot;
+
   const sentRef = useRef<Map<string, number>>(new Map());
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const [appEnabled, setAppEnabled] = useState(true);
-
-  // 권한 상태 동기화
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      if ('Notification' in window) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setPermission(Notification.permission);
-      }
-      const saved = localStorage.getItem('hchps_notification_enabled');
-      if (saved !== null) {
-        setAppEnabled(saved === 'true');
-      }
-    }
-  }, []);
+  const appEnabledSnapshot = useSyncExternalStore(subscribeNotificationEnabled, getAppEnabledSnapshot, getAppEnabledServerSnapshot);
+  const [appEnabledOverride, setAppEnabledOverride] = useState<boolean | null>(null);
+  const appEnabled = appEnabledOverride ?? appEnabledSnapshot;
 
   // 알림 권한 요청
   const requestPermission = useCallback(async () => {
     if (typeof window === 'undefined' || !('Notification' in window)) return 'denied';
     
     const result = await Notification.requestPermission();
-    setPermission(result);
+    setPermissionOverride(result);
     if (result === 'granted') {
-      setAppEnabled(true);
+      setAppEnabledOverride(true);
       localStorage.setItem('hchps_notification_enabled', 'true');
     }
     return result;
   }, []);
 
   const toggleAppEnabled = useCallback(() => {
-    setAppEnabled(prev => {
-      const next = !prev;
+    setAppEnabledOverride(prev => {
+      const current = prev !== null ? prev : appEnabledSnapshot;
+      const next = !current;
       if (typeof window !== 'undefined') {
         localStorage.setItem('hchps_notification_enabled', String(next));
       }
       return next;
     });
-  }, []);
+  }, [appEnabledSnapshot]);
 
   // 개별 알림 발송
   const sendNotification = useCallback((alert: ScheduleAlert) => {
@@ -150,11 +166,13 @@ export function useNotificationAlerts(
   const checkAndNotify = useCallback(() => {
     if (!enabled || !appEnabled || permission !== 'granted') return;
 
-    const filteredAlerts = alerts.filter(a => urgencyLevels.includes(a.urgency));
-    for (const alert of filteredAlerts) {
-      sendNotification(alert);
+    for (let i = 0; i < alerts.length; i++) {
+      const alert = alerts[i];
+      if (urgencySet.has(alert.urgency)) {
+        sendNotification(alert);
+      }
     }
-  }, [alerts, urgencyLevels, enabled, appEnabled, permission, sendNotification]);
+  }, [alerts, urgencySet, enabled, appEnabled, permission, sendNotification]);
 
   // 인터벌 설정
   useEffect(() => {
@@ -174,8 +192,15 @@ export function useNotificationAlerts(
     };
   }, [enabled, permission, checkIntervalMs, checkAndNotify]);
 
-  // 알림 개수 뱃지 (미확인 긴급 알림)
-  const urgentCount = alerts.filter(a => a.urgency === 'overdue' || a.urgency === 'now').length;
+  // 알림 개수 뱃지 (미확인 긴급 알림 - useMemo 메모이제이션)
+  const urgentCount = useMemo(() => {
+    let count = 0;
+    for (let i = 0; i < alerts.length; i++) {
+      const u = alerts[i].urgency;
+      if (u === 'overdue' || u === 'now') count++;
+    }
+    return count;
+  }, [alerts]);
 
   return {
     permission,

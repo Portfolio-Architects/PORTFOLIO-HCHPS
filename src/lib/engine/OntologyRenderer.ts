@@ -896,12 +896,25 @@ export class OntologyRenderer {
     ctx.setLineDash([]);
   }
 
+  private static lastThemeCenterNodeId: string | null = null;
+  private static lastThemeChildrenCount = -1;
+
   private static assignThemes(nodes: OrbitalNode[], centerNode: OrbitalNode | null, nodeMap: Map<string, OrbitalNode>) {
       if (!centerNode) return;
+      const children = OntologyLayout.lastTreeChildrenMap.get(centerNode.id) || [];
+      if (
+        this.lastThemeCenterNodeId === centerNode.id &&
+        this.lastThemeChildrenCount === children.length &&
+        centerNode.themeColor
+      ) {
+        return; // O(1) Fast-path: themes already assigned and unchanged
+      }
+      this.lastThemeCenterNodeId = centerNode.id;
+      this.lastThemeChildrenCount = children.length;
+
       centerNode.themeColor = '#475569'; // Slate-600 for Root
       centerNode._themeColorId = this.getColorId(centerNode.themeColor);
 
-      const children = OntologyLayout.lastTreeChildrenMap.get(centerNode.id) || [];
       let paletteIdx = 0;
       
       for (const childId of children) {
@@ -933,6 +946,8 @@ export class OntologyRenderer {
   private static renderNodes(rc: RenderContext): void {
     const { ctx, sortedNodesBuffer, activeNodeId, hoveredNodeId, canvasW, canvasH, zoom } = rc;
     const isFastPath = !!(rc.isInteractive || rc.isOrbiting);
+    const nowMs = Date.now();
+    const globalPulse = 0.5 + 0.5 * Math.sin(nowMs * 0.005);
 
     for (const node of sortedNodesBuffer) {
       if (node.layoutHidden) continue;
@@ -992,7 +1007,7 @@ export class OntologyRenderer {
       // Crimson Pulsating Aura Glow Ring (#FF0044) for risk nodes
       const isRiskNode = (rc.riskNodesMap && rc.riskNodesMap.has(node.id)) || (node as any).verificationStatus === 'risk-warning';
       if (isRiskNode) {
-        const pulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.005);
+        const pulse = globalPulse;
         ctx.save();
         ctx.shadowColor = '#FF0044';
         ctx.shadowBlur = (18 + 12 * pulse) * localZoom;

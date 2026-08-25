@@ -210,19 +210,23 @@ console.log('🔍 Lint/Type Gatekeeper: Checking source code syntax & warnings..
 console.log('====================================================');
 
 const { execSync } = require('child_process');
+const eslintBin = path.join(process.cwd(), 'node_modules', 'eslint', 'bin', 'eslint.js');
+const lintCmd = fs.existsSync(eslintBin) ? `node "${eslintBin}" src` : 'npm run lint';
+const lintFixCmd = fs.existsSync(eslintBin) ? `node "${eslintBin}" --fix src` : 'npx eslint --fix src';
+
 try {
   // eslint를 실행
-  execSync('npm run lint', { stdio: 'inherit' });
+  execSync(lintCmd, { stdio: 'inherit' });
   console.log('  ↳ ✅ [PASS] Source code lint & types are perfectly compliant!');
 } catch (lintErr) {
   console.log('  ↳ ❌ [WARN] Lint or compilation issues detected! Attempting Auto-Fixing...');
   try {
     // 자동 치유(Auto-Fix) 실행 (코드 업데이트 발동)
-    execSync('npx eslint --fix .', { stdio: 'inherit' });
+    execSync(lintFixCmd, { stdio: 'inherit' });
     console.log('  ↳ 🔧 [FIX] ESLint --fix executed successfully to update code.');
     
     // 복구 후 재차 린트 테스트
-    execSync('npm run lint', { stdio: 'ignore' });
+    execSync(lintCmd, { stdio: 'ignore' });
     console.log('  ↳ ✅ [PASS] Source code fixed and verified successfully!');
   } catch (fixErr) {
     console.error('  ↳ 🚨 [FAIL] Auto-Fix failed to resolve all issues. Manual intervention required:', fixErr.message);

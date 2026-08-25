@@ -537,6 +537,8 @@
         "amount": 4800000,
         "isCustomFunding": true,
         "isLocked": false,
+        "virtualAdjustment": 0,
+        "note": "",
         "fundingSplits": [
           {
             "source": "기타",
@@ -550,8 +552,7 @@
             "source": "구비",
             "amount": 2688000
           }
-        ],
-        "calculations": []
+        ]
       },
       {
         "id": "id_24f50ccc0b80",
@@ -561,6 +562,8 @@
         "amount": 15000000,
         "isCustomFunding": true,
         "isLocked": false,
+        "virtualAdjustment": 0,
+        "note": "",
         "fundingSplits": [
           {
             "source": "기타",
@@ -574,8 +577,7 @@
             "source": "구비",
             "amount": 8400000
           }
-        ],
-        "calculations": []
+        ]
       },
       {
         "id": "id_1add5ddd78db",
@@ -585,6 +587,8 @@
         "amount": 580000,
         "isCustomFunding": true,
         "isLocked": false,
+        "virtualAdjustment": 0,
+        "note": "",
         "fundingSplits": [
           {
             "source": "기타",
@@ -598,16 +602,11 @@
             "source": "구비",
             "amount": 325000
           }
-        ],
-        "calculations": []
+        ]
       }
     ],
     "formationItem": "201 일반운영비",
     "fundingSplits": [
-      {
-        "source": "구비",
-        "amount": 11413000
-      },
       {
         "source": "기타",
         "amount": 4076000
@@ -615,9 +614,13 @@
       {
         "source": "시비",
         "amount": 4891000
+      },
+      {
+        "source": "구비",
+        "amount": 11413000
       }
     ],
-    "fundingSource": "구비 (56.00%), 기타 (20.00%), 시비 (24.00%)",
+    "fundingSource": "기타 (20.00%), 시비 (24.00%), 구비 (56.00%)",
     "color": "#3b82f6",
     "budgetType": "본예산"
   },

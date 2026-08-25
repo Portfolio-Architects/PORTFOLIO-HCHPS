@@ -244,25 +244,39 @@ export class RAGEngine {
   }
 
   // 8. Extract plain text from BlockNote blocks
-  private static extractTextFromBlocks(blocks: any[]): string {
-    if (!blocks || !Array.isArray(blocks)) return '';
-    let text = '';
-    for (const block of blocks) {
+  private static extractBlocksToChunks(blocks: unknown[], chunks: string[]): void {
+    if (!blocks || !Array.isArray(blocks)) return;
+    for (let i = 0; i < blocks.length; i++) {
+      const block = blocks[i] as { content?: unknown; children?: unknown[] };
+      if (!block) continue;
       if (block.content && Array.isArray(block.content)) {
-        const line = block.content.map((c: any) => c.text || '').join('');
+        const lineChunks: string[] = [];
+        for (let j = 0; j < block.content.length; j++) {
+          const c = block.content[j] as { text?: unknown };
+          if (c && typeof c.text === 'string') {
+            lineChunks.push(c.text);
+          }
+        }
+        const line = lineChunks.join('');
         if (line.trim()) {
-          text += line + '\n';
+          chunks.push(line, '\n');
         }
       }
-      if (block.children && block.children.length > 0) {
-        text += this.extractTextFromBlocks(block.children);
+      if (block.children && Array.isArray(block.children) && block.children.length > 0) {
+        this.extractBlocksToChunks(block.children, chunks);
       }
     }
-    return text;
+  }
+
+  private static extractTextFromBlocks(blocks: unknown[]): string {
+    if (!blocks || !Array.isArray(blocks)) return '';
+    const chunks: string[] = [];
+    this.extractBlocksToChunks(blocks, chunks);
+    return chunks.join('');
   }
 
   // 9. Re-index / Upsert Node Wiki to Embeddings Database
-  public static async updateNodeEmbedding(nodeId: string, nodeLabel: string, blocks: any[]): Promise<void> {
+  public static async updateNodeEmbedding(nodeId: string, nodeLabel: string, blocks: unknown[]): Promise<void> {
     try {
       const fullText = this.extractTextFromBlocks(blocks);
       const chunks = this.chunkText(fullText);

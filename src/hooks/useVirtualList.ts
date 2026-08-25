@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, RefObject } from 'react';
+import { useState, useEffect, useMemo, RefObject } from 'react';
 
 export interface UseVirtualListOptions {
   totalItems: number;
@@ -86,5 +86,10 @@ export function useVirtualList({
   const topPadding = startIndex * itemHeight;
   const bottomPadding = Math.max(0, (totalItems - endIndex) * itemHeight);
 
-  return { startIndex, endIndex, topPadding, bottomPadding };
+  return useMemo(() => ({
+    startIndex,
+    endIndex,
+    topPadding,
+    bottomPadding
+  }), [startIndex, endIndex, topPadding, bottomPadding]);
 }

@@ -133,12 +133,19 @@ export function SemanticReviewModal({
     return nodeIds;
   }, [existingNodeIds, nodes]);
 
-  // Helper to get labels for IDs
-  const getNodeLabelById = useCallback((id: string) => {
-    const foundNode = nodes.find(n => n.id === id);
-    if (foundNode) return foundNode.label;
-    return id;
+  // Pre-index node labels into Map for O(1) lookups
+  const nodeLabelMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const n of nodes) {
+      map.set(n.id, n.label);
+    }
+    return map;
   }, [nodes]);
+
+  // Helper to get labels for IDs in O(1)
+  const getNodeLabelById = useCallback((id: string) => {
+    return nodeLabelMap.get(id) || id;
+  }, [nodeLabelMap]);
 
   // Data Integrity Warnings Engine
   const integrityWarnings = useMemo(() => {

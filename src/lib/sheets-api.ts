@@ -85,55 +85,81 @@ export async function readSheet<T>(sheetName: string): Promise<T[]> {
 
       // E2EE Decryption
       let rawRows: any[];
-      const isE2EEBypass = json.data.length === 0 || json.data.every((row: Record<string, unknown>) => {
-        if (!row._enc) return true;
-        const encStr = (row._enc as string).trim();
-        return encStr.startsWith('{') || encStr.startsWith('[');
-      });
+      let isE2EEBypass = true;
+      if (json.data.length > 0) {
+        for (let i = 0; i < json.data.length; i++) {
+          const row = json.data[i];
+          if (!row || !row._enc) continue;
+          const encStr = (row._enc as string).trim();
+          if (!encStr.startsWith('{') && !encStr.startsWith('[')) {
+            isE2EEBypass = false;
+            break;
+          }
+        }
+      }
 
       if (isE2EEBypass) {
-        rawRows = json.data.map((row: Record<string, unknown>) => {
-          if (row._enc) {
+        const rawRowsArr: any[] = [];
+        for (let i = 0; i < json.data.length; i++) {
+          const row = json.data[i];
+          if (row && row._enc) {
             try {
               const dec = JSON.parse(row._enc as string) as Record<string, any>;
               let finalDec = { ...dec };
               
               // Self-Healing: 복호화된 BUDGET_CATEGORIES의 calculations가 지출 내역 purpose로 오염되었을 경우 디스크 평문 백업 데이터로 복구
               if (sheetName === 'BUDGET_CATEGORIES' && row.subItems && Array.isArray(row.subItems) && dec.subItems && Array.isArray(dec.subItems)) {
-                finalDec.subItems = dec.subItems.map((decSub: any) => {
-                  const originalSub = (row.subItems as any[]).find((s: any) => s.id === decSub.id || s.name === decSub.name);
+                const subItemsArr: any[] = [];
+                for (let sIdx = 0; sIdx < dec.subItems.length; sIdx++) {
+                  const decSub = dec.subItems[sIdx];
+                  let originalSub: any = undefined;
+                  for (let oIdx = 0; oIdx < row.subItems.length; oIdx++) {
+                    const s = row.subItems[oIdx];
+                    if (s.id === decSub.id || s.name === decSub.name) {
+                      originalSub = s;
+                      break;
+                    }
+                  }
                   if (originalSub) {
                     const restoredSub = { ...decSub };
                     if (originalSub.calculations && Array.isArray(originalSub.calculations)) {
                       const decCalcs = Array.isArray(decSub.calculations) ? decSub.calculations : [];
                       const decCalcsMap = new Map<string, any>();
-                      decCalcs.forEach((c: any) => {
+                      for (let cIdx = 0; cIdx < decCalcs.length; cIdx++) {
+                        const c = decCalcs[cIdx];
                         if (c && c.id) decCalcsMap.set(c.id, c);
-                      });
-                      restoredSub.calculations = originalSub.calculations.map((origCalc: any) => {
+                      }
+                      const calcsArr: any[] = [];
+                      for (let origIdx = 0; origIdx < originalSub.calculations.length; origIdx++) {
+                        const origCalc = originalSub.calculations[origIdx];
                         const decCalc = decCalcsMap.get(origCalc.id) || {};
-                        return {
+                        calcsArr.push({
                           ...origCalc,
                           isLocked: typeof decCalc.isLocked === 'boolean' ? decCalc.isLocked : (origCalc.isLocked || false)
-                        };
-                      });
+                        });
+                      }
+                      restoredSub.calculations = calcsArr;
                     } else {
                       restoredSub.calculations = [];
                     }
-                    return restoredSub;
+                    subItemsArr.push(restoredSub);
+                  } else {
+                    subItemsArr.push(decSub);
                   }
-                  return decSub;
-                });
+                }
+                finalDec.subItems = subItemsArr;
               }
               
-              return { id: row.id, ...finalDec };
+              rawRowsArr.push({ id: row.id, ...finalDec });
             } catch (e) {
               console.error('Synchronous parsing failed for row', row.id, e);
               throw e;
             }
+          } else {
+            rawRowsArr.push(row);
           }
-          return row; // Legacy plaintext fallback
-        });
+        }
+        rawRows = rawRowsArr;
       } else {
         const decryptedPromises = json.data.map(async (row: Record<string, unknown>) => {
           if (row._enc) {
@@ -181,13 +207,13 @@ export async function readSheet<T>(sheetName: string): Promise<T[]> {
       }
       
       // Global Tombstone: Filter out deleted items to prevent Cloudflare KV eventual consistency zombie data
-      const deletedIds = getTombstones().map(t => t.id);
+      const deletedIdSet = new Set(getTombstones().map(t => t.id));
       
       // Zod Runtimes Validation (Fail-Safe)
       const schema = getDomainSchema(sheetName);
       const validRows: Record<string, unknown>[] = [];
       for (const row of rawRows) {
-        if (deletedIds.includes(row.id)) continue; // 🚀 Kill Zombies
+        if (deletedIdSet.has(row.id)) continue; // 🚀 Kill Zombies (O(1) lookup)
         if ('safeParse' in schema) {
           const result = schema.safeParse(row);
           if (result.success) {

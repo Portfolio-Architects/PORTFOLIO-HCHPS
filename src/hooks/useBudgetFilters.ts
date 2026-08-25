@@ -1,5 +1,5 @@
  
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useSyncExternalStore } from 'react';
 import { BudgetCategory, BudgetEntry } from '@/types';
 
 function formatN(n: number) { return n.toLocaleString('ko-KR'); }
@@ -31,40 +31,130 @@ export const STATUS_CONFIG: Record<CategoryStatus, { label: string; badgeClass: 
   }
 };
 
+interface SavedBudgetFilters {
+  policy: string[];
+  unit: string[];
+  detail: string[];
+  stat: string[];
+  month: string;
+  status: string;
+}
+
+const DEFAULT_SAVED_FILTERS: SavedBudgetFilters = {
+  policy: [],
+  unit: [],
+  detail: [],
+  stat: [],
+  month: '전체',
+  status: '전체'
+};
+
+let cachedFiltersJson = '';
+let cachedFilters: SavedBudgetFilters = DEFAULT_SAVED_FILTERS;
+
+const subscribeFiltersStorage = (callback: () => void) => {
+  if (typeof window === 'undefined') return () => {};
+  const handler = (e: StorageEvent) => {
+    if (e.key === 'hchps-budget-filters-v2' || !e.key) callback();
+  };
+  window.addEventListener('storage', handler);
+  return () => window.removeEventListener('storage', handler);
+};
+
+const getFiltersSnapshot = (): SavedBudgetFilters => {
+  if (typeof window === 'undefined') return DEFAULT_SAVED_FILTERS;
+  const saved = localStorage.getItem('hchps-budget-filters-v2') || '';
+  if (saved === cachedFiltersJson) return cachedFilters;
+  cachedFiltersJson = saved;
+  if (!saved) {
+    cachedFilters = DEFAULT_SAVED_FILTERS;
+    return DEFAULT_SAVED_FILTERS;
+  }
+  try {
+    const parsed = JSON.parse(saved);
+    cachedFilters = {
+      policy: Array.isArray(parsed.policy) ? parsed.policy : [],
+      unit: Array.isArray(parsed.unit) ? parsed.unit : [],
+      detail: Array.isArray(parsed.detail) ? parsed.detail : [],
+      stat: Array.isArray(parsed.stat) ? parsed.stat : [],
+      month: typeof parsed.month === 'string' ? parsed.month : '전체',
+      status: typeof parsed.status === 'string' ? parsed.status : '전체'
+    };
+    return cachedFilters;
+  } catch {
+    cachedFilters = DEFAULT_SAVED_FILTERS;
+    return DEFAULT_SAVED_FILTERS;
+  }
+};
+
+const getFiltersServerSnapshot = () => DEFAULT_SAVED_FILTERS;
+
 export function useBudgetFilters(
   categories: BudgetCategory[],
   entries: BudgetEntry[],
   getCategoryStats: (id: string) => any
 ) {
-  const [initialSaved] = useState(() => {
-    if (typeof window === 'undefined') {
-      return { policy: [], unit: [], detail: [], stat: [], month: '전체', status: '전체' };
-    }
-    try {
-      const saved = localStorage.getItem('hchps-budget-filters-v2');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return {
-          policy: Array.isArray(parsed.policy) ? parsed.policy : [],
-          unit: Array.isArray(parsed.unit) ? parsed.unit : [],
-          detail: Array.isArray(parsed.detail) ? parsed.detail : [],
-          stat: Array.isArray(parsed.stat) ? parsed.stat : [],
-          month: typeof parsed.month === 'string' ? parsed.month : '전체',
-          status: typeof parsed.status === 'string' ? parsed.status : '전체'
-        };
-      }
-    } catch {}
-    return { policy: [], unit: [], detail: [], stat: [], month: '전체', status: '전체' };
-  });
+  const savedFilters = useSyncExternalStore(subscribeFiltersStorage, getFiltersSnapshot, getFiltersServerSnapshot);
 
-  const [filterPolicy, setFilterPolicy] = useState<string[]>(initialSaved.policy);
-  const [filterUnit, setFilterUnit] = useState<string[]>(initialSaved.unit);
-  const [filterDetail, setFilterDetail] = useState<string[]>(initialSaved.detail);
-  const [filterStat, setFilterStat] = useState<string[]>(initialSaved.stat);
-  const [filterMonth, setFilterMonth] = useState<string>(initialSaved.month);
-  const [filterStatus, setFilterStatus] = useState<string>(initialSaved.status);
+  const [filterPolicyState, setFilterPolicyState] = useState<string[] | null>(null);
+  const [filterUnitState, setFilterUnitState] = useState<string[] | null>(null);
+  const [filterDetailState, setFilterDetailState] = useState<string[] | null>(null);
+  const [filterStatState, setFilterStatState] = useState<string[] | null>(null);
+  const [filterMonthState, setFilterMonthState] = useState<string | null>(null);
+  const [filterStatusState, setFilterStatusState] = useState<string | null>(null);
+
+  const filterPolicy = filterPolicyState ?? savedFilters.policy;
+  const filterUnit = filterUnitState ?? savedFilters.unit;
+  const filterDetail = filterDetailState ?? savedFilters.detail;
+  const filterStat = filterStatState ?? savedFilters.stat;
+  const filterMonth = filterMonthState ?? savedFilters.month;
+  const filterStatus = filterStatusState ?? savedFilters.status;
+
+  const setFilterPolicy = useCallback((val: React.SetStateAction<string[]>) => {
+    setFilterPolicyState(prev => {
+      const cur = prev ?? savedFilters.policy;
+      return typeof val === 'function' ? val(cur) : val;
+    });
+  }, [savedFilters.policy]);
+
+  const setFilterUnit = useCallback((val: React.SetStateAction<string[]>) => {
+    setFilterUnitState(prev => {
+      const cur = prev ?? savedFilters.unit;
+      return typeof val === 'function' ? val(cur) : val;
+    });
+  }, [savedFilters.unit]);
+
+  const setFilterDetail = useCallback((val: React.SetStateAction<string[]>) => {
+    setFilterDetailState(prev => {
+      const cur = prev ?? savedFilters.detail;
+      return typeof val === 'function' ? val(cur) : val;
+    });
+  }, [savedFilters.detail]);
+
+  const setFilterStat = useCallback((val: React.SetStateAction<string[]>) => {
+    setFilterStatState(prev => {
+      const cur = prev ?? savedFilters.stat;
+      return typeof val === 'function' ? val(cur) : val;
+    });
+  }, [savedFilters.stat]);
+
+  const setFilterMonth = useCallback((val: React.SetStateAction<string>) => {
+    setFilterMonthState(prev => {
+      const cur = prev ?? savedFilters.month;
+      return typeof val === 'function' ? val(cur) : val;
+    });
+  }, [savedFilters.month]);
+
+  const setFilterStatus = useCallback((val: React.SetStateAction<string>) => {
+    setFilterStatusState(prev => {
+      const cur = prev ?? savedFilters.status;
+      return typeof val === 'function' ? val(cur) : val;
+    });
+  }, [savedFilters.status]);
+
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>('');
+  const isLoaded = true;
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -72,8 +162,6 @@ export function useBudgetFilters(
     }, 120);
     return () => clearTimeout(timer);
   }, [searchTerm]);
-
-  const [isLoaded] = useState(true);
 
   const handleSaveFilters = () => {
     localStorage.setItem('hchps-budget-filters-v2', JSON.stringify({
@@ -88,12 +176,12 @@ export function useBudgetFilters(
   };
 
   const handleResetFilters = () => {
-    setFilterPolicy([]);
-    setFilterUnit([]);
-    setFilterDetail([]);
-    setFilterStat([]);
-    setFilterMonth('전체');
-    setFilterStatus('전체');
+    setFilterPolicyState([]);
+    setFilterUnitState([]);
+    setFilterDetailState([]);
+    setFilterStatState([]);
+    setFilterMonthState('전체');
+    setFilterStatusState('전체');
     setSearchTerm('');
     setDebouncedSearchTerm('');
     localStorage.removeItem('hchps-budget-filters-v2');
@@ -132,6 +220,25 @@ export function useBudgetFilters(
     return set;
   }, [entries, searchKeyword]);
 
+  // Pre-index category IDs matching selected month in O(Entries) time with zero Date allocation
+  const categoryIdsMatchingMonth = useMemo(() => {
+    if (monthNum === null) return null;
+    const set = new Set<string>();
+    for (let i = 0; i < entries.length; i++) {
+      const e = entries[i];
+      if (e.date) {
+        const parts = e.date.split('-');
+        if (parts.length >= 2) {
+          const m = parseInt(parts[1], 10);
+          if (m === monthNum) {
+            set.add(e.categoryId);
+          }
+        }
+      }
+    }
+    return set;
+  }, [entries, monthNum]);
+
   const { uniquePolicies, unitOptions, detailOptions, statOptions, filteredCategoriesTree } = useMemo(() => {
     const policySums: Record<string, number> = {};
     const unitSums: Record<string, number> = {};
@@ -162,15 +269,8 @@ export function useBudgetFilters(
         else if (filterStatus === '정상') statusMatch = (status === 'NORMAL');
       }
 
-      // Month filter check: category entries in selected month
-      let monthMatch = true;
-      if (monthNum !== null) {
-        monthMatch = entries.some(e => {
-          if (e.categoryId !== c.id) return false;
-          const eMonth = new Date(e.date).getMonth() + 1;
-          return eMonth === monthNum;
-        });
-      }
+      // Month filter check: O(1) pre-indexed set lookup
+      const monthMatch = categoryIdsMatchingMonth ? categoryIdsMatchingMonth.has(c.id) : true;
 
       // Search keyword match check across policy, category, subItems, docRegNum, purpose
       let searchMatch = true;
@@ -182,11 +282,20 @@ export function useBudgetFilters(
         const inStat = (c.statItem || '').toLowerCase().includes(searchKeyword);
         const inFormation = (c.formationItem || '').toLowerCase().includes(searchKeyword);
         const inManagement = (c.managementProject || '').toLowerCase().includes(searchKeyword);
-        const inSubItems = (c.subItems || []).some(s => 
-          (s.name || '').toLowerCase().includes(searchKeyword) ||
-          (s.prefix || '').toLowerCase().includes(searchKeyword) ||
-          (s.calculation || '').toLowerCase().includes(searchKeyword)
-        );
+        let inSubItems = false;
+        if (c.subItems) {
+          for (let j = 0; j < c.subItems.length; j++) {
+            const s = c.subItems[j];
+            if (
+              (s.name || '').toLowerCase().includes(searchKeyword) ||
+              (s.prefix || '').toLowerCase().includes(searchKeyword) ||
+              (s.calculation || '').toLowerCase().includes(searchKeyword)
+            ) {
+              inSubItems = true;
+              break;
+            }
+          }
+        }
         const inEntries = matchingCategoryIdsFromEntries ? matchingCategoryIdsFromEntries.has(c.id) : false;
         searchMatch = inPolicy || inUnit || inDetail || inName || inStat || inFormation || inManagement || inSubItems || inEntries;
       }
@@ -213,19 +322,45 @@ export function useBudgetFilters(
       }
     }
 
+    const policyKeys = Object.keys(policySums);
+    const uniquePolicies = new Array(policyKeys.length);
+    for (let i = 0; i < policyKeys.length; i++) {
+      const p = policyKeys[i];
+      uniquePolicies[i] = { value: p, suffix: `${formatN(policySums[p])}원` };
+    }
+
+    const unitKeys = Object.keys(unitSums);
+    const unitOptions = new Array(unitKeys.length);
+    for (let i = 0; i < unitKeys.length; i++) {
+      const u = unitKeys[i];
+      unitOptions[i] = { value: u, suffix: `${formatN(unitSums[u])}원` };
+    }
+
+    const detailKeys = Object.keys(detailSums);
+    const detailOptions = new Array(detailKeys.length);
+    for (let i = 0; i < detailKeys.length; i++) {
+      const d = detailKeys[i];
+      const total = detailSums[d] || 0;
+      const used = detailUsedSums[d] || 0;
+      const rate = total > 0 ? ((used / total) * 100).toFixed(1) : '0.0';
+      detailOptions[i] = { value: d, suffix: `${formatN(total)}원 (${rate}%)` };
+    }
+
+    const statKeys = Object.keys(statSums);
+    const statOptions = new Array(statKeys.length);
+    for (let i = 0; i < statKeys.length; i++) {
+      const s = statKeys[i];
+      statOptions[i] = { value: s, suffix: `${formatN(statSums[s])}원` };
+    }
+
     return {
-      uniquePolicies: Object.keys(policySums).map(p => ({ value: p, suffix: `${formatN(policySums[p])}원` })),
-      unitOptions: Object.keys(unitSums).map(u => ({ value: u, suffix: `${formatN(unitSums[u])}원` })),
-      detailOptions: Object.keys(detailSums).map(d => {
-        const total = detailSums[d] || 0;
-        const used = detailUsedSums[d] || 0;
-        const rate = total > 0 ? ((used / total) * 100).toFixed(1) : '0.0';
-        return { value: d, suffix: `${formatN(total)}원 (${rate}%)` };
-      }),
-      statOptions: Object.keys(statSums).map(s => ({ value: s, suffix: `${formatN(statSums[s])}원` })),
+      uniquePolicies,
+      unitOptions,
+      detailOptions,
+      statOptions,
       filteredCategoriesTree: tree
     };
-  }, [categories, entries, policySet, unitSet, detailSet, statSet, filterStatus, monthNum, searchKeyword, matchingCategoryIdsFromEntries, getCategoryStats]);
+  }, [categories, policySet, unitSet, detailSet, statSet, filterStatus, searchKeyword, matchingCategoryIdsFromEntries, categoryIdsMatchingMonth, getCategoryStats]);
 
   const groupedByPolicy = useMemo(() => {
     const groupsMap: Record<string, BudgetCategory[]> = {};

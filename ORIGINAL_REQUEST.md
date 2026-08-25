@@ -272,6 +272,31 @@ Integrity mode: development
 
 ## Acceptance Criteria
 
+
+
+## Follow-up — 2026-08-13T13:16:11+09:00
+
+지역축제(예산 5~7천만원 규모) 개최의 실수를 최소화하고 완벽한 행사를 진행할 수 있도록 3D 마인드맵 페이지를 형사들의 '수사 보드(Detective Investigation Board)' 스타일의 이벤트 종합 트래킹 및 검증 시스템으로 개편합니다.
+
+Working directory: d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL
+Integrity mode: development
+
+## Requirements
+
+### R1. 형사 수사 보드(Corkboard & Red String) 스타일 UI 및 캔버스 개편
+- 3D 마인드맵/캔버스에 코르크 보드 분위기 및 핀, 빨간 연결선(Red String), 증거/서류 포스트잇 카드 노드 렌더링
+- 노드 상태별(미완료/진행중/검증완료/위험경고) 수사관 검증 배지 및 시각적 알림 핀 표시
+
+### R2. 축제 전용 템플릿 프리셋 및 도메인 자동 배치
+- 5~7천만원 축제 규모에 최적화된 5대 도메인 템플릿 프리셋 주입 (인허가/안전관리, 무대/공연/음향, 홍보/마케팅, 먹거리/부스, 예산/계약)
+- 1-Click 템플릿 즉시 로드 및 세부 구성 요소 자동 노드화 파이프라인
+
+### R3. 실수 제로(Zero-Mistake) 실시간 검증 & 경고 엔진
+- 인허가(지자체 신고, 경찰 도로점용, 소방 안전점검, 안전관리계획서) 필수 제출 항목 누락 방지 자동 경고 가드
+- 5~7천만원 예산 범위 대비 세부 항목 지출 비율 및 집행 초과/미입력 항목 실시간 탐지 알림
+
+## Acceptance Criteria
+
 ### 기능 및 UI 무결성
 - [ ] 수사 보드 테마 (코르크 배경, 핀, 빨간 실선 엣지) 캔버스 정상 렌더링
 - [ ] 축제 전용 5대 도메인 템플릿 프리셋 로드 및 노드 구성
@@ -280,3 +305,44 @@ Integrity mode: development
 ### 코드 및 품질 무결성
 - [ ] TypeScript (`npx tsc --noEmit`) 0 오류 통과
 - [ ] 시스템 게이트키퍼 (`node scripts/run-harness.js`) 0 오류, 0 린트 경고, 0 아키텍처 위반 통과
+
+## Follow-up — 2026-08-20T01:43:37Z
+
+This is a single self-contained performance refactoring; keep it small and focused.
+
+Comprehensive full-stack performance refactoring and structural optimization to dramatically accelerate application boot speed, eliminate UI thread freezes, and achieve optimal rendering efficiency for PORTFOLIO - VITAL.
+
+Working directory: d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL
+Integrity mode: development
+
+## Requirements
+
+### R1. Initial Boot & Hydration Acceleration
+- Optimize client-side bundle boundaries and enforce dynamic imports (dynamic(() => import(...), { ssr: false })) with skeleton fallback guards for all heavy view modules.
+- Streamline server hydration and eliminate any synchronous layout reflows (getBoundingClientRect, MutationObserver layout thrashing) during initial mount.
+- Apply staggered chunk preloading in requestIdleCallback to prevent main thread blocking during initialization.
+
+### R2. Runtime UI Thread & Zero-Stall Rendering Pipeline
+- Maintain 0 Long Task Stalls (>50ms) across all UI interactions, tab switches, and canvas operations.
+- Optimize high-frequency Yjs/React state subscriptions using useSyncExternalStore and 16ms debounced batching locks.
+- Eliminate per-frame memory allocations and GC spikes in 3D MindMap / Canvas rendering loops using object pooling and primitive key encoding.
+
+### R3. Data Structure & State Transition Complexity Leap (O(1))
+- Replace O(N) sequential array iterations, filters, and searches within high-frequency render paths and selectors with O(1) Map/Set lookups.
+- Maintain dirty-flag caching for topological graph traversal and hierarchical summaries to avoid redundant recalculations.
+
+### R4. Architectural Consistency & Quality Gatekeeper
+- Strictly preserve the M-V-C ontology: ensure 100% of data fetching/mutations remain inside React Query custom hooks in src/hooks/ and no direct fetch calls exist inside UI components.
+- Maintain full offline resilience, E2EE bypass local plain-text JSON storage, and multi-device CRDT synchronization compatibility.
+
+## Acceptance Criteria
+
+### Automated Quality Gates
+- [ ] TypeScript compilation (npx tsc --noEmit) passes with 0 errors.
+- [ ] Automated harness verification (node scripts/run-harness.js) passes with 0 Zod errors, 0 ESLint warnings, 0 MVC ontology violations, and 0 performance bottlenecks.
+- [ ] Existing Jest unit and integration test suite (npx jest) passes 100%.
+
+### Performance Benchmarks
+- [ ] Local dev server (http://localhost:3001) boots and delivers warm page responses without stalling.
+- [ ] Zero blocking long tasks (>50ms) detected during active workspace and mindmap canvas interactions.
+- [ ] Rule synchronization (node scripts/sync-rules.js) executes cleanly and updates milestone logs in AGENTS.md.

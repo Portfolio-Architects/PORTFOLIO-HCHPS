@@ -748,6 +748,7 @@ const WeekDayColumn = React.memo(({
   dayIdx,
   schedules,
   dayNames,
+  isToday = false,
   onOpenCellModal,
   onDropCell,
   onDeleteSchedule,
@@ -757,13 +758,13 @@ const WeekDayColumn = React.memo(({
   dayIdx: number;
   schedules: Schedule[];
   dayNames: string[];
+  isToday?: boolean;
   onOpenCellModal: (dayStr: string) => void;
   onDropCell: (e: React.DragEvent, dayStr: string) => void;
   onDeleteSchedule: (id: string) => void;
   onEditSchedule: (sched: Schedule) => void;
 }) => {
   const dayStr = formatDateStr(day);
-  const isToday = useMemo(() => new Date().toDateString() === day.toDateString(), [day]);
   const dayNum = day.getDate();
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -878,6 +879,7 @@ const MonthCell = React.memo(({
   day,
   currentMonth,
   schedules,
+  isToday = false,
   onOpenModal,
   onDropCell,
   onEditSchedule
@@ -885,13 +887,13 @@ const MonthCell = React.memo(({
   day: Date;
   currentMonth: number;
   schedules: Schedule[];
+  isToday?: boolean;
   onOpenModal: (dayStr: string) => void;
   onDropCell: (e: React.DragEvent, dayStr: string) => void;
   onEditSchedule: (sched: Schedule) => void;
 }) => {
   const dayStr = formatDateStr(day);
   const isCurrentMonth = day.getMonth() === currentMonth;
-  const isToday = useMemo(() => new Date().toDateString() === day.toDateString(), [day]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -986,6 +988,7 @@ const TimetableScheduleItem = React.memo(({
   );
 });
 TimetableScheduleItem.displayName = 'TimetableScheduleItem';
+const EMPTY_SCHEDULES: Schedule[] = [];
 
 const TimetableSlotCell = React.memo(({
   dayStr,
@@ -1004,10 +1007,6 @@ const TimetableSlotCell = React.memo(({
   onDropCell: (e: React.DragEvent, dayStr: string, targetTime?: string) => void;
   onEditSchedule: (sched: Schedule) => void;
 }) => {
-  const matchingSchedules = useMemo(() => {
-    return schedules.filter(s => s.startTime.startsWith(hourStr));
-  }, [schedules, hourStr]);
-
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
   }, []);
@@ -1028,7 +1027,7 @@ const TimetableSlotCell = React.memo(({
       className="p-1 border-r border-slate-100 dark:border-slate-800/40 hover:bg-indigo-50/20 dark:hover:bg-indigo-950/20 transition-colors cursor-pointer flex flex-col gap-1 min-h-[50px]"
       title={`${dayStr} ${hourStr}:00 일정 등록 (클릭)`}
     >
-      {matchingSchedules.map((s) => (
+      {schedules.map((s) => (
         <TimetableScheduleItem
           key={s.id}
           schedule={s}
@@ -1050,6 +1049,7 @@ const WeeklySchedulerComponent: React.FC = () => {
 
   // Date navigation state
   const [currentDate, setCurrentDate] = useState<Date>(() => new Date());
+  const todayDateString = useMemo(() => new Date().toDateString(), []);
 
   // Sidebar schedule form state
   const [date, setDate] = useState(() => formatDateStr(new Date()));
@@ -1138,32 +1138,59 @@ const WeeklySchedulerComponent: React.FC = () => {
     setCurrentDate(new Date());
   }, []);
 
-  // Pre-calculate / map schedules by day string
-  const schedulesByDayMap = useMemo(() => {
-    const map = new Map<string, Schedule[]>();
+  // Pre-calculate / map schedules by day string & day+hour composite key
+  const { schedulesByDayMap, timetableSchedulesMap } = useMemo(() => {
+    const dayMap = new Map<string, Schedule[]>();
+    const timetableMap = new Map<string, Schedule[]>();
+
     for (const s of schedules) {
       const startDate = s.date;
       const endDateVal = s.endDate || s.date;
+      const hourPrefix = s.startTime ? s.startTime.split(':')[0] : '00';
       
       let cur = new Date(startDate.includes('T') ? startDate : `${startDate}T00:00:00`);
       const end = new Date(endDateVal.includes('T') ? endDateVal : `${endDateVal}T00:00:00`);
       while (cur <= end) {
         const dStr = formatDateStr(cur);
-        const existing = map.get(dStr) || [];
-        existing.push(s);
-        map.set(dStr, existing);
+        
+        // Day list mapping
+        let dayList = dayMap.get(dStr);
+        if (!dayList) {
+          dayList = [];
+          dayMap.set(dStr, dayList);
+        }
+        dayList.push(s);
+
+        // Day + Hour composite slot mapping
+        const slotKey = `${dStr}:${hourPrefix}`;
+        let slotList = timetableMap.get(slotKey);
+        if (!slotList) {
+          slotList = [];
+          timetableMap.set(slotKey, slotList);
+        }
+        slotList.push(s);
+
         cur.setDate(cur.getDate() + 1);
       }
     }
-    for (const list of map.values()) {
+
+    for (const list of dayMap.values()) {
       list.sort((a, b) => a.startTime.localeCompare(b.startTime));
     }
-    return map;
+    for (const list of timetableMap.values()) {
+      list.sort((a, b) => a.startTime.localeCompare(b.startTime));
+    }
+
+    return { schedulesByDayMap: dayMap, timetableSchedulesMap: timetableMap };
   }, [schedules]);
 
   const getSchedulesForDay = useCallback((dayStr: string) => {
-    return schedulesByDayMap.get(dayStr) || [];
+    return schedulesByDayMap.get(dayStr) || EMPTY_SCHEDULES;
   }, [schedulesByDayMap]);
+
+  const getSchedulesForSlot = useCallback((dayStr: string, hourStr: string) => {
+    return timetableSchedulesMap.get(`${dayStr}:${hourStr}`) || EMPTY_SCHEDULES;
+  }, [timetableSchedulesMap]);
 
   // Drag and drop handler for target cell
   const handleDropCell = useCallback((e: React.DragEvent, targetDate: string, targetStartTime?: string) => {
@@ -1326,6 +1353,7 @@ const WeeklySchedulerComponent: React.FC = () => {
                     dayIdx={idx}
                     schedules={daySchedules}
                     dayNames={dayNames}
+                    isToday={day.toDateString() === todayDateString}
                     onOpenCellModal={handleOpenCellModal}
                     onDropCell={handleDropCell}
                     onDeleteSchedule={deleteSchedule}
@@ -1357,6 +1385,7 @@ const WeeklySchedulerComponent: React.FC = () => {
                       day={day}
                       currentMonth={currentDate.getMonth()}
                       schedules={daySchedules}
+                      isToday={day.toDateString() === todayDateString}
                       onOpenModal={handleOpenCellModal}
                       onDropCell={handleDropCell}
                       onEditSchedule={handleOpenEditModal}
@@ -1373,7 +1402,7 @@ const WeeklySchedulerComponent: React.FC = () => {
                 <div className="text-slate-400">시간</div>
                 {weekDays.map((d, i) => {
                   const dayStr = formatDateStr(d);
-                  const isToday = new Date().toDateString() === d.toDateString();
+                  const isToday = todayDateString === d.toDateString();
                   return (
                     <div key={dayStr} className={`flex items-center justify-center gap-1 ${isToday ? 'text-indigo-600 dark:text-indigo-400 font-extrabold' : ''}`}>
                       <span>{dayNames[i]}</span>
@@ -1397,14 +1426,14 @@ const WeeklySchedulerComponent: React.FC = () => {
                       {/* 7 Day Slot Cells */}
                       {weekDays.map((day) => {
                         const dayStr = formatDateStr(day);
-                        const daySchedules = getSchedulesForDay(dayStr);
+                        const slotSchedules = getSchedulesForSlot(dayStr, hourStr);
                         return (
                           <TimetableSlotCell
                             key={dayStr + hourStr}
                             dayStr={dayStr}
                             hourStr={hourStr}
                             nextHourStr={nextHourStr}
-                            schedules={daySchedules}
+                            schedules={slotSchedules}
                             onOpenCellModal={handleOpenCellModal}
                             onDropCell={handleDropCell}
                             onEditSchedule={handleOpenEditModal}

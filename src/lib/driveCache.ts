@@ -71,13 +71,16 @@ class DriveCacheManager {
     const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const regex = new RegExp(escapedQuery, 'gi');
 
-    for (const [fullPath, item] of Object.entries(this.cache)) {
+    const cacheKeys = Object.keys(this.cache);
+    for (let i = 0; i < cacheKeys.length; i++) {
+      const fullPath = cacheKeys[i];
+      const item = this.cache[fullPath];
       const content = item.content || '';
       if (!content) continue;
 
       // 정규식 매칭
       regex.lastIndex = 0;
-      let match;
+      let match: RegExpExecArray | null;
       const snippets: { pos: number; snippet: string }[] = [];
       let count = 0;
 

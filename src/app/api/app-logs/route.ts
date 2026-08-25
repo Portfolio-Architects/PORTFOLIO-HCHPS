@@ -165,7 +165,9 @@ export async function GET() {
 
       if (cachedDecryptedHistory) {
         const files = Object.keys(cachedDecryptedHistory);
-        files.forEach((file, index) => {
+        // Only take the most recent 25 files to prevent frontend JSON bloat and rendering stalls
+        const recentFiles = files.slice(-25);
+        recentFiles.forEach((file, index) => {
           const fileMeta = cachedDecryptedHistory![file];
           const displayPath = path.basename(file);
           const itemTime = new Date(fileMeta.mtime || (nowMs - (index * 60000))).toISOString();
@@ -181,8 +183,10 @@ export async function GET() {
       // Ignored for performance
     }
 
-    // Sort logs ascending by timestamp (chronological order)
-    const sortedLogs = logs.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    // Sort logs ascending by timestamp and cap at latest 100 logs to guarantee instant UI rendering
+    const sortedLogs = logs
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+      .slice(-100);
     const backupStats = await getBackupStats();
 
     return NextResponse.json({

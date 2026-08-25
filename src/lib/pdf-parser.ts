@@ -25,16 +25,28 @@ export async function extractTextFromPdfBuffer(buffer: ArrayBuffer): Promise<str
   
   const numPages = pdfOutput.numPages;
   const pageTexts: string[] = [];
+  let totalLength = 0;
 
   for (let pageNum = 1; pageNum <= numPages; pageNum++) {
     const page = await pdfOutput.getPage(pageNum);
     const content = await page.getTextContent();
-    // 텍스트 아이템들을 공백으로 병합
-    const textItems = content.items
-      .filter((item): item is import('pdfjs-dist/types/src/display/api').TextItem => 'str' in item)
-      .map(item => item.str);
     
-    pageTexts.push(textItems.join(' '));
+    const pageChunks: string[] = [];
+    for (let i = 0; i < content.items.length; i++) {
+      const item = content.items[i];
+      if (item && 'str' in item && typeof (item as { str: unknown }).str === 'string') {
+        pageChunks.push((item as { str: string }).str);
+      }
+    }
+    
+    const pageText = pageChunks.join(' ');
+    pageTexts.push(pageText);
+    totalLength += pageText.length;
+
+    // 조기 중단: 이미 2,500자를 초과 수집했으면 추가 페이지 렌더링/디코딩 스킵
+    if (totalLength >= 2500) {
+      break;
+    }
   }
 
   // 너무 긴 문서일 경우 LLM 토큰 압박(Cloudflare 9002 Error 방지)을 위해 앞쪽 2,000자 까지만 자릅니다

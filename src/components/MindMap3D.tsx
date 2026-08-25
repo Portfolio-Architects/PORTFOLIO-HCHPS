@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { OntologyCanvasEngine } from '@/lib/OntologyCanvasEngine';
 import { PerformanceProfiler } from '@/lib/engine/PerformanceProfiler';
 import { OntologyLayout } from '@/lib/engine/OntologyLayout';
@@ -163,6 +163,7 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
   const [selectedGroup, setSelectedGroup] = useState<OntologyGroup>('OTHER');
   const [selectedLayerId, setSelectedLayerId] = useState<OntologyLayerId>(2);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [containerWidth, setContainerWidth] = useState(400);
   const [parentModeSource, setParentModeSource] = useState<string | null>(null);
   const [isWikiOpen, setIsWikiOpen] = useState(false);
   const [engineActive, setEngineActive] = useState(process.env.NODE_ENV === 'test');
@@ -203,6 +204,15 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [selectedSearchIndex, setSelectedSearchIndex] = useState(-1);
 
+  const filteredSearchNodes = useMemo<OrbitalNode[]>(() => {
+    const _nodeCount = stats.nodes;
+    const query = searchQuery.trim().toLowerCase();
+    if (!query || !engineRef.current || _nodeCount < 0) return [];
+    return (engineRef.current.nodes as OrbitalNode[]).filter((node: OrbitalNode) =>
+      node.label.toLowerCase().includes(query)
+    );
+  }, [searchQuery, stats.nodes]);
+
   const resumePhysicsLoopRef = useRef<() => void>(() => {});
   const resumePhysicsLoop = useCallback(() => {
     resumePhysicsLoopRef.current();
@@ -242,12 +252,26 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
       );
       
       if (cascadeDelete) {
+        // Pre-index children by parentId for O(1) traversal
+        const childrenByParent = new Map<string, OrbitalNode[]>();
+        for (const n of allNodes as OrbitalNode[]) {
+          if (n.parentId) {
+            let list = childrenByParent.get(n.parentId);
+            if (!list) {
+              list = [];
+              childrenByParent.set(n.parentId, list);
+            }
+            list.push(n);
+          }
+        }
+
         const queue = [activeNode.id];
         const visited = new Set<string>([activeNode.id]);
+        let head = 0;
         
-        while (queue.length > 0) {
-          const currentId = queue.shift()!;
-          const childNodes = allNodes.filter((n: OrbitalNode) => n.parentId === currentId);
+        while (head < queue.length) {
+          const currentId = queue[head++];
+          const childNodes = childrenByParent.get(currentId) || [];
           for (const child of childNodes) {
             if (!visited.has(child.id)) {
               visited.add(child.id);
@@ -753,6 +777,7 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
         canvas.height = rect.height * dpr;
         canvas.style.width = rect.width + 'px';
         canvas.style.height = rect.height + 'px';
+        setContainerWidth(prev => (Math.abs(prev - rect.width) > 1 ? rect.width : prev));
         
         if (engineRef.current) {
           engineRef.current.needsRedraw = true;
@@ -1469,25 +1494,19 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
                       }, 200);
                     }}
                     onKeyDown={(e) => {
-                      const filtered = searchQuery.trim() && engineRef.current
-                        ? engineRef.current.nodes.filter(node => 
-                            node.label.toLowerCase().includes(searchQuery.trim().toLowerCase())
-                          )
-                        : [];
-
-                      if (filtered.length === 0) return;
+                      if (filteredSearchNodes.length === 0) return;
 
                       if (e.key === 'ArrowDown') {
                         e.preventDefault();
-                        setSelectedSearchIndex(prev => (prev + 1) % filtered.length);
+                        setSelectedSearchIndex(prev => (prev + 1) % filteredSearchNodes.length);
                       } else if (e.key === 'ArrowUp') {
                         e.preventDefault();
-                        setSelectedSearchIndex(prev => (prev - 1 + filtered.length) % filtered.length);
+                        setSelectedSearchIndex(prev => (prev - 1 + filteredSearchNodes.length) % filteredSearchNodes.length);
                       } else if (e.key === 'Enter') {
                         e.preventDefault();
                         const targetIdx = selectedSearchIndex >= 0 ? selectedSearchIndex : 0;
-                        if (filtered[targetIdx]) {
-                          handleNodeClickInPanel(filtered[targetIdx].id);
+                        if (filteredSearchNodes[targetIdx]) {
+                          handleNodeClickInPanel(filteredSearchNodes[targetIdx].id);
                           setSearchQuery("");
                           setIsSearchFocused(false);
                           setSelectedSearchIndex(-1);
@@ -1517,22 +1536,12 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
                 {/* Auto-complete Results Dropdown */}
                 {isSearchFocused && searchQuery.trim() && (
                   <div className="absolute top-[48px] left-0 right-0 max-h-60 overflow-y-auto bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl shadow-xl z-50 custom-scrollbar animate-in fade-in slide-in-from-top-1 duration-150">
-                    {(() => {
-                      const filtered = engineRef.current
-                        ? engineRef.current.nodes.filter(node => 
-                            node.label.toLowerCase().includes(searchQuery.trim().toLowerCase())
-                          )
-                        : [];
-
-                      if (filtered.length === 0) {
-                        return (
-                          <div className="px-4 py-3 text-xs text-slate-400 text-center font-medium">
-                            검색 결과가 없습니다
-                          </div>
-                        );
-                      }
-
-                      return filtered.map((node, index) => {
+                    {filteredSearchNodes.length === 0 ? (
+                      <div className="px-4 py-3 text-xs text-slate-400 text-center font-medium">
+                        검색 결과가 없습니다
+                      </div>
+                    ) : (
+                      filteredSearchNodes.map((node, index) => {
                         const isSelected = index === selectedSearchIndex;
                         const groupColor = GROUP_COLORS[node.group as OntologyGroup] || '#ccc';
                         const groupLabel = GROUP_LABELS[node.group as OntologyGroup] || '기타';
@@ -1561,14 +1570,14 @@ const MindMap3DComponent = function MindMap3D({ signalKeywords, signalEntries, o
                             </span>
                           </div>
                         );
-                      });
-                    })()}
+                      })
+                    )}
                   </div>
                 )}
               </div>
 
               <MindMapHUD
-                containerWidth={containerRef.current?.getBoundingClientRect().width ?? 400}
+                containerWidth={containerWidth}
                 hoveredNode={hoveredNode}
                 activeNode={activeNode}
                 isFullscreen={isFullscreen}

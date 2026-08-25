@@ -5,8 +5,11 @@
 export class PerformanceProfiler {
   private static instance: PerformanceProfiler | null = null;
 
-  // Metrics
-  private renderDurations: number[] = [];
+  // Metrics (O(1) Ring Buffer)
+  private renderDurations: Float32Array = new Float32Array(60);
+  private durationCount = 0;
+  private durationIndex = 0;
+  private rollingSum = 0;
   private maxDuration = 0;
   private warningCount = 0;
   private totalRenders = 0;
@@ -35,17 +38,23 @@ export class PerformanceProfiler {
   private lastTickTime = 0;
 
   /**
-   * Records a single render execution duration in milliseconds.
+   * Records a single render execution duration in milliseconds in O(1) without array reallocations.
    */
   public recordRender(duration: number): void {
     this.totalRenders++;
     this.lastDuration = duration;
     
-    // Add to rolling buffer (max 60 samples)
-    this.renderDurations.push(duration);
-    if (this.renderDurations.length > 60) {
-      this.renderDurations.shift();
+    // Add to rolling ring buffer in O(1)
+    if (this.durationCount < 60) {
+      this.renderDurations[this.durationIndex] = duration;
+      this.rollingSum += duration;
+      this.durationCount++;
+    } else {
+      const oldVal = this.renderDurations[this.durationIndex];
+      this.renderDurations[this.durationIndex] = duration;
+      this.rollingSum += duration - oldVal;
     }
+    this.durationIndex = (this.durationIndex + 1) % 60;
 
     // Track peak latency
     if (duration > this.maxDuration) {
@@ -78,11 +87,10 @@ export class PerformanceProfiler {
   }
 
   /**
-   * Retrieves the current performance report metrics.
+   * Retrieves the current performance report metrics in O(1).
    */
   public getMetrics() {
-    const sum = this.renderDurations.reduce((a, b) => a + b, 0);
-    const avg = this.renderDurations.length > 0 ? sum / this.renderDurations.length : 0;
+    const avg = this.durationCount > 0 ? this.rollingSum / this.durationCount : 0;
     
     const now = performance.now();
     const isIdle = (now - this.lastTickTime) > 1500;
@@ -105,6 +113,10 @@ export class PerformanceProfiler {
   public resetStats(): void {
     this.maxDuration = 0;
     this.warningCount = 0;
+    this.durationCount = 0;
+    this.durationIndex = 0;
+    this.rollingSum = 0;
+    this.renderDurations.fill(0);
   }
 
   // Detailed breakdown of the last frame (in ms)
@@ -130,19 +142,17 @@ export class PerformanceProfiler {
     const measuredScript = physics + layout + bg + edges + nodes;
     const browserGc = Math.max(0, totalDelta - measuredScript);
 
-    // Identify dominant factor
-    const factors = [
-      { name: '물리 연산 (Physics)', val: physics },
-      { name: '좌표 투영 (Layout)', val: layout },
-      { name: '배경 렌더 (Background)', val: bg },
-      { name: '관계선 렌더 (Edges)', val: edges },
-      { name: '노드/텍스트 렌더 (Nodes)', val: nodes },
-      { name: '브라우저/GC 지연 (Browser/GC)', val: browserGc }
-    ];
-    factors.sort((a, b) => b.val - a.val);
-    const primaryFactor = factors[0];
+    // Identify dominant factor without array allocation
+    let maxName = '물리 연산 (Physics)';
+    let maxVal = physics;
 
-    return `${totalDelta.toFixed(1)}ms [${primaryFactor.name} 주원인: ${primaryFactor.val.toFixed(1)}ms]`;
+    if (layout > maxVal) { maxName = '좌표 투영 (Layout)'; maxVal = layout; }
+    if (bg > maxVal) { maxName = '배경 렌더 (Background)'; maxVal = bg; }
+    if (edges > maxVal) { maxName = '관계선 렌더 (Edges)'; maxVal = edges; }
+    if (nodes > maxVal) { maxName = '노드/텍스트 렌더 (Nodes)'; maxVal = nodes; }
+    if (browserGc > maxVal) { maxName = '브라우저/GC 지연 (Browser/GC)'; maxVal = browserGc; }
+
+    return `${totalDelta.toFixed(1)}ms [${maxName} 주원인: ${maxVal.toFixed(1)}ms]`;
   }
 
   public recordLagSpike(spike: string): void {

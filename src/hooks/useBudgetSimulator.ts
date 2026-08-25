@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useSyncExternalStore } from 'react';
 import { useBudget } from '@/hooks/useBudget';
 import { SimulationEntry, ProjectSimulationSummary, StatItemSimulationSummary, generateId } from '@/types';
 import { FESTIVAL_PRESET_SIMULATION_ENTRIES } from '@/lib/presets/festival5DomainPreset';
@@ -118,6 +118,41 @@ export interface UseBudgetSimulatorReturn {
   resolveCategoryId: (detailedProject: string, statItem: string) => string | undefined;
 }
 
+const emptySimEntries: SimulationEntry[] = [];
+let cachedSimJson = '';
+let cachedSimList: SimulationEntry[] = emptySimEntries;
+
+const subscribeSimStorage = (callback: () => void) => {
+  if (typeof window === 'undefined') return () => {};
+  const handler = (e: StorageEvent) => {
+    if (e.key === SIMULATION_STORAGE_KEY || !e.key) callback();
+  };
+  window.addEventListener('storage', handler);
+  return () => window.removeEventListener('storage', handler);
+};
+
+const getSimSnapshot = (): SimulationEntry[] => {
+  if (typeof window === 'undefined') return emptySimEntries;
+  const saved = localStorage.getItem(SIMULATION_STORAGE_KEY) || '';
+  if (saved === cachedSimJson) return cachedSimList;
+  cachedSimJson = saved;
+  if (!saved) {
+    cachedSimList = emptySimEntries;
+    return emptySimEntries;
+  }
+  try {
+    const parsed = JSON.parse(saved);
+    if (Array.isArray(parsed)) {
+      cachedSimList = parsed as SimulationEntry[];
+      return cachedSimList;
+    }
+  } catch {}
+  cachedSimList = emptySimEntries;
+  return emptySimEntries;
+};
+
+const getSimServerSnapshot = () => emptySimEntries;
+
 export function useBudgetSimulator(): UseBudgetSimulatorReturn {
   const { categories, getCategoryStats, isLoading: budgetLoading } = useBudget();
 
@@ -125,41 +160,44 @@ export function useBudgetSimulator(): UseBudgetSimulatorReturn {
   const [selectedDetailedProject, setSelectedDetailedProject] = useState<string>('');
   const [selectedStatItem, setSelectedStatItem] = useState<string>('');
 
-  // Simulation Entries State with SSR-safe localStorage Initialization
-  const [entries, setEntries] = useState<SimulationEntry[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem(SIMULATION_STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) return parsed as SimulationEntry[];
+  // Simulation Entries State with SSR-safe useSyncExternalStore
+  const storedEntries = useSyncExternalStore(subscribeSimStorage, getSimSnapshot, getSimServerSnapshot);
+  const [entriesOverride, setEntriesOverride] = useState<SimulationEntry[] | null>(null);
+  const entries = entriesOverride ?? storedEntries;
+
+  const setEntries = useCallback((updater: SimulationEntry[] | ((prev: SimulationEntry[]) => SimulationEntry[])) => {
+    setEntriesOverride(prev => {
+      const current = prev ?? getSimSnapshot();
+      const next = typeof updater === 'function' ? updater(current) : updater;
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(SIMULATION_STORAGE_KEY, JSON.stringify(next));
+        } catch (err) {
+          console.warn('[useBudgetSimulator] Failed to save simulation entries:', err);
         }
-      } catch (err) {
-        console.warn('[useBudgetSimulator] Failed to load simulation entries:', err);
+      }
+      return next;
+    });
+  }, []);
+
+  // Pre-indexed O(1) lookup Map for category resolution by detailedProject + statItem
+  const projectStatItemToCategoryMap = useMemo(() => {
+    const map = new Map<string, string>();
+    if (categories) {
+      for (const c of categories) {
+        if (c.detailedProject && c.statItem) {
+          map.set(`${c.detailedProject}|||${c.statItem}`, c.id);
+        }
       }
     }
-    return [];
-  });
+    return map;
+  }, [categories]);
 
-  // Sync entries to localStorage
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem(SIMULATION_STORAGE_KEY, JSON.stringify(entries));
-      } catch (err) {
-        console.warn('[useBudgetSimulator] Failed to save simulation entries:', err);
-      }
-    }
-  }, [entries]);
-
-  // 1. Resolve categoryId from detailedProject + statItem
+  // 1. Resolve categoryId from detailedProject + statItem in O(1)
   const resolveCategoryId = useCallback((detailedProject: string, statItem: string): string | undefined => {
     if (!detailedProject || !statItem || !categories) return undefined;
-    const matched = categories.find(
-      c => c.detailedProject === detailedProject && c.statItem === statItem
-    );
-    return matched?.id;
-  }, [categories]);
+    return projectStatItemToCategoryMap.get(`${detailedProject}|||${statItem}`);
+  }, [categories, projectStatItemToCategoryMap]);
 
   // 2. Extract Available Detailed Projects (Unique Set)
   const availableDetailedProjects = useMemo(() => {
@@ -219,7 +257,7 @@ export function useBudgetSimulator(): UseBudgetSimulatorReturn {
 
     setEntries(prev => [newEntry, ...prev]);
     return newEntry;
-  }, [resolveCategoryId]);
+  }, [resolveCategoryId, setEntries]);
 
   const updateEntry = useCallback((id: string, partial: Partial<SimulationEntry>) => {
     setEntries(prev => prev.map(item => {
@@ -236,38 +274,48 @@ export function useBudgetSimulator(): UseBudgetSimulatorReturn {
       }
       return updated;
     }));
-  }, [resolveCategoryId]);
+  }, [resolveCategoryId, setEntries]);
 
   const deleteEntry = useCallback((id: string) => {
     setEntries(prev => prev.filter(item => item.id !== id));
-  }, []);
+  }, [setEntries]);
 
   const resetEntries = useCallback(() => {
     setEntries([]);
     if (typeof window !== 'undefined') {
       localStorage.removeItem(SIMULATION_STORAGE_KEY);
     }
-  }, []);
+  }, [setEntries]);
 
   const loadTestPreset = useCallback(() => {
-    const presetEntriesWithIds: SimulationEntry[] = TEST_PRESET_ENTRIES.map(item => ({
-      ...item,
-      id: generateId(),
-      categoryId: resolveCategoryId(item.detailedProject, item.statItem),
-      createdAt: new Date().toISOString(),
-    }));
+    const now = new Date().toISOString();
+    const presetEntriesWithIds: SimulationEntry[] = new Array(TEST_PRESET_ENTRIES.length);
+    for (let i = 0; i < TEST_PRESET_ENTRIES.length; i++) {
+      const item = TEST_PRESET_ENTRIES[i];
+      presetEntriesWithIds[i] = {
+        ...item,
+        id: generateId(),
+        categoryId: resolveCategoryId(item.detailedProject, item.statItem),
+        createdAt: now,
+      };
+    }
     setEntries(presetEntriesWithIds);
-  }, [resolveCategoryId]);
+  }, [resolveCategoryId, setEntries]);
 
   const loadFestivalPreset = useCallback(() => {
-    const presetEntriesWithIds: SimulationEntry[] = FESTIVAL_PRESET_SIMULATION_ENTRIES.map(item => ({
-      ...item,
-      id: generateId(),
-      categoryId: resolveCategoryId(item.detailedProject, item.statItem),
-      createdAt: new Date().toISOString(),
-    }));
+    const now = new Date().toISOString();
+    const presetEntriesWithIds: SimulationEntry[] = new Array(FESTIVAL_PRESET_SIMULATION_ENTRIES.length);
+    for (let i = 0; i < FESTIVAL_PRESET_SIMULATION_ENTRIES.length; i++) {
+      const item = FESTIVAL_PRESET_SIMULATION_ENTRIES[i];
+      presetEntriesWithIds[i] = {
+        ...item,
+        id: generateId(),
+        categoryId: resolveCategoryId(item.detailedProject, item.statItem),
+        createdAt: now,
+      };
+    }
     setEntries(presetEntriesWithIds);
-  }, [resolveCategoryId]);
+  }, [resolveCategoryId, setEntries]);
 
   // 5. Calculate Real-Time Memoized Summaries (projectSummaries & statItemSummaries)
   const projectSummaries = useMemo<ProjectSimulationSummary[]>(() => {
@@ -280,30 +328,34 @@ export function useBudgetSimulator(): UseBudgetSimulatorReturn {
     }>();
 
     // Initialize with existing categories
-    categories.forEach(cat => {
+    for (let i = 0; i < categories.length; i++) {
+      const cat = categories[i];
       const dp = cat.detailedProject || '기타';
-      if (!map.has(dp)) {
-        map.set(dp, { totalBudget: 0, currentSpent: 0, simulatedExpenditure: 0 });
+      let target = map.get(dp);
+      if (!target) {
+        target = { totalBudget: 0, currentSpent: 0, simulatedExpenditure: 0 };
+        map.set(dp, target);
       }
       const stats = getCategoryStats(cat.id);
-      const target = map.get(dp)!;
       target.totalBudget += cat.totalBudget || 0;
       target.currentSpent += stats?.spent || 0;
-    });
+    }
 
     // Add simulation entries
-    entries.forEach(entry => {
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i];
       const dp = entry.detailedProject || '기타';
-      if (!map.has(dp)) {
-        map.set(dp, { totalBudget: 0, currentSpent: 0, simulatedExpenditure: 0 });
+      let target = map.get(dp);
+      if (!target) {
+        target = { totalBudget: 0, currentSpent: 0, simulatedExpenditure: 0 };
+        map.set(dp, target);
       }
-      const target = map.get(dp)!;
       target.simulatedExpenditure += entry.amount || 0;
-    });
+    }
 
     // Convert map to summary objects
     const results: ProjectSimulationSummary[] = [];
-    map.forEach((val, dp) => {
+    for (const [dp, val] of map) {
       const currentRemaining = val.totalBudget - val.currentSpent;
       const finalExpectedBalance = currentRemaining - val.simulatedExpenditure;
       const executionRate = val.totalBudget > 0 
@@ -320,7 +372,7 @@ export function useBudgetSimulator(): UseBudgetSimulatorReturn {
         executionRate,
         isDeficit: finalExpectedBalance < 0,
       });
-    });
+    }
 
     return results.sort((a, b) => a.detailedProject.localeCompare(b.detailedProject));
   }, [categories, getCategoryStats, entries]);
@@ -337,48 +389,52 @@ export function useBudgetSimulator(): UseBudgetSimulatorReturn {
     }>();
 
     // Key format: `${dp}::${st}`
-    categories.forEach(cat => {
+    for (let i = 0; i < categories.length; i++) {
+      const cat = categories[i];
       const dp = cat.detailedProject || '기타';
       const st = cat.statItem || '일반';
       const key = `${dp}::${st}`;
 
-      if (!map.has(key)) {
-        map.set(key, {
+      let target = map.get(key);
+      if (!target) {
+        target = {
           statItem: st,
           detailedProject: dp,
           totalBudget: 0,
           currentSpent: 0,
           simulatedExpenditure: 0,
-        });
+        };
+        map.set(key, target);
       }
       const stats = getCategoryStats(cat.id);
-      const target = map.get(key)!;
       target.totalBudget += cat.totalBudget || 0;
       target.currentSpent += stats?.spent || 0;
-    });
+    }
 
     // Add simulation entries
-    entries.forEach(entry => {
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i];
       const dp = entry.detailedProject || '기타';
       const st = entry.statItem || '일반';
       const key = `${dp}::${st}`;
 
-      if (!map.has(key)) {
-        map.set(key, {
+      let target = map.get(key);
+      if (!target) {
+        target = {
           statItem: st,
           detailedProject: dp,
           totalBudget: 0,
           currentSpent: 0,
           simulatedExpenditure: 0,
-        });
+        };
+        map.set(key, target);
       }
-      const target = map.get(key)!;
       target.simulatedExpenditure += entry.amount || 0;
-    });
+    }
 
     // Convert map to summary objects
     const results: StatItemSimulationSummary[] = [];
-    map.forEach((val) => {
+    for (const val of map.values()) {
       const currentRemaining = val.totalBudget - val.currentSpent;
       const finalExpectedBalance = currentRemaining - val.simulatedExpenditure;
 
@@ -392,7 +448,7 @@ export function useBudgetSimulator(): UseBudgetSimulatorReturn {
         finalExpectedBalance,
         isDeficit: finalExpectedBalance < 0,
       });
-    });
+    }
 
     return results.sort((a, b) => {
       const dpComp = a.detailedProject.localeCompare(b.detailedProject);

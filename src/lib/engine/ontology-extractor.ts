@@ -43,8 +43,9 @@ export function mergeExtractedGraph(ydoc: Y.Doc, extracted: ExtractedGraph) {
     const deletedEdgesMap = ydoc.getMap('deletedEdgesMap') as Y.Map<boolean>;
 
     // 1. 추출 노드 병합
-    extracted.nodes.forEach((node) => {
-      if (!node.id) return;
+    for (let i = 0; i < extracted.nodes.length; i++) {
+      const node = extracted.nodes[i];
+      if (!node.id) continue;
       
       // 이미 존재하는 노드면 덮어쓰지 않고 스킵 (수동 오버라이드 보존)
       if (!customNodesMap.has(node.id)) {
@@ -57,12 +58,13 @@ export function mergeExtractedGraph(ydoc: Y.Doc, extracted: ExtractedGraph) {
           centralityScore: 100,
         });
       }
-    });
+    }
 
     // 2. 추출 엣지(관계) 병합
     if (extracted.edges) {
-      extracted.edges.forEach((edge) => {
-        if (!edge.source || !edge.target) return;
+      for (let i = 0; i < extracted.edges.length; i++) {
+        const edge = extracted.edges[i];
+        if (!edge.source || !edge.target) continue;
         
         const edgeId = `${edge.source}|||${edge.target}`;
         const reverseId = `${edge.target}|||${edge.source}`;
@@ -80,7 +82,7 @@ export function mergeExtractedGraph(ydoc: Y.Doc, extracted: ExtractedGraph) {
             type: edge.type ?? 'DEPENDENCY',
           });
         }
-      });
+      }
     }
   });
 }

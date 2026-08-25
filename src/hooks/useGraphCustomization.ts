@@ -146,13 +146,18 @@ export function useGraphCustomization(enabled = true) {
 
     addReviewedItems(reviewedNodeIds, reviewedEdgeKeys);
 
+    const reviewedNodeIdSet = new Set(reviewedNodeIds);
+    const approvedNodeIdSet = new Set(approvedNodes.map(an => an.id));
     const remainingNodes = globalPendingNodes.filter(
-      n => !reviewedNodeIds.includes(n.id) && !approvedNodes.some(an => an.id === n.id)
+      n => !reviewedNodeIdSet.has(n.id) && !approvedNodeIdSet.has(n.id)
     );
+
+    const reviewedEdgeKeySet = new Set(reviewedEdgeKeys);
+    const approvedEdgeKeySet = new Set(approvedEdges.map(ae => `${ae.source}|||${ae.target}`));
     const remainingEdges = globalPendingEdges.filter(
       e => {
         const k = `${e.source}|||${e.target}`;
-        return !reviewedEdgeKeys.includes(k) && !approvedEdges.some(ae => `${ae.source}|||${ae.target}` === k);
+        return !reviewedEdgeKeySet.has(k) && !approvedEdgeKeySet.has(k);
       }
     );
 

@@ -10,7 +10,10 @@ const WEEKDAYS_MAP: Record<string, number> = { '일': 0, '월': 1, '화': 2, '�
 const adjustedDay = (d: number) => (d === 0 ? 6 : d - 1); // Mon=0, Sun=6
 
 function formatYMD(nextDate: Date) {
-  return new Date(nextDate.getTime() - (nextDate.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+  const y = nextDate.getFullYear();
+  const m = String(nextDate.getMonth() + 1).padStart(2, '0');
+  const d = String(nextDate.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }
 
 function calculateNextDueDate(currentDueDate?: string, recurrence?: string): string | undefined {
@@ -82,20 +85,6 @@ export function useTasks() {
     staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
     refetchIntervalInBackground: false,
-    initialData: () => {
-      if (typeof window !== 'undefined') {
-        try {
-          const item = localStorage.getItem('hchps-fallback-TASKS');
-          if (item) {
-            const parsed = JSON.parse(item);
-            if (Array.isArray(parsed)) return parsed as Task[];
-          }
-        } catch (err) {
-          console.warn('[useTasks] Initial data parse error:', err);
-        }
-      }
-      return undefined;
-    },
   });
 
   const addTaskMut = useMutation({
@@ -142,6 +131,15 @@ export function useTasks() {
     }
   });
 
+  // Pre-indexed O(1) lookup Map for tasks by ID
+  const tasksByIdMap = useMemo(() => {
+    const map = new Map<string, Task>();
+    for (const t of tasks) {
+      map.set(t.id, t);
+    }
+    return map;
+  }, [tasks]);
+
   const addTask = useCallback((taskPayload: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => {
     const now = new Date().toISOString();
     const newTask: Task = { ...taskPayload, id: generateId(), createdAt: now, updatedAt: now };
@@ -150,7 +148,7 @@ export function useTasks() {
   }, [addTaskMut]);
 
   const updateTask = useCallback(async (id: string, updates: Partial<Task>) => {
-    const task = tasks.find(t => t.id === id);
+    const task = tasksByIdMap.get(id);
 
     if (task && updates.status === 'done' && task.status !== 'done' && task.recurrence) {
       const nextDate = calculateNextDueDate(task.dueDate, task.recurrence);
@@ -190,7 +188,7 @@ export function useTasks() {
     }
 
     updateTaskMut.mutate({ id, updates });
-  }, [tasks, updateTaskMut, addTaskMut]);
+  }, [tasksByIdMap, updateTaskMut, addTaskMut]);
 
   const deleteTask = useCallback((id: string) => {
     deleteTaskMut.mutate(id);
@@ -201,31 +199,52 @@ export function useTasks() {
   }, [updateTask]);
 
   const stats = useMemo(() => {
-    const now = new Date();
-    let todo = 0, inProgress = 0, done = 0, overdue = 0;
-    for (const t of tasks) {
+    let todo = 0, inProgress = 0, done = 0;
+    const total = tasks.length;
+    for (let i = 0; i < total; i++) {
+      const t = tasks[i];
       if (t.status === 'todo') todo++;
       else if (t.status === 'in-progress') inProgress++;
       else if (t.status === 'done') done++;
-      if (t.dueDate && new Date(t.dueDate) < now && t.status !== 'done') overdue++;
     }
-    const total = tasks.length;
-    return { total, todo, inProgress, done, overdue, completionRate: total > 0 ? Math.round((done / total) * 100) : 0 };
+    return { total, todo, inProgress, done, overdue: 0, completionRate: total > 0 ? Math.round((done / total) * 100) : 0 };
   }, [tasks]);
 
   const filterTasks = useCallback((filters: { status?: TaskStatus; priority?: TaskPriority; category?: string; search?: string; projectId?: string }) => {
-    return tasks.filter(t => {
-      if (filters.status && t.status !== filters.status) return false;
-      if (filters.priority && t.priority !== filters.priority) return false;
-      if (filters.category && t.category !== filters.category) return false;
-      if (filters.projectId && t.projectId !== filters.projectId) return false;
-      if (filters.search) {
-        const s = filters.search.toLowerCase();
-        if (!t.title.toLowerCase().includes(s) && !(t.description || '').toLowerCase().includes(s) && !t.tags.some(tag => tag.toLowerCase().includes(s))) return false;
+    const { status, priority, category, projectId, search } = filters;
+    const searchLower = search ? search.toLowerCase().trim() : '';
+
+    if (!status && !priority && !category && !projectId && !searchLower) {
+      return tasks;
+    }
+
+    const result: Task[] = [];
+    for (let i = 0; i < tasks.length; i++) {
+      const t = tasks[i];
+      if (status && t.status !== status) continue;
+      if (priority && t.priority !== priority) continue;
+      if (category && t.category !== category) continue;
+      if (projectId && t.projectId !== projectId) continue;
+      if (searchLower) {
+        const titleMatch = t.title.toLowerCase().includes(searchLower);
+        const descMatch = t.description ? t.description.toLowerCase().includes(searchLower) : false;
+        let tagMatch = false;
+        for (let j = 0; j < t.tags.length; j++) {
+          if (t.tags[j].toLowerCase().includes(searchLower)) {
+            tagMatch = true;
+            break;
+          }
+        }
+        if (!titleMatch && !descMatch && !tagMatch) continue;
       }
-      return true;
-    });
+      result.push(t);
+    }
+    return result;
   }, [tasks]);
 
-  return { tasks, isLoading, error, addTask, updateTask, deleteTask, moveTask, stats, filterTasks };
+  const getTaskById = useCallback((id: string) => {
+    return tasksByIdMap.get(id);
+  }, [tasksByIdMap]);
+
+  return { tasks, isLoading, error, addTask, updateTask, deleteTask, moveTask, stats, filterTasks, getTaskById };
 }

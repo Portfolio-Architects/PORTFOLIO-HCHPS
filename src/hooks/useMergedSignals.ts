@@ -20,48 +20,132 @@ export function useMergedSignals(
     if (!enabled) return EMPTY_KEYWORD_MAP;
     const map: Record<string, number> = { ...keywordMap };
     
-    const extractAndAdd = (text: string, tags: string[] = []) => {
+    const extractAndAdd = (text: string, tags?: string[]) => {
       const words = extractKeywords(text);
-      tags.forEach(t => { if (t.length >= 2) words.push(t); });
-      words.forEach(kw => { map[kw] = (map[kw] || 0) + 1; });
+      if (tags) {
+        for (let i = 0; i < tags.length; i++) {
+          if (tags[i].length >= 2) words.push(tags[i]);
+        }
+      }
+      for (let i = 0; i < words.length; i++) {
+        const kw = words[i];
+        map[kw] = (map[kw] || 0) + 1;
+      }
     };
 
     // 1. 업무 (Tasks)
-    for (const t of tasks) extractAndAdd(t.title + ' ' + (t.description || ''), t.tags);
+    for (let i = 0; i < tasks.length; i++) {
+      const t = tasks[i];
+      extractAndAdd(t.title + ' ' + (t.description || ''), t.tags);
+    }
     // 2. 프로젝트 (Projects)
-    for (const p of projects) extractAndAdd(p.name + ' ' + (p.description || '') + ' ' + p.checklistItems.map(c => c.text).join(' '));
+    for (let i = 0; i < projects.length; i++) {
+      const p = projects[i];
+      let pText = p.name + ' ' + (p.description || '');
+      if (p.checklistItems) {
+        for (let j = 0; j < p.checklistItems.length; j++) {
+          pText += ' ' + p.checklistItems[j].text;
+        }
+      }
+      extractAndAdd(pText);
+    }
     // 3. 회의록 (Meetings)
-    for (const m of meetings) extractAndAdd(m.title + ' ' + (m.agenda || '') + ' ' + (m.notes || ''), m.attendees);
+    for (let i = 0; i < meetings.length; i++) {
+      const m = meetings[i];
+      extractAndAdd(m.title + ' ' + (m.agenda || '') + ' ' + (m.notes || ''), m.attendees);
+    }
     // 4. 예산/지출 (Budget)
-    for (const b of budgetEntries) extractAndAdd(b.purpose + ' ' + (b.memo || ''));
+    for (let i = 0; i < budgetEntries.length; i++) {
+      const b = budgetEntries[i];
+      extractAndAdd(b.purpose + ' ' + (b.memo || ''));
+    }
     // 5. 재고/비품 (Inventory)
-    for (const i of inventoryItems) extractAndAdd(i.name + ' ' + i.category);
+    for (let i = 0; i < inventoryItems.length; i++) {
+      const inv = inventoryItems[i];
+      extractAndAdd(inv.name + ' ' + inv.category);
+    }
 
     return map;
   }, [enabled, keywordMap, tasks, projects, meetings, budgetEntries, inventoryItems]);
 
   const mergedEntries = useMemo(() => {
     if (!enabled) return EMPTY_MERGED_ENTRIES;
-    const buildEntry = (idPrefix: string, id: string, text: string, keywordsSource: string, tags: string[], createdAt: string, category: string) => ({
-      id: `${idPrefix}-${id}`,
-      text,
-      keywords: [...extractKeywords(keywordsSource), ...tags.filter(tag => tag.length >= 2)],
-      createdAt,
-      category,
-      tags: tags.filter(tag => tag.length >= 2),
-    });
+    const buildEntry = (idPrefix: string, id: string, text: string, keywordsSource: string, tags: string[], createdAt: string, category: string) => {
+      const filteredTags: string[] = [];
+      for (let i = 0; i < tags.length; i++) {
+        if (tags[i].length >= 2) filteredTags.push(tags[i]);
+      }
+      const kws = extractKeywords(keywordsSource);
+      for (let i = 0; i < filteredTags.length; i++) {
+        kws.push(filteredTags[i]);
+      }
+      return {
+        id: `${idPrefix}-${id}`,
+        text,
+        keywords: kws,
+        createdAt,
+        category,
+        tags: filteredTags,
+        _time: Date.parse(createdAt) || 0,
+      };
+    };
 
-    const taskMap = tasks.map(t => buildEntry('task', t.id, `[업무] ${t.title}`, t.title + ' ' + (t.description || ''), t.tags, t.createdAt, '업무'));
-    const projectMap = projects.map(p => buildEntry('proj', p.id, `[프로젝트] ${p.name}`, p.name + ' ' + (p.description || ''), ['프로젝트'], p.createdAt, '프로젝트'));
-    const meetingMap = meetings.map(m => buildEntry('meet', m.id, `[회의] ${m.title}`, m.title + ' ' + (m.agenda || '') + ' ' + (m.notes || ''), ['회의록', ...m.attendees], m.createdAt, '회의록'));
-    const budgetMap = budgetEntries.map(b => buildEntry('budg', b.id, `[지출] ${b.purpose}`, b.purpose + ' ' + (b.memo || ''), ['예산'], b.date, '지출예산'));
-    const inventoryMap = inventoryItems.map(i => buildEntry('inv', i.id, `[비품] ${i.name}`, i.name + ' ' + i.category, ['재고'], i.createdAt, '홍보물'));
+    const all: (SignalEntry & { category: string; tags: string[]; _time: number })[] = [];
 
-    const sigMap = signalEntries.map(s => ({ ...s, category: '내 생각', tags: [] }));
+    // 1. Signal Entries
+    for (let i = 0; i < signalEntries.length; i++) {
+      const s = signalEntries[i];
+      all.push({
+        ...s,
+        category: '내 생각',
+        tags: [],
+        _time: Date.parse(s.createdAt) || 0,
+      });
+    }
 
-    // Sort by createdAt descending
-    const all = [...sigMap, ...taskMap, ...projectMap, ...meetingMap, ...budgetMap, ...inventoryMap];
-    return all.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    // 2. Tasks
+    for (let i = 0; i < tasks.length; i++) {
+      const t = tasks[i];
+      all.push(buildEntry('task', t.id, `[업무] ${t.title}`, t.title + ' ' + (t.description || ''), t.tags || [], t.createdAt, '업무'));
+    }
+
+    // 3. Projects
+    for (let i = 0; i < projects.length; i++) {
+      const p = projects[i];
+      let pText = p.name + ' ' + (p.description || '');
+      if (p.checklistItems) {
+        for (let j = 0; j < p.checklistItems.length; j++) {
+          pText += ' ' + p.checklistItems[j].text;
+        }
+      }
+      all.push(buildEntry('proj', p.id, `[프로젝트] ${p.name}`, pText, ['프로젝트'], p.createdAt, '프로젝트'));
+    }
+
+    // 4. Meetings
+    for (let i = 0; i < meetings.length; i++) {
+      const m = meetings[i];
+      const meetTags = ['회의록'];
+      if (m.attendees) {
+        for (let j = 0; j < m.attendees.length; j++) {
+          meetTags.push(m.attendees[j]);
+        }
+      }
+      all.push(buildEntry('meet', m.id, `[회의] ${m.title}`, m.title + ' ' + (m.agenda || '') + ' ' + (m.notes || ''), meetTags, m.createdAt, '회의록'));
+    }
+
+    // 5. Budget Entries
+    for (let i = 0; i < budgetEntries.length; i++) {
+      const b = budgetEntries[i];
+      all.push(buildEntry('budg', b.id, `[지출] ${b.purpose}`, b.purpose + ' ' + (b.memo || ''), ['예산'], b.date, '지출예산'));
+    }
+
+    // 6. Inventory Items
+    for (let i = 0; i < inventoryItems.length; i++) {
+      const inv = inventoryItems[i];
+      all.push(buildEntry('inv', inv.id, `[비품] ${inv.name}`, inv.name + ' ' + inv.category, ['재고'], inv.createdAt, '홍보물'));
+    }
+
+    return all.sort((a, b) => b._time - a._time);
   }, [enabled, signalEntries, tasks, projects, meetings, budgetEntries, inventoryItems]);
 
   return { mergedKeywordMap, mergedEntries };

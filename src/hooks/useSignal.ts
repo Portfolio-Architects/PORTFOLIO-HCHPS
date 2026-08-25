@@ -15,6 +15,7 @@ export interface SignalEntry {
     tags: string[];
     relatedKeywords: string[];
   };
+  _time?: number;
 }
 
 const STORAGE_KEY = 'hchps-signal-log';
@@ -108,20 +109,23 @@ export function extractKeywords(text: string): string[] {
     .replace(/\s+/g, ' ')
     .trim();
 
-  // Step 4: 단어 분리, 어근 추출, 필터링
-  const words = cleaned.split(' ')
-    .map(w => stripSuffix(w))        // 어미 제거
-    .filter(w => {
-      if (w.length < 2) return false;                    // 1글자 제거
-      if (stopWords.has(w)) return false;                // 불용어 제거
-      if (/^\d+$/.test(w)) return false;                 // 순수 숫자 제거
-      if (/^[ㄱ-ㅎㅏ-ㅣ]+$/.test(w)) return false;       // 자모만(ㅋㅋ, ㅎㅎ) 제거
-      if (/^[a-zA-Z]{1,2}$/.test(w)) return false;      // 영문 1-2글자 제거
-      return true;
-    });
+  // Step 4: 단어 분리, 어근 추출, 필터링 (Zero-Intermediate Array Single-Pass Loop)
+  const rawWords = cleaned.split(' ');
+  const wordSet = new Set<string>();
+  for (let i = 0; i < rawWords.length; i++) {
+    const raw = rawWords[i];
+    if (!raw) continue;
+    const w = stripSuffix(raw);
+    if (w.length < 2) continue;
+    if (stopWords.has(w)) continue;
+    if (/^\d+$/.test(w)) continue;
+    if (/^[ㄱ-ㅎㅏ-ㅣ]+$/.test(w)) continue;
+    if (/^[a-zA-Z]{1,2}$/.test(w)) continue;
+    wordSet.add(w);
+  }
 
   // Deduplicate
-  const result = [...new Set(words)];
+  const result = Array.from(wordSet);
   keywordCache.set(text, result);
   return result;
 }
@@ -262,13 +266,20 @@ export function useSignal() {
     });
   }, [/* updateKeywords */]);
 
-  // Aggregate keywords with frequency
-  const keywordMap = useMemo(() => entries.reduce<Record<string, number>>((acc, entry) => {
-    entry.keywords.forEach(kw => {
-      acc[kw] = (acc[kw] || 0) + 1;
-    });
+  // Aggregate keywords with frequency (Zero-Closure Single-Pass Loop)
+  const keywordMap = useMemo(() => {
+    const acc: Record<string, number> = {};
+    for (let i = 0; i < entries.length; i++) {
+      const kws = entries[i].keywords;
+      if (kws) {
+        for (let j = 0; j < kws.length; j++) {
+          const kw = kws[j];
+          acc[kw] = (acc[kw] || 0) + 1;
+        }
+      }
+    }
     return acc;
-  }, {}), [entries]);
+  }, [entries]);
 
   return { entries, addSignal, deleteSignal, updateSignal, updateSignalKeywords, keywordMap };
 }

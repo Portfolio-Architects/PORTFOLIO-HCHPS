@@ -134,7 +134,7 @@
     "_enc": "NX5wJClE6oRrC/5Z4QnEmD2fPjpUs79RcQmoP8bnEfK5stwhnlYxW4F2VMGaGulGHNEb94yFvxdtzhaQDo51rVR2eePoU0ivt3vWTDeejZ9Hh0Fhn0DwEPJUwzk++ubwgqQ06POlCSv+wGeuQ1YM5sB6BoJzMKhSmca5+e+rVuY8azTEk28uCJcPDzpLY6uchNMkBs7FOXR7uOx0YQr0IinIXd5maDoIMPDfHfhuXJw4wNp4i7Jo1LvcrQs/VbLMVjquHTS6aLaYey6p",
     "name": "이상혁 이사님",
     "phone": "01079249151",
-    "email": "sports@seedtech.co.kr",
+    "email": "",
     "notes": "시드테크",
     "createdAt": "2026-06-15T04:39:18.362Z",
     "updatedAt": "2026-06-15T04:39:18.362Z"
@@ -576,16 +576,6 @@
     "phone": "02-2019-2144",
     "email": "",
     "notes": "소속: 강남세브란스병원, [출처: 사업운영]",
-    "createdAt": "2026-06-15T04:49:56.277Z",
-    "updatedAt": "2026-06-15T04:49:56.277Z"
-  },
-  {
-    "id": "contact-seed-58-oonit8q",
-    "_enc": "bish+6X1lE0UWVRatIp3UWdDGmnQrAJK2nBqGLvfLLfV3Y+0KI0JBeoEvNgCrWAIPajqo/+3mKFOHJ6wDkjh6y4b6FvfO3jS/fRJl0PxZKMX97tSKk1swmdbaUjwL1H3mN9o25m9Q/VPU2JZKdVTFpKUM+Y4C0y2dBkU/RFAY5WxwPa6x2b1bGDMqGV746J9Zqk+xoAIYj5tdOl8jjQoq19fDHlZFXEruVwr/xpe4xA0O9Z/Vrz87TuzkV26IaTIbqqfg9faGohees4Id03msIBAa64YtZYeKaIxwVTRcYh50ZfW0LLI3dNOWPZBQzSbbtkqYgvfAWFFTQbm0OLP9EzsR7fG0w9ksceQazkmrqjAXNs=",
-    "name": "배경규 팀장",
-    "phone": "010-2080-9737, 070-4640-5234",
-    "email": "",
-    "notes": "소속: 위피크, 비고: 신체활동 도구 및 용역, [출처: 사업운영]",
     "createdAt": "2026-06-15T04:49:56.277Z",
     "updatedAt": "2026-06-15T04:49:56.277Z"
   },
@@ -1498,15 +1488,6 @@
     "updatedAt": "2026-08-18T01:04:26.814Z"
   },
   {
-    "name": "시드테크",
-    "phone": "01079249151",
-    "email": "",
-    "notes": "노드 ID: custom-1775796286144",
-    "id": "contact-seed-13-msxymqbibse9c7sh8",
-    "createdAt": "2026-08-18T01:04:26.814Z",
-    "updatedAt": "2026-08-18T01:04:26.814Z"
-  },
-  {
     "name": "건보강남동부지사",
     "phone": "0234590135",
     "email": "",
@@ -1532,5 +1513,23 @@
     "id": "contact-seed-16-msxymqbinehzug7zq",
     "createdAt": "2026-08-18T01:04:26.814Z",
     "updatedAt": "2026-08-18T01:04:26.814Z"
+  },
+  {
+    "name": "KMI ESG",
+    "phone": "02-3702-9653",
+    "email": "kmi_smy0406@kmi.or.kr",
+    "notes": "",
+    "id": "mt6rthrfbswtfxd61",
+    "createdAt": "2026-08-24T05:03:40.586Z",
+    "updatedAt": "2026-08-24T05:03:40.586Z"
+  },
+  {
+    "name": "김다희 팀장님",
+    "phone": "010-8494-0544",
+    "email": "",
+    "notes": "제이민/굿이벤트",
+    "id": "mt6s6vxajhh7zt77x",
+    "createdAt": "2026-08-24T05:14:05.470Z",
+    "updatedAt": "2026-08-24T05:14:05.470Z"
   }
 ]

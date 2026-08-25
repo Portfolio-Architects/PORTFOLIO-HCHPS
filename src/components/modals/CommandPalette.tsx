@@ -25,6 +25,7 @@ export interface CommandItem {
   subtitle?: string;
   badge?: string;
   searchTerms: string;
+  searchTermsLower?: string;
   onSelect: () => void;
   icon: React.ReactNode;
 }
@@ -111,6 +112,7 @@ export function CommandPalette({
     ];
 
     navItems.forEach(nav => {
+      const searchTerms = `${nav.title} ${nav.subtitle} navigation module 대시보드 마인드맵 예산 관리 사업`;
       items.push({
         id: `nav-${nav.module}`,
         category: 'Navigation',
@@ -118,7 +120,8 @@ export function CommandPalette({
         title: nav.title,
         subtitle: nav.subtitle,
         badge: 'Module',
-        searchTerms: `${nav.title} ${nav.subtitle} navigation module 대시보드 마인드맵 예산 관리 사업`,
+        searchTerms,
+        searchTermsLower: searchTerms.toLowerCase(),
         icon: nav.icon,
         onSelect: () => onSelectModule(nav.module)
       });
@@ -126,6 +129,7 @@ export function CommandPalette({
 
     // 2. Tasks
     tasks.forEach(task => {
+      const searchTerms = `${task.title} ${task.category || ''} ${task.description || ''} ${(task.tags || []).join(' ')} ${task.status}`;
       items.push({
         id: `task-${task.id}`,
         category: 'Tasks',
@@ -133,7 +137,8 @@ export function CommandPalette({
         title: task.title,
         subtitle: `${task.category}${task.dueDate ? ` · 마감: ${task.dueDate}` : ''}${task.description ? ` · ${task.description}` : ''}`,
         badge: task.status === 'done' ? '완료' : task.status === 'in-progress' ? '진행중' : '대기',
-        searchTerms: `${task.title} ${task.category || ''} ${task.description || ''} ${(task.tags || []).join(' ')} ${task.status}`,
+        searchTerms,
+        searchTermsLower: searchTerms.toLowerCase(),
         icon: <CheckSquare className="w-4 h-4 text-amber-400" />,
         onSelect: () => onSelectModule('dashboard')
       });
@@ -143,6 +148,7 @@ export function CommandPalette({
     const catMap = new Map(budgetCategories.map(c => [c.id, c.name]));
     budgetEntries.forEach(entry => {
       const catName = catMap.get(entry.categoryId) || '기타예산';
+      const searchTerms = `${entry.purpose} ${catName} ${entry.amount} ${entry.docRegNum || ''} ${entry.memo || ''}`;
       items.push({
         id: `budget-${entry.id}`,
         category: 'Budget',
@@ -150,7 +156,8 @@ export function CommandPalette({
         title: entry.purpose,
         subtitle: `${catName} · ${entry.amount.toLocaleString()}원${entry.docRegNum ? ` · ${entry.docRegNum}` : ''}`,
         badge: entry.isPlanned ? '품의 예정' : '지출 완료',
-        searchTerms: `${entry.purpose} ${catName} ${entry.amount} ${entry.docRegNum || ''} ${entry.memo || ''}`,
+        searchTerms,
+        searchTermsLower: searchTerms.toLowerCase(),
         icon: <Receipt className="w-4 h-4 text-emerald-400" />,
         onSelect: () => onSelectModule('workspace')
       });
@@ -158,6 +165,7 @@ export function CommandPalette({
 
     // 4. Inventory Items
     inventoryItems.forEach(inv => {
+      const searchTerms = `${inv.name} ${inv.category}`;
       items.push({
         id: `inv-${inv.id}`,
         category: 'Inventory',
@@ -165,7 +173,8 @@ export function CommandPalette({
         title: inv.name,
         subtitle: `카테고리: ${inv.category}`,
         badge: `${inv.currentStock} ${inv.unit}`,
-        searchTerms: `${inv.name} ${inv.category}`,
+        searchTerms,
+        searchTermsLower: searchTerms.toLowerCase(),
         icon: <Package className="w-4 h-4 text-cyan-400" />,
         onSelect: () => onSelectModule('workspace')
       });
@@ -173,6 +182,7 @@ export function CommandPalette({
 
     // 5. Contacts
     contacts.forEach(contact => {
+      const searchTerms = `${contact.name} ${contact.phone} ${contact.email || ''} ${contact.notes || ''}`;
       items.push({
         id: `contact-${contact.id}`,
         category: 'Contacts',
@@ -180,7 +190,8 @@ export function CommandPalette({
         title: contact.name,
         subtitle: `${contact.phone}${contact.email ? ` · ${contact.email}` : ''}${contact.notes ? ` · ${contact.notes}` : ''}`,
         badge: '연락처',
-        searchTerms: `${contact.name} ${contact.phone} ${contact.email || ''} ${contact.notes || ''}`,
+        searchTerms,
+        searchTermsLower: searchTerms.toLowerCase(),
         icon: <User className="w-4 h-4 text-pink-400" />,
         onSelect: () => onSelectModule('dashboard')
       });
@@ -188,6 +199,7 @@ export function CommandPalette({
 
     // 6. Projects
     projects.forEach(project => {
+      const searchTerms = `${project.name} ${project.description || ''} ${project.target || ''} ${project.location || ''}`;
       items.push({
         id: `project-${project.id}`,
         category: 'Projects',
@@ -195,7 +207,8 @@ export function CommandPalette({
         title: project.name,
         subtitle: project.description || project.target || '등록된 사업 과제',
         badge: '사업',
-        searchTerms: `${project.name} ${project.description || ''} ${project.target || ''} ${project.location || ''}`,
+        searchTerms,
+        searchTermsLower: searchTerms.toLowerCase(),
         icon: <Briefcase className="w-4 h-4 text-violet-400" />,
         onSelect: () => onSelectModule('project')
       });
@@ -203,6 +216,7 @@ export function CommandPalette({
 
     // 7. Meetings
     meetings.forEach(meeting => {
+      const searchTerms = `${meeting.title} ${meeting.location || ''} ${meeting.agenda || ''} ${(meeting.attendees || []).join(' ')}`;
       items.push({
         id: `meeting-${meeting.id}`,
         category: 'Meetings',
@@ -210,7 +224,8 @@ export function CommandPalette({
         title: meeting.title,
         subtitle: `${meeting.datetime}${meeting.location ? ` · ${meeting.location}` : ''}`,
         badge: '일정',
-        searchTerms: `${meeting.title} ${meeting.location || ''} ${meeting.agenda || ''} ${(meeting.attendees || []).join(' ')}`,
+        searchTerms,
+        searchTermsLower: searchTerms.toLowerCase(),
         icon: <Calendar className="w-4 h-4 text-rose-400" />,
         onSelect: () => onSelectModule('dashboard')
       });
@@ -227,7 +242,7 @@ export function CommandPalette({
     }
     const tokens = query.split(/\s+/).filter(Boolean);
     return allItems.filter(item => {
-      const text = item.searchTerms.toLowerCase();
+      const text = item.searchTermsLower || item.searchTerms.toLowerCase();
       return tokens.every(token => text.includes(token));
     });
   }, [searchQuery, allItems]);

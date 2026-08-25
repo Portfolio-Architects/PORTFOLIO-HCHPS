@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { readSheet, addRow, updateRow, deleteRow, replaceAll } from '@/lib/sheets-api';
 import { Contact, generateId } from '@/types';
@@ -14,21 +14,16 @@ export function useContacts() {
     staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
     refetchIntervalInBackground: false,
-    initialData: () => {
-      if (typeof window !== 'undefined') {
-        try {
-          const item = localStorage.getItem('hchps-fallback-CONTACTS') || localStorage.getItem('hchps-contacts');
-          if (item) {
-            const parsed = JSON.parse(item);
-            if (Array.isArray(parsed)) return parsed as Contact[];
-          }
-        } catch (err) {
-          console.warn('[useContacts] Initial data parse error:', err);
-        }
-      }
-      return undefined;
-    },
   });
+
+  // Pre-indexed O(1) lookup Map for contacts by ID
+  const contactsByIdMap = useMemo(() => {
+    const map = new Map<string, Contact>();
+    for (const c of contacts) {
+      map.set(c.id, c);
+    }
+    return map;
+  }, [contacts]);
 
   const replaceContactsMut = useMutation({
     mutationFn: (newContacts: Contact[]) => replaceAll('CONTACTS', newContacts),
@@ -62,9 +57,15 @@ export function useContacts() {
       await queryClient.cancelQueries({ queryKey: ['CONTACTS'] });
       const previous = queryClient.getQueryData<Contact[]>(['CONTACTS']);
       const updatedFields = { ...updates, updatedAt: new Date().toISOString() };
-      queryClient.setQueryData<Contact[]>(['CONTACTS'], (old) =>
-        (old || []).map(c => c.id === id ? { ...c, ...updatedFields } : c)
-      );
+      queryClient.setQueryData<Contact[]>(['CONTACTS'], (old) => {
+        if (!old) return [];
+        const result: Contact[] = [];
+        for (let i = 0; i < old.length; i++) {
+          const c = old[i];
+          result.push(c.id === id ? { ...c, ...updatedFields } : c);
+        }
+        return result;
+      });
       return { previous };
     },
     onError: (err, vars, context) => {
@@ -77,7 +78,14 @@ export function useContacts() {
     onMutate: async (id) => {
       await queryClient.cancelQueries({ queryKey: ['CONTACTS'] });
       const previous = queryClient.getQueryData<Contact[]>(['CONTACTS']);
-      queryClient.setQueryData<Contact[]>(['CONTACTS'], (old) => (old || []).filter(c => c.id !== id));
+      queryClient.setQueryData<Contact[]>(['CONTACTS'], (old) => {
+        if (!old) return [];
+        const result: Contact[] = [];
+        for (let i = 0; i < old.length; i++) {
+          if (old[i].id !== id) result.push(old[i]);
+        }
+        return result;
+      });
       return { previous };
     },
     onError: (err, id, context) => {
@@ -109,12 +117,17 @@ export function useContacts() {
     replaceContactsMut.mutate(newContacts);
   }, [replaceContactsMut]);
 
+  const getContactById = useCallback((id: string) => {
+    return contactsByIdMap.get(id);
+  }, [contactsByIdMap]);
+
   return {
     contacts,
     loading,
     addContact,
     updateContact,
     deleteContact,
-    replaceContacts
+    replaceContacts,
+    getContactById
   };
 }

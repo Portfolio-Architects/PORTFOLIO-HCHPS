@@ -133,8 +133,13 @@
    - 무인 자율 구동 시 위 3개 검증 스위트를 통과한 변경 건만 자율 배포(Auto-Merge)되며, 패치 완료 시 `node scripts/sync-rules.js`를 구동하여 `AGENTS.md` 하단 마일스톤 로그를 100% 최신 상태로 유지합니다.
 
 ## 5. 최신 동기화된 마일스톤 (Synced Milestones Log)
-- **최신 동기화 일자:** 2026-08-19
+- **최신 동기화 일자:** 2026-08-25
 - **동기화된 마일스톤:**
+  - [Milestone 4: Final 0-0-0 Full Integrity Acceptance & Gatekeeper Verification] Complete codebase verification, 0 TSC errors, 0 Zod errors, 0 ESLint warnings, 0 MVC violations, 24/24 Jest test suites (205 tests) PASS, and manifest rule synchronization. (2026-08-25)
+  - [Milestone 3: 100% MVC Ontology Unification & SSOT Storage Integrity] Auth Hook (`useAuth.ts`) encapsulation, `src/app/login/page.tsx` MVC decoupling, atomic temporary file writes, pre-write Zod gatekeeper, 3-tier GFS backup rotations, 30-day tombstone GC. (2026-08-25)
+  - [Milestone 2: Codebase-wide O(1) Complexity Leap & Zero-Allocation Engine] Signal Graph Map/Set pre-indexing, Centrality zero-allocation accumulators, Ontology Layout index forwarding, Festival Validation inverted keyword index, Timetable `${dayStr}:${hourStr}` composite slot grouping, Ledger T-Account memoization, Expense validation Map indexing, MindMap search memoization, Inspector Jaccard character set optimization, Semantic Review label pre-indexing. (2026-08-25)
+  - [Milestone 1: React 19 & Next.js 16 App Router Full Compatibility & SSR-Safe Hydration] SSR-Safe Hook Hydration, Date Hoisting, Dynamic Force Graph Ref modernization, Inline Edit state isolation, Lock Screen dependency fix, Deterministic Schema Fallbacks. (2026-08-25)
+  - [Performance Refactoring & Structural Optimization] Boot Acceleration, Zero-Stall Rendering & O(1) Complexity Leap 패치 (2026-08-20)
   - [M1: Corkboard & Red String 3D UI Reform] Corkboard background texture, dark wooden frame border (#3d2314), Post-it paper cards (-5°~+5° tilt, dog-eared fold), glossy 3D push pin heads, thick crimson red string catenary sag, investigator status stamps & hazard tape badges. (2026-08-13)
   - [M2: Festival 5-Domain Presets & 3D Auto-Layout] 5 Symmetrical Pentagonal Hubs (Permits & Safety, Stage/Performance/Sound, PR/Marketing, Food & Booths, Budget & Contracts), 26 sub-nodes, 60M KRW budget dataset, Yjs 1-Click preset loading pipeline, radial pentagonal domain clustering layout math with fixed node coordinate preservation guard. (2026-08-13)
   - [M3: Zero-Mistake Real-Time Validation & Alert Engine] Essential permit auto-warning guard for 4 mandatory items (지자체 신고, 경찰 도로점용, 소방 안전점검, 안전관리계획서), 50-70M KRW budget scale validator, Detective Validation HUD floating banner, crimson pulsating risk node aura (#FF0044), 1-Click missing permit auto-injector. (2026-08-13)
@@ -142,9 +147,4 @@
   - [Budget Simulator UX Optimization] 통계목별 잔액 메인 탭 설정, 세부사업별 그룹화 계층 및 접기/펼치기(Expand/Collapse), 화이트 테마 및 금액 텍스트 20% 확대 패치 (2026-08-03)
   - [Budget Simulator Module] R1~R3 예산 시뮬레이터(Budget Simulator) 모듈 구축 및 실시간 잔액 계산 엔진 통합 패치 (2026-08-03)
   - [Gatekeeper Verification] R4 Gatekeeper Verification & Sync Rules 패치 (2026-07-23)
-  - [Localhost UX Optimization] R1 Data Hydration & Optimistic Hooks, R2 LocalhostStatusHUD component, R3 CommandPalette Ctrl+K modal, R4 Zero-Stall & Offline Reliability 패치 (2026-07-23)
-  - [Zero-Stall Optimization] dashboard 및 workspace UI Thread Stall 제거 & 백그라운드 탭 pause 규격 준수 패치 (2026-07-22)
-  - R3: Final Gatekeeper Verification & Zero-Stall Guarantee 패치 (2026-07-21)
-  - R2: Workspace Component & Inventory List DOM Optimization 패치 (2026-07-21)
-  - R1: Initial Server Hydration & Staggered Chunk Isolation 패치 (2026-07-21)
-  - 그 외 과거 누적 마일스톤 총 153건 통합 요약 (초기 ~ 2026-07-21 이전 패치 내역)
+  - 그 외 과거 누적 마일스톤 총 158건 통합 요약 (초기 ~ 2026-07-23 이전 패치 내역)

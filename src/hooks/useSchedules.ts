@@ -1,8 +1,10 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useGoogleSheet, useSheetCrud } from './useGoogleSheet';
 import { Schedule, generateId } from '@/types';
+
+const EMPTY_SCHEDULES: Schedule[] = [];
 
 export function useSchedules() {
   const [schedules, setSchedules, loading] = useGoogleSheet<Schedule>(
@@ -11,6 +13,22 @@ export function useSchedules() {
     []
   );
   const { syncAdd, syncUpdate, syncDelete } = useSheetCrud<Schedule>('SCHEDULES');
+
+  const schedulesByDateMap = useMemo(() => {
+    const map = new Map<string, Schedule[]>();
+    for (const s of schedules) {
+      let list = map.get(s.date);
+      if (!list) {
+        list = [];
+        map.set(s.date, list);
+      }
+      list.push(s);
+    }
+    for (const list of map.values()) {
+      list.sort((a, b) => a.startTime.localeCompare(b.startTime));
+    }
+    return map;
+  }, [schedules]);
 
   const addSchedule = useCallback((schedule: Omit<Schedule, 'id' | 'createdAt' | 'updatedAt'>) => {
     const now = new Date().toISOString();
@@ -36,12 +54,10 @@ export function useSchedules() {
     syncDelete(id);
   }, [setSchedules, syncDelete]);
 
-  // 특정 일자의 일정을 정렬하여 가져오기
+  // O(1) 특정 일자의 일정 가져오기
   const getSchedulesForDate = useCallback((dateStr: string) => {
-    return schedules
-      .filter(s => s.date === dateStr)
-      .sort((a, b) => a.startTime.localeCompare(b.startTime));
-  }, [schedules]);
+    return schedulesByDateMap.get(dateStr) || EMPTY_SCHEDULES;
+  }, [schedulesByDateMap]);
 
   return {
     schedules,

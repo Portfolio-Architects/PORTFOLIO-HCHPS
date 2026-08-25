@@ -18,6 +18,7 @@ export const CULL_MARGIN = 80;
 // Layout parameters - defined inside computePositions
 
 export class OntologyLayout {
+  public static readonly AGENT_TITLE_REGEX = /[가-힣]+ (이사|대리|부장|과장|사원|담당|대표|팀장|주임|주무관|소장|선생님)/;
   public static LAYER_GAP = 65;
   public static tiltAngle = 42 * Math.PI / 180;
   public static readonly cosTilt = Math.cos(42 * Math.PI / 180);
@@ -26,6 +27,7 @@ export class OntologyLayout {
   public static filterGroups = new Set<string>();
   public static filterRiskOnly = false;
   public static lastTreeChildrenMap = new Map<string, string[]>();
+  public static lastParentMap = new Map<string, string>();
   public static lastSpanningTreeEdgeSet = new Set<string>();
   public static dynamicRules: { agents: string[], resources: string[], executions: string[] } | null = null;
   public static totalNodesCount = 0;
@@ -71,7 +73,7 @@ export class OntologyLayout {
     
     // 0: 인물 (Agent)
     if (
-      /[가-힣]+ (이사|대리|부장|과장|사원|담당|대표|팀장|주임|주무관|소장|선생님)/.test(label) || 
+      OntologyLayout.AGENT_TITLE_REGEX.test(label) || 
       label.endsWith('님') || 
       id.startsWith('user_') || 
       id.includes('person') || 
@@ -96,10 +98,14 @@ export class OntologyLayout {
       label.includes('김형종') ||
       label.includes('신진성') ||
       label.includes('김은주') ||
-      label.includes('김태환') ||
-      (dyn?.agents && dyn.agents.some((w: string) => label.includes(w)))
+      label.includes('김태환')
     ) {
       return 0;
+    }
+    if (dyn?.agents) {
+      for (let i = 0; i < dyn.agents.length; i++) {
+        if (label.includes(dyn.agents[i])) return 0;
+      }
     }
     
     // 1: 예산/비품 (Resource)
@@ -126,10 +132,14 @@ export class OntologyLayout {
       label.includes('용역비') ||
       label.includes('계약') ||
       label.includes('수익') ||
-      label.includes('차액') ||
-      (dyn?.resources && dyn.resources.some((w: string) => label.includes(w)))
+      label.includes('차액')
     ) {
       return 1;
+    }
+    if (dyn?.resources) {
+      for (let i = 0; i < dyn.resources.length; i++) {
+        if (label.includes(dyn.resources[i])) return 1;
+      }
     }
     
     // 2: 업무/회의/프로젝트 (Execution)
@@ -167,10 +177,14 @@ export class OntologyLayout {
       label.includes('성과관리') ||
       label.includes('보고') ||
       label.includes('인계') ||
-      label.includes('인수') ||
-      (dyn?.executions && dyn.executions.some((w: string) => label.includes(w)))
+      label.includes('인수')
     ) {
       return 2;
+    }
+    if (dyn?.executions) {
+      for (let i = 0; i < dyn.executions.length; i++) {
+        if (label.includes(dyn.executions[i])) return 2;
+      }
     }
     
     // 3: 위키/문서 (Knowledge) - 기본값
@@ -199,6 +213,13 @@ export class OntologyLayout {
   ): void {
     if (nodes.length === 0) return;
     OntologyLayout.totalNodesCount = nodes.length;
+
+    if (!nodeMap || !(nodeMap instanceof Map) || nodeMap.size === 0) {
+      nodeMap = new Map<string, OrbitalNode>();
+      for (const n of nodes) {
+        nodeMap.set(n.id, n);
+      }
+    }
 
     // Silence unused parameter warnings when maxIterations === 0
     if (isInteractive) {
@@ -252,8 +273,9 @@ export class OntologyLayout {
 
       // Phase A: 엄격한 방향성 트리를 먼저 순회 (올바른 부모-자식 정렬 우선 배정)
       const queue = [mainRoot.id];
-      while (queue.length > 0) {
-         const curr = queue.shift()!;
+      let qHead = 0;
+      while (qHead < queue.length) {
+         const curr = queue[qHead++];
          const neighbors = directedDir.get(curr) || [];
          
          neighbors.sort((a, b) => {
@@ -282,18 +304,19 @@ export class OntologyLayout {
                if (!visitedBfs.has(nxt)) {
                    visitedBfs.add(nxt);
                    treeChildrenMap.get(curr)!.push(nxt);
-                   queue.push(nxt);
+                   const subQ = [nxt];
+                   let subHead = 0;
                    
                    // 서브트리 전개
-                   while (queue.length > 0) {
-                      const subCurr = queue.shift()!;
+                   while (subHead < subQ.length) {
+                      const subCurr = subQ[subHead++];
                       const subNeighbors = directedDir.get(subCurr)?.length ? directedDir.get(subCurr)! : undirectedDir.get(subCurr)!;
                       subNeighbors.sort((a,b) => a.localeCompare(b));
                       for (const subNxt of subNeighbors) {
                           if (!visitedBfs.has(subNxt)) {
                               visitedBfs.add(subNxt);
                               treeChildrenMap.get(subCurr)!.push(subNxt);
-                              queue.push(subNxt);
+                              subQ.push(subNxt);
                           }
                       }
                    }
@@ -304,24 +327,35 @@ export class OntologyLayout {
 
       // Phase C: 영원히 고립된 완전히 끊어진 노드/서브그래프 렌더링을 위한 독립 루트 선언
       // 💡 토폴로지 위계가 꼬이지 않도록, parentId가 없거나 부모가 이미 방문된 노드부터 우선적으로 루트로 선언하여 BFS를 구동합니다.
-      while (true) {
-        const sortedUnvisited = nodes
-          .filter(n => !visitedBfs.has(n.id))
-          .sort((a, b) => {
-            const hasParentA = a.parentId && !visitedBfs.has(a.parentId) ? 1 : 0;
-            const hasParentB = b.parentId && !visitedBfs.has(b.parentId) ? 1 : 0;
-            return hasParentA - hasParentB;
-          });
+      while (visitedBfs.size < nodes.length) {
+        let bestCandidate: OrbitalNode | null = null;
+        for (let i = 0; i < nodes.length; i++) {
+          const n = nodes[i];
+          if (visitedBfs.has(n.id)) continue;
+          
+          if (!bestCandidate) {
+            bestCandidate = n;
+            const hasParent = n.parentId && !visitedBfs.has(n.parentId);
+            if (!hasParent) break;
+          } else {
+            const bestHasParent = bestCandidate.parentId && !visitedBfs.has(bestCandidate.parentId);
+            const nHasParent = n.parentId && !visitedBfs.has(n.parentId);
+            if (bestHasParent && !nHasParent) {
+              bestCandidate = n;
+              break;
+            }
+          }
+        }
         
-        if (sortedUnvisited.length === 0) break;
+        if (!bestCandidate) break;
         
-        const n = sortedUnvisited[0];
-        roots.push(n);
-        visitedBfs.add(n.id);
-        queue.push(n.id);
+        roots.push(bestCandidate);
+        visitedBfs.add(bestCandidate.id);
+        const cQueue = [bestCandidate.id];
+        let cHead = 0;
         
-        while (queue.length > 0) {
-           const curr = queue.shift()!;
+        while (cHead < cQueue.length) {
+           const curr = cQueue[cHead++];
            const neighbors = undirectedDir.get(curr) || [];
            neighbors.sort((a, b) => {
               const orderA = nodeMap.get(a)?.customSortOrder ?? 0;
@@ -334,7 +368,7 @@ export class OntologyLayout {
                if (!visitedBfs.has(nxt)) {
                    visitedBfs.add(nxt);
                    treeChildrenMap.get(curr)!.push(nxt);
-                   queue.push(nxt);
+                   cQueue.push(nxt);
                }
            }
         }
@@ -363,7 +397,8 @@ export class OntologyLayout {
       const layoutOrbitNode = (
         nodeId: string,
         parentNode: OrbitalNode | null,
-        assignedAngle: number
+        assignedAngle: number,
+        siblingIndex: number = 0
       ) => {
         const node = nodeMap.get(nodeId);
         if (!node) return;
@@ -390,11 +425,7 @@ export class OntologyLayout {
 
         let staticOffset = 0;
         if (depth > 0 && parentNode) {
-          const siblings = treeChildrenMap.get(parentNode.id) || [];
-          const sibIdx = siblings.indexOf(nodeId);
-          if (sibIdx !== -1) {
-            staticOffset = sibIdx % 2 === 0 ? -12 : 12; // 2D 평면에서는 정적 지그재그 오프셋 폭을 12px로 축소
-          }
+          staticOffset = siblingIndex % 2 === 0 ? -12 : 12; // 2D 평면에서는 정적 지그재그 오프셋 폭을 12px로 축소
         }
         node.radialOffset = staticOffset;
 
@@ -415,11 +446,10 @@ export class OntologyLayout {
               const hubAngle = Math.atan2(hubY, hubX);
               const siblings = treeChildrenMap.get(parentNode.id) || [];
               const N = siblings.length;
-              const sibIdx = siblings.indexOf(nodeId);
               const spread = (70 * Math.PI) / 180;
               const startA = hubAngle - spread / 2;
               const stepA = N > 1 ? spread / (N - 1) : 0;
-              const childA = N > 1 ? startA + sibIdx * stepA : hubAngle;
+              const childA = N > 1 ? startA + siblingIndex * stepA : hubAngle;
               const sectorR = 110;
 
               node.targetWorldX = hubX + sectorR * Math.cos(childA) * ELLIPSE_RATIO;
@@ -468,7 +498,7 @@ export class OntologyLayout {
               const childNode = nodeMap.get(childId);
               if (childNode) {
                 const childAngle = N === 1 ? assignedAngle : startAngle + idx * angleStep;
-                layoutOrbitNode(childId, node, childAngle);
+                layoutOrbitNode(childId, node, childAngle, idx);
               }
             });
           }
@@ -493,7 +523,7 @@ export class OntologyLayout {
             const childNode = nodeMap.get(childId);
             if (childNode) {
               const childAngle = (idx * angleStep) + orbitRotationOffset;
-              layoutOrbitNode(childId, mainRoot, childAngle);
+              layoutOrbitNode(childId, mainRoot, childAngle, idx);
             }
           });
         }
@@ -507,20 +537,23 @@ export class OntologyLayout {
           const rootNode = nodeMap.get(root.id);
           if (rootNode) {
             const assignedAngle = idx * angleStep;
-            layoutOrbitNode(root.id, null, assignedAngle);
+            layoutOrbitNode(root.id, null, assignedAngle, idx);
           }
         });
       }
 
-      // Build spanning tree edge set for fast O(1) rendering lookups
+      // Build spanning tree edge set and inverted parent map for fast O(1) rendering and BFS lookups
       const spanningTreeEdgeSet = new Set<string>();
+      const parentMap = new Map<string, string>();
       treeChildrenMap.forEach((children, parentId) => {
         for (const childId of children) {
           spanningTreeEdgeSet.add(`${parentId}|||${childId}`);
           spanningTreeEdgeSet.add(`${childId}|||${parentId}`);
+          parentMap.set(childId, parentId);
         }
       });
       OntologyLayout.lastSpanningTreeEdgeSet = spanningTreeEdgeSet;
+      OntologyLayout.lastParentMap = parentMap;
 
       // Mark which nodes are topologically visible
       for (const node of nodes) {

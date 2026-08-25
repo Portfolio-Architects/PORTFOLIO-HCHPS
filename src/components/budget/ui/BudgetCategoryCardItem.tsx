@@ -251,19 +251,6 @@ const BudgetCategoryCardItemComponent = ({
         </div>
       </div>
 
-      {catStatus === 'OVER' && (
-        <div className="mt-2 text-[12px] font-extrabold text-red-500 bg-red-500/10 border border-red-500/30 rounded-xl px-3 py-1.5 flex items-center justify-between shadow-3xs">
-          <span className="flex items-center gap-1">🚨 <strong>[예산 초과/위험]</strong> 가용 잔액 부족 또는 95% 이상 소진!</span>
-          <span className="font-mono tabular-nums">잔액: {formatN(stats.remaining)}원</span>
-        </div>
-      )}
-      {catStatus === 'WARNING' && (
-        <div className="mt-2 text-[12px] font-bold text-amber-500 bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-1.5 flex items-center justify-between shadow-3xs">
-          <span className="flex items-center gap-1">⚠️ <strong>[예산 주의]</strong> 집행률 80% 이상 주의 단계</span>
-          <span className="font-mono tabular-nums">잔액: {formatN(stats.remaining)}원</span>
-        </div>
-      )}
-
       {isExpanded && (
         <div className="mt-3 space-y-3 pt-3 border-t border-slate-100">
           <div className="flex items-center justify-between bg-slate-50/70 rounded-xl p-3 mb-3 border border-slate-100">

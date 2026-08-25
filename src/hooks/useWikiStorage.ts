@@ -85,6 +85,18 @@ export function useWikiStorage(
   const syncTimersRef = useRef<Record<string, NodeJS.Timeout>>({});
   const isFetchedRef = useRef(false);
 
+  // Clean up any pending debounce sync timers on unmount
+  useEffect(() => {
+    const timers = syncTimersRef.current;
+    return () => {
+      for (const k in timers) {
+        if (Object.prototype.hasOwnProperty.call(timers, k)) {
+          clearTimeout(timers[k]);
+        }
+      }
+    };
+  }, []);
+
   // 로컬/클라우드 병합 로드
   useEffect(() => {
     if (!nodeId) {

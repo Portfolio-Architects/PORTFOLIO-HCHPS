@@ -10,7 +10,12 @@ export async function createPlan(prompt: string): Promise<string[]> {
   try {
     const response = await askLlama([{ role: 'user', content: sysPrompt }]);
     const cleanResponse = response.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    return JSON.parse(cleanResponse);
+    const parsed = JSON.parse(cleanResponse);
+    return Array.isArray(parsed) ? parsed.map(String) : [
+      "Analyze current architecture context",
+      "Generate necessary domain components",
+      "Evaluate against constraints"
+    ];
   } catch (error) {
     console.error('[HARNESS] Planner Agent failed to call LLM:', error);
     // Fallback stub plan if parsing fails

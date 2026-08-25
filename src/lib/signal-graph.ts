@@ -14,14 +14,26 @@ export type PartialOntologyNode = OntologyNode & { isExplicitColor?: boolean };
 
 const warnedNodes = new Set<string>();
 
+const CATEGORY_GROUPS: readonly OntologyGroup[] = [
+  'MACRO_RESEARCH',
+  'DCF_MODELING',
+  'DATA_PIPELINE',
+  'INFRASTRUCTURE',
+  'SYSTEM_RISK'
+];
 
+const HEX_PALETTE: readonly string[] = [
+  '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', 
+  '#ef4444', '#14b8a6', '#f97316', '#84cc16', '#6366f1',
+  '#0ea5e9', '#d946ef', '#eab308', '#f43f5e', '#8b5cf6'
+];
 
 let cachedGraphInputHash: string | null = null;
 let cachedGraphOutput: OntologyGraph | null = null;
 
 export function buildSignalGraph(
-  keywordMap: Record<string, number>,
-  entries: SignalEntry[],
+  keywordMap: Record<string, number> = {},
+  entries: SignalEntry[] = [],
   customData?: {
     overrides: Record<string, NodeOverride>;
     customNodes: OntologyNode[];
@@ -29,14 +41,23 @@ export function buildSignalGraph(
     deletedEdges?: string[];
   }
 ): OntologyGraph {
+  // Support flexible positional argument ordering defensively
+  let safeKeywordMap: Record<string, number> = keywordMap || {};
+  let safeEntries: SignalEntry[] = Array.isArray(entries) ? entries : [];
+
+  if (Array.isArray(keywordMap) && typeof entries === 'object' && !Array.isArray(entries)) {
+    safeEntries = keywordMap as unknown as SignalEntry[];
+    safeKeywordMap = entries || {};
+  }
+
   // 🚀 O(1) Fast-Path Graph Cache Guard: 입력 데이터 변경이 없는 경우 0ms 반환
-  const inputHash = `${entries.length}_${Object.keys(keywordMap).length}_${customData?.customNodes.length || 0}_${customData?.customEdges.length || 0}_${customData?.deletedEdges?.length || 0}_${Object.keys(customData?.overrides || {}).length}`;
+  const inputHash = `${safeEntries.length}_${Object.keys(safeKeywordMap).length}_${customData?.customNodes.length || 0}_${customData?.customEdges.length || 0}_${customData?.deletedEdges?.length || 0}_${Object.keys(customData?.overrides || {}).length}`;
   if (cachedGraphInputHash === inputHash && cachedGraphOutput) {
     return cachedGraphOutput;
   }
 
   const hideDefaultGraph = !!(customData && customData.overrides && customData.overrides['root-HCHPS']?.hideDefaultGraph);
-  console.log('[DEBUG] buildSignalGraph START. hideDefaultGraph=', hideDefaultGraph, 'entries.length=', entries.length, 'customNodes.length=', customData?.customNodes.length);
+  console.log('[DEBUG] buildSignalGraph START. hideDefaultGraph=', hideDefaultGraph, 'entries.length=', safeEntries.length, 'customNodes.length=', customData?.customNodes.length);
 
   const normalizeNodeId = (id: string): string => {
     if (id) {
@@ -114,7 +135,7 @@ export function buildSignalGraph(
   const edges: OntologyEdge[] = [];
   let forcedCenterNode: OntologyNode | undefined = undefined;
 
-  if (entries.length === 0) {
+  if (safeEntries.length === 0) {
     if (customData && customData.customNodes.length > 0) {
       // IF entries are empty but we have custom nodes, DON'T abort!
       // This might be the bug! If the user deleted all signals but kept custom nodes!
@@ -144,12 +165,17 @@ export function buildSignalGraph(
     const tagCounts = new Map<string, number>();
     let hasRawSignals = false;
 
-    entries.forEach(e => {
-      if (!e.tags || e.tags.length === 0) hasRawSignals = true;
-      e.tags?.forEach(t => {
-        tagCounts.set(t, (tagCounts.get(t) || 0) + 1);
-      });
-    });
+    for (let i = 0; i < safeEntries.length; i++) {
+      const e = safeEntries[i];
+      if (!e.tags || e.tags.length === 0) {
+        hasRawSignals = true;
+      } else {
+        for (let j = 0; j < e.tags.length; j++) {
+          const t = e.tags[j];
+          tagCounts.set(t, (tagCounts.get(t) || 0) + 1);
+        }
+      }
+    }
 
     // Force '미분류' / '내 생각' branch if there are raw signals
     if (hasRawSignals) {
@@ -163,7 +189,8 @@ export function buildSignalGraph(
     const sortedTags: [string, number][] = [];
     const overrideKeys = customData ? new Set(Object.keys(customData.overrides)) : new Set<string>();
 
-    allSortedTags.forEach(([tag, count], i) => {
+    for (let i = 0; i < allSortedTags.length; i++) {
+      const [tag, count] = allSortedTags[i];
       const id = `tag-${tag}`;
       const hasOverride = overrideKeys.has(id);
       const isParentOfAny = customParentSet.has(id);
@@ -171,23 +198,16 @@ export function buildSignalGraph(
       if (i < 15 || hasOverride || isParentOfAny) {
         sortedTags.push([tag, count]);
       }
-    });
+    }
 
     const tagNodesMap = new Map<string, string>();
     const tagGroupMap = new Map<string, OntologyGroup>();
 
-    const categoryGroups: OntologyGroup[] = [
-      'MACRO_RESEARCH',
-      'DCF_MODELING',
-      'DATA_PIPELINE',
-      'INFRASTRUCTURE',
-      'SYSTEM_RISK'
-    ];
-
     // Add Orbit 1 Nodes
-    sortedTags.forEach(([tag], i) => {
+    for (let i = 0; i < sortedTags.length; i++) {
+      const [tag] = sortedTags[i];
       const id = `tag-${tag}`;
-      const groupAssign = categoryGroups[i % categoryGroups.length];
+      const groupAssign = CATEGORY_GROUPS[i % CATEGORY_GROUPS.length];
       
       // 1차 카테고리 초기 색상 랜덤 (태그 문자열 해싱 기반으로 안정적인 랜덤 생성)
       let hash = 0;
@@ -195,13 +215,7 @@ export function buildSignalGraph(
         hash = tag.charCodeAt(j) + ((hash << 5) - hash);
       }
       
-      // Canvas 엔진(colorWithAlpha 등)이 HEX 형식을 요구하므로, 파스텔톤 HEX 팔레트에서 선택
-      const hexPalette = [
-        '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', 
-        '#ef4444', '#14b8a6', '#f97316', '#84cc16', '#6366f1',
-        '#0ea5e9', '#d946ef', '#eab308', '#f43f5e', '#8b5cf6'
-      ];
-      const stableColor = hexPalette[Math.abs(hash) % hexPalette.length];
+      const stableColor = HEX_PALETTE[Math.abs(hash) % HEX_PALETTE.length];
 
       tagNodesMap.set(tag, id);
       tagGroupMap.set(tag, groupAssign);
@@ -221,12 +235,12 @@ export function buildSignalGraph(
         weight: 1.0,
         type: 'CAUSAL_DRIVE',
       });
-    });
+    }
 
     // 3. Process Leaves (Keywords) & Map to Categories
     const keywordFreqByTag = new Map<string, Map<string, number>>();
 
-    entries.forEach(e => {
+    safeEntries.forEach(e => {
       let applicableTags: string[] = [];
       if (e.tags) {
         for (let i = 0; i < e.tags.length; i++) {
@@ -237,11 +251,13 @@ export function buildSignalGraph(
         }
       }
       
+      const entryKeywords = e.keywords || [];
+
       // Pure signal routing: Does it match a category keyword?
       if (applicableTags.length === 0) {
         const matched: string[] = [];
-        for (let i = 0; i < e.keywords.length; i++) {
-          const kw = e.keywords[i];
+        for (let i = 0; i < entryKeywords.length; i++) {
+          const kw = entryKeywords[i];
           if (tagNodesMap.has(kw)) {
             matched.push(kw);
           }
@@ -252,7 +268,7 @@ export function buildSignalGraph(
 
       applicableTags.forEach(tag => {
         const tagMap = keywordFreqByTag.get(tag) || new Map<string, number>();
-        e.keywords.forEach(kw => {
+        entryKeywords.forEach(kw => {
           // Exclude the category name itself from the leaves
           if (kw !== tag) { 
             tagMap.set(kw, (tagMap.get(kw) || 0) + 1);
@@ -321,7 +337,7 @@ export function buildSignalGraph(
     const nodesByLabelMap = new Map<string, OntologyNode>();
     nodes.forEach(n => nodesByLabelMap.set(n.label, n));
 
-    entries.forEach(e => {
+    safeEntries.forEach(e => {
       if (e.aiCurated && e.curationData?.relatedKeywords) {
         let firstSourceTag: string | undefined = undefined;
         if (e.tags) {
@@ -496,9 +512,16 @@ export function buildSignalGraph(
     });
 
     // 4.5. Create default parent-child edges for custom nodes that have a parentId but no customEdges representation
+    const nodeMap = new Map<string, OntologyNode>(nodes.map(n => [n.id, n]));
+    const connectedEdgesSet = new Set<string>();
+    edges.forEach(e => {
+      connectedEdgesSet.add(`${e.source}|||${e.target}`);
+      connectedEdgesSet.add(`${e.target}|||${e.source}`);
+    });
+
     customData.customNodes.forEach(cn => {
       const finalId = mergedIdMap.get(cn.id) || cn.id;
-      const finalNode = nodes.find(n => n.id === finalId);
+      const finalNode = nodeMap.get(finalId);
       if (!finalNode) return;
 
       const override = customData.overrides[finalId];
@@ -511,19 +534,20 @@ export function buildSignalGraph(
         parentId = undefined;
       }
 
-      if (parentId && parentId !== 'NONE' && nodes.some(n => n.id === parentId)) {
-        const hasEdge = edges.some(e =>
-          (e.source === parentId && e.target === finalId) ||
-          (e.source === finalId && e.target === parentId)
-        );
+      if (parentId && parentId !== 'NONE' && nodeMap.has(parentId)) {
+        const hasEdge = connectedEdgesSet.has(`${parentId}|||${finalId}`) ||
+                        connectedEdgesSet.has(`${finalId}|||${parentId}`);
         if (!hasEdge) {
-          edges.push({
+          const newEdge = {
             source: parentId,
             target: finalId,
             weight: 0.7,
             type: 'DEPENDENCY',
             isCustom: true
-          } as PartialOntologyEdge);
+          } as PartialOntologyEdge;
+          edges.push(newEdge);
+          connectedEdgesSet.add(`${parentId}|||${finalId}`);
+          connectedEdgesSet.add(`${finalId}|||${parentId}`);
         }
       }
     });
@@ -689,6 +713,15 @@ export function buildSignalGraph(
       }
     });
 
+    // Pre-index nodes and structural edges for O(1) override applications
+    const overrideNodeMap = new Map<string, OntologyNode>(nodes.map(n => [n.id, n]));
+    const edgeTargetMap = new Map<string, OntologyEdge>();
+    edges.forEach(e => {
+      if (!(e as PartialOntologyEdge).isCustom) {
+        edgeTargetMap.set(e.target, e as OntologyEdge);
+      }
+    });
+
     // Apply Overrides (Pins, Colors, Labels, Groups)
     nodes.forEach(n => {
       const override = customData.overrides[n.id];
@@ -711,26 +744,32 @@ export function buildSignalGraph(
         if (override.customParent !== undefined) {
           if (safeParent === 'NONE') {
             n.parentId = undefined;
-            const edgeIndex = edges.findIndex(e => e.target === n.id && !(e as PartialOntologyEdge).isCustom);
-            if (edgeIndex !== -1) edges.splice(edgeIndex, 1);
+            const targetEdge = edgeTargetMap.get(n.id);
+            if (targetEdge) {
+              const edgeIndex = edges.indexOf(targetEdge);
+              if (edgeIndex !== -1) edges.splice(edgeIndex, 1);
+              edgeTargetMap.delete(n.id);
+            }
           } else if (safeParent) {
             n.parentId = safeParent;
             
             // Re-route the structural edge (target === n.id)
-            const edge = edges.find(e => e.target === n.id && !(e as PartialOntologyEdge).isCustom);
+            const edge = edgeTargetMap.get(n.id);
             if (edge) {
               edge.source = safeParent;
             } else {
-              edges.push({
+              const newEdge = {
                 source: safeParent,
                 target: n.id,
                 weight: 0.7,
                 type: 'DEPENDENCY'
-              });
+              } as OntologyEdge;
+              edges.push(newEdge);
+              edgeTargetMap.set(n.id, newEdge);
             }
             
             // Sync colour with new parent if custom group/color are not explicitly overridden
-            const newParent = nodes.find(pn => pn.id === safeParent);
+            const newParent = overrideNodeMap.get(safeParent);
             if (newParent && (override.customGroup === undefined || override.customGroup === null) && (override.customColor === undefined || override.customColor === null)) {
               n.group = newParent.group;
               n.customColor = newParent.customColor || undefined;
@@ -825,8 +864,9 @@ export function buildSignalGraph(
     parentIdMap.set(e.target, e.source);
   });
 
-  while (queue.length > 0) {
-    const currentId = queue.shift()!;
+  let queueHead = 0;
+  while (queueHead < queue.length) {
+    const currentId = queue[queueHead++];
     if (visited.has(currentId)) continue;
     visited.add(currentId);
     
@@ -863,6 +903,10 @@ export function buildSignalGraph(
     });
   }
 
+  // Pre-build finalNodeMap in O(N) for instant lookups
+  const finalNodeMap = new Map<string, OntologyNode>();
+  finalNodes.forEach(n => finalNodeMap.set(n.id, n));
+
   // 7. Cleanup invalid topology: Nodes with a specific parent should not connect directly to the center
   finalEdges = finalEdges.filter(e => {
     // 사용자가 수동으로 연결한 선분(Custom Edge)은 허용
@@ -872,7 +916,7 @@ export function buildSignalGraph(
     const centerId = forcedCenterNode ? forcedCenterNode.id : 'root-HCHPS';
     if (e.source === centerId || e.target === centerId) {
       const otherId = e.source === centerId ? e.target : e.source;
-      const otherNode = finalNodes.find(n => n.id === otherId);
+      const otherNode = finalNodeMap.get(otherId);
       if (otherNode && otherNode.parentId && otherNode.parentId !== centerId) {
         return false;
       }
@@ -895,10 +939,11 @@ export function buildSignalGraph(
 
   const reachable = new Set<string>();
   const q = [actualCenter];
+  let qHead = 0;
   reachable.add(actualCenter);
 
-  while(q.length > 0) {
-    const curr = q.shift()!;
+  while (qHead < q.length) {
+    const curr = q[qHead++];
     const neighbors = adj.get(curr) || [];
     for (const nxt of neighbors) {
       if (!reachable.has(nxt)) {
@@ -915,7 +960,7 @@ export function buildSignalGraph(
       let root = n;
       const visitedAncestors = new Set<string>([n.id]);
       while (root.parentId) {
-        const parentNode = finalNodes.find(pn => pn.id === root.parentId);
+        const parentNode = finalNodeMap.get(root.parentId);
         if (parentNode && !reachable.has(parentNode.id) && !visitedAncestors.has(parentNode.id)) {
           root = parentNode;
           visitedAncestors.add(parentNode.id);
@@ -935,10 +980,11 @@ export function buildSignalGraph(
       
       // BFS를 통해 해당 고립 컴포넌트 내의 모든 노드를 reachable로 등록
       const subQ = [root.id];
+      let subQHead = 0;
       reachable.add(root.id);
       
-      while (subQ.length > 0) {
-        const curr = subQ.shift()!;
+      while (subQHead < subQ.length) {
+        const curr = subQ[subQHead++];
         const neighbors = adj.get(curr) || [];
         for (const nxt of neighbors) {
           if (!reachable.has(nxt)) {
@@ -952,9 +998,6 @@ export function buildSignalGraph(
 
   // ── 최종 빌드 결과물에 대한 순환 참조 사후 자가 치유 (Self-Healing Final Cycle Breaker) ──
   // finalNodes 내의 parentId 상속 고리가 순환을 이루지 않도록 DFS 탐색을 통해 순환 고리를 즉시 제거합니다.
-  const finalNodeMap = new Map<string, OntologyNode>();
-  finalNodes.forEach(n => finalNodeMap.set(n.id, n));
-
   const edgesToRemove = new Set<string>();
 
   finalNodes.forEach(node => {
@@ -978,7 +1021,7 @@ export function buildSignalGraph(
   }
 
   // ── 중앙 루트 노드 이름 강제 복원 ──
-  const rootNode = finalNodes.find(n => n.id === 'root-HCHPS');
+  const rootNode = finalNodeMap.get('root-HCHPS');
   if (rootNode) {
     rootNode.label = 'Vital Tasks';
   }

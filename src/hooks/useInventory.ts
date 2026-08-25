@@ -1,9 +1,11 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { readSheet, addRow, updateRow, deleteRow } from '@/lib/sheets-api';
 import { InventoryItem, StockChange, generateId } from '@/types';
+
+const EMPTY_STOCK_CHANGES: StockChange[] = [];
 
 export function useInventory() {
   const queryClient = useQueryClient();
@@ -14,20 +16,6 @@ export function useInventory() {
     staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
     refetchIntervalInBackground: false,
-    initialData: () => {
-      if (typeof window !== 'undefined') {
-        try {
-          const item = localStorage.getItem('hchps-fallback-INVENTORY') || localStorage.getItem('hchps-inventory');
-          if (item) {
-            const parsed = JSON.parse(item);
-            if (Array.isArray(parsed)) return parsed as InventoryItem[];
-          }
-        } catch (err) {
-          console.warn('[useInventory] Initial items parse error:', err);
-        }
-      }
-      return undefined;
-    },
   });
 
   const { data: stockChanges = [] } = useQuery({
@@ -36,20 +24,6 @@ export function useInventory() {
     staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
     refetchIntervalInBackground: false,
-    initialData: () => {
-      if (typeof window !== 'undefined') {
-        try {
-          const item = localStorage.getItem('hchps-fallback-STOCK_CHANGES') || localStorage.getItem('hchps-stock-changes');
-          if (item) {
-            const parsed = JSON.parse(item);
-            if (Array.isArray(parsed)) return parsed as StockChange[];
-          }
-        } catch (err) {
-          console.warn('[useInventory] Initial stockChanges parse error:', err);
-        }
-      }
-      return undefined;
-    },
   });
 
   const addItemMut = useMutation({
@@ -110,9 +84,10 @@ export function useInventory() {
   const deleteStockChangesByItemMut = useMutation({
     mutationFn: async (itemId: string) => {
       const changes = queryClient.getQueryData<StockChange[]>(['STOCK_CHANGES']) || [];
-      const itemChanges = changes.filter(sc => sc.itemId === itemId);
-      for (const sc of itemChanges) {
-        await deleteRow('STOCK_CHANGES', sc.id);
+      for (let i = 0; i < changes.length; i++) {
+        if (changes[i].itemId === itemId) {
+          await deleteRow('STOCK_CHANGES', changes[i].id);
+        }
       }
     },
     onMutate: async (itemId) => {
@@ -125,6 +100,33 @@ export function useInventory() {
       if (context?.previous) queryClient.setQueryData(['STOCK_CHANGES'], context.previous);
     },
   });
+
+  // Pre-indexed O(1) lookup Map for items by ID
+  const itemsByIdMap = useMemo(() => {
+    const map = new Map<string, InventoryItem>();
+    for (const item of items) {
+      map.set(item.id, item);
+    }
+    return map;
+  }, [items]);
+
+  // Pre-grouped O(1) lookup Map for stock changes by itemId (pre-sorted by date desc)
+  const stockChangesByItemMap = useMemo(() => {
+    const map = new Map<string, StockChange[]>();
+    for (const sc of stockChanges) {
+      let list = map.get(sc.itemId);
+      if (!list) {
+        list = [];
+        map.set(sc.itemId, list);
+      }
+      list.push(sc);
+    }
+    // Pre-sort each item's changes once with Date.parse (zero Date instance allocation)
+    for (const list of map.values()) {
+      list.sort((a, b) => (Date.parse(b.date) || 0) - (Date.parse(a.date) || 0));
+    }
+    return map;
+  }, [stockChanges]);
 
   const addItem = useCallback((item: Omit<InventoryItem, 'id' | 'createdAt' | 'updatedAt'>) => {
     const now = new Date().toISOString();
@@ -144,18 +146,22 @@ export function useInventory() {
 
   const adjustStock = useCallback((itemId: string, change: number, reason: string) => {
     const sc: StockChange = { id: generateId(), itemId, change, reason, date: new Date().toISOString() };
-    const currentItem = items.find(i => i.id === itemId);
+    const currentItem = itemsByIdMap.get(itemId);
     if (currentItem) {
       const newStock = currentItem.currentStock + change;
       updateItemMut.mutate({ id: itemId, updates: { currentStock: newStock } });
     }
     addStockChangeMut.mutate(sc);
     return sc;
-  }, [items, updateItemMut, addStockChangeMut]);
+  }, [itemsByIdMap, updateItemMut, addStockChangeMut]);
 
   const getItemHistory = useCallback((itemId: string) => {
-    return stockChanges.filter(sc => sc.itemId === itemId).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [stockChanges]);
+    return stockChangesByItemMap.get(itemId) || EMPTY_STOCK_CHANGES;
+  }, [stockChangesByItemMap]);
 
-  return { items, stockChanges, addItem, updateItem, deleteItem, adjustStock, getItemHistory };
+  const getItemById = useCallback((id: string) => {
+    return itemsByIdMap.get(id);
+  }, [itemsByIdMap]);
+
+  return { items, stockChanges, addItem, updateItem, deleteItem, adjustStock, getItemHistory, getItemById };
 }

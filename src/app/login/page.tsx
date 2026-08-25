@@ -2,36 +2,20 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const { login, isLoading, error } = useAuth();
   const router = useRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-    setIsLoading(true);
-
-    try {
-      const res = await fetch('/api/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-      });
-
-      if (res.ok) {
-        router.push('/');
-        router.refresh();
-      } else {
-        setError('아이디 또는 비밀번호가 올바르지 않습니다.');
-      }
-    } catch {
-      setError('로그인 처리 중 오류가 발생했습니다.');
-    } finally {
-      setIsLoading(false);
+    const success = await login(username, password);
+    if (success) {
+      router.push('/');
+      router.refresh();
     }
   };
 

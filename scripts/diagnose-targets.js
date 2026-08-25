@@ -71,7 +71,11 @@ if (!skipEslint) {
     // eslint --format json outputs valid json. It will return non-zero exit code if there are errors, so we catch in try/catch.
     let eslintOutput = '';
     try {
-      eslintOutput = execSync('npx eslint --format json src', { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'ignore'] });
+      const eslintBin = path.join(process.cwd(), 'node_modules', 'eslint', 'bin', 'eslint.js');
+      const cmd = fs.existsSync(eslintBin) 
+        ? `node "${eslintBin}" --format json src`
+        : 'npx eslint --format json src';
+      eslintOutput = execSync(cmd, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'ignore'] });
     } catch (err) {
       // If lint issues exist, it throws an error but outputs json to stdout
       eslintOutput = err.stdout || '';

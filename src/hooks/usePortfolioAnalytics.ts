@@ -8,7 +8,11 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
   const [routineSpend, setRoutineSpend] = useState<number>(0); // 월 고정/루틴 지출액
 
   const detailedProjects = useMemo(() => {
-    const projects = new Set(budgetCategories.map(c => c.detailedProject).filter(Boolean) as string[]);
+    const projects = new Set<string>();
+    for (let i = 0; i < budgetCategories.length; i++) {
+      const dp = budgetCategories[i].detailedProject;
+      if (dp) projects.add(dp);
+    }
     return Array.from(projects);
   }, [budgetCategories]);
 
@@ -20,16 +24,27 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
   }, [budgetCategories, selectedProject]);
 
   // Calculate Budget Stats
-  const totalBudget = useMemo(() => filteredCategories.reduce((sum, cat) => sum + cat.totalBudget, 0), [filteredCategories]);
+  const totalBudget = useMemo(() => {
+    let sum = 0;
+    for (let i = 0; i < filteredCategories.length; i++) {
+      sum += filteredCategories[i].totalBudget;
+    }
+    return sum;
+  }, [filteredCategories]);
   
   const executedBudget = useMemo(() => {
-    const validCategoryIds = new Set(filteredCategories.map(c => c.id));
-    return budgetEntries
-      .filter(e => !e.isPlanned && e.actionType !== 'settle' && validCategoryIds.has(e.categoryId))
-      .reduce((sum, e) => {
-        if (e.actionType === 'transfer') return sum - e.amount;
-        return sum + e.amount;
-      }, 0);
+    const validCategoryIds = new Set<string>();
+    for (let i = 0; i < filteredCategories.length; i++) {
+      validCategoryIds.add(filteredCategories[i].id);
+    }
+    let sum = 0;
+    for (let i = 0; i < budgetEntries.length; i++) {
+      const e = budgetEntries[i];
+      if (!e.isPlanned && e.actionType !== 'settle' && validCategoryIds.has(e.categoryId)) {
+        sum += e.actionType === 'transfer' ? -e.amount : e.amount;
+      }
+    }
+    return sum;
   }, [budgetEntries, filteredCategories]);
 
   const remainingBudget = totalBudget - executedBudget;
@@ -42,23 +57,26 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
   ], [executedBudget, remainingBudget]);
 
   const breakdownData = useMemo<{ name: string; total: number; executed: number; rate: number; formationItem?: string }[]>(() => {
-    // Pre-group categories by detailedProject in O(C)
-    const catsByDetailedProject: Record<string, BudgetCategory[]> = {};
-    detailedProjects.forEach(dp => {
-      catsByDetailedProject[dp] = [];
-    });
-    budgetCategories.forEach(c => {
-      if (c.detailedProject && catsByDetailedProject[c.detailedProject]) {
-        catsByDetailedProject[c.detailedProject].push(c);
+    // Pre-group categories by detailedProject in a single O(C) pass using Map
+    const catsByDetailedProject = new Map<string, BudgetCategory[]>();
+    for (let i = 0; i < budgetCategories.length; i++) {
+      const c = budgetCategories[i];
+      if (!c.detailedProject) continue;
+      let list = catsByDetailedProject.get(c.detailedProject);
+      if (!list) {
+        list = [];
+        catsByDetailedProject.set(c.detailedProject, list);
       }
-    });
+      list.push(c);
+    }
 
     // Aggregate executed amount by categoryId in O(E)
     const executedByCatId: Record<string, number> = {};
-    budgetCategories.forEach(c => {
-      executedByCatId[c.id] = 0;
-    });
-    budgetEntries.forEach(e => {
+    for (let i = 0; i < budgetCategories.length; i++) {
+      executedByCatId[budgetCategories[i].id] = 0;
+    }
+    for (let i = 0; i < budgetEntries.length; i++) {
+      const e = budgetEntries[i];
       if (!e.isPlanned && e.actionType !== 'settle' && executedByCatId[e.categoryId] !== undefined) {
         if (e.actionType === 'transfer') {
           executedByCatId[e.categoryId] -= e.amount;
@@ -66,24 +84,33 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
           executedByCatId[e.categoryId] += e.amount;
         }
       }
-    });
+    }
 
     if (selectedProject === 'ALL') {
-      const projectsData = detailedProjects.map(dp => {
-        const cats = catsByDetailedProject[dp] || [];
-        const total = cats.reduce((s, c) => s + c.totalBudget, 0);
-        const executed = cats.reduce((s, c) => s + (executedByCatId[c.id] || 0), 0);
+      const projectsData: { name: string; total: number; executed: number; rate: number }[] = [];
+      for (let i = 0; i < detailedProjects.length; i++) {
+        const dp = detailedProjects[i];
+        const cats = catsByDetailedProject.get(dp) || [];
+        let total = 0;
+        let executed = 0;
+        for (let j = 0; j < cats.length; j++) {
+          total += cats[j].totalBudget;
+          executed += (executedByCatId[cats[j].id] || 0);
+        }
         const rate = total > 0 ? (executed / total) * 100 : 0;
-        return { name: dp, total, executed, rate };
-      });
+        projectsData.push({ name: dp, total, executed, rate });
+      }
       return projectsData.sort((a, b) => a.name.localeCompare(b.name));
     } else {
-      const cats = catsByDetailedProject[selectedProject] || [];
-      return cats.map(cat => {
+      const cats = catsByDetailedProject.get(selectedProject) || [];
+      const result: { name: string; formationItem?: string; total: number; executed: number; rate: number }[] = [];
+      for (let i = 0; i < cats.length; i++) {
+        const cat = cats[i];
         const executed = executedByCatId[cat.id] || 0;
         const rate = cat.totalBudget > 0 ? (executed / cat.totalBudget) * 100 : 0;
-        return { name: cat.name, formationItem: cat.formationItem, total: cat.totalBudget, executed, rate };
-      }).sort((a, b) => a.name.localeCompare(b.name));
+        result.push({ name: cat.name, formationItem: cat.formationItem, total: cat.totalBudget, executed, rate });
+      }
+      return result.sort((a, b) => a.name.localeCompare(b.name));
     }
   }, [budgetCategories, budgetEntries, selectedProject, detailedProjects]);
 
@@ -101,22 +128,30 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
     unplannedRemainingAmount,
     totalVirtualAdjustment
   } = useMemo(() => {
-    const currentMonth = new Date().getMonth() + 1; // 동적으로 현재 월 반영 (예: 6월이면 6)
-    const validCategoryIds = new Set(filteredCategories.map(c => c.id));
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1; // 동적으로 현재 월 반영 (예: 6월이면 6)
+    const validCategoryIds = new Set<string>();
+    for (let i = 0; i < filteredCategories.length; i++) {
+      validCategoryIds.add(filteredCategories[i].id);
+    }
     
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const monthlyAmounts = Array(12).fill(0);
-    const plannedMonthlyAmounts = Array(12).fill(0);
+    const monthlyAmounts = new Array<number>(12).fill(0);
+    const plannedMonthlyAmounts = new Array<number>(12).fill(0);
     const executedNoIssuanceByCatId: Record<string, number> = {};
-    filteredCategories.forEach(c => {
-      executedNoIssuanceByCatId[c.id] = 0;
-    });
+    for (let i = 0; i < filteredCategories.length; i++) {
+      executedNoIssuanceByCatId[filteredCategories[i].id] = 0;
+    }
 
-    budgetEntries.forEach(e => {
-      if (!validCategoryIds.has(e.categoryId)) return;
+    for (let i = 0; i < budgetEntries.length; i++) {
+      const e = budgetEntries[i];
+      if (!validCategoryIds.has(e.categoryId)) continue;
 
-      const parts = e.date.split('-');
-      const monthIdx = parts.length >= 2 ? parseInt(parts[1], 10) - 1 : -1;
+      // Zero-allocation fast month index parsing (format: 'YYYY-MM-DD')
+      let monthIdx = -1;
+      if (e.date && e.date.length >= 7 && e.date.charCodeAt(4) === 45) {
+        monthIdx = (e.date.charCodeAt(5) - 48) * 10 + (e.date.charCodeAt(6) - 48) - 1;
+      }
 
       if (!e.isPlanned && e.actionType !== 'settle') {
         if (monthIdx >= 0 && monthIdx < 12) {
@@ -135,7 +170,7 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
           plannedMonthlyAmounts[monthIdx] += e.amount;
         }
       }
-    });
+    }
 
     // 11월(Index 10)까지 100% 소진 목표선형 가이드
     const monthlyTargetUnit = totalBudget / 11;
@@ -165,32 +200,39 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
 
     // 가상 조정액(Virtual Adjustment) 총합 계산 (개별 카테고리 단위로 실제 집행액을 하한선으로 보정)
     let totalVirtualAdjustment = 0;
-    filteredCategories.forEach(cat => {
+    for (let cIdx = 0; cIdx < filteredCategories.length; cIdx++) {
+      const cat = filteredCategories[cIdx];
       let catVirtualAdjustment = 0;
       if (cat.subItems) {
-        cat.subItems.forEach(sub => {
+        for (let sIdx = 0; sIdx < cat.subItems.length; sIdx++) {
+          const sub = cat.subItems[sIdx];
           const hasCalcs = sub.calculations && sub.calculations.length > 0;
           if (hasCalcs) {
-            sub.calculations?.forEach(calc => {
+            const calcs = sub.calculations!;
+            for (let calcIdx = 0; calcIdx < calcs.length; calcIdx++) {
+              const calc = calcs[calcIdx];
               if (typeof calc.virtualAdjustment === 'number') {
                 catVirtualAdjustment += calc.virtualAdjustment;
               }
-            });
+            }
           } else {
             if (typeof sub.virtualAdjustment === 'number') {
               catVirtualAdjustment += sub.virtualAdjustment;
             }
           }
-        });
+        }
       }
 
       // 개별 카테고리(통계목) 단위의 실제 집행액 계산 (단순 한도 배정인 issuance 교부 건은 제외)
       const catExecuted = executedNoIssuanceByCatId[cat.id] || 0;
 
       totalVirtualAdjustment += Math.max(catExecuted, catVirtualAdjustment);
-    });
+    }
 
-    const totalPlannedInDraft = plannedMonthlyAmounts.reduce((sum, val) => sum + val, 0);
+    let totalPlannedInDraft = 0;
+    for (let pIdx = 0; pIdx < plannedMonthlyAmounts.length; pIdx++) {
+      totalPlannedInDraft += plannedMonthlyAmounts[pIdx];
+    }
     // 가상 조정액 보정치 반영 (설계 완료로 인식하여 차감)
     const unplannedRemainingAmount = remainTargetAmt - totalPlannedInDraft - totalVirtualAdjustment;
 
@@ -241,18 +283,18 @@ export function usePortfolioAnalytics(budgetCategories: BudgetCategory[], budget
       }
     });
     
-    // 최대 지출월 찾기
+    // 최대 지출월 찾기 (Direct for loop)
     let maxAmt = 0;
     let maxMonthName = 'None';
-    monthlyAmounts.forEach((amt, idx) => {
+    for (let i = 0; i < monthlyAmounts.length; i++) {
+      const amt = monthlyAmounts[i];
       if (amt > maxAmt) {
         maxAmt = amt;
-        maxMonthName = months[idx];
+        maxMonthName = months[i];
       }
-    });
+    }
     
     const avgSpend = currentMonth > 0 ? executedBudget / currentMonth : 0;
-    
     
     // 자연 소진 월(exhaustion month) 구하기
     let exhaustionMonth = 'N/A';

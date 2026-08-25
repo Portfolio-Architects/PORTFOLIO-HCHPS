@@ -298,9 +298,10 @@ export class OntologyCanvasEngine {
 
     const queue: string[] = Array.from(this.nodeMap.keys());
     const processedParents = new Set<string>();
+    let queueHead = 0;
     
-    while(queue.length > 0) {
-      const parentId = queue.shift()!;
+    while(queueHead < queue.length) {
+      const parentId = queue[queueHead++];
       
       // Prevent infinite loops if parentId has a cycle!
       if (processedParents.has(parentId)) continue;
@@ -1233,12 +1234,17 @@ export class OntologyCanvasEngine {
          const getDescendants = (nodeId: string): string[] => {
             const desc: string[] = [];
             const q = [nodeId];
-            while (q.length > 0) {
-               const curr = q.shift()!;
+            const visited = new Set<string>([nodeId]);
+            let qHead = 0;
+            while (qHead < q.length) {
+               const curr = q[qHead++];
                const kids = treeChildrenMap.get(curr) || [];
                for (const kid of kids) {
-                  desc.push(kid);
-                  q.push(kid);
+                  if (!visited.has(kid)) {
+                     visited.add(kid);
+                     desc.push(kid);
+                     q.push(kid);
+                  }
                }
             }
             return desc;

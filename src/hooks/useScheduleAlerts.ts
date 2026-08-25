@@ -13,28 +13,95 @@ export interface ScheduleAlert {
   icon: string;
 }
 
-function getUrgency(dt: Date, now: Date): ScheduleAlert['urgency'] | null {
-  const diffMs = dt.getTime() - now.getTime();
+const URGENCY_RANK: Record<ScheduleAlert['urgency'], number> = {
+  overdue: 0,
+  now: 1,
+  today: 2,
+  tomorrow: 3,
+  'this-week': 4,
+};
+
+function getUrgency(
+  dtTime: number,
+  nowTime: number,
+  todayEndTime: number,
+  tomorrowEndTime: number,
+  weekEndTime: number
+): ScheduleAlert['urgency'] | null {
+  const diffMs = dtTime - nowTime;
   const diffMin = diffMs / 60000;
 
   // 이미 지난 일정 (모두 지남으로 표시)
   if (diffMin < 0) return 'overdue';
 
+  // 현재 진행 중 (±30분)
+  if (diffMin <= 30) return 'now';
+  if (dtTime <= todayEndTime) return 'today';
+  if (dtTime <= tomorrowEndTime) return 'tomorrow';
+  if (dtTime <= weekEndTime) return 'this-week';
+  return null;
+}
+
+function computeScheduleAlerts(tasks: Task[], meetings: Meeting[]): ScheduleAlert[] {
+  const now = new Date();
+  const nowTime = now.getTime();
   const todayEnd = new Date(now);
   todayEnd.setHours(23, 59, 59, 999);
+  const todayEndTime = todayEnd.getTime();
+  const tomorrowEndTime = todayEndTime + 86400000;
+  const weekEndTime = todayEndTime + 518400000; // 6 * 86400000
 
-  const tomorrowEnd = new Date(todayEnd);
-  tomorrowEnd.setDate(tomorrowEnd.getDate() + 1);
+  const alerts: (ScheduleAlert & { _time: number; _rank: number })[] = [];
 
-  const weekEnd = new Date(todayEnd);
-  weekEnd.setDate(weekEnd.getDate() + 6);
+  // 1. Tasks (마감일 있는 미완료 업무)
+  for (let i = 0; i < tasks.length; i++) {
+    const t = tasks[i];
+    if (!t.dueDate || t.status === 'done') continue;
+    const dateStr = t.dueDate.includes('T') ? t.dueDate : `${t.dueDate}T09:00:00`;
+    const dtTime = Date.parse(dateStr);
+    if (!dtTime || isNaN(dtTime)) continue;
+    const urgency = getUrgency(dtTime, nowTime, todayEndTime, tomorrowEndTime, weekEndTime);
+    if (!urgency) continue;
+    alerts.push({
+      id: `task-${t.id}`,
+      type: 'task',
+      title: t.title,
+      datetime: new Date(dtTime),
+      urgency,
+      icon: '📋',
+      _time: dtTime,
+      _rank: URGENCY_RANK[urgency] ?? 9,
+    });
+  }
 
-  // 현재 진행 중 (±30분)
-  if (diffMin >= 0 && diffMin <= 30) return 'now';
-  if (dt <= todayEnd) return 'today';
-  if (dt <= tomorrowEnd) return 'tomorrow';
-  if (dt <= weekEnd) return 'this-week';
-  return null;
+  // 2. Meetings
+  for (let i = 0; i < meetings.length; i++) {
+    const m = meetings[i];
+    if (!m.datetime) continue;
+    const dtTime = Date.parse(m.datetime);
+    if (!dtTime || isNaN(dtTime)) continue;
+    const urgency = getUrgency(dtTime, nowTime, todayEndTime, tomorrowEndTime, weekEndTime);
+    if (!urgency) continue;
+    alerts.push({
+      id: `meet-${m.id}`,
+      type: 'meeting',
+      title: m.title,
+      datetime: new Date(dtTime),
+      location: m.location,
+      urgency,
+      icon: '🤝',
+      _time: dtTime,
+      _rank: URGENCY_RANK[urgency] ?? 9,
+    });
+  }
+
+  // 긴급도 순 → 시간 순 고속 O(1) 랭크 비교 정렬
+  alerts.sort((a, b) => {
+    const diff = a._rank - b._rank;
+    return diff !== 0 ? diff : a._time - b._time;
+  });
+
+  return alerts;
 }
 
 export function useScheduleAlerts(
@@ -42,50 +109,8 @@ export function useScheduleAlerts(
   meetings: Meeting[]
 ): ScheduleAlert[] {
   return useMemo(() => {
-    const now = new Date();
-    const alerts: ScheduleAlert[] = [];
-
-    // 1. Tasks (마감일 있는 미완료 업무)
-    for (const t of tasks) {
-      if (!t.dueDate || t.status === 'done') continue;
-      const dt = new Date(t.dueDate + 'T09:00:00');
-      const urgency = getUrgency(dt, now);
-      if (!urgency) continue;
-      alerts.push({
-        id: `task-${t.id}`,
-        type: 'task',
-        title: t.title,
-        datetime: dt,
-        urgency,
-        icon: '📋',
-      });
-    }
-
-    // 2. Meetings
-    for (const m of meetings) {
-      const dt = new Date(m.datetime);
-      if (isNaN(dt.getTime())) continue;
-      const urgency = getUrgency(dt, now);
-      if (!urgency) continue;
-      alerts.push({
-        id: `meet-${m.id}`,
-        type: 'meeting',
-        title: m.title,
-        datetime: dt,
-        location: m.location,
-        urgency,
-        icon: '🤝',
-      });
-    }
-
-    // 긴급도 순 → 시간 순 정렬
-    const urgencyOrder: Record<string, number> = { overdue: 0, now: 1, today: 2, tomorrow: 3, 'this-week': 4 };
-    alerts.sort((a, b) => {
-      const uo = (urgencyOrder[a.urgency] ?? 9) - (urgencyOrder[b.urgency] ?? 9);
-      if (uo !== 0) return uo;
-      return a.datetime.getTime() - b.datetime.getTime();
-    });
-
-    return alerts;
+    return computeScheduleAlerts(tasks, meetings);
   }, [tasks, meetings]);
 }
+
+
