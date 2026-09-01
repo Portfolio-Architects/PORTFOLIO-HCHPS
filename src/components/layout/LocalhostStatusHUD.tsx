@@ -50,34 +50,26 @@ export function LocalhostStatusHUD({ onOpenLogs }: LocalhostStatusHUDProps) {
         onClick={() => setIsModalOpen(true)}
         className="flex items-center gap-2 px-3 py-1.5 bg-slate-900/90 dark:bg-slate-950/90 border border-slate-700/60 hover:border-emerald-500/50 rounded-full text-xs font-medium text-slate-200 shadow-xs hover:shadow-emerald-500/10 transition-all select-none cursor-pointer group"
         title="Localhost Health & Daemon Status HUD"
+        suppressHydrationWarning
       >
-        <span className="relative flex h-2 w-2">
+        <span className="relative flex h-2 w-2" suppressHydrationWarning>
           <span
-            className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+            className={`relative inline-flex rounded-full h-2 w-2 shadow-xs ${
               statusColor === 'emerald'
-                ? 'bg-emerald-400'
+                ? 'bg-emerald-500 shadow-emerald-500/50'
                 : statusColor === 'amber'
-                ? 'bg-amber-400'
-                : 'bg-rose-400'
-            }`}
-          />
-          <span
-            className={`relative inline-flex rounded-full h-2 w-2 ${
-              statusColor === 'emerald'
-                ? 'bg-emerald-500'
-                : statusColor === 'amber'
-                ? 'bg-amber-500'
-                : 'bg-rose-500'
+                ? 'bg-amber-500 shadow-amber-500/50'
+                : 'bg-rose-500 shadow-rose-500/50'
             }`}
           />
         </span>
 
-        <div className="flex items-center gap-1.5 text-[11px] font-mono">
-          <span className="font-semibold text-slate-100">{serverPort}</span>
+        <div className="flex items-center gap-1.5 text-[11px] font-mono" suppressHydrationWarning>
+          <span className="font-semibold text-slate-100" suppressHydrationWarning>{serverPort}</span>
           <span className="text-slate-500">•</span>
-          <span className="text-slate-300">{displayHeapMB}MB</span>
+          <span className="text-slate-300" suppressHydrationWarning>{displayHeapMB}MB</span>
           <span className="text-slate-500">•</span>
-          <span className="text-slate-300">Bk:{totalBackups}</span>
+          <span className="text-slate-300" suppressHydrationWarning>Bk:{totalBackups}</span>
         </div>
 
         {isOnline ? (

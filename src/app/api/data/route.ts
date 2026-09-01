@@ -487,7 +487,10 @@ export async function POST(request: Request) {
         if (!data || Array.isArray(data)) {
           return NextResponse.json({ success: false, error: 'Invalid data for add' }, { status: 400 });
         }
-        rows.push(data);
+        const cleanData = typeof data === 'object' && data !== null && '_enc' in data 
+          ? (() => { const copy = { ...data }; delete (copy as any)._enc; return copy; })()
+          : data;
+        rows.push(cleanData);
         break;
       }
       case 'update': {
@@ -498,7 +501,12 @@ export async function POST(request: Request) {
         if (idx === -1) {
           return NextResponse.json({ success: false, error: 'ID not found' }, { status: 404 });
         }
-        rows[idx] = { ...rows[idx], ...data };
+        const cleanData = typeof data === 'object' && data !== null && '_enc' in data 
+          ? (() => { const copy = { ...data }; delete (copy as any)._enc; return copy; })()
+          : data;
+        const targetRow = { ...rows[idx] };
+        if ('_enc' in targetRow) delete targetRow._enc;
+        rows[idx] = { ...targetRow, ...cleanData };
         break;
       }
       case 'delete': {
@@ -513,12 +521,20 @@ export async function POST(request: Request) {
         break;
       }
       case 'replace': {
-        rows = Array.isArray(data) ? data : [];
+        rows = Array.isArray(data) ? data.map(item => {
+          if (item && typeof item === 'object' && '_enc' in item) {
+            const copy = { ...item };
+            delete (copy as any)._enc;
+            return copy;
+          }
+          return item;
+        }) : [];
         break;
       }
       default:
         return NextResponse.json({ success: false, error: 'Unknown action' }, { status: 400 });
     }
+
 
     await writeDataToFile(sheet, rows);
 

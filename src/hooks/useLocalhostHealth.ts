@@ -140,7 +140,7 @@ export function useLocalhostHealth(enabled = true) {
     refetchInterval: () => {
       if (!enabled) return false;
       if (typeof document !== 'undefined' && document.hidden) return false;
-      return 30000;
+      return 60000;
     },
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: false,

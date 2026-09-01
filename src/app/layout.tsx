@@ -1,8 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Outfit } from "next/font/google";
-import Script from "next/script";
 import "./globals.css";
 import { QueryProviders } from "@/components/QueryProviders";
+
 
 const inter = Inter({
   subsets: ["latin"],
@@ -45,6 +45,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko" suppressHydrationWarning>
+      <head />
       <body
         className={`${inter.variable} ${outfit.variable} font-sans antialiased`}
         suppressHydrationWarning
@@ -54,22 +55,8 @@ export default function RootLayout({
             {children}
           </div>
         </QueryProviders>
-        <Script
-          id="unregister-sw"
-          strategy="afterInteractive"
-          dangerouslySetInnerHTML={{
-            __html: `
-              if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-                navigator.serviceWorker.getRegistrations().then(function(registrations) {
-                  for (let registration of registrations) {
-                    registration.unregister();
-                  }
-                });
-              }
-            `,
-          }}
-        />
       </body>
     </html>
   );
 }
+

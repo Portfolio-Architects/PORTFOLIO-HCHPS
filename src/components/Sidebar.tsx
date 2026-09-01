@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { ModuleType } from '@/types';
-import { Archive, Zap, LayoutDashboard, FolderGit2 } from 'lucide-react';
+import { Archive, LayoutDashboard, Sparkles } from 'lucide-react';
 
 import { LocalhostStatusHUD } from '@/components/layout/LocalhostStatusHUD';
 
@@ -19,8 +19,7 @@ interface TopNavProps {
 const navItems: { id: ModuleType; label: string; icon: React.ElementType }[] = [
   { id: 'dashboard', label: '대시보드', icon: LayoutDashboard },
   { id: 'workspace', label: '예산관리', icon: Archive },
-  { id: 'mindmap', label: '마인드맵', icon: Zap },
-  { id: 'project', label: '사업관리', icon: FolderGit2 },
+  { id: 'festival', label: '양재천 페스티벌', icon: Sparkles },
 ];
 
 export function Sidebar({ activeModule, onModuleChange, appMode, onPreloadModule, onOpenLogs }: TopNavProps) {
@@ -28,7 +27,7 @@ export function Sidebar({ activeModule, onModuleChange, appMode, onPreloadModule
 
   return (
     <>
-      <header className="sticky top-0 left-0 right-0 z-50 pointer-events-auto bg-[var(--color-card)]/70 backdrop-blur-md border-b border-white/20 shadow-xs transition-all duration-300">
+      <header className="sticky top-0 left-0 right-0 z-50 pointer-events-auto bg-white/80 backdrop-blur-md border-b border-slate-200/80 shadow-xs transition-all duration-300">
         <div className="max-w-[1800px] mx-auto px-2 sm:px-3 lg:px-4">
           <div className="flex items-center justify-between h-14 gap-3">
             
@@ -56,7 +55,7 @@ export function Sidebar({ activeModule, onModuleChange, appMode, onPreloadModule
                       className={`flex items-center justify-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-semibold whitespace-nowrap cursor-pointer transition-all duration-150 relative hover:scale-[1.03] active:scale-95 ${
                         isActive
                           ? `text-white ${activeBg} shadow-md`
-                          : 'text-[var(--color-text-secondary)] hover:bg-slate-500/5 hover:text-[var(--color-text-primary)]'
+                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                       }`}
                       title={item.label}
                     >
@@ -66,10 +65,42 @@ export function Sidebar({ activeModule, onModuleChange, appMode, onPreloadModule
                   );
                 })}
               </nav>
+
+              {/* Quick Access: 2026 Yangjaecheon Festival Tracker */}
+              <button
+                onClick={() => onModuleChange('festival')}
+                className={`hidden md:inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold cursor-pointer transition-all duration-150 group active:scale-95 ${
+                  activeModule === 'festival'
+                    ? 'text-white bg-emerald-600 shadow-md shadow-emerald-600/20 border border-emerald-500 ring-2 ring-emerald-400/20'
+                    : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200/80 shadow-2xs'
+                }`}
+                title="2026 양재천 건강 페스티벌 실시간 관제 대시보드 열기"
+              >
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <span className="font-bold tracking-tight">양재천 페스티벌</span>
+                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${
+                  activeModule === 'festival' ? 'bg-emerald-800 text-white' : 'bg-emerald-200/70 text-emerald-800'
+                }`}>D-60</span>
+              </button>
             </div>
 
             {/* Right side: Localhost Health & Daemon Status HUD */}
             <div className="flex items-center gap-2 pr-1.5">
+              <button
+                onClick={() => onModuleChange('festival')}
+                className={`md:hidden flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold transition-all cursor-pointer active:scale-95 ${
+                  activeModule === 'festival'
+                    ? 'text-white bg-emerald-600 border border-emerald-500'
+                    : 'text-emerald-700 bg-emerald-50 border border-emerald-200'
+                }`}
+                title="양재천 페스티벌 관제판"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>양재천 D-60</span>
+              </button>
               <LocalhostStatusHUD onOpenLogs={onOpenLogs} />
             </div>
 

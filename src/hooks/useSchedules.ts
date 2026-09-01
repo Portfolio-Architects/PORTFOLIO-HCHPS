@@ -59,12 +59,28 @@ export function useSchedules() {
     return schedulesByDateMap.get(dateStr) || EMPTY_SCHEDULES;
   }, [schedulesByDateMap]);
 
+  const importCalendar = useCallback(async (params: { icsUrl?: string; rawIcs?: string }) => {
+    const res = await fetch('/api/calendar/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params)
+    });
+    const data = await res.json();
+    if (data.success) {
+      // Data reload will be triggered via cloud sync or local reload
+      return { success: true, count: data.importedCount || 0 };
+    }
+    return { success: false, error: data.error || '일정 가져오기에 실패했습니다.' };
+  }, []);
+
   return {
     schedules,
     loading,
     addSchedule,
     updateSchedule,
     deleteSchedule,
-    getSchedulesForDate
+    getSchedulesForDate,
+    importCalendar
   };
 }
+

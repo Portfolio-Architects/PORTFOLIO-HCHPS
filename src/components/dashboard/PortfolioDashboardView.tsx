@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { PieChart, Pie, Cell, Line, Bar, ReferenceLine, XAxis, YAxis, Tooltip as RechartsTooltip, Area, CartesianGrid, ComposedChart } from 'recharts';
+import { PieChart, Pie, Cell, Line, Bar, ReferenceLine, XAxis, YAxis, Tooltip as RechartsTooltip, Area, CartesianGrid, ComposedChart, ResponsiveContainer } from 'recharts';
 import { Task, BudgetCategory, BudgetEntry } from '@/types';
 import { usePortfolioAnalytics } from '@/hooks/usePortfolioAnalytics';
 import dynamic from 'next/dynamic';
@@ -101,36 +101,11 @@ const CustomComposedTooltip = React.memo(({ active, payload, label, chartType, i
 });
 CustomComposedTooltip.displayName = 'CustomComposedTooltip';
 
-function observeWidth(el: HTMLElement | null, setWidth: React.Dispatch<React.SetStateAction<number>>) {
-  if (!el) return () => {};
-  let raf: number | null = null;
-  const ro = new ResizeObserver(([e]) => {
-    const w = e?.contentRect?.width;
-    if (!w) return;
-    if (raf) cancelAnimationFrame(raf);
-    raf = requestAnimationFrame(() => {
-      const r = Math.round(w / 20) * 20;
-      setWidth(p => (Math.abs(p - r) >= 20 ? r : p));
-    });
-  });
-  ro.observe(el);
-  return () => {
-    if (raf) cancelAnimationFrame(raf);
-    ro.disconnect();
-  };
-}
-
 function PortfolioDashboardViewComponent({ budgetCategories, budgetEntries, appMode = 'VITAL' }: DashboardProps) {
   const [chartType, setChartType] = useState<'monthly' | 'cumulative'>('monthly');
-  const chartContainerRef = React.useRef<HTMLDivElement>(null);
-  const [chartWidth, setChartWidth] = useState<number>(0);
 
   const renderContacts = useIdleMount();
   const renderCharts = useDeferredChartMount();
-
-  useEffect(() => {
-    return observeWidth(chartContainerRef.current, setChartWidth);
-  }, []);
 
   const {
     selectedProject, setSelectedProject,
@@ -359,42 +334,44 @@ function PortfolioDashboardViewComponent({ budgetCategories, budgetEntries, appM
             </div>
 
             {/* Monthly Trend Chart */}
-            <div ref={chartContainerRef} className="flex-1 mt-6 relative w-full min-h-[385px] h-[385px]">
-              {renderCharts && chartWidth > 0 && (
-                <ComposedChart width={chartWidth} height={385} data={monthlyExecutionData} margin={{ top: 25, right: 10, left: -20, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorCumulative" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={isHchps ? '#10B981' : '#3B82F6'} stopOpacity={0.25}/>
-                      <stop offset="95%" stopColor={isHchps ? '#10B981' : '#3B82F6'} stopOpacity={0}/>
-                    </linearGradient>
-                    <linearGradient id="colorBar" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={isHchps ? '#34D399' : '#60A5FA'} stopOpacity={1}/>
-                      <stop offset="100%" stopColor={isHchps ? '#059669' : '#3B82F6'} stopOpacity={0.85}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 700 }} dy={10} />
-                  <YAxis 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 700 }} 
-                    tickFormatter={(val) => `${(val / 1000000).toFixed(0)}M`} 
-                  />
-                  <RechartsTooltip content={<CustomComposedTooltip chartType={chartType} isHchps={isHchps} />} />
-                  
-                  {/* 11월 100% 소진 마감일 세로 가이드라인 - insideTop과 offset 조정으로 텍스트 잘림 방지 */}
-                  <ReferenceLine x="Nov" stroke="#ef4444" strokeDasharray="4 4" strokeWidth={2} label={{ value: "11월 예산 마감", fill: "#ef4444", fontSize: 9, fontWeight: 'bold', position: 'insideTop', offset: 15 }} />
-                  
-                  {chartType === 'monthly' ? (
-                    <Bar dataKey="monthly" fill="url(#colorBar)" radius={[4, 4, 0, 0]} barSize={16} />
-                  ) : (
-                    <>
-                      {/* 선형 100% 소진 가이드 점선 */}
-                      <Line type="monotone" dataKey="targetCumulative" stroke="#cbd5e1" strokeWidth={1.5} strokeDasharray="5 5" dot={false} activeDot={false} />
-                      <Area type="monotone" dataKey="cumulative" stroke={isHchps ? '#10B981' : '#3B82F6'} strokeWidth={3} fillOpacity={1} fill="url(#colorCumulative)" activeDot={{ r: 5, fill: isHchps ? '#10B981' : '#3B82F6', stroke: '#fff', strokeWidth: 2 }} />
-                    </>
-                  )}
-                </ComposedChart>
+            <div className="flex-1 mt-6 relative w-full min-h-[385px] h-[385px]">
+              {renderCharts && (
+                <ResponsiveContainer width="100%" height={385}>
+                  <ComposedChart data={monthlyExecutionData} margin={{ top: 25, right: 10, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorCumulative" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={isHchps ? '#10B981' : '#3B82F6'} stopOpacity={0.25}/>
+                        <stop offset="95%" stopColor={isHchps ? '#10B981' : '#3B82F6'} stopOpacity={0}/>
+                      </linearGradient>
+                      <linearGradient id="colorBar" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={isHchps ? '#34D399' : '#60A5FA'} stopOpacity={1}/>
+                        <stop offset="100%" stopColor={isHchps ? '#059669' : '#3B82F6'} stopOpacity={0.85}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 700 }} dy={10} />
+                    <YAxis 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 700 }} 
+                      tickFormatter={(val) => `${(val / 1000000).toFixed(0)}M`} 
+                    />
+                    <RechartsTooltip content={<CustomComposedTooltip chartType={chartType} isHchps={isHchps} />} />
+                    
+                    {/* 11월 100% 소진 마감일 세로 가이드라인 - insideTop과 offset 조정으로 텍스트 잘림 방지 */}
+                    <ReferenceLine x="Nov" stroke="#ef4444" strokeDasharray="4 4" strokeWidth={2} label={{ value: "11월 예산 마감", fill: "#ef4444", fontSize: 9, fontWeight: 'bold', position: 'insideTop', offset: 15 }} />
+                    
+                    {chartType === 'monthly' ? (
+                      <Bar dataKey="monthly" fill="url(#colorBar)" radius={[4, 4, 0, 0]} barSize={16} />
+                    ) : (
+                      <>
+                        {/* 선형 100% 소진 가이드 점선 */}
+                        <Line type="monotone" dataKey="targetCumulative" stroke="#cbd5e1" strokeWidth={1.5} strokeDasharray="5 5" dot={false} activeDot={false} />
+                        <Area type="monotone" dataKey="cumulative" stroke={isHchps ? '#10B981' : '#3B82F6'} strokeWidth={3} fillOpacity={1} fill="url(#colorCumulative)" activeDot={{ r: 5, fill: isHchps ? '#10B981' : '#3B82F6', stroke: '#fff', strokeWidth: 2 }} />
+                      </>
+                    )}
+                  </ComposedChart>
+                </ResponsiveContainer>
               )}
             </div>
           </div>

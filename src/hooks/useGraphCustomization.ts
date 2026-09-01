@@ -61,10 +61,6 @@ function addReviewedItems(nodeIds: string[], edgeKeys: string[]) {
   }
 }
 
-// Global variables for singleton polling loop
-let activePollInterval: ReturnType<typeof setInterval> | null = null;
-let activePollCount = 0;
-
 export interface NodeOverride {
   fixedX?: number | null;
   fixedY?: number | null;
@@ -757,12 +753,9 @@ export function useGraphCustomization(enabled = true) {
     return () => clearTimeout(timer);
   }, [enabled, data, syncToCloud]);
 
-  // 10초 간격 백엔드 로컬 DB 실시간 폴링 및 Yjs CRDT 실시간 병합 대신,
-  // AI 추출 후보를 감지하여 pendingNodes / pendingEdges 버퍼 상태로 필터링 수집
+  // AI 추출 후보를 1회 감지하여 pendingNodes / pendingEdges 버퍼 상태로 필터링 수집 (10s 폴링 제거)
   useEffect(() => {
     if (!enabled || !isCloudLoaded) return;
-
-    activePollCount++;
 
     const runPoll = async () => {
       if (!enabled || (typeof document !== 'undefined' && document.visibilityState === 'hidden')) {
@@ -824,49 +817,7 @@ export function useGraphCustomization(enabled = true) {
       }
     };
 
-    const startOrResetInterval = () => {
-      if (activePollInterval) {
-        clearInterval(activePollInterval);
-        activePollInterval = null;
-      }
-      activePollInterval = setInterval(() => {
-        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
-          return;
-        }
-        runPoll();
-      }, 10000);
-    };
-
-    const handleVisibilityChange = () => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'visible' && enabled) {
-        runPoll();
-        startOrResetInterval();
-      }
-    };
-
-    if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', handleVisibilityChange);
-    }
-
-    if (!activePollInterval) {
-      console.info('[Watcher Poll] Starting global singleton polling loop.');
-      if (typeof document === 'undefined' || document.visibilityState !== 'hidden') {
-        runPoll();
-      }
-      startOrResetInterval();
-    }
-
-    return () => {
-      if (typeof document !== 'undefined') {
-        document.removeEventListener('visibilitychange', handleVisibilityChange);
-      }
-      activePollCount--;
-      if (activePollCount <= 0 && activePollInterval) {
-        console.info('[Watcher Poll] Stopping global singleton polling loop.');
-        clearInterval(activePollInterval);
-        activePollInterval = null;
-      }
-    };
+    runPoll();
   }, [enabled, isCloudLoaded]);
 
   return {

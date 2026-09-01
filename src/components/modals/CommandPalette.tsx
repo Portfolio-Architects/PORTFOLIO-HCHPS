@@ -92,27 +92,27 @@ export function CommandPalette({
         icon: <LayoutDashboard className="w-4 h-4 text-emerald-400" />
       },
       {
-        module: 'mindmap',
-        title: '3D 마인드맵 (MindMap)',
-        subtitle: '시맨틱 온톨로지 지식 노드 및 3D 그래픽 그래프',
-        icon: <Network className="w-4 h-4 text-indigo-400" />
-      },
-      {
         module: 'workspace',
         title: '예산 & 재고 관리 (Workspace)',
         subtitle: '품의 결재, 정산 내역 및 물품 수량 관리',
         icon: <Wallet className="w-4 h-4 text-blue-400" />
       },
       {
-        module: 'project',
-        title: '사업 관리 (Projects)',
-        subtitle: '핵심 사업 목표, 마일스톤 및 세부 체크리스트',
+        module: 'festival',
+        title: '양재천 페스티벌 (Festival)',
+        subtitle: '2026 양재천 건강 페스티벌 추진 로드맵 및 부스 현황',
         icon: <Briefcase className="w-4 h-4 text-purple-400" />
+      },
+      {
+        module: 'simulator',
+        title: '예산 시뮬레이터 (Simulator)',
+        subtitle: '실시간 예산 변동 시뮬레이션 및 재원 배분 분석',
+        icon: <Network className="w-4 h-4 text-indigo-400" />
       }
     ];
 
     navItems.forEach(nav => {
-      const searchTerms = `${nav.title} ${nav.subtitle} navigation module 대시보드 마인드맵 예산 관리 사업`;
+      const searchTerms = `${nav.title} ${nav.subtitle} navigation module 대시보드 예산 관리 페스티벌 시뮬레이터`;
       items.push({
         id: `nav-${nav.module}`,
         category: 'Navigation',
@@ -210,7 +210,7 @@ export function CommandPalette({
         searchTerms,
         searchTermsLower: searchTerms.toLowerCase(),
         icon: <Briefcase className="w-4 h-4 text-violet-400" />,
-        onSelect: () => onSelectModule('project')
+        onSelect: () => onSelectModule('dashboard')
       });
     });
 

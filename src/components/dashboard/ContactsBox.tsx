@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useDeferredValue, useEffect } from 'react';
 import { useContacts } from '@/hooks/useContacts';
 import { 
   BookOpen, 
@@ -48,33 +48,6 @@ function isChosungOnly(str: string): boolean {
   return /^[ㄱ-ㅎ]+$/.test(str.replace(/\s+/g, ''));
 }
 
-/** 초성 검색 및 일반 부분 일치 검색을 결합한 한국어 매처 */
-function matchKoreanText(target: string, queryToken: string): boolean {
-  if (!queryToken) return true;
-  if (!target) return false;
-
-  const targetLower = target.toLowerCase();
-  const tokenLower = queryToken.toLowerCase();
-
-  // 1. 일반 텍스트 포함 검색
-  if (targetLower.includes(tokenLower)) return true;
-
-  // 2. 공백/특수문자 제거 후 일치 검색
-  const cleanTarget = targetLower.replace(/[\s\-\,\.\[\]\(\)\:\/]/g, '');
-  const cleanToken = tokenLower.replace(/[\s\-\,\.\[\]\(\)\:\/]/g, '');
-  if (cleanToken && cleanTarget.includes(cleanToken)) return true;
-
-  // 3. 초성 전용 검색 매칭
-  if (isChosungOnly(tokenLower)) {
-    const targetChosung = getChosung(targetLower);
-    if (targetChosung.includes(tokenLower)) return true;
-    const cleanChosung = getChosung(cleanTarget);
-    if (cleanChosung.includes(cleanToken)) return true;
-  }
-
-  return false;
-}
-
 /** 전화번호 자동 하이픈 포맷팅 */
 function formatPhoneNumber(input: string): string {
   const digits = input.replace(/\D/g, '');
@@ -100,6 +73,15 @@ interface ParsedNotes {
   freeText?: string;     // 기타 일반 메모
 }
 
+interface IndexedContact {
+  contact: Contact;
+  parsedNotes: ParsedNotes;
+  searchStr: string;
+  cleanStr: string;
+  chosungStr: string;
+  cleanChosungStr: string;
+}
+
 function parseContactNotes(notes?: string): ParsedNotes {
   if (!notes || !notes.trim()) return {};
 
@@ -110,29 +92,25 @@ function parseContactNotes(notes?: string): ParsedNotes {
   const sourceMatch = text.match(/\[출처:\s*([^\]]+)\]/);
   if (sourceMatch) {
     result.source = sourceMatch[1].trim();
-    text = text.replace(sourceMatch[0], '').trim();
+    text = text.replace(sourceMatch[0], '');
   }
 
-  // 2. 노드 ID: XXX 및 custom-XXX 텍스트 소거 (화면 노출 배제)
-  text = text.replace(/노드\s*ID:\s*[^\s,]+/gi, '').trim();
-  text = text.replace(/custom-\d+/gi, '').trim();
-
-  // 3. 소속/직책 또는 소속 추출
-  const affMatch = text.match(/(?:소속\/직책|소속)\s*:\s*([^,]+)/);
+  // 2. 소속: XXX 추출
+  const affMatch = text.match(/(?:소속\/직책|소속|직책):\s*([^\n;]+)/);
   if (affMatch) {
     result.affiliation = affMatch[1].trim();
-    text = text.replace(affMatch[0], '').trim();
+    text = text.replace(affMatch[0], '');
   }
 
-  // 4. 비고: XXX 추출
-  const noteMatch = text.match(/비고\s*:\s*([^,]+)/);
-  if (noteMatch) {
-    result.detailNote = noteMatch[1].trim();
-    text = text.replace(noteMatch[0], '').trim();
+  // 3. 비고: XXX 추출
+  const detailMatch = text.match(/비고:\s*([^\n;]+)/);
+  if (detailMatch) {
+    result.detailNote = detailMatch[1].trim();
+    text = text.replace(detailMatch[0], '');
   }
 
-  // 앞뒤 쉼표 및 잔여 공백 정리
-  const cleaned = text.replace(/^[,;\s]+|[,;\s]+$/g, '').replace(/,\s*,/g, ',').trim();
+  // 4. 나머지 잔여 텍스트
+  const cleaned = text.replace(/[;\n]/g, ' ').replace(/\s+/g, ' ').trim();
   if (cleaned) {
     result.freeText = cleaned;
   }
@@ -140,18 +118,82 @@ function parseContactNotes(notes?: string): ParsedNotes {
   return result;
 }
 
-// ============ Keyword Highlighter Component ============
-const HighlightText: React.FC<{ text: string; queryTokens: string[]; className?: string }> = React.memo(({ 
+// ============ Zero-Dependency Container Virtualizer Hook ============
+function useContainerVirtualGrid({
+  totalItems,
+  columns = 2,
+  estimatedItemHeight = 220,
+  gap = 12,
+  overscan = 2,
+  containerRef
+}: {
+  totalItems: number;
+  columns?: number;
+  estimatedItemHeight?: number;
+  gap?: number;
+  overscan?: number;
+  containerRef: React.RefObject<HTMLDivElement | null>;
+}) {
+  const [scrollTop, setScrollTop] = useState(0);
+  const containerHeight = 480;
+
+  const totalRows = Math.ceil(totalItems / columns);
+  const rowHeight = estimatedItemHeight + gap;
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    let rafId: number | null = null;
+    const handleScroll = () => {
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        if (containerRef.current) {
+          setScrollTop(containerRef.current.scrollTop);
+        }
+      });
+    };
+
+    el.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      el.removeEventListener('scroll', handleScroll);
+      if (rafId !== null) cancelAnimationFrame(rafId);
+    };
+  }, [containerRef]);
+
+  const startRow = Math.max(0, Math.floor(scrollTop / rowHeight) - overscan);
+  const endRow = Math.min(totalRows, Math.ceil((scrollTop + containerHeight) / rowHeight) + overscan);
+
+  const startIndex = startRow * columns;
+  const endIndex = Math.min(totalItems, endRow * columns);
+
+  const topPadding = startRow * rowHeight;
+  const bottomPadding = Math.max(0, (totalRows - endRow) * rowHeight);
+
+  return {
+    startIndex,
+    endIndex,
+    topPadding,
+    bottomPadding
+  };
+}
+
+// ============ Ultra-fast Substring Highlighter ============
+const HighlightText = React.memo(({ 
   text, 
-  queryTokens, 
+  queryTokens,
   className = '' 
+}: { 
+  text?: string; 
+  queryTokens: string[];
+  className?: string;
 }) => {
   if (!text) return null;
   if (!queryTokens || queryTokens.length === 0) {
     return <span className={className}>{text}</span>;
   }
 
-  // Regex escape for active query tokens (excluding pure chosung for string slicing)
   const validTokens = queryTokens
     .map(t => t.trim())
     .filter(t => t.length > 0 && !isChosungOnly(t));
@@ -188,11 +230,13 @@ HighlightText.displayName = 'HighlightText';
 // ============ Memoized ContactCard Subcomponent ============
 const ContactCard = React.memo(({ 
   contact, 
+  parsedNotes,
   queryTokens,
   onStartEdit, 
   onDelete 
 }: { 
   contact: Contact; 
+  parsedNotes: ParsedNotes;
   queryTokens: string[];
   onStartEdit: (contact: Contact) => void; 
   onDelete: (id: string) => void; 
@@ -217,8 +261,7 @@ const ContactCard = React.memo(({
     }
   }, [onDelete, contact.id, contact.name]);
 
-  // Parse structured notes
-  const parsed = useMemo(() => parseContactNotes(contact.notes), [contact.notes]);
+  const parsed = parsedNotes;
 
   return (
     <div className="group relative flex flex-col justify-between p-4 bg-white/70 hover:bg-white border border-slate-200/70 hover:border-emerald-500/50 rounded-2xl transition-all duration-200 hover:shadow-md">
@@ -344,161 +387,204 @@ const ContactsBoxComponent: React.FC = () => {
   const [selectedTag, setSelectedTag] = useState<string>('ALL');
   const [sortOrder, setSortOrder] = useState<'NAME_ASC' | 'NEWEST'>('NAME_ASC');
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // 반응형 그리드 열 수 (모바일: 1, 데스크톱: 2)
+  const [columns, setColumns] = useState(2);
+  useEffect(() => {
+    const updateCols = () => {
+      if (typeof window !== 'undefined') {
+        setColumns(window.innerWidth >= 768 ? 2 : 1);
+      }
+    };
+    updateCols();
+    window.addEventListener('resize', updateCols);
+    return () => window.removeEventListener('resize', updateCols);
+  }, []);
 
   const handleClearSearch = useCallback(() => {
     setLocalSearchTerm('');
     searchInputRef.current?.focus();
   }, []);
 
-  // 폼 등록 및 수정 상태
-  const [editingContactId, setEditingContactId] = useState<string | null>(null);
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
-  const [notes, setNotes] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  // 폼 등록 및 수정 상태 (단일 객체로 배치 관리)
+  const [formData, setFormData] = useState({
+    editingId: null as string | null,
+    name: '',
+    phone: '',
+    email: '',
+    notes: '',
+    error: null as string | null
+  });
 
-  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhoneChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const formatted = formatPhoneNumber(e.target.value);
-    setPhone(formatted);
-  };
-
-  const startEdit = useCallback((contact: Contact) => {
-    setEditingContactId(contact.id);
-    setName(contact.name);
-    setPhone(contact.phone);
-    setEmail(contact.email || '');
-    setNotes(contact.notes || '');
-    setError(null);
+    setFormData(prev => ({ ...prev, phone: formatted }));
   }, []);
 
-  const handleCancelEdit = () => {
-    setEditingContactId(null);
-    setName('');
-    setPhone('');
-    setEmail('');
-    setNotes('');
-    setError(null);
-  };
+  const startEdit = useCallback((contact: Contact) => {
+    setFormData({
+      editingId: contact.id,
+      name: contact.name,
+      phone: contact.phone,
+      email: contact.email || '',
+      notes: contact.notes || '',
+      error: null
+    });
+  }, []);
+
+  const handleCancelEdit = useCallback(() => {
+    setFormData({
+      editingId: null,
+      name: '',
+      phone: '',
+      email: '',
+      notes: '',
+      error: null
+    });
+  }, []);
+
+  const deferredSearchTerm = useDeferredValue(localSearchTerm);
+
+  // Pre-index contacts (runs ONLY when contacts array changes, NOT on every keystroke)
+  const indexedContacts = useMemo<IndexedContact[]>(() => {
+    return contacts.map(c => {
+      const parsed = parseContactNotes(c.notes);
+      const combined = `${c.name || ''} ${c.phone || ''} ${c.email || ''} ${c.notes || ''} ${parsed.source || ''} ${parsed.affiliation || ''} ${parsed.detailNote || ''} ${parsed.freeText || ''}`.toLowerCase();
+      const clean = combined.replace(/[\s\-\,\.\[\]\(\)\:\/]/g, '');
+      const chosung = getChosung(combined);
+      const cleanChosung = getChosung(clean);
+
+      return {
+        contact: c,
+        parsedNotes: parsed,
+        searchStr: combined,
+        cleanStr: clean,
+        chosungStr: chosung,
+        cleanChosungStr: cleanChosung
+      };
+    });
+  }, [contacts]);
 
   // 검색 쿼리 토큰 목록 (공백 분리 다중 키워드)
   const queryTokens = useMemo(() => {
-    return localSearchTerm.trim().split(/\s+/).filter(Boolean);
-  }, [localSearchTerm]);
+    return deferredSearchTerm.trim().split(/\s+/).filter(Boolean);
+  }, [deferredSearchTerm]);
 
   // 출처/소속 기반 상위 퀵 필터 칩 목록 동적 추출
   const availableTags = useMemo(() => {
     const tagCountMap: Record<string, number> = {};
 
-    contacts.forEach(c => {
-      const parsed = parseContactNotes(c.notes);
+    for (let i = 0; i < indexedContacts.length; i++) {
+      const parsed = indexedContacts[i].parsedNotes;
       if (parsed.source) {
         tagCountMap[parsed.source] = (tagCountMap[parsed.source] || 0) + 1;
       }
       if (parsed.affiliation) {
-        const affBase = parsed.affiliation.split(' ')[0]; // 첫 단어 기준 (예: '자생한방병원')
+        const affBase = parsed.affiliation.split(' ')[0];
         if (affBase && affBase.length >= 2) {
           tagCountMap[affBase] = (tagCountMap[affBase] || 0) + 1;
         }
       }
-    });
+    }
 
-    // 2회 이상 등장하는 태그 또는 핵심 카테고리 선별
-    const sorted = Object.entries(tagCountMap)
+    return Object.entries(tagCountMap)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 6)
       .map(([tag]) => tag);
+  }, [indexedContacts]);
 
-    return sorted;
-  }, [contacts]);
-
-  // 고도화된 다차원 검색 및 필터링 (다중 키워드 AND 검색 + 초성 검색 + 비고/메모 전문 인덱싱)
-  const filteredContacts = useMemo(() => {
-    let list = contacts;
+  // 초고속 다차원 검색 및 필터링
+  const filteredContacts = useMemo<IndexedContact[]>(() => {
+    let list = indexedContacts;
 
     // 1. 태그 필터 적용
     if (selectedTag !== 'ALL') {
-      list = list.filter(c => {
-        const parsed = parseContactNotes(c.notes);
-        if (parsed.source === selectedTag) return true;
-        if (parsed.affiliation?.includes(selectedTag)) return true;
-        if (c.notes?.includes(selectedTag)) return true;
+      list = list.filter(item => {
+        const p = item.parsedNotes;
+        if (p.source === selectedTag) return true;
+        if (p.affiliation?.includes(selectedTag)) return true;
+        if (item.contact.notes?.includes(selectedTag)) return true;
         return false;
       });
     }
 
-    // 2. 다중 토큰 검색 적용 (모든 token이 name, phone, email, notes, parsed fields에 매칭되어야 함)
+    // 2. 다중 토큰 검색 적용
     if (queryTokens.length > 0) {
-      list = list.filter(c => {
-        const parsed = parseContactNotes(c.notes);
-        const nameStr = c.name || '';
-        const phoneStr = c.phone || '';
-        const emailStr = c.email || '';
-        const notesStr = c.notes || '';
-        const sourceStr = parsed.source || '';
-        const affStr = parsed.affiliation || '';
-        const detailStr = parsed.detailNote || '';
-        const freeStr = parsed.freeText || '';
-
-        // 모든 검색 토큰이 해당 연락처의 어딘가에 매칭되는지 확인 (AND Match)
+      list = list.filter(item => {
         return queryTokens.every(token => {
-          return (
-            matchKoreanText(nameStr, token) ||
-            matchKoreanText(phoneStr, token) ||
-            matchKoreanText(emailStr, token) ||
-            matchKoreanText(notesStr, token) ||
-            matchKoreanText(sourceStr, token) ||
-            matchKoreanText(affStr, token) ||
-            matchKoreanText(detailStr, token) ||
-            matchKoreanText(freeStr, token)
-          );
+          const tokenLower = token.toLowerCase();
+          if (item.searchStr.includes(tokenLower)) return true;
+          const cleanToken = tokenLower.replace(/[\s\-\,\.\[\]\(\)\:\/]/g, '');
+          if (cleanToken && item.cleanStr.includes(cleanToken)) return true;
+          if (isChosungOnly(tokenLower)) {
+            if (item.chosungStr.includes(tokenLower)) return true;
+            if (cleanToken && item.cleanChosungStr.includes(cleanToken)) return true;
+          }
+          return false;
         });
       });
     }
 
     // 3. 정렬 적용
-    return [...list].sort((a, b) => {
-      if (sortOrder === 'NAME_ASC') {
-        return a.name.localeCompare(b.name, 'ko');
-      } else {
-        return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
-      }
-    });
-  }, [contacts, selectedTag, queryTokens, sortOrder]);
+    const sorted = [...list];
+    if (sortOrder === 'NAME_ASC') {
+      sorted.sort((a, b) => a.contact.name.localeCompare(b.contact.name, 'ko'));
+    } else {
+      sorted.sort((a, b) => new Date(b.contact.createdAt || 0).getTime() - new Date(a.contact.createdAt || 0).getTime());
+    }
 
-  const handleSubmit = (e: React.FormEvent) => {
+    return sorted;
+  }, [indexedContacts, selectedTag, queryTokens, sortOrder]);
+
+  // 가상 스크롤 계산 (가시 영역 아이템만 렌더링하여 DOM 프리징 제거)
+  const { startIndex, endIndex, topPadding, bottomPadding } = useContainerVirtualGrid({
+    totalItems: filteredContacts.length,
+    columns,
+    estimatedItemHeight: 220,
+    gap: 12,
+    overscan: 2,
+    containerRef: scrollContainerRef
+  });
+
+  const visibleContacts = useMemo(() => {
+    return filteredContacts.slice(startIndex, endIndex);
+  }, [filteredContacts, startIndex, endIndex]);
+
+  const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
 
-    if (!name.trim()) {
-      setError('이름/노드명을 입력해주세요.');
+    if (!formData.name.trim()) {
+      setFormData(prev => ({ ...prev, error: '이름/노드명을 입력해주세요.' }));
       return;
     }
-    if (!phone.trim()) {
-      setError('연락처 번호를 입력해주세요.');
+    if (!formData.phone.trim()) {
+      setFormData(prev => ({ ...prev, error: '연락처 번호를 입력해주세요.' }));
       return;
     }
 
     const payload = {
-      name: name.trim(),
-      phone: phone.trim(),
-      email: email.trim(),
-      notes: notes.trim()
+      name: formData.name.trim(),
+      phone: formData.phone.trim(),
+      email: formData.email.trim(),
+      notes: formData.notes.trim()
     };
 
-    if (editingContactId) {
-      updateContact(editingContactId, payload);
-      setEditingContactId(null);
+    if (formData.editingId) {
+      updateContact(formData.editingId, payload);
     } else {
       addContact(payload);
     }
 
-    // Reset fields
-    setName('');
-    setPhone('');
-    setEmail('');
-    setNotes('');
-  };
+    setFormData({
+      editingId: null,
+      name: '',
+      phone: '',
+      email: '',
+      notes: '',
+      error: null
+    });
+  }, [formData, updateContact, addContact]);
 
   return (
     <div className="glass-panel rounded-[2rem] p-8 shadow-2xs border border-white/20 transition-all duration-300 hover:shadow-md">
@@ -544,7 +630,7 @@ const ContactsBoxComponent: React.FC = () => {
         {/* Form Container (left side) */}
         <form onSubmit={handleSubmit} className="lg:col-span-4 flex flex-col gap-4 bg-slate-55/20 p-6 rounded-2xl border border-slate-200/40 backdrop-blur-xs h-fit">
           <span className="text-sm font-bold text-slate-700 mb-1 flex items-center gap-2">
-            {editingContactId ? (
+            {formData.editingId ? (
               <>
                 <Pencil className="w-4 h-4 text-emerald-500 animate-pulse" /> 연락처 수정
               </>
@@ -555,10 +641,10 @@ const ContactsBoxComponent: React.FC = () => {
             )}
           </span>
 
-          {error && (
+          {formData.error && (
             <div className="flex items-center gap-2 text-xs font-bold bg-rose-500/10 text-rose-605 p-3 rounded-xl border border-rose-500/20">
               <ShieldAlert className="w-4.5 h-4.5 shrink-0" />
-              <span>{error}</span>
+              <span>{formData.error}</span>
             </div>
           )}
 
@@ -566,8 +652,8 @@ const ContactsBoxComponent: React.FC = () => {
             <label className="text-[11px] font-bold text-slate-600">이름 / 노드명</label>
             <input
               type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              value={formData.name}
+              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
               placeholder="예: 이성섭 상임이사, 최장미"
               className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 bg-white/70 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder:text-slate-350"
               required
@@ -578,7 +664,7 @@ const ContactsBoxComponent: React.FC = () => {
             <label className="text-[11px] font-bold text-slate-600">연락처 (전화번호)</label>
             <input
               type="text"
-              value={phone}
+              value={formData.phone}
               onChange={handlePhoneChange}
               placeholder="예: 010-5284-3946"
               className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 bg-white/70 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder:text-slate-350"
@@ -590,8 +676,8 @@ const ContactsBoxComponent: React.FC = () => {
             <label className="text-[11px] font-bold text-slate-600">이메일 주소 (선택)</label>
             <input
               type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              value={formData.email}
+              onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
               placeholder="예: email@example.com"
               className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 bg-white/70 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder:text-slate-350"
             />
@@ -601,8 +687,8 @@ const ContactsBoxComponent: React.FC = () => {
             <label className="text-[11px] font-bold text-slate-600">비고 / 메모 / 소속 (선택)</label>
             <textarea
               rows={3}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+              value={formData.notes}
+              onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
               placeholder="예: 소속: 매헌기념관, 비고: 체력측정요구 뒷빽, [출처: 사업운영]"
               className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 bg-white/70 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder:text-slate-350 resize-none leading-relaxed"
             />
@@ -616,9 +702,9 @@ const ContactsBoxComponent: React.FC = () => {
               type="submit"
               className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white font-bold py-3 px-4 rounded-xl transition-all duration-200 hover:shadow-lg hover:shadow-emerald-500/10 active:scale-[0.98] cursor-pointer"
             >
-              {editingContactId ? '연락처 수정 완료' : '연락처 저장'}
+              {formData.editingId ? '연락처 수정 완료' : '연락처 저장'}
             </button>
-            {editingContactId && (
+            {formData.editingId && (
               <button
                 type="button"
                 onClick={handleCancelEdit}
@@ -691,7 +777,7 @@ const ContactsBoxComponent: React.FC = () => {
             ))}
           </div>
 
-          {/* Contacts Card Grid */}
+          {/* Contacts Card Grid with Window Virtualization */}
           {loading ? (
             <div className="flex flex-col items-center justify-center py-24 text-slate-400">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600 mb-3" />
@@ -718,16 +804,24 @@ const ContactsBoxComponent: React.FC = () => {
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[480px] overflow-y-auto pr-1.5 scrollbar-thin">
-              {filteredContacts.map((contact) => (
-                <ContactCard
-                  key={contact.id}
-                  contact={contact}
-                  queryTokens={queryTokens}
-                  onStartEdit={startEdit}
-                  onDelete={deleteContact}
-                />
-              ))}
+            <div 
+              ref={scrollContainerRef}
+              className="max-h-[480px] overflow-y-auto pr-1.5 scrollbar-thin"
+            >
+              <div style={{ paddingTop: `${topPadding}px`, paddingBottom: `${bottomPadding}px` }}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {visibleContacts.map((item) => (
+                    <ContactCard
+                      key={item.contact.id}
+                      contact={item.contact}
+                      parsedNotes={item.parsedNotes}
+                      queryTokens={queryTokens}
+                      onStartEdit={startEdit}
+                      onDelete={deleteContact}
+                    />
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </div>

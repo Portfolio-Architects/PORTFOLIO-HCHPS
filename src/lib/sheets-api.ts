@@ -48,15 +48,11 @@ export async function readSheet<T>(sheetName: string): Promise<T[]> {
   const cached = clientCache.get(sheetName);
   const now = Date.now();
 
-  // 5분 캐시 가드: 캐시가 존재하고 5분 미만 경과했으면 네트워크 RTT 및 JSON 파싱 없이 즉각 반환
-  if (cached && cached.lastMetaCheck && (now - cached.lastMetaCheck) < 300000) {
-    return cached.data as T[];
-  }
-
   // Deduplicate concurrent in-flight requests for the same sheet
   if (inFlightRequests.has(sheetName)) {
     return inFlightRequests.get(sheetName) as Promise<T[]>;
   }
+
 
   const fetchPromise = (async (): Promise<T[]> => {
     try {
@@ -314,11 +310,7 @@ export async function readSheet<T>(sheetName: string): Promise<T[]> {
 
 async function writeData(sheetName: string, action: string, data?: unknown, id?: string): Promise<boolean> {
   try {
-    let payload = data;
-    
-    // E2EE Encryption (Bypassed for local performance and plain JSON persistence)
-    // Send data as-is without _enc string wrapping
-    payload = data;
+    const payload = data;
 
     const res = await fetch(API_BASE, {
       method: 'POST',
@@ -327,42 +319,28 @@ async function writeData(sheetName: string, action: string, data?: unknown, id?:
     });
     
     if (!res.ok) {
-      throw new Error(`Cloudflare Data API returned ${res.status}`);
+      let errMsg = `Data API returned HTTP ${res.status}`;
+      try {
+        const errJson = await res.json();
+        if (errJson.error) errMsg = errJson.error;
+      } catch {}
+      throw new Error(errMsg);
     }
+    
     const json = await res.json();
     if (json.success === true) {
-      let cached = clientCache.get(sheetName);
-      if (!cached) {
-        cached = { mtime: 0, size: 0, data: [], lastMetaCheck: 0 };
-      }
-      let updatedData = [...cached.data];
-      if (action === 'add') {
-        if (data) updatedData.push(data);
-      } else if (action === 'update') {
-        const idx = updatedData.findIndex((r: any) => r.id === id);
-        if (idx !== -1) {
-          updatedData[idx] = { ...updatedData[idx], ...(data as any) };
-        }
-      } else if (action === 'delete') {
-        updatedData = updatedData.filter((r: any) => r.id !== id);
-      } else if (action === 'replace') {
-        updatedData = Array.isArray(data) ? data : [];
-      }
-      
-      clientCache.set(sheetName, {
-        mtime: json.mtime || cached.mtime,
-        size: json.size || cached.size,
-        data: updatedData,
-        lastMetaCheck: Date.now()
-      });
+      // Invalidate memory cache so next query reads fresh SSOT from disk
+      clientCache.delete(sheetName);
       return true;
     }
-    return false;
+    
+    throw new Error(json.error || `Failed to write data to ${sheetName}`);
   } catch (err) {
     console.error(`데이터 쓰기 실패 [${sheetName}/${action}]:`, err);
-    return false;
+    throw err;
   }
 }
+
 
 /**
  * 새 행(Row)을 저장소에 추가(Add)합니다.

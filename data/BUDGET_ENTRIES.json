@@ -626,5 +626,27 @@
     "actionType": "daily_expense",
     "isPlanned": false,
     "id": "mt2hd4koxjlckb1bh"
+  },
+  {
+    "categoryId": "mnrcir0v5zjn4qxyg",
+    "amount": 7413400,
+    "date": "2026-08-27",
+    "purpose": "2026년 8월 서울체력장 강남센터 기간제근로자 인건비 지출",
+    "memo": "",
+    "docRegNum": "보건행정과-10521",
+    "actionType": "general",
+    "isPlanned": false,
+    "id": "mtcc3uhv8jcnsld47"
+  },
+  {
+    "categoryId": "mnrcir0vbxmmvztoq",
+    "amount": 34210000,
+    "date": "2026-08-24",
+    "purpose": "서울체력장 강남센터, 체력 측정 장비 구매",
+    "memo": "",
+    "docRegNum": "보건행정과-10373",
+    "actionType": "general",
+    "isPlanned": false,
+    "id": "mtcc4txdtlhhdkfx3"
   }
 ]

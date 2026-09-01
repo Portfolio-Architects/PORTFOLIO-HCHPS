@@ -79,6 +79,15 @@
 2. **안정적인 React Key 부여**: 가상화 목록이나 정렬 가능한 카드에는 배열 인덱스 키 사용을 엄격히 금지하고, 무작위 DOM 파괴를 막기 위해 객체의 고유 ID (`key={item.id}`)를 필수 부여합니다.
 3. **Props 메모이제이션 및 단일 경로 전달**: `React.memo`, `useCallback`, `useMemo`를 활성화하여 부모의 임시 상태 변화가 하부 카드 및 3D 시뮬레이션 캔버스 전체 리렌더링을 일으키지 않도록 $O(1)$ 범위로 스코프를 차단합니다.
 
+### L. 자연어 스케줄러 & 구글 캘린더 연동 파이프라인 (Natural Schedule & Google Calendar Pipeline)
+1. **자연어 입력 즉시 파싱 및 듀얼 스토리지 반영**:
+   - 사용자가 채팅창에서 일정을 자연어(예: *"내일 14시 보건소 회의"*, *"8월 28일 오전 10시 보안점검(오창선)"* 등)로 입력하면, 에이전트는 날짜, 시간, 제목, 담당자, 유형(`security`|`meeting`|`education`|`other`), 비고를 자동 파악하여 `SCHEDULE.md` 및 `data/SCHEDULES.json`에 즉시 동시 저장합니다.
+   - 응답 완료 시 해당 일정의 요약과 함께 **구글 캘린더 원클릭 등록 링크([📅 구글 캘린더에 추가])**를 함께 제공합니다.
+2. **iCal 실시간 구독 피드 제공**:
+   - `/api/calendar/feed.ics` 엔드포인트를 통해 RFC 5545 표준 iCalendar 피드를 제공하며, 사용자가 구글 캘린더 웹에서 "URL로 캘린더 추가"를 통해 바이탈 전체 일정을 스마트폰 및 웹 캘린더에 실시간 구독할 수 있도록 지원합니다.
+3. **양방향 동기화 지원**:
+   - 마크다운 텍스트 또는 JSON 데이터의 정합성 유지를 위해 `node scripts/sync-schedules.js` 스크립트를 활용하여 `SCHEDULE.md`와 `data/SCHEDULES.json` 간의 양방향 동기화를 보장합니다.
+
 ## 3. 다중 에이전트 파이프라인 맵
 - `src/lib/agents/planner.ts`: 작업 분해 및 컨텍스트 검색.
 - `src/lib/agents/generator.ts`: 실행 및 코드 합성.
@@ -133,18 +142,18 @@
    - 무인 자율 구동 시 위 3개 검증 스위트를 통과한 변경 건만 자율 배포(Auto-Merge)되며, 패치 완료 시 `node scripts/sync-rules.js`를 구동하여 `AGENTS.md` 하단 마일스톤 로그를 100% 최신 상태로 유지합니다.
 
 ## 5. 최신 동기화된 마일스톤 (Synced Milestones Log)
-- **최신 동기화 일자:** 2026-08-25
+- **최신 동기화 일자:** 2026-09-01
 - **동기화된 마일스톤:**
+  - [Milestone 14: Next.js 16 (Turbopack) & React 19 Client Dynamic Import & SplashView Hydration Architecture Reform] Root page client dynamic import with `ssr: false` (`src/app/page.tsx`), zero-mismatch loading fallback component (`src/components/SplashView.tsx`), streamlined client-only shell (`src/components/ClientApp.tsx`), complete eradication of React 19 `throwOnHydrationMismatch`, 100% gatekeeper pass. (2026-09-01)
+  - [Milestone 13: Yangjae Festival MVC React Query Hook Architecture & Unused State Elimination Reform] Custom `useYangjaeFestival` hook extraction (`src/hooks/useYangjaeFestival.ts`), eradication of direct component fetch and console warnings (`src/components/festival/YangjaeFestivalDashboard.tsx`), dead state cleanup (`src/components/ProtectedApp.tsx`), 0 warnings/0 violations/0 bottlenecks gatekeeper pass. (2026-09-01)
+  - [Milestone 12: Contacts Management Zero-Freeze & Container Virtualization Architecture Reform] Zero-Dependency `useContainerVirtualGrid` windowing virtualization, batch form state consolidation, cached sub-token highlight rendering, 154 contacts instant 60 FPS scrolling (`src/components/dashboard/ContactsBox.tsx`). (2026-09-01)
+  - [Milestone 11: Dynamic Import Chunk Isolation & Production Server Instant Launch Reform] ProtectedApp `next/dynamic` chunk isolation (`src/components/ClientApp.tsx`), proxy matcher regex simplification (`src/proxy.ts`), 100% build compile time drop (39.1s -> 11.2s), 50ms instant HTTP 200 response. (2026-09-01)
+  - [Milestone 10: Contacts & Budget Tab Data Persistence & Legacy E2EE Overwrite Eradication Reform] Complete sanitization of residual encrypted strings, React Query onSettled SSOT cache invalidation, API write error throwing & cache eviction, plain-text disk SSOT alignment. (2026-08-31)
+  - [Milestone 9: React 19 & Next.js 16 (Turbopack) Zero-Mismatch Hydration Architecture Reform] Deterministic `useSyncExternalStore` mount gate (`src/components/ClientApp.tsx`), Server Component root page alignment (`src/app/page.tsx`), explicit `<head />` normalization & inline script detachment (`src/app/layout.tsx`), Next.js 16 standard proxy export & ReDoS regex mitigation (`src/proxy.ts`). (2026-08-31)
+  - [Milestone 8: Pure Client-Only Hydration Mount Gate & Zero-Mismatch Architecture Reform] Complete eradication of React 19 Suspense / LoadableComponent SSR hydration mismatch, synchronous splash matching, and seamless client-side mount transition. (2026-08-28)
+  - [Milestone 7: Zero-Freezing Performance Leap & Unused Heavy Hooks Elimination Reform] Complete elimination of `useMergedSignals` NLP regex parsing, removal of `preloadModulesOnIdle` background bundle stalling, detachment of `useFreezeDetector` overhead, removal of 10s disk polling in `useGraphCustomization`, pure 60 FPS zero-stall architecture. (2026-08-27)
+  - [Milestone 6: Zero-Hydration Client Shell & Local Dev Seamless Auto-Auth Architecture Resilience Reform] Pure Client-Only Shell isolation (`src/components/ClientApp.tsx`), SSR hydration mismatch permanent elimination, proxy auto-authentication on local environment, safe non-throwing crypto auth fallback, failsafe splash timeout guard, 1-Click login preset. (2026-08-27)
+  - [Milestone 5: 100% Manual MindMap & Note Board UI/UX Reform & Clean Reset] Direct input manual note mindmap, distraction-free canvas, note cards with memo & color picker, smooth bezier connections, auto-tree layout, zero-clutter clean initialization. (2026-08-25)
   - [Milestone 4: Final 0-0-0 Full Integrity Acceptance & Gatekeeper Verification] Complete codebase verification, 0 TSC errors, 0 Zod errors, 0 ESLint warnings, 0 MVC violations, 24/24 Jest test suites (205 tests) PASS, and manifest rule synchronization. (2026-08-25)
   - [Milestone 3: 100% MVC Ontology Unification & SSOT Storage Integrity] Auth Hook (`useAuth.ts`) encapsulation, `src/app/login/page.tsx` MVC decoupling, atomic temporary file writes, pre-write Zod gatekeeper, 3-tier GFS backup rotations, 30-day tombstone GC. (2026-08-25)
-  - [Milestone 2: Codebase-wide O(1) Complexity Leap & Zero-Allocation Engine] Signal Graph Map/Set pre-indexing, Centrality zero-allocation accumulators, Ontology Layout index forwarding, Festival Validation inverted keyword index, Timetable `${dayStr}:${hourStr}` composite slot grouping, Ledger T-Account memoization, Expense validation Map indexing, MindMap search memoization, Inspector Jaccard character set optimization, Semantic Review label pre-indexing. (2026-08-25)
-  - [Milestone 1: React 19 & Next.js 16 App Router Full Compatibility & SSR-Safe Hydration] SSR-Safe Hook Hydration, Date Hoisting, Dynamic Force Graph Ref modernization, Inline Edit state isolation, Lock Screen dependency fix, Deterministic Schema Fallbacks. (2026-08-25)
-  - [Performance Refactoring & Structural Optimization] Boot Acceleration, Zero-Stall Rendering & O(1) Complexity Leap 패치 (2026-08-20)
-  - [M1: Corkboard & Red String 3D UI Reform] Corkboard background texture, dark wooden frame border (#3d2314), Post-it paper cards (-5°~+5° tilt, dog-eared fold), glossy 3D push pin heads, thick crimson red string catenary sag, investigator status stamps & hazard tape badges. (2026-08-13)
-  - [M2: Festival 5-Domain Presets & 3D Auto-Layout] 5 Symmetrical Pentagonal Hubs (Permits & Safety, Stage/Performance/Sound, PR/Marketing, Food & Booths, Budget & Contracts), 26 sub-nodes, 60M KRW budget dataset, Yjs 1-Click preset loading pipeline, radial pentagonal domain clustering layout math with fixed node coordinate preservation guard. (2026-08-13)
-  - [M3: Zero-Mistake Real-Time Validation & Alert Engine] Essential permit auto-warning guard for 4 mandatory items (지자체 신고, 경찰 도로점용, 소방 안전점검, 안전관리계획서), 50-70M KRW budget scale validator, Detective Validation HUD floating banner, crimson pulsating risk node aura (#FF0044), 1-Click missing permit auto-injector. (2026-08-13)
-  - [M4: Final System Integration & Harness Verification] Full system integration, 0 TSC errors, 0 Zod schema errors, 0 ESLint warnings, 0 architectural violations, AGENTS.md manifest rule synchronization. (2026-08-13)
-  - [Budget Simulator UX Optimization] 통계목별 잔액 메인 탭 설정, 세부사업별 그룹화 계층 및 접기/펼치기(Expand/Collapse), 화이트 테마 및 금액 텍스트 20% 확대 패치 (2026-08-03)
-  - [Budget Simulator Module] R1~R3 예산 시뮬레이터(Budget Simulator) 모듈 구축 및 실시간 잔액 계산 엔진 통합 패치 (2026-08-03)
-  - [Gatekeeper Verification] R4 Gatekeeper Verification & Sync Rules 패치 (2026-07-23)
-  - 그 외 과거 누적 마일스톤 총 158건 통합 요약 (초기 ~ 2026-07-23 이전 패치 내역)
+  - 그 외 과거 누적 마일스톤 총 168건 통합 요약 (초기 ~ 2026-08-25 이전 패치 내역)

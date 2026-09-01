@@ -4,59 +4,10 @@
     "overrides": {
       "root-HCHPS": {
         "hideDefaultGraph": true
-      },
-      "custom-1784533092712": {
-        "customParent": "root-HCHPS",
-        "customOrbitIndex": 1,
-        "fixedX": null,
-        "fixedY": null
-      },
-      "radar-doc-root-HCHPS-report_tail.txt": {
-        "hidden": true
-      },
-      "radar-doc-root-HCHPS-transcript_match.txt": {
-        "hidden": true
-      },
-      "radar-doc-root-HCHPS-dump_transcript_utf8.txt": {
-        "hidden": true
-      },
-      "custom-1784608979311": {
-        "customParent": "custom-1784533092712",
-        "customOrbitIndex": 2,
-        "fixedX": null,
-        "fixedY": null
       }
     },
-    "customNodes": [
-      {
-        "id": "custom-1784533092712",
-        "label": "서울체력장",
-        "group": "CORE_PROJECT",
-        "baseValue": 80,
-        "fixedX": -8.77758258511795,
-        "fixedY": 21.764789233340554,
-        "layerId": 2,
-        "centralityScore": 100
-      },
-      {
-        "id": "custom-1784608979311",
-        "label": "예산 전용",
-        "group": "CORE_PROJECT",
-        "baseValue": 80,
-        "fixedX": -2.060246397353327,
-        "fixedY": 19.48020090281154,
-        "layerId": 2,
-        "centralityScore": 100
-      }
-    ],
-    "customEdges": [
-      {
-        "source": "custom-1784608979311",
-        "target": "custom-1784533092712",
-        "weight": 1,
-        "type": "DEPENDENCY"
-      }
-    ],
+    "customNodes": [],
+    "customEdges": [],
     "deletedEdges": []
   }
 ]

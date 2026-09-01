@@ -36,6 +36,9 @@ export function useContacts() {
     onError: (err, newContacts, context) => {
       if (context?.previous) queryClient.setQueryData(['CONTACTS'], context.previous);
     },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['CONTACTS'] });
+    },
   });
 
   const addContactMut = useMutation({
@@ -48,6 +51,9 @@ export function useContacts() {
     },
     onError: (err, newContact, context) => {
       if (context?.previous) queryClient.setQueryData(['CONTACTS'], context.previous);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['CONTACTS'] });
     },
   });
 
@@ -71,6 +77,9 @@ export function useContacts() {
     onError: (err, vars, context) => {
       if (context?.previous) queryClient.setQueryData(['CONTACTS'], context.previous);
     },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['CONTACTS'] });
+    },
   });
 
   const deleteContactMut = useMutation({
@@ -91,7 +100,11 @@ export function useContacts() {
     onError: (err, id, context) => {
       if (context?.previous) queryClient.setQueryData(['CONTACTS'], context.previous);
     },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['CONTACTS'] });
+    },
   });
+
 
   const addContact = useCallback((contact: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>) => {
     const now = new Date().toISOString();

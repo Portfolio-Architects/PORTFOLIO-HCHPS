@@ -40,6 +40,7 @@ function arePolicyGroupCardPropsEqual(
   prevProps: PolicyGroupCardProps,
   nextProps: PolicyGroupCardProps
 ): boolean {
+  if (prevProps === nextProps) return true;
   if (prevProps.hidePolicyHeader !== nextProps.hidePolicyHeader) return false;
   if (prevProps.deleteCategory !== nextProps.deleteCategory) return false;
   if (prevProps.deleteEntry !== nextProps.deleteEntry) return false;
@@ -50,6 +51,7 @@ function arePolicyGroupCardPropsEqual(
   if (prevProps.updateCategory !== nextProps.updateCategory) return false;
   if (prevProps.updateEntry !== nextProps.updateEntry) return false;
 
+  if (prevProps.group === nextProps.group && prevProps.entries === nextProps.entries) return true;
   if (prevProps.group.policyName !== nextProps.group.policyName) return false;
   
   const pCats = prevProps.group.cats;
@@ -67,6 +69,8 @@ function arePolicyGroupCardPropsEqual(
       return false;
     }
   }
+
+  if (prevProps.entries === nextProps.entries) return true;
 
   const catIdSet = new Set(nCats.map(c => c.id));
   const pGroupEntries = prevProps.entries.filter(e => catIdSet.has(e.categoryId));

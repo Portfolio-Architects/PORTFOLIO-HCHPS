@@ -1,7 +1,7 @@
 'use client';
 
 import '@/lib/bypass-unload';
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import * as Y from 'yjs';
 import YPartyKitProvider from 'y-partykit/provider';
 import { IndexeddbPersistence, storeState } from 'y-indexeddb';
@@ -44,8 +44,50 @@ export const globalYDoc = (typeof window !== 'undefined' && window.__globalYDoc)
   ? window.__globalYDoc 
   : new Y.Doc();
 
+let globalIndexeddbProvider: IndexeddbPersistence | null = null;
+let globalPartyKitProvider: YPartyKitProvider | null = null;
+
 if (typeof window !== 'undefined') {
   window.__globalYDoc = globalYDoc;
+
+  // Initialize global IndexedDB persistence once
+  if (!window.__globalYIndexeddb) {
+    globalIndexeddbProvider = new IndexeddbPersistence('hchps-global', globalYDoc);
+    window.__globalYIndexeddb = globalIndexeddbProvider;
+  } else {
+    globalIndexeddbProvider = window.__globalYIndexeddb;
+  }
+
+  // Handle periodic compaction
+  let updateCount = 0;
+  globalYDoc.on('update', () => {
+    updateCount++;
+    if (updateCount >= 100 && globalIndexeddbProvider) {
+      updateCount = 0;
+      try {
+        storeState(globalIndexeddbProvider, false);
+      } catch {}
+    }
+  });
+
+  // Optional PartyKit websocket connection
+  const useLocalParty = window.localStorage.getItem('use-local-partykit') === 'true';
+  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  const shouldConnectWebSocket = !isLocal || useLocalParty;
+
+  if (shouldConnectWebSocket && !window.__globalYProvider) {
+    const host = isLocal ? 'localhost:1999' : 'hchps-party.portfolio-architects.partykit.dev';
+    let token = '';
+    try {
+      token = getAuthToken();
+    } catch {}
+
+    globalPartyKitProvider = new YPartyKitProvider(host, 'hchps-global', globalYDoc, {
+      connect: true,
+      params: { token }
+    });
+    window.__globalYProvider = globalPartyKitProvider;
+  }
 }
 
 export function useYjsStore(roomId: string = 'hchps-global') {
@@ -53,65 +95,7 @@ export function useYjsStore(roomId: string = 'hchps-global') {
     return roomId === 'hchps-global' ? globalYDoc : new Y.Doc();
   }, [roomId]);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    // 1. IndexedDB 영속성 바인딩 도입 (y-indexeddb)
-    const indexeddbProvider = new IndexeddbPersistence(roomId, ydoc);
-    if (roomId === 'hchps-global') {
-      window.__globalYIndexeddb = indexeddbProvider;
-    }
-
-    // 2. Yjs 업데이트 횟수를 카운트해 주기적으로 Compaction (Trim) 트리거
-    let updateCount = 0;
-    const handleYjsUpdate = () => {
-      updateCount++;
-      if (updateCount >= 100) {
-        updateCount = 0;
-        try {
-          console.info('[Yjs IndexedDB] Compacting updates storage...');
-          storeState(indexeddbProvider, false);
-        } catch (e) {
-          console.warn('[Yjs IndexedDB] Compaction failed:', e);
-        }
-      }
-    };
-    ydoc.on('update', handleYjsUpdate);
-
-    // 로컬 환경에서 로컬 PartyKit 개발 서버(1999)를 직접 띄워서 사용하려는 경우에만 localStorage 설정을 활성화합니다.
-    const useLocalParty = typeof window !== 'undefined' && window.localStorage.getItem('use-local-partykit') === 'true';
-    const isLocal = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && useLocalParty;
-    const host = isLocal ? 'localhost:1999' : 'hchps-party.portfolio-architects.partykit.dev';
-
-    let token = '';
-    try {
-      token = getAuthToken();
-    } catch (e) {
-      console.warn('[Yjs Provider] Failed to fetch auth token', e);
-    }
-
-    console.info(`[Yjs Provider] Connecting to PartyKit room "${roomId}" at ${host}`);
-
-    // YPartyKitProvider 생성 및 strict token 인증 쿼리 전달
-    const provider = new YPartyKitProvider(host, roomId, ydoc, {
-      connect: true,
-      params: { token }
-    });
-
-    // 전역 싱글톤 프로바이더 보관 (HMR 환경 대비)
-    if (roomId === 'hchps-global') {
-      window.__globalYProvider = provider;
-    }
-
-    return () => {
-      // 리소스 정리
-      ydoc.off('update', handleYjsUpdate);
-      
-      indexeddbProvider.destroy();
-      provider.destroy();
-    };
-  }, [roomId, ydoc]);
-
   return { ydoc };
 }
+
 
