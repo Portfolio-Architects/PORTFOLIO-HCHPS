@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useEffect, useRef, useState } from 'react';
+import React, { useMemo, useEffect, useRef, useState, useCallback } from 'react';
 import { Terminal, RefreshCw, X, Play, Cpu, Activity, Copy, Trash2, History } from 'lucide-react';
 import { useAppLogs } from '@/hooks/useAppLogs';
 
@@ -10,7 +10,14 @@ interface AppLogModalProps {
   appMode: 'HCHPS' | 'VITAL';
 }
 
-export function AppLogModal({ isOpen, onClose, appMode }: AppLogModalProps) {
+interface IndexedAppLog {
+  timestamp: string;
+  ts: number;
+  level: 'info' | 'warn' | 'error';
+  message: string;
+}
+
+function AppLogModalComponent({ isOpen, onClose, appMode }: AppLogModalProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [clearedAt, setClearedAt] = useState<number | null>(() => {
     if (typeof window !== 'undefined') {
@@ -25,18 +32,20 @@ export function AppLogModal({ isOpen, onClose, appMode }: AppLogModalProps) {
   const data = queryResult.data;
   const isLoading = queryResult.isLoading;
 
-  const handleReload = () => {
-    const reloadFn = queryResult.refetch;
-    reloadFn();
-  };
+  const handleReload = useCallback(() => {
+    queryResult.refetch();
+  }, [queryResult]);
 
   const rawLogs = data?.data;
   const daemonActive = data?.daemonActive ?? true;
   const watchDir = data?.watchDir ?? 'd:/Desktop';
 
-  // Filter and merge client freeze logs by cleared timestamp
-  const logs = useMemo(() => {
-    let list: Array<{ timestamp: string; level: 'info' | 'warn' | 'error'; message: string }> = rawLogs || [];
+  // Filter and merge client freeze logs with O(1) integer timestamp sorting and filtering
+  const logs = useMemo<IndexedAppLog[]>(() => {
+    if (!isOpen) return [];
+
+    const rawList: Array<{ timestamp: string; level: 'info' | 'warn' | 'error'; message: string }> = rawLogs || [];
+    const combined: Array<{ timestamp: string; level: 'info' | 'warn' | 'error'; message: string }> = [...rawList];
     
     // Read client freeze logs from sessionStorage
     if (typeof window !== 'undefined') {
@@ -44,17 +53,36 @@ export function AppLogModal({ isOpen, onClose, appMode }: AppLogModalProps) {
         const freezeLogsRaw = sessionStorage.getItem('vital-freeze-logs');
         if (freezeLogsRaw) {
           const freezeLogs = JSON.parse(freezeLogsRaw);
-          list = [...list, ...freezeLogs];
+          for (let i = 0; i < freezeLogs.length; i++) {
+            combined.push(freezeLogs[i]);
+          }
         }
       } catch {}
     }
 
-    // Sort chronologically ascending
-    list.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    const indexedList: IndexedAppLog[] = new Array(combined.length);
+    for (let i = 0; i < combined.length; i++) {
+      const item = combined[i];
+      indexedList[i] = {
+        timestamp: item.timestamp,
+        ts: Date.parse(item.timestamp) || 0,
+        level: item.level,
+        message: item.message,
+      };
+    }
 
-    if (!clearedAt) return list;
-    return list.filter(log => new Date(log.timestamp).getTime() > clearedAt);
-  }, [rawLogs, clearedAt]);
+    // Sort chronologically ascending with O(1) integer comparison
+    indexedList.sort((a, b) => a.ts - b.ts);
+
+    if (!clearedAt) return indexedList;
+    const filtered: IndexedAppLog[] = [];
+    for (let i = 0; i < indexedList.length; i++) {
+      if (indexedList[i].ts > clearedAt) {
+        filtered.push(indexedList[i]);
+      }
+    }
+    return filtered;
+  }, [isOpen, rawLogs, clearedAt]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -66,7 +94,7 @@ export function AppLogModal({ isOpen, onClose, appMode }: AppLogModalProps) {
   }, [logs]);
 
   // Copy Logs to Clipboard
-  const handleCopyLogs = () => {
+  const handleCopyLogs = useCallback(() => {
     if (logs.length === 0) return;
     const text = logs
       .map(log => {
@@ -79,20 +107,20 @@ export function AppLogModal({ isOpen, onClose, appMode }: AppLogModalProps) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
-  };
+  }, [logs]);
 
   // Clear Logs (Local Session-based)
-  const handleClearLogs = () => {
+  const handleClearLogs = useCallback(() => {
     const now = Date.now();
     localStorage.setItem('logs_cleared_at', now.toString());
     setClearedAt(now);
-  };
+  }, []);
 
   // Restore Cleared Logs
-  const handleRestoreLogs = () => {
+  const handleRestoreLogs = useCallback(() => {
     localStorage.removeItem('logs_cleared_at');
     setClearedAt(null);
-  };
+  }, []);
 
   if (!isOpen) return null;
 
@@ -236,7 +264,7 @@ export function AppLogModal({ isOpen, onClose, appMode }: AppLogModalProps) {
                 });
 
                 return (
-                  <div key={index} className="flex items-start gap-3 hover:bg-slate-100/50 py-0.5 px-1 rounded transition-colors group">
+                  <div key={`${log.timestamp}-${log.level}-${index}`} className="flex items-start gap-3 hover:bg-slate-100/50 py-0.5 px-1 rounded transition-colors group">
                     <span className="text-slate-400 select-none group-hover:text-slate-500">
                       [{timeString}]
                     </span>
@@ -265,3 +293,6 @@ export function AppLogModal({ isOpen, onClose, appMode }: AppLogModalProps) {
     </div>
   );
 }
+
+AppLogModalComponent.displayName = 'AppLogModal';
+export const AppLogModal = React.memo(AppLogModalComponent);

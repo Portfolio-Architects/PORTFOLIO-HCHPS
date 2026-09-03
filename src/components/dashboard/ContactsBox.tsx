@@ -80,6 +80,7 @@ interface IndexedContact {
   cleanStr: string;
   chosungStr: string;
   cleanChosungStr: string;
+  createdAtTimestamp: number;
 }
 
 function parseContactNotes(notes?: string): ParsedNotes {
@@ -180,6 +181,8 @@ function useContainerVirtualGrid({
 }
 
 // ============ Ultra-fast Substring Highlighter ============
+const regexCache = new Map<string, { regex: RegExp; tokenSet: Set<string> } | null>();
+
 const HighlightText = React.memo(({ 
   text, 
   queryTokens,
@@ -194,18 +197,35 @@ const HighlightText = React.memo(({
     return <span className={className}>{text}</span>;
   }
 
-  const validTokens = queryTokens
-    .map(t => t.trim())
-    .filter(t => t.length > 0 && !isChosungOnly(t));
+  const cacheKey = queryTokens.join('|||');
+  let compiled = regexCache.get(cacheKey);
 
-  if (validTokens.length === 0) {
+  if (compiled === undefined) {
+    const validTokens = queryTokens
+      .map(t => t.trim())
+      .filter(t => t.length > 0 && !isChosungOnly(t));
+
+    if (validTokens.length === 0) {
+      compiled = null;
+    } else {
+      const escapedTokens = validTokens.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+      compiled = {
+        regex: new RegExp(`(${escapedTokens.join('|')})`, 'gi'),
+        tokenSet: new Set(validTokens.map(t => t.toLowerCase()))
+      };
+    }
+    regexCache.set(cacheKey, compiled);
+    if (regexCache.size > 50) {
+      regexCache.clear();
+    }
+  }
+
+  if (!compiled) {
     return <span className={className}>{text}</span>;
   }
 
-  const escapedTokens = validTokens.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-  const regex = new RegExp(`(${escapedTokens.join('|')})`, 'gi');
-  const parts = text.split(regex);
-  const tokenSet = new Set(validTokens.map(t => t.toLowerCase()));
+  const parts = text.split(compiled.regex);
+  const tokenSet = compiled.tokenSet;
 
   return (
     <span className={className}>
@@ -226,6 +246,34 @@ const HighlightText = React.memo(({
   );
 });
 HighlightText.displayName = 'HighlightText';
+
+// ============ Memoized FilterChipItem Subcomponent ============
+interface FilterChipItemProps {
+  tag: string;
+  isSelected: boolean;
+  onSelect: (tag: string) => void;
+}
+
+const FilterChipItem = React.memo(({ tag, isSelected, onSelect }: FilterChipItemProps) => {
+  const handleClick = useCallback(() => {
+    onSelect(tag);
+  }, [onSelect, tag]);
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      className={`px-3 py-1 rounded-full text-xs font-bold shrink-0 transition-all cursor-pointer ${
+        isSelected
+          ? 'bg-emerald-600 text-white shadow-2xs'
+          : 'bg-slate-100/90 text-slate-600 hover:bg-slate-200/90'
+      }`}
+    >
+      {tag}
+    </button>
+  );
+});
+FilterChipItem.displayName = 'FilterChipItem';
 
 // ============ Memoized ContactCard Subcomponent ============
 const ContactCard = React.memo(({ 
@@ -444,26 +492,64 @@ const ContactsBoxComponent: React.FC = () => {
     });
   }, []);
 
+  const handleNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData(prev => ({ ...prev, name: e.target.value }));
+  }, []);
+
+  const handleEmailChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData(prev => ({ ...prev, email: e.target.value }));
+  }, []);
+
+  const handleNotesChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setFormData(prev => ({ ...prev, notes: e.target.value }));
+  }, []);
+
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setLocalSearchTerm(e.target.value);
+  }, []);
+
+  const handleToggleSort = useCallback(() => {
+    setSortOrder(prev => (prev === 'NAME_ASC' ? 'NEWEST' : 'NAME_ASC'));
+  }, []);
+
+  const handleSelectAllTag = useCallback(() => {
+    setSelectedTag('ALL');
+  }, []);
+
+  const handleSelectTag = useCallback((tag: string) => {
+    setSelectedTag(prev => (prev === tag ? 'ALL' : tag));
+  }, []);
+
+  const handleResetFilters = useCallback(() => {
+    setLocalSearchTerm('');
+    setSelectedTag('ALL');
+  }, []);
+
   const deferredSearchTerm = useDeferredValue(localSearchTerm);
 
   // Pre-index contacts (runs ONLY when contacts array changes, NOT on every keystroke)
   const indexedContacts = useMemo<IndexedContact[]>(() => {
-    return contacts.map(c => {
+    const list: IndexedContact[] = new Array(contacts.length);
+    for (let i = 0; i < contacts.length; i++) {
+      const c = contacts[i];
       const parsed = parseContactNotes(c.notes);
       const combined = `${c.name || ''} ${c.phone || ''} ${c.email || ''} ${c.notes || ''} ${parsed.source || ''} ${parsed.affiliation || ''} ${parsed.detailNote || ''} ${parsed.freeText || ''}`.toLowerCase();
       const clean = combined.replace(/[\s\-\,\.\[\]\(\)\:\/]/g, '');
       const chosung = getChosung(combined);
       const cleanChosung = getChosung(clean);
+      const ts = c.createdAt ? Date.parse(c.createdAt) || 0 : 0;
 
-      return {
+      list[i] = {
         contact: c,
         parsedNotes: parsed,
         searchStr: combined,
         cleanStr: clean,
         chosungStr: chosung,
-        cleanChosungStr: cleanChosung
+        cleanChosungStr: cleanChosung,
+        createdAtTimestamp: ts
       };
-    });
+    }
+    return list;
   }, [contacts]);
 
   // 검색 쿼리 토큰 목록 (공백 분리 다중 키워드)
@@ -494,47 +580,64 @@ const ContactsBoxComponent: React.FC = () => {
       .map(([tag]) => tag);
   }, [indexedContacts]);
 
-  // 초고속 다차원 검색 및 필터링
+  // 초고속 다차원 검색 및 단일 순회 필터링
   const filteredContacts = useMemo<IndexedContact[]>(() => {
-    let list = indexedContacts;
+    const list: IndexedContact[] = [];
+    const hasTokens = queryTokens.length > 0;
+    
+    // 쿼리 토큰 사전 전처리 (아이템 루프 밖에서 1회만 계산)
+    const processedTokens = hasTokens ? queryTokens.map(token => {
+      const tokenLower = token.toLowerCase();
+      const cleanToken = tokenLower.replace(/[\s\-\,\.\[\]\(\)\:\/]/g, '');
+      const isChosung = isChosungOnly(tokenLower);
+      return { tokenLower, cleanToken, isChosung };
+    }) : [];
 
-    // 1. 태그 필터 적용
-    if (selectedTag !== 'ALL') {
-      list = list.filter(item => {
+    for (let i = 0; i < indexedContacts.length; i++) {
+      const item = indexedContacts[i];
+      
+      // 1. 태그 필터
+      if (selectedTag !== 'ALL') {
         const p = item.parsedNotes;
-        if (p.source === selectedTag) return true;
-        if (p.affiliation?.includes(selectedTag)) return true;
-        if (item.contact.notes?.includes(selectedTag)) return true;
-        return false;
-      });
-    }
+        const matchesTag = p.source === selectedTag || 
+          (p.affiliation !== undefined && p.affiliation.includes(selectedTag)) || 
+          (item.contact.notes !== undefined && item.contact.notes.includes(selectedTag));
+        if (!matchesTag) continue;
+      }
 
-    // 2. 다중 토큰 검색 적용
-    if (queryTokens.length > 0) {
-      list = list.filter(item => {
-        return queryTokens.every(token => {
-          const tokenLower = token.toLowerCase();
-          if (item.searchStr.includes(tokenLower)) return true;
-          const cleanToken = tokenLower.replace(/[\s\-\,\.\[\]\(\)\:\/]/g, '');
-          if (cleanToken && item.cleanStr.includes(cleanToken)) return true;
-          if (isChosungOnly(tokenLower)) {
-            if (item.chosungStr.includes(tokenLower)) return true;
-            if (cleanToken && item.cleanChosungStr.includes(cleanToken)) return true;
+      // 2. 다중 토큰 검색 (미일치 시 즉시 break)
+      if (hasTokens) {
+        let allTokensMatch = true;
+        for (let j = 0; j < processedTokens.length; j++) {
+          const { tokenLower, cleanToken, isChosung } = processedTokens[j];
+          let tokenMatch = item.searchStr.includes(tokenLower);
+          if (!tokenMatch && cleanToken && item.cleanStr.includes(cleanToken)) {
+            tokenMatch = true;
           }
-          return false;
-        });
-      });
+          if (!tokenMatch && isChosung) {
+            if (item.chosungStr.includes(tokenLower) || (cleanToken && item.cleanChosungStr.includes(cleanToken))) {
+              tokenMatch = true;
+            }
+          }
+          if (!tokenMatch) {
+            allTokensMatch = false;
+            break;
+          }
+        }
+        if (!allTokensMatch) continue;
+      }
+
+      list.push(item);
     }
 
     // 3. 정렬 적용
-    const sorted = [...list];
     if (sortOrder === 'NAME_ASC') {
-      sorted.sort((a, b) => a.contact.name.localeCompare(b.contact.name, 'ko'));
+      list.sort((a, b) => a.contact.name.localeCompare(b.contact.name, 'ko'));
     } else {
-      sorted.sort((a, b) => new Date(b.contact.createdAt || 0).getTime() - new Date(a.contact.createdAt || 0).getTime());
+      list.sort((a, b) => b.createdAtTimestamp - a.createdAtTimestamp);
     }
 
-    return sorted;
+    return list;
   }, [indexedContacts, selectedTag, queryTokens, sortOrder]);
 
   // 가상 스크롤 계산 (가시 영역 아이템만 렌더링하여 DOM 프리징 제거)
@@ -616,7 +719,7 @@ const ContactsBoxComponent: React.FC = () => {
             )}
           </span>
           <button
-            onClick={() => setSortOrder(prev => prev === 'NAME_ASC' ? 'NEWEST' : 'NAME_ASC')}
+            onClick={handleToggleSort}
             className="flex items-center gap-1 text-[11px] font-bold px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full transition-colors cursor-pointer"
             title="정렬 기준 변경"
           >
@@ -653,7 +756,7 @@ const ContactsBoxComponent: React.FC = () => {
             <input
               type="text"
               value={formData.name}
-              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+              onChange={handleNameChange}
               placeholder="예: 이성섭 상임이사, 최장미"
               className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 bg-white/70 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder:text-slate-350"
               required
@@ -677,7 +780,7 @@ const ContactsBoxComponent: React.FC = () => {
             <input
               type="email"
               value={formData.email}
-              onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+              onChange={handleEmailChange}
               placeholder="예: email@example.com"
               className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 bg-white/70 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder:text-slate-350"
             />
@@ -688,7 +791,7 @@ const ContactsBoxComponent: React.FC = () => {
             <textarea
               rows={3}
               value={formData.notes}
-              onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+              onChange={handleNotesChange}
               placeholder="예: 소속: 매헌기념관, 비고: 체력측정요구 뒷빽, [출처: 사업운영]"
               className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 bg-white/70 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder:text-slate-350 resize-none leading-relaxed"
             />
@@ -728,7 +831,7 @@ const ContactsBoxComponent: React.FC = () => {
               ref={searchInputRef}
               type="text"
               value={localSearchTerm}
-              onChange={(e) => setLocalSearchTerm(e.target.value)}
+              onChange={handleSearchChange}
               placeholder="이름, 전화번호, 비고/메모, 소속, 직책 키워드 및 초성(ㅊㄹ, ㅇㅅㅅ) 검색..."
               className="w-full pl-11 pr-10 py-3 rounded-2xl border border-slate-300/80 text-sm font-semibold text-slate-800 bg-white hover:bg-white focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all placeholder:text-slate-400 shadow-3xs cursor-text"
             />
@@ -753,7 +856,8 @@ const ContactsBoxComponent: React.FC = () => {
               <Tag className="w-3 h-3" /> 필터:
             </span>
             <button
-              onClick={() => setSelectedTag('ALL')}
+              type="button"
+              onClick={handleSelectAllTag}
               className={`px-3 py-1 rounded-full text-xs font-bold shrink-0 transition-all cursor-pointer ${
                 selectedTag === 'ALL'
                   ? 'bg-emerald-600 text-white shadow-2xs'
@@ -763,17 +867,12 @@ const ContactsBoxComponent: React.FC = () => {
               전체 ({contacts.length})
             </button>
             {availableTags.map(tag => (
-              <button
+              <FilterChipItem
                 key={tag}
-                onClick={() => setSelectedTag(prev => prev === tag ? 'ALL' : tag)}
-                className={`px-3 py-1 rounded-full text-xs font-bold shrink-0 transition-all cursor-pointer ${
-                  selectedTag === tag
-                    ? 'bg-emerald-600 text-white shadow-2xs'
-                    : 'bg-slate-100/90 text-slate-600 hover:bg-slate-200/90'
-                }`}
-              >
-                {tag}
-              </button>
+                tag={tag}
+                isSelected={selectedTag === tag}
+                onSelect={handleSelectTag}
+              />
             ))}
           </div>
 
@@ -793,10 +892,8 @@ const ContactsBoxComponent: React.FC = () => {
               </p>
               {(localSearchTerm || selectedTag !== 'ALL') && (
                 <button
-                  onClick={() => {
-                    setLocalSearchTerm('');
-                    setSelectedTag('ALL');
-                  }}
+                  type="button"
+                  onClick={handleResetFilters}
                   className="mt-3 text-xs font-bold text-emerald-600 hover:underline cursor-pointer"
                 >
                   필터 및 검색어 초기화

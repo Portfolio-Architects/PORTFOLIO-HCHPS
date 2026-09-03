@@ -14,6 +14,7 @@ export const queryClient = new QueryClient({
       retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
       refetchOnWindowFocus: false, // Prevent heavy main thread block on window focus
       refetchOnReconnect: false,   // Prevent automatic refetch on network reconnect
+      refetchIntervalInBackground: false, // Zero-stall: disable polling in background tabs
     },
     mutations: {
       retry: 1, // Minimize retry on mutation to prevent duplicate records

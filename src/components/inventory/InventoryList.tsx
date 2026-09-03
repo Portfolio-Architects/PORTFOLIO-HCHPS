@@ -232,7 +232,7 @@ export const InventoryItemCard = React.memo(InventoryItemCardComponent, areInven
 InventoryItemCard.displayName = 'InventoryItemCard';
 
 // ============ Main Inventory List Component ============
-export function InventoryList({ items, addItem, updateItem, deleteItem, adjustStock, getItemHistory }: {
+function InventoryListComponent({ items, addItem, updateItem, deleteItem, adjustStock, getItemHistory }: {
   items: InventoryItem[];
   addItem: (item: Omit<InventoryItem, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateItem: (id: string, updates: Partial<InventoryItem>) => void;
@@ -305,26 +305,34 @@ export function InventoryList({ items, addItem, updateItem, deleteItem, adjustSt
     deleteItem(id);
   }, [deleteItem]);
 
-  const uniqueCategories = useMemo(() => {
+  const { uniqueCategories, filteredItems } = useMemo(() => {
     const cats = new Set<string>();
-    items.forEach(item => {
-      if (item && item.category) cats.add(item.category);
-    });
-    return Array.from(cats);
-  }, [items]);
-
-  const filteredItems = useMemo(() => {
     const query = (searchQuery || '').trim().toLowerCase();
-    if (!query && !selectedCategory) return items;
-    return items.filter(item => {
-      if (!item) return false;
+    const result: InventoryItem[] = [];
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (!item) continue;
+      if (item.category) cats.add(item.category);
+
       const matchesCategory = !selectedCategory || item.category === selectedCategory;
-      if (!matchesCategory) return false;
-      if (!query) return true;
-      const itemName = (item.name || '').toLowerCase();
-      const itemCategory = (item.category || '').toLowerCase();
-      return itemName.includes(query) || itemCategory.includes(query);
-    });
+      if (!matchesCategory) continue;
+
+      if (!query) {
+        result.push(item);
+      } else {
+        const itemName = (item.name || '').toLowerCase();
+        const itemCategory = (item.category || '').toLowerCase();
+        if (itemName.includes(query) || itemCategory.includes(query)) {
+          result.push(item);
+        }
+      }
+    }
+
+    return {
+      uniqueCategories: Array.from(cats),
+      filteredItems: result
+    };
   }, [items, searchQuery, selectedCategory]);
 
   const itemRows = useMemo(() => {
@@ -504,3 +512,6 @@ export function InventoryList({ items, addItem, updateItem, deleteItem, adjustSt
     </div>
   );
 }
+
+InventoryListComponent.displayName = 'InventoryList';
+export const InventoryList = React.memo(InventoryListComponent);

@@ -3,7 +3,6 @@ import { Inter, Outfit } from "next/font/google";
 import "./globals.css";
 import { QueryProviders } from "@/components/QueryProviders";
 
-
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
@@ -45,18 +44,52 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko" suppressHydrationWarning>
-      <head />
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                function isolateExtensionElements() {
+                  if (typeof document === 'undefined' || !document.body) return;
+                  var extensionSelectors = [
+                    '#crx-mouse-redesign-content-root',
+                    '[id^="crx-mouse"]',
+                    '[id^="crx_"]'
+                  ];
+                  for (var i = 0; i < extensionSelectors.length; i++) {
+                    var els = document.querySelectorAll(extensionSelectors[i]);
+                    for (var j = 0; j < els.length; j++) {
+                      var el = els[j];
+                      if (el.parentNode === document.body) {
+                        document.documentElement.appendChild(el);
+                      }
+                    }
+                  }
+                }
+                isolateExtensionElements();
+                if (typeof MutationObserver !== 'undefined') {
+                  var obs = new MutationObserver(function() {
+                    isolateExtensionElements();
+                  });
+                  var target = document.body || document.documentElement;
+                  obs.observe(target, { childList: true });
+                  window.addEventListener('load', function() {
+                    setTimeout(function() { obs.disconnect(); }, 5000);
+                  });
+                }
+              })();
+            `,
+          }}
+        />
+      </head>
       <body
-        className={`${inter.variable} ${outfit.variable} font-sans antialiased`}
+        className={`${inter.variable} ${outfit.variable} font-sans antialiased min-h-screen w-full`}
         suppressHydrationWarning
       >
         <QueryProviders>
-          <div id="app-root" className="min-h-screen w-full" suppressHydrationWarning>
-            {children}
-          </div>
+          {children}
         </QueryProviders>
       </body>
     </html>
   );
 }
-

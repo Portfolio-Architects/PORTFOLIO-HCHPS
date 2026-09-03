@@ -11,7 +11,7 @@ export interface ExpenseBatchToolbarProps {
   onClearSelection: () => void;
 }
 
-export function ExpenseBatchToolbar({
+function ExpenseBatchToolbarComponent({
   selectedCount,
   onSettleApprove,
   onStatusChange,
@@ -89,4 +89,7 @@ export function ExpenseBatchToolbar({
     </div>
   );
 }
+
+ExpenseBatchToolbarComponent.displayName = 'ExpenseBatchToolbar';
+export const ExpenseBatchToolbar = React.memo(ExpenseBatchToolbarComponent);
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { useBudgetSimulator } from '@/hooks/useBudgetSimulator';
 import { SimulationSummaryCards } from './ui/SimulationSummaryCards';
 import { SimulationInputForm } from './ui/SimulationInputForm';
@@ -40,8 +40,14 @@ export const BudgetSimulator: React.FC = React.memo(() => {
     setEditingEntry(null);
   }, [updateEntry]);
 
-  // Count Deficit Projects
-  const deficitProjectsCount = projectSummaries.filter((p) => p.isDeficit).length;
+  // Count Deficit Projects (Single-pass memoized count)
+  const deficitProjectsCount = useMemo(() => {
+    let count = 0;
+    for (let i = 0; i < projectSummaries.length; i++) {
+      if (projectSummaries[i].isDeficit) count++;
+    }
+    return count;
+  }, [projectSummaries]);
 
   return (
     <div className="w-full flex flex-col gap-6 text-slate-800 p-1 sm:p-2">

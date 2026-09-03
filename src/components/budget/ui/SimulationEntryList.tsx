@@ -31,23 +31,36 @@ export const SimulationEntryList: React.FC<SimulationEntryListProps> = React.mem
 }) => {
   const [keyword, setKeyword] = useState('');
 
-  // Filter entries
-  const filteredEntries = useMemo(() => {
-    if (!keyword.trim()) return entries;
-    const kw = keyword.trim().toLowerCase();
-    return entries.filter(
-      (item) =>
+  // Filter entries and accumulate total in a single pass
+  const { filteredEntries, totalAmountSum } = useMemo(() => {
+    const trimmed = keyword.trim();
+    if (!trimmed) {
+      let sum = 0;
+      for (let i = 0; i < entries.length; i++) {
+        sum += (entries[i].amount || 0);
+      }
+      return { filteredEntries: entries, totalAmountSum: sum };
+    }
+
+    const kw = trimmed.toLowerCase();
+    const result: SimulationEntry[] = [];
+    let sum = 0;
+
+    for (let i = 0; i < entries.length; i++) {
+      const item = entries[i];
+      if (
         item.name.toLowerCase().includes(kw) ||
         item.detailedProject.toLowerCase().includes(kw) ||
         item.statItem.toLowerCase().includes(kw) ||
         (item.memo && item.memo.toLowerCase().includes(kw))
-    );
-  }, [entries, keyword]);
+      ) {
+        result.push(item);
+        sum += (item.amount || 0);
+      }
+    }
 
-  // Total expenditure sum
-  const totalAmountSum = useMemo(() => {
-    return filteredEntries.reduce((sum, item) => sum + (item.amount || 0), 0);
-  }, [filteredEntries]);
+    return { filteredEntries: result, totalAmountSum: sum };
+  }, [entries, keyword]);
 
   return (
     <div className="space-y-4">

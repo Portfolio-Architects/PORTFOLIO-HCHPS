@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { X, Zap, FileText } from 'lucide-react';
 
 interface AddDataModalProps {
@@ -10,12 +10,16 @@ interface AddDataModalProps {
   onAddMeeting: (title: string, notes: string) => void;
 }
 
-export function AddDataModal({ isOpen, initialMode = 'memo', onClose, onAddSignal, onAddTask, onAddMeeting }: AddDataModalProps) {
+function AddDataModalComponent({ isOpen, initialMode = 'memo', onClose, onAddSignal, onAddTask, onAddMeeting }: AddDataModalProps) {
   const [mode, setMode] = useState<'memo' | 'pdf'>(initialMode);
   const [type] = useState<'signal' | 'task' | 'meeting'>('signal');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [isParsing, setIsParsing] = useState(false);
+
+  const handleContentChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setContent(e.target.value);
+  }, []);
 
   React.useEffect(() => {
     if (isOpen) {
@@ -25,9 +29,7 @@ export function AddDataModal({ isOpen, initialMode = 'memo', onClose, onAddSigna
     }
   }, [isOpen, initialMode]);
 
-  if (!isOpen) return null;
-
-  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePdfUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -49,7 +51,14 @@ export function AddDataModal({ isOpen, initialMode = 'memo', onClose, onAddSigna
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const textContent = await page.getTextContent();
-        const pageText = textContent.items.map((item) => (item as { str?: string }).str || '').join(' ');
+        const items = textContent.items;
+        let pageText = '';
+        for (let j = 0; j < items.length; j++) {
+          const str = (items[j] as { str?: string }).str;
+          if (str) {
+            pageText += (pageText ? ' ' : '') + str;
+          }
+        }
         if (pageText.trim()) actualTextCount++;
         extractedText += pageText + '\n\n';
       }
@@ -66,9 +75,9 @@ export function AddDataModal({ isOpen, initialMode = 'memo', onClose, onAddSigna
       setIsParsing(false);
       e.target.value = '';
     }
-  };
+  }, []);
 
-  const handleSubmit = () => {
+  const handleSubmit = useCallback(() => {
     if (!title.trim() && type !== 'signal') {
       alert('제목을 입력해주세요.');
       return;
@@ -85,7 +94,9 @@ export function AddDataModal({ isOpen, initialMode = 'memo', onClose, onAddSigna
     setTitle(''); 
     setContent('');
     onClose();
-  };
+  }, [title, type, content, onAddSignal, onAddTask, onAddMeeting, onClose]);
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
@@ -112,7 +123,7 @@ export function AddDataModal({ isOpen, initialMode = 'memo', onClose, onAddSigna
                 </label>
                 <textarea 
                   value={content}
-                  onChange={e => setContent(e.target.value)}
+                  onChange={handleContentChange}
                   placeholder="어떠한 사항이나 떠오르는 아이디어를 자유롭게 메모하세요..."
                   className="w-full flex-1 border border-gray-200 rounded-lg px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent min-h-[300px] resize-none"
                   autoFocus
@@ -157,7 +168,7 @@ export function AddDataModal({ isOpen, initialMode = 'memo', onClose, onAddSigna
                 ) : (
                   <textarea 
                     value={content}
-                    onChange={e => setContent(e.target.value)}
+                    onChange={handleContentChange}
                     placeholder="추출된 텍스트가 없습니다."
                     className="w-full flex-1 border border-gray-200 rounded-lg px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent min-h-[300px] resize-none"
                     autoFocus
@@ -189,3 +200,6 @@ export function AddDataModal({ isOpen, initialMode = 'memo', onClose, onAddSigna
     </div>
   );
 }
+
+AddDataModalComponent.displayName = 'AddDataModal';
+export const AddDataModal = React.memo(AddDataModalComponent);

@@ -30,7 +30,8 @@ export const SimulationSummaryCards: React.FC<SimulationSummaryCardsProps> = Rea
     let deficitCount = 0;
     let requiredBalance = 0;
 
-    projectSummaries.forEach((p) => {
+    for (let i = 0; i < projectSummaries.length; i++) {
+      const p = projectSummaries[i];
       totalBudget += p.totalBudget;
       totalSpent += p.currentSpent;
       totalRemaining += p.currentRemaining;
@@ -39,9 +40,9 @@ export const SimulationSummaryCards: React.FC<SimulationSummaryCardsProps> = Rea
 
       if (p.finalExpectedBalance < 0) {
         deficitCount += 1;
-        requiredBalance += Math.abs(p.finalExpectedBalance);
+        requiredBalance += -p.finalExpectedBalance;
       }
-    });
+    }
 
     const currentExecutionRate = totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0;
     const projectedExecutionRate =

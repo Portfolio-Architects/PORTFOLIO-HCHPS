@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useLocalhostHealth } from '@/hooks/useLocalhostHealth';
 import { 
   Activity, 
@@ -12,7 +12,7 @@ import {
   X, 
   RotateCw, 
   Wifi, 
-  WifiOff,
+  WifiOff, 
   RefreshCw
 } from 'lucide-react';
 
@@ -20,7 +20,7 @@ interface LocalhostStatusHUDProps {
   onOpenLogs?: () => void;
 }
 
-export function LocalhostStatusHUD({ onOpenLogs }: LocalhostStatusHUDProps) {
+function LocalhostStatusHUDComponent({ onOpenLogs }: LocalhostStatusHUDProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const { data: health, isLoading, isFetching, refetch } = useLocalhostHealth(true);
 
@@ -33,21 +33,28 @@ export function LocalhostStatusHUD({ onOpenLogs }: LocalhostStatusHUDProps) {
   const displayHeapMB = clientMB || serverMB || 0;
   const totalBackups = health?.backups.total ?? 0;
 
-  // LED status styling
-  const getStatusColor = () => {
+  const handleOpenModal = useCallback(() => setIsModalOpen(true), []);
+  const handleCloseModal = useCallback(() => setIsModalOpen(false), []);
+  const handleRefetch = useCallback(() => { refetch(); }, [refetch]);
+
+  const handleOpenLogsAction = useCallback(() => {
+    setIsModalOpen(false);
+    onOpenLogs?.();
+  }, [onOpenLogs]);
+
+  // LED status styling memoization
+  const statusColor = useMemo(() => {
     if (status === 'offline') return 'rose';
     if (status === 'degraded' || !isOnline || !crdtSynced) return 'amber';
     return 'emerald';
-  };
-
-  const statusColor = getStatusColor();
+  }, [status, isOnline, crdtSynced]);
 
   return (
     <>
       {/* Sleek Compact Badge Pill in Header */}
       <button
         type="button"
-        onClick={() => setIsModalOpen(true)}
+        onClick={handleOpenModal}
         className="flex items-center gap-2 px-3 py-1.5 bg-slate-900/90 dark:bg-slate-950/90 border border-slate-700/60 hover:border-emerald-500/50 rounded-full text-xs font-medium text-slate-200 shadow-xs hover:shadow-emerald-500/10 transition-all select-none cursor-pointer group"
         title="Localhost Health & Daemon Status HUD"
         suppressHydrationWarning
@@ -83,7 +90,7 @@ export function LocalhostStatusHUD({ onOpenLogs }: LocalhostStatusHUDProps) {
       {isModalOpen && (
         <div 
           className="fixed inset-0 z-[120] bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
-          onClick={() => setIsModalOpen(false)}
+          onClick={handleCloseModal}
         >
           <div
             className="bg-slate-950/95 border border-slate-800 text-slate-100 backdrop-blur-xl shadow-2xl rounded-2xl max-w-xl w-full p-6 space-y-5 relative"
@@ -108,7 +115,7 @@ export function LocalhostStatusHUD({ onOpenLogs }: LocalhostStatusHUDProps) {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => refetch()}
+                  onClick={handleRefetch}
                   disabled={isFetching}
                   className="p-2 text-slate-400 hover:text-slate-100 hover:bg-slate-900 rounded-lg border border-transparent hover:border-slate-800 transition-all cursor-pointer"
                   title="수동 새로고침"
@@ -117,7 +124,7 @@ export function LocalhostStatusHUD({ onOpenLogs }: LocalhostStatusHUDProps) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={handleCloseModal}
                   className="p-2 text-slate-400 hover:text-slate-100 hover:bg-slate-900 rounded-lg border border-transparent hover:border-slate-800 transition-all cursor-pointer"
                   title="닫기"
                 >
@@ -271,10 +278,7 @@ export function LocalhostStatusHUD({ onOpenLogs }: LocalhostStatusHUDProps) {
               {onOpenLogs && (
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsModalOpen(false);
-                    onOpenLogs();
-                  }}
+                  onClick={handleOpenLogsAction}
                   className="flex items-center gap-2 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold transition-all shadow-md cursor-pointer"
                 >
                   <Terminal className="w-3.5 h-3.5" />
@@ -288,4 +292,7 @@ export function LocalhostStatusHUD({ onOpenLogs }: LocalhostStatusHUDProps) {
     </>
   );
 }
+
+LocalhostStatusHUDComponent.displayName = 'LocalhostStatusHUD';
+export const LocalhostStatusHUD = React.memo(LocalhostStatusHUDComponent);
 

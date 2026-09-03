@@ -20,7 +20,7 @@ interface MindMapHeaderProps {
   onToggleFullscreen?: () => void;
 }
 
-export function MindMapHeader({
+function MindMapHeaderComponent({
   stats,
   searchQuery,
   onSearchChange,
@@ -146,3 +146,6 @@ export function MindMapHeader({
     </div>
   );
 }
+
+MindMapHeaderComponent.displayName = 'MindMapHeader';
+export const MindMapHeader = React.memo(MindMapHeaderComponent);

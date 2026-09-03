@@ -134,64 +134,82 @@ const BudgetCategoryCardItemComponent = ({
 
   const statusCfg = STATUS_CONFIG[catStatus];
 
-  const cellIdList = useMemo(() => {
-    const list: string[] = [];
-    list.push(`${cat.id}:statItem`);
-    list.push(`${cat.id}:totalBudget`);
+  const { cellIdList, cellIdIndexMap } = useMemo(() => {
+    const list: string[] = [`${cat.id}:statItem`, `${cat.id}:totalBudget`];
     if (cat.subItems) {
-      cat.subItems.forEach((_, idx) => {
+      for (let idx = 0; idx < cat.subItems.length; idx++) {
         list.push(`${cat.id}:sub:${idx}:name`);
         list.push(`${cat.id}:sub:${idx}:amount`);
-      });
+      }
     }
-    return list;
+    const map = new Map<string, number>();
+    for (let i = 0; i < list.length; i++) {
+      map.set(list[i], i);
+    }
+    return { cellIdList: list, cellIdIndexMap: map };
   }, [cat.id, cat.subItems]);
 
   const handleCellNavigate = useCallback((currentCellId: string, direction: 'next' | 'prev') => {
-    const index = cellIdList.indexOf(currentCellId);
+    const index = cellIdIndexMap.get(currentCellId) ?? -1;
     if (index === -1) return;
     let targetIndex = direction === 'next' ? index + 1 : index - 1;
     if (targetIndex >= cellIdList.length) targetIndex = 0;
     if (targetIndex < 0) targetIndex = cellIdList.length - 1;
     setActiveCellId(cellIdList[targetIndex]);
-  }, [cellIdList]);
+  }, [cellIdList, cellIdIndexMap]);
 
   const handleSubItemUpdate = useCallback((subIdx: number, field: 'name' | 'amount', newValue: string | number) => {
     if (!updateCategory || !cat.subItems) return;
-    const newSubItems = cat.subItems.map((sub, i) => {
-      if (i !== subIdx) return sub;
-      if (field === 'amount') {
+    const newSubItems = [];
+    for (let i = 0; i < cat.subItems.length; i++) {
+      const sub = cat.subItems[i];
+      if (i !== subIdx) {
+        newSubItems.push(sub);
+      } else if (field === 'amount') {
         const cleaned = String(newValue).replace(/,/g, '').replace(/원/g, '').trim();
         const numAmt = isNaN(Number(cleaned)) ? 0 : Number(cleaned);
-        return { ...sub, amount: numAmt };
+        newSubItems.push({ ...sub, amount: numAmt });
+      } else {
+        newSubItems.push({ ...sub, name: String(newValue) });
       }
-      return { ...sub, name: String(newValue) };
-    });
+    }
     updateCategory(cat.id, { subItems: newSubItems });
   }, [cat.id, cat.subItems, updateCategory]);
 
   const { generalEntries, dailyExpenseEntries, totalIssuance, totalDailyExpense, dailyRemaining } = useMemo(() => {
-    const gen = catEntries
-      .filter(e => e.actionType !== 'issuance' && e.actionType !== 'daily_expense')
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const gen: BudgetEntry[] = [];
+    const combinedDaily: BudgetEntry[] = [];
+    let totIssuance = 0;
+    let totDailyExp = 0;
 
-    const issuances = catEntries.filter(e => e.actionType === 'issuance');
-    const dailyExpenses = catEntries.filter(e => e.actionType === 'daily_expense');
+    for (let i = 0; i < catEntries.length; i++) {
+      const e = catEntries[i];
+      if (e.actionType === 'issuance') {
+        combinedDaily.push(e);
+        totIssuance += e.amount;
+      } else if (e.actionType === 'daily_expense') {
+        combinedDaily.push(e);
+        totDailyExp += e.amount;
+      } else {
+        gen.push(e);
+      }
+    }
 
-    const combinedDaily = [...issuances, ...dailyExpenses].sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
+    const sortByDateDesc = (a: BudgetEntry, b: BudgetEntry) => {
+      const tsA = Date.parse(a.date) || 0;
+      const tsB = Date.parse(b.date) || 0;
+      return tsB - tsA;
+    };
 
-    const totIssuance = issuances.reduce((acc, e) => acc + e.amount, 0);
-    const totDailyExp = dailyExpenses.reduce((acc, e) => acc + e.amount, 0);
-    const dailyRem = totIssuance - totDailyExp;
+    gen.sort(sortByDateDesc);
+    combinedDaily.sort(sortByDateDesc);
 
     return {
       generalEntries: gen,
       dailyExpenseEntries: combinedDaily,
       totalIssuance: totIssuance,
       totalDailyExpense: totDailyExp,
-      dailyRemaining: dailyRem
+      dailyRemaining: totIssuance - totDailyExp
     };
   }, [catEntries]);
 

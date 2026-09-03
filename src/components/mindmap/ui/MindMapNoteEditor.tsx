@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   X, Plus, Trash2, Link2, Unlink, Palette, 
   FileText, CornerDownRight, CheckCircle2, ChevronRight 
@@ -52,7 +52,7 @@ const COLOR_PRESETS = [
   { name: '인디고', value: '#6366f1', bg: 'bg-indigo-500', text: 'text-indigo-500' },
 ];
 
-export const MindMapNoteEditor: React.FC<MindMapNoteEditorProps> = ({
+const MindMapNoteEditorComponent: React.FC<MindMapNoteEditorProps> = ({
   node,
   allNodes,
   allEdges,
@@ -74,26 +74,44 @@ export const MindMapNoteEditor: React.FC<MindMapNoteEditorProps> = ({
   const [selectedTargetToConnect, setSelectedTargetToConnect] = useState('');
   const [isAddingConnect, setIsAddingConnect] = useState(false);
 
+  // Single-pass extraction of childNodes, connectedNodes, and connectableNodes
+  const { childNodes, connectedNodes, connectableNodes } = useMemo(() => {
+    if (!node) {
+      return { childNodes: [], connectedNodes: [], connectableNodes: [] };
+    }
+
+    const connectedNodeIds = new Set<string>();
+    for (let i = 0; i < allEdges.length; i++) {
+      const e = allEdges[i];
+      if (e.source === node.id) connectedNodeIds.add(e.target);
+      if (e.target === node.id) connectedNodeIds.add(e.source);
+    }
+
+    const children: ManualNodeItem[] = [];
+    const connected: ManualNodeItem[] = [];
+    const connectable: ManualNodeItem[] = [];
+
+    for (let i = 0; i < allNodes.length; i++) {
+      const n = allNodes[i];
+      if (n.parentId === node.id) {
+        children.push(n);
+      }
+      if (n.id !== node.id) {
+        if (connectedNodeIds.has(n.id) || n.parentId === node.id) {
+          connected.push(n);
+        } else if (node.parentId !== n.id) {
+          connectable.push(n);
+        }
+      }
+    }
+
+    return { childNodes: children, connectedNodes: connected, connectableNodes: connectable };
+  }, [allNodes, allEdges, node]);
+
   if (!node) return null;
 
   const currentColor = override?.customColor || node.color || '#3b82f6';
   const isCompleted = override?.isCompleted ?? node.isCompleted ?? false;
-
-  // Find child nodes (where parentId is this node's id)
-  const childNodes = allNodes.filter(n => n.parentId === node.id);
-
-  // Find connected other nodes
-  const connectedNodeIds = new Set<string>();
-  allEdges.forEach(e => {
-    if (e.source === node.id) connectedNodeIds.add(e.target);
-    if (e.target === node.id) connectedNodeIds.add(e.source);
-  });
-  const connectedNodes = allNodes.filter(n => n.id !== node.id && (connectedNodeIds.has(n.id) || n.parentId === node.id));
-
-  // Available nodes to connect (excluding self and already connected)
-  const connectableNodes = allNodes.filter(
-    n => n.id !== node.id && !connectedNodeIds.has(n.id) && n.parentId !== node.id && node.parentId !== n.id
-  );
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -384,3 +402,6 @@ export const MindMapNoteEditor: React.FC<MindMapNoteEditorProps> = ({
     </div>
   );
 };
+
+MindMapNoteEditorComponent.displayName = 'MindMapNoteEditor';
+export const MindMapNoteEditor = React.memo(MindMapNoteEditorComponent);

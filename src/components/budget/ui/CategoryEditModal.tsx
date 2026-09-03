@@ -49,7 +49,7 @@ const COLORS = [
   '#4F46E5', '#059669', '#EAB308', '#DC2626', '#7C3AED', '#0891B2', '#EA580C', '#BE185D', '#16A34A', '#2563EB', '#9333EA', '#B45309', '#0284C7', '#86198F', '#4D7C0F'
 ];
 
-export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialData, onSave }: CategoryEditModalProps) {
+function CategoryEditModalComponent({ isOpen, onClose, categoriesLength, initialData, onSave }: CategoryEditModalProps) {
   const [catBudget, setCatBudget] = useState('');
   const [catPolicy, setCatPolicy] = useState('');
   const [catUnit, setCatUnit] = useState('');
@@ -217,18 +217,18 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
       return;
     }
 
-    const finalFunding = catFundingSplits.map((s: UIFundingSplit) => {
+    const fundingParts: string[] = [];
+    const finalSplitsArray: BudgetFundingSplit[] = [];
+    for (let i = 0; i < catFundingSplits.length; i++) {
+      const s = catFundingSplits[i];
       const amt = Number((s.amount || '0').replace(/,/g, ''));
-      if (amt === 0) return '';
-      const r = targetBudget > 0 ? (amt / targetBudget) * 100 : 0;
-      const ratioStr = r.toFixed(2);
-      return `${s.source} (${ratioStr}%)`;
-    }).filter(Boolean).join(', ') || '구비';
-
-    const finalSplitsArray = catFundingSplits.map((s: UIFundingSplit) => ({
-      source: s.source,
-      amount: Number((s.amount || '0').replace(/,/g, ''))
-    })).filter((s: {amount: number}) => s.amount > 0);
+      if (amt > 0) {
+        finalSplitsArray.push({ source: s.source, amount: amt });
+        const r = targetBudget > 0 ? (amt / targetBudget) * 100 : 0;
+        fundingParts.push(`${s.source} (${r.toFixed(2)}%)`);
+      }
+    }
+    const finalFunding = fundingParts.length > 0 ? fundingParts.join(', ') : '구비';
 
     const finalSubItemsArray = catSubItems.map((s: UISubItem) => {
       const calcArray = (s.calculations || []).map((calc: UICalculation) => {
@@ -355,7 +355,7 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
               </label>
               <div className="space-y-2.5">
                 {catFundingSplits.map((split, idx) => (
-                  <div key={idx} className="flex gap-2 items-center">
+                  <div key={`split-${split.source}-${idx}`} className="flex gap-2 items-center">
                     <select value={split.source} onChange={e => {
                       const newSplits = [...catFundingSplits];
                       newSplits[idx].source = e.target.value;
@@ -429,7 +429,7 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
                   const displayAmount = hasCalculations ? autoComputedAmount?.toLocaleString() : sub.amount;
 
                   return (
-                  <div key={idx} className="flex flex-col gap-2 transition-all duration-200 bg-white p-2.5 rounded-lg border border-gray-200 shadow-sm relative mb-2">
+                  <div key={sub.id || `subitem-${sub.prefix || ''}-${sub.name || ''}-${idx}`} className="flex flex-col gap-2 transition-all duration-200 bg-white p-2.5 rounded-lg border border-gray-200 shadow-sm relative mb-2">
                     <div className="flex gap-2 items-center">
                       <input type="text" value={sub.prefix} onChange={e => {
                           const newSubs = [...catSubItems];
@@ -525,7 +525,7 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
                     {/* Sub-calculations Area */}
                     <div className="ml-[53px] pl-2.5 border-l-[3px] border-indigo-100 py-1 flex flex-col gap-1.5 min-h-[30px]">
                        {sub.calculations && sub.calculations.map((calc, cIdx) => (
-                         <div key={cIdx} className="flex flex-col gap-1 w-full border-b border-indigo-50 border-dashed pb-2 mb-1 last:border-0 last:pb-0 last:mb-0">
+                         <div key={calc.id || `calc-${calc.name || ''}-${cIdx}`} className="flex flex-col gap-1 w-full border-b border-indigo-50 border-dashed pb-2 mb-1 last:border-0 last:pb-0 last:mb-0">
                            <div className="flex gap-2 items-center group relative w-full">
                              <span className="text-indigo-200 text-[11px] shrink-0 font-bold ml-1 select-none pr-1">↳</span>
                              
@@ -601,7 +601,7 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
                            {calc.isCustomFunding && (
                              <div className="ml-[25px] flex flex-col gap-1.5 mt-0.5 pb-1">
                                {calc.fundingSplits && calc.fundingSplits.map((split, fIdx) => (
-                                 <div key={fIdx} className="flex items-center gap-1.5 bg-teal-50/50 p-1.5 rounded-md border border-teal-100 w-max shrink-0">
+                                 <div key={`calc-split-${split.source}-${fIdx}`} className="flex items-center gap-1.5 bg-teal-50/50 p-1.5 rounded-md border border-teal-100 w-max shrink-0">
                                    <select value={split.source} onChange={e => {
                                      const newSubs = [...catSubItems];
                                      newSubs[idx].calculations![cIdx].fundingSplits![fIdx].source = e.target.value;
@@ -680,7 +680,7 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
                         </div>
                         <div className="flex flex-wrap gap-1.5 items-center">
                           {sub.fundingSplits && sub.fundingSplits.map((split, fIdx) => (
-                            <div key={fIdx} className="flex flex-col gap-0.5 relative group bg-teal-50/50 p-1 rounded border border-teal-100">
+                            <div key={`sub-split-${split.source}-${fIdx}`} className="flex flex-col gap-0.5 relative group bg-teal-50/50 p-1 rounded border border-teal-100">
                               <div className="flex items-center gap-1">
                                 <select value={split.source} onChange={e => {
                                   const newSubs = [...catSubItems];
@@ -755,3 +755,6 @@ export function CategoryEditModal({ isOpen, onClose, categoriesLength, initialDa
     </Modal>
   );
 }
+
+CategoryEditModalComponent.displayName = 'CategoryEditModal';
+export const CategoryEditModal = React.memo(CategoryEditModalComponent);

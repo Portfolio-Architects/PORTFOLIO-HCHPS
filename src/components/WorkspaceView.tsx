@@ -142,15 +142,6 @@ function WorkspaceViewComponent(props: WorkspaceViewProps) {
   useEffect(() => {
     window.addEventListener('hchps-zod-error', handleZodError);
 
-    // Warm-up idle evaluation of sub-chunks if not already pre-fetched
-    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-      window.requestIdleCallback(() => {
-        import('@/components/budget/BudgetDashboard');
-        import('@/components/inventory/InventoryList');
-        import('@/components/budget/BudgetSimulator');
-      });
-    }
-
     return () => {
       window.removeEventListener('hchps-zod-error', handleZodError);
     };

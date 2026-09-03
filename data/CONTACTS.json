@@ -1379,7 +1379,7 @@
   {
     "name": "유디치과",
     "phone": "010-5192-2210",
-    "email": "",
+    "email": "yky890518@udmso.co.kr",
     "notes": "",
     "id": "mtgv6jcy1zaz5gsz1",
     "createdAt": "2026-08-31T06:35:29.794Z",
@@ -1393,5 +1393,14 @@
     "id": "mtib7nv59cehb5aau",
     "createdAt": "2026-09-01T06:52:02.321Z",
     "updatedAt": "2026-09-01T06:52:02.321Z"
+  },
+  {
+    "name": "오지원",
+    "phone": "02-3412-8551",
+    "email": "",
+    "notes": "강남장애인가족지원센터",
+    "id": "mtjsvd9v9am8cw829",
+    "createdAt": "2026-09-02T07:54:07.987Z",
+    "updatedAt": "2026-09-02T07:54:07.987Z"
   }
 ]

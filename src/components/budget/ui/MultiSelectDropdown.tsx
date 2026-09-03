@@ -1,31 +1,47 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { ChevronDown } from 'lucide-react';
 
 export type DropdownOption = string | { value: string; suffix?: string };
 
-export const MultiSelectDropdown = ({ 
-  label, 
-  options, 
-  selected, 
-  onChange,
-  disabled
-}: { 
+function getOptValue(opt: DropdownOption): string {
+  return typeof opt === 'string' ? opt : opt.value;
+}
+
+function getOptSuffix(opt: DropdownOption): string {
+  return typeof opt === 'string' ? '' : opt.suffix || '';
+}
+
+interface MultiSelectDropdownProps {
   label: string; 
   options: DropdownOption[]; 
   selected: string[]; 
   onChange: (val: string[]) => void;
   disabled?: boolean;
-}) => {
+}
+
+function MultiSelectDropdownComponent({ 
+  label, 
+  options, 
+  selected, 
+  onChange,
+  disabled
+}: MultiSelectDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const isAll = selected.length === 0;
 
-  const toggle = (optStr: string) => {
-    if (selected.includes(optStr)) onChange(selected.filter(o => o !== optStr));
-    else onChange([...selected, optStr]);
-  };
+  const selectedSet = useMemo(() => new Set(selected), [selected]);
 
-  const getOptValue = (opt: DropdownOption) => typeof opt === 'string' ? opt : opt.value;
-  const getOptSuffix = (opt: DropdownOption) => typeof opt === 'string' ? '' : opt.suffix;
+  const toggle = (optStr: string) => {
+    if (selectedSet.has(optStr)) {
+      const next: string[] = [];
+      for (let i = 0; i < selected.length; i++) {
+        if (selected[i] !== optStr) next.push(selected[i]);
+      }
+      onChange(next);
+    } else {
+      onChange([...selected, optStr]);
+    }
+  };
 
   return (
     <div className="relative inline-block w-full sm:max-w-[220px]">
@@ -60,7 +76,7 @@ export const MultiSelectDropdown = ({
                   onClick={() => toggle(val)}
                 >
                   <div className="flex items-center min-w-[120px] max-w-[200px] pr-3">
-                    <input type="checkbox" checked={selected.includes(val)} readOnly className="mr-2 flex-shrink-0" />
+                    <input type="checkbox" checked={selectedSet.has(val)} readOnly className="mr-2 flex-shrink-0" />
                     <span className="text-sm text-gray-700 truncate" title={val}>{val}</span>
                   </div>
                   {suffix && <span className="text-[11px] font-semibold text-gray-400 group-hover:text-blue-500 whitespace-nowrap">{suffix}</span>}
@@ -71,5 +87,8 @@ export const MultiSelectDropdown = ({
         </>
       )}
     </div>
-  )
-};
+  );
+}
+
+MultiSelectDropdownComponent.displayName = 'MultiSelectDropdown';
+export const MultiSelectDropdown = React.memo(MultiSelectDropdownComponent);

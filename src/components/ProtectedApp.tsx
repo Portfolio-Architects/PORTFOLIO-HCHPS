@@ -19,13 +19,13 @@ function PortfolioDashboardViewSkeleton() {
     <div className="w-full flex flex-col gap-6 animate-pulse">
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 mt-4">
         <div className="xl:col-span-6 flex flex-col gap-6">
-          <div className="bg-slate-100/60 dark:bg-slate-800/40 rounded-[2rem] p-8 border border-slate-200/40 dark:border-slate-800 h-[400px] flex flex-col justify-between">
-            <div className="flex justify-between items-center mb-6">
+          <div className="bg-slate-100/60 dark:bg-slate-800/40 rounded-[2rem] p-6 sm:p-7 border border-slate-200/40 dark:border-slate-800 h-[380px] flex flex-col justify-between">
+            <div className="flex justify-between items-center mb-5">
               <div className="w-48 h-6 bg-slate-200 dark:bg-slate-700 rounded-lg" />
               <div className="w-36 h-10 bg-slate-200 dark:bg-slate-700 rounded-xl" />
             </div>
             <div className="flex-grow flex flex-col sm:flex-row gap-8 items-center justify-center">
-              <div className="w-[180px] h-[180px] rounded-full border-[16px] border-slate-200 dark:border-slate-700 flex items-center justify-center flex-shrink-0" />
+              <div className="w-[170px] h-[170px] rounded-full border-[15px] border-slate-200 dark:border-slate-700 flex items-center justify-center flex-shrink-0" />
               <div className="flex-grow flex flex-col gap-3 w-full">
                 <div className="w-full h-4 bg-slate-200 dark:bg-slate-700 rounded" />
                 <div className="w-5/6 h-4 bg-slate-200 dark:bg-slate-700 rounded" />
@@ -35,26 +35,26 @@ function PortfolioDashboardViewSkeleton() {
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4 sm:gap-6">
-            <div className="bg-slate-100/60 dark:bg-slate-800/40 border border-slate-200/40 dark:border-slate-800 rounded-[1.5rem] p-5 h-[110px] flex flex-col justify-between">
+            <div className="bg-slate-100/60 dark:bg-slate-800/40 border border-slate-200/40 dark:border-slate-800 rounded-[1.5rem] py-3.5 px-4 h-[102px] flex flex-col justify-between">
               <div className="w-24 h-3 bg-slate-200 dark:bg-slate-700 rounded" />
               <div className="w-16 h-6 bg-slate-200 dark:bg-slate-700 rounded-lg" />
             </div>
-            <div className="bg-slate-100/60 dark:bg-slate-800/40 border border-slate-200/40 dark:border-slate-800 rounded-[1.5rem] p-5 h-[110px] flex flex-col justify-between">
+            <div className="bg-slate-100/60 dark:bg-slate-800/40 border border-slate-200/40 dark:border-slate-800 rounded-[1.5rem] py-3.5 px-4 h-[102px] flex flex-col justify-between">
               <div className="w-24 h-3 bg-slate-200 dark:bg-slate-700 rounded" />
               <div className="w-16 h-6 bg-slate-200 dark:bg-slate-700 rounded-lg" />
             </div>
           </div>
         </div>
         <div className="xl:col-span-6 flex flex-col gap-6">
-          <div className="bg-slate-100/60 dark:bg-slate-800/40 rounded-[2rem] p-8 border border-slate-200/40 dark:border-slate-800 h-full min-h-[530px] flex flex-col justify-between">
-            <div className="flex justify-between items-center mb-6">
+          <div className="bg-slate-100/60 dark:bg-slate-800/40 rounded-[2rem] p-6 sm:p-7 border border-slate-200/40 dark:border-slate-800 h-full min-h-[500px] flex flex-col justify-between">
+            <div className="flex justify-between items-center mb-5">
               <div className="flex flex-col gap-2">
                 <div className="w-56 h-6 bg-slate-200 dark:bg-slate-700 rounded-lg" />
                 <div className="w-40 h-3 bg-slate-200 dark:bg-slate-700 rounded" />
               </div>
               <div className="w-28 h-9 bg-slate-200 dark:bg-slate-700 rounded-xl" />
             </div>
-            <div className="flex-grow w-full bg-slate-200/20 dark:bg-slate-700/10 rounded-2xl flex items-end gap-3 p-4 h-[385px]">
+            <div className="flex-grow w-full bg-slate-200/20 dark:bg-slate-700/10 rounded-2xl flex items-end gap-3 p-4 h-[365px]">
               <div className="flex-grow bg-slate-200 dark:bg-slate-700 rounded-t h-[50%]" />
               <div className="flex-grow bg-slate-200 dark:bg-slate-700 rounded-t h-[70%]" />
               <div className="flex-grow bg-slate-200 dark:bg-slate-700 rounded-t h-[90%]" />
@@ -127,6 +127,52 @@ const EMPTY_AI_CONTEXT = {
   keywordMap: {}
 };
 
+function scheduleStaggeredPreloads(): () => void {
+  if (typeof window === 'undefined') return () => {};
+
+  const idleCallbacks: number[] = [];
+  const timeouts: NodeJS.Timeout[] = [];
+
+  const scheduleIdle = (fn: () => void, delayMs: number) => {
+    const timeoutId = setTimeout(() => {
+      if ('requestIdleCallback' in window) {
+        const handle = window.requestIdleCallback(() => fn(), { timeout: 2000 });
+        idleCallbacks.push(handle);
+      } else {
+        fn();
+      }
+    }, delayMs);
+    timeouts.push(timeoutId);
+  };
+
+  // Stage 1 (+3.5s): Primary heavy sub-views (WorkspaceView, BudgetDashboard)
+  scheduleIdle(() => {
+    import('@/components/WorkspaceView');
+    import('@/components/budget/BudgetDashboard');
+  }, 3500);
+
+  // Stage 2 (+5.5s): Secondary modules (YangjaeFestivalDashboard, InventoryList)
+  scheduleIdle(() => {
+    import('@/components/festival/YangjaeFestivalDashboard');
+    import('@/components/inventory/InventoryList');
+  }, 5500);
+
+  // Stage 3 (+7.5s): Simulator & Modals (BudgetSimulator, AppLogModal, AIAssistantModal, CommandPalette)
+  scheduleIdle(() => {
+    import('@/components/budget/BudgetSimulator');
+    import('@/components/AppLogModal');
+    import('@/components/ai/AIAssistantModal');
+    import('@/components/modals/CommandPalette');
+  }, 7500);
+
+  return () => {
+    timeouts.forEach(clearTimeout);
+    if ('cancelIdleCallback' in window) {
+      idleCallbacks.forEach(h => window.cancelIdleCallback(h));
+    }
+  };
+}
+
 export interface ProtectedAppProps {
   appMode: 'HCHPS' | 'VITAL';
   onModeChange: (mode: 'HCHPS' | 'VITAL') => void;
@@ -192,6 +238,11 @@ export function ProtectedApp({ appMode, onModeChange }: ProtectedAppProps) {
 
   useEffect(() => {
     syncTombstones().catch(() => {});
+  }, []);
+
+  // Centralized Staggered Idle Chunk Preloading (+3.5s, +5.5s, +7.5s)
+  useEffect(() => {
+    return scheduleStaggeredPreloads();
   }, []);
 
   const { logout: handleLogout } = useAuth();

@@ -5,7 +5,10 @@ import { Sparkles } from 'lucide-react';
 
 export function SplashView() {
   return (
-    <div className="relative w-full min-h-screen bg-slate-950 flex flex-col items-center justify-center pointer-events-none select-none">
+    <div 
+      className="relative w-full min-h-screen bg-slate-950 flex flex-col items-center justify-center pointer-events-none select-none"
+      suppressHydrationWarning
+    >
       <div className="flex flex-col items-center gap-6 max-w-md text-center px-6 animate-in fade-in zoom-in-95 duration-400">
         <div className="relative flex items-center justify-center w-24 h-24">
           <div className="absolute inset-0 rounded-full border-[3px] border-indigo-500/20 border-t-indigo-500 animate-spin duration-1000"></div>

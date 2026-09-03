@@ -16,51 +16,59 @@ interface DailyExpenseStatModalProps {
 
 function formatN(n: number) { return n.toLocaleString('ko-KR'); }
 
-export function DailyExpenseStatModal({ isOpen, onClose, categories, getCategoryStats }: DailyExpenseStatModalProps) {
-  const statSummary = React.useMemo(() => {
+function DailyExpenseStatModalComponent({ isOpen, onClose, categories, getCategoryStats }: DailyExpenseStatModalProps) {
+  const { statSummary, totals } = React.useMemo(() => {
+    if (!isOpen) {
+      return { statSummary: [], totals: { issued: 0, spent: 0, remaining: 0 } };
+    }
+
     const statsMap: Record<string, { detailedProject: string; statItem: string; issued: number; spent: number; remaining: number }> = {};
     
-    categories.forEach(cat => {
+    for (let i = 0; i < categories.length; i++) {
+      const cat = categories[i];
       const catStats = getCategoryStats(cat.id);
-      if (catStats) {
-        const detailedProject = cat.detailedProject || '미지정 세부사업';
-        const stat = cat.statItem || '기타 (미지정)';
-        const key = `${detailedProject}::${stat}`;
-        
-        if (!statsMap[key]) {
-          statsMap[key] = { detailedProject, statItem: stat, issued: 0, spent: 0, remaining: 0 };
-        }
-        statsMap[key].issued += catStats.dailyExpenseIssued;
-        statsMap[key].spent += catStats.dailyExpenseSpent;
-        statsMap[key].remaining += catStats.dailyExpenseRemaining;
-      }
-    });
-    
-    // 이체내역(교부액 또는 지출액)이 존재하는 세부사업별 통계목만 필터링
-    return Object.values(statsMap)
-      .filter(item => item.issued > 0 || item.spent > 0)
-      .sort((a, b) => {
-        // 1. 세부사업명 사전순 정렬
-        if (a.detailedProject !== b.detailedProject) {
-          return a.detailedProject.localeCompare(b.detailedProject);
-        }
-        // 2. 교부액 내림차순 정렬
-        return b.issued - a.issued;
-      });
-  }, [categories, getCategoryStats]);
+      if (!catStats) continue;
 
-  // 합계 계산
-  const totals = React.useMemo(() => {
-    return statSummary.reduce(
-      (acc, curr) => {
-        acc.issued += curr.issued;
-        acc.spent += curr.spent;
-        acc.remaining += curr.remaining;
-        return acc;
-      },
-      { issued: 0, spent: 0, remaining: 0 }
-    );
-  }, [statSummary]);
+      const detailedProject = cat.detailedProject || '미지정 세부사업';
+      const stat = cat.statItem || '기타 (미지정)';
+      const key = `${detailedProject}::${stat}`;
+      
+      let entry = statsMap[key];
+      if (!entry) {
+        entry = { detailedProject, statItem: stat, issued: 0, spent: 0, remaining: 0 };
+        statsMap[key] = entry;
+      }
+      entry.issued += catStats.dailyExpenseIssued;
+      entry.spent += catStats.dailyExpenseSpent;
+      entry.remaining += catStats.dailyExpenseRemaining;
+    }
+    
+    const summaryList: Array<{ detailedProject: string; statItem: string; issued: number; spent: number; remaining: number }> = [];
+    const totalAcc = { issued: 0, spent: 0, remaining: 0 };
+
+    const keys = Object.keys(statsMap);
+    for (let i = 0; i < keys.length; i++) {
+      const item = statsMap[keys[i]];
+      if (item.issued > 0 || item.spent > 0) {
+        summaryList.push(item);
+        totalAcc.issued += item.issued;
+        totalAcc.spent += item.spent;
+        totalAcc.remaining += item.remaining;
+      }
+    }
+
+    summaryList.sort((a, b) => {
+      if (a.detailedProject !== b.detailedProject) {
+        return a.detailedProject > b.detailedProject ? 1 : a.detailedProject < b.detailedProject ? -1 : 0;
+      }
+      return b.issued - a.issued;
+    });
+
+    return {
+      statSummary: summaryList,
+      totals: totalAcc
+    };
+  }, [isOpen, categories, getCategoryStats]);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="세부사업 및 통계목별 일상경비 이체내역" size="2xl">
@@ -94,7 +102,7 @@ export function DailyExpenseStatModal({ isOpen, onClose, categories, getCategory
                   {statSummary.map((item, idx) => {
                     const pct = item.issued > 0 ? (item.spent / item.issued) * 100 : 0;
                     return (
-                      <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
+                      <tr key={`${item.detailedProject}_${item.statItem}_${idx}`} className="hover:bg-gray-50/50 transition-colors">
                         <td className="py-3.5 px-4 text-gray-600 font-semibold">{item.detailedProject}</td>
                         <td className="py-3.5 px-4 font-bold text-gray-800">{item.statItem}</td>
                         <td className="py-3.5 px-4 text-right text-gray-700 font-medium">{formatN(item.issued)}원</td>
@@ -158,3 +166,6 @@ export function DailyExpenseStatModal({ isOpen, onClose, categories, getCategory
     </Modal>
   );
 }
+
+DailyExpenseStatModalComponent.displayName = 'DailyExpenseStatModal';
+export const DailyExpenseStatModal = React.memo(DailyExpenseStatModalComponent);

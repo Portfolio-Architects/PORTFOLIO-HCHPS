@@ -22,8 +22,10 @@ const navItems: { id: ModuleType; label: string; icon: React.ElementType }[] = [
   { id: 'festival', label: '양재천 페스티벌', icon: Sparkles },
 ];
 
-export function Sidebar({ activeModule, onModuleChange, appMode, onPreloadModule, onOpenLogs }: TopNavProps) {
-  const activeLabel = navItems.find((i) => i.id === activeModule)?.label;
+const NAV_ITEM_LABEL_MAP = new Map<ModuleType, string>(navItems.map(i => [i.id, i.label]));
+
+function SidebarComponent({ activeModule, onModuleChange, appMode, onPreloadModule, onOpenLogs }: TopNavProps) {
+  const activeLabel = NAV_ITEM_LABEL_MAP.get(activeModule) || '';
 
   return (
     <>
@@ -65,42 +67,10 @@ export function Sidebar({ activeModule, onModuleChange, appMode, onPreloadModule
                   );
                 })}
               </nav>
-
-              {/* Quick Access: 2026 Yangjaecheon Festival Tracker */}
-              <button
-                onClick={() => onModuleChange('festival')}
-                className={`hidden md:inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold cursor-pointer transition-all duration-150 group active:scale-95 ${
-                  activeModule === 'festival'
-                    ? 'text-white bg-emerald-600 shadow-md shadow-emerald-600/20 border border-emerald-500 ring-2 ring-emerald-400/20'
-                    : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200/80 shadow-2xs'
-                }`}
-                title="2026 양재천 건강 페스티벌 실시간 관제 대시보드 열기"
-              >
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
-                <span className="font-bold tracking-tight">양재천 페스티벌</span>
-                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${
-                  activeModule === 'festival' ? 'bg-emerald-800 text-white' : 'bg-emerald-200/70 text-emerald-800'
-                }`}>D-60</span>
-              </button>
             </div>
 
             {/* Right side: Localhost Health & Daemon Status HUD */}
             <div className="flex items-center gap-2 pr-1.5">
-              <button
-                onClick={() => onModuleChange('festival')}
-                className={`md:hidden flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold transition-all cursor-pointer active:scale-95 ${
-                  activeModule === 'festival'
-                    ? 'text-white bg-emerald-600 border border-emerald-500'
-                    : 'text-emerald-700 bg-emerald-50 border border-emerald-200'
-                }`}
-                title="양재천 페스티벌 관제판"
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span>양재천 D-60</span>
-              </button>
               <LocalhostStatusHUD onOpenLogs={onOpenLogs} />
             </div>
 
@@ -148,4 +118,7 @@ export function Sidebar({ activeModule, onModuleChange, appMode, onPreloadModule
     </>
   );
 }
+
+export const Sidebar = React.memo(SidebarComponent);
+Sidebar.displayName = 'Sidebar';
 

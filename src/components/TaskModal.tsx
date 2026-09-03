@@ -1,12 +1,14 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Task, TaskStatus } from '@/types';
 import { Modal } from './ui/modal';
 import { CalendarDays } from 'lucide-react';
 
 type RecurrenceType = 'none' | 'daily' | 'weekly' | 'biweekly' | 'custom';
 const WEEKDAYS = ['월', '화', '수', '목', '금', '토', '일'];
+const WEEKDAYS_SET = new Set(WEEKDAYS);
+const WEEKDAY_INDEX_MAP = new Map<string, number>(WEEKDAYS.map((d, i) => [d, i]));
 
 function parseRecurrence(text: string): { type: RecurrenceType; days: string[]; custom: string } {
   if (!text) return { type: 'none', days: [], custom: '' };
@@ -14,12 +16,12 @@ function parseRecurrence(text: string): { type: RecurrenceType; days: string[]; 
   if (text.startsWith('매주 ')) {
     const daysStr = text.replace('매주 ', '');
     const days = daysStr.split(', ').map(d => d.replace('요일', ''));
-    if (days.every(d => WEEKDAYS.includes(d))) return { type: 'weekly', days, custom: '' };
+    if (days.every(d => WEEKDAYS_SET.has(d))) return { type: 'weekly', days, custom: '' };
   }
   if (text.startsWith('격주 ')) {
     const daysStr = text.replace('격주 ', '');
     const days = daysStr.split(', ').map(d => d.replace('요일', ''));
-    if (days.every(d => WEEKDAYS.includes(d))) return { type: 'biweekly', days, custom: '' };
+    if (days.every(d => WEEKDAYS_SET.has(d))) return { type: 'biweekly', days, custom: '' };
   }
   return { type: 'custom', days: [], custom: text };
 }
@@ -34,7 +36,7 @@ interface TaskModalProps {
   projects: { id: string; name: string }[];
 }
 
-export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, allTags, projects }: TaskModalProps) {
+function TaskModalComponent({ isOpen, onClose, onSave, editTask, onUpdate, allTags, projects }: TaskModalProps) {
   const [title, setTitle] = useState(editTask?.title || '');
   const [description, setDescription] = useState(editTask?.description || '');
   const [status, setStatus] = useState<TaskStatus>(editTask?.status || 'todo');
@@ -48,6 +50,8 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, allTags
   });
   const [projectId, setProjectId] = useState(editTask?.projectId || '');
   
+  const allTagsSet = useMemo(() => new Set(allTags), [allTags]);
+
   const initRecurrence = useMemo(() => parseRecurrence(editTask?.recurrence || ''), [editTask?.recurrence]);
   const [recurrenceType, setRecurrenceType] = useState<RecurrenceType>(initRecurrence.type);
   const [recurrenceDays, setRecurrenceDays] = useState<string[]>(initRecurrence.days);
@@ -58,6 +62,7 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, allTags
   const [recurrenceCount, setRecurrenceCount] = useState<number | ''>(editTask?.recurrenceCount || '');
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>(editTask?.tags || []);
+  const selectedTagsSet = useMemo(() => new Set(tags), [tags]);
 
   React.useEffect(() => {
     if (editTask) {
@@ -118,7 +123,7 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, allTags
     setRecurrenceEndDate(`${yyyy}-${mm}-${dd}`);
   }, [recurrenceStartDate, recurrenceCount, recurrenceType, recurrenceDays]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
 
@@ -145,14 +150,37 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, allTags
       onSave({ title, description, status, priority: 'medium', category: '', dueDate: combinedDueDate, projectId: projectId || undefined, recurrence: finalRecurrence || undefined, recurrenceStartDate: recurrenceStartDate || undefined, recurrenceEndDate: recurrenceEndDate || undefined, recurrenceCount: countVal, tags });
     }
     onClose();
-  };
+  }, [
+    title, description, status, dueDate, dueTime, projectId, editTask, onUpdate, onSave, onClose,
+    recurrenceType, recurrenceDays, customRecurrence, recurrenceStartDate, recurrenceEndDate, recurrenceCount, tags
+  ]);
 
-  const addTag = () => {
-    if (tagInput.trim() && !tags.includes(tagInput.trim())) {
-      setTags([...tags, tagInput.trim()]);
+  const addTag = useCallback(() => {
+    const trimmed = tagInput.trim();
+    if (trimmed && !tags.includes(trimmed)) {
+      setTags(prev => [...prev, trimmed]);
       setTagInput('');
     }
-  };
+  }, [tagInput, tags]);
+
+  const handleToggleWeekday = useCallback((day: string) => {
+    setRecurrenceDays(prev => {
+      if (prev.includes(day)) {
+        return prev.filter(d => d !== day);
+      }
+      const next = [...prev, day];
+      next.sort((a, b) => (WEEKDAY_INDEX_MAP.get(a) ?? 0) - (WEEKDAY_INDEX_MAP.get(b) ?? 0));
+      return next;
+    });
+  }, []);
+
+  const handleToggleTag = useCallback((tag: string) => {
+    setTags(prev => (prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]));
+  }, []);
+
+  const handleRemoveCustomTag = useCallback((tag: string) => {
+    setTags(prev => prev.filter(t => t !== tag));
+  }, []);
 
   const inputClass = "w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent transition-shadow";
   const labelClass = "block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5";
@@ -222,10 +250,7 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, allTags
                     <button
                       key={day}
                       type="button"
-                      onClick={() => {
-                        if (isSelected) setRecurrenceDays(prev => prev.filter(d => d !== day));
-                        else setRecurrenceDays(prev => [...prev, day].sort((a, b) => WEEKDAYS.indexOf(a) - WEEKDAYS.indexOf(b)));
-                      }}
+                      onClick={() => handleToggleWeekday(day)}
                       className={`w-8 h-8 rounded-full text-xs font-medium flex items-center justify-center transition-colors cursor-pointer ${
                         isSelected ? 'bg-[var(--color-primary)] text-white shadow-sm' : 'bg-gray-100 text-[var(--color-text-secondary)] hover:bg-gray-200'
                       }`}
@@ -287,15 +312,12 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, allTags
           {allTags.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-2">
               {allTags.map(tag => {
-                const isSelected = tags.includes(tag);
+                const isSelected = selectedTagsSet.has(tag);
                 return (
                   <button
                     key={tag}
                     type="button"
-                    onClick={() => {
-                      if (isSelected) setTags(tags.filter(t => t !== tag));
-                      else setTags([...tags, tag]);
-                    }}
+                    onClick={() => handleToggleTag(tag)}
                     className={`px-2 py-0.5 rounded-full text-xs font-medium transition-colors cursor-pointer ${
                       isSelected
                         ? 'bg-[var(--color-primary)] text-white shadow-sm'
@@ -315,8 +337,8 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, allTags
           </div>
           {tags.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-2">
-              {tags.filter(t => !allTags.includes(t)).map(tag => (
-                <span key={tag} className="badge bg-[var(--color-primary)] text-white cursor-pointer hover:opacity-80 transition-colors" onClick={() => setTags(tags.filter(t => t !== tag))}>
+              {tags.filter(t => !allTagsSet.has(t)).map(tag => (
+                <span key={tag} className="badge bg-[var(--color-primary)] text-white cursor-pointer hover:opacity-80 transition-colors" onClick={() => handleRemoveCustomTag(tag)}>
                   ✓ {tag} ×
                 </span>
               ))}
@@ -336,3 +358,6 @@ export function TaskModal({ isOpen, onClose, onSave, editTask, onUpdate, allTags
     </Modal>
   );
 }
+
+TaskModalComponent.displayName = 'TaskModal';
+export const TaskModal = React.memo(TaskModalComponent);

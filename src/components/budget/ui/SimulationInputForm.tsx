@@ -57,17 +57,14 @@ export const SimulationInputForm: React.FC<SimulationInputFormProps> = React.mem
     }
   }
 
-  // Derived numeric unit price
-  const unitPrice = useMemo(() => {
+  // Derived numeric unit price & auto-calculated amount (Consolidated memoization)
+  const { unitPrice, calculatedAmount } = useMemo(() => {
     const raw = unitPriceStr.replace(/,/g, '');
     const num = parseInt(raw, 10);
-    return isNaN(num) ? 0 : num;
-  }, [unitPriceStr]);
-
-  // Auto-calculated Amount
-  const calculatedAmount = useMemo(() => {
-    return Math.max(0, unitPrice) * Math.max(1, quantity);
-  }, [unitPrice, quantity]);
+    const parsedUnitPrice = isNaN(num) ? 0 : num;
+    const amount = Math.max(0, parsedUnitPrice) * Math.max(1, quantity);
+    return { unitPrice: parsedUnitPrice, calculatedAmount: amount };
+  }, [unitPriceStr, quantity]);
 
   // Cascading Stat Item Options
   const statItemOptions = useMemo(() => {

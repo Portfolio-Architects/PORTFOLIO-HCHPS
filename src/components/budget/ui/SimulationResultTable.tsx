@@ -54,45 +54,41 @@ export const SimulationResultTable: React.FC<SimulationResultTableProps> = React
     }));
   }, []);
 
-  // Filtered Project Summaries
+  // Filtered Project Summaries (Single-pass index loop)
   const filteredProjects = useMemo(() => {
-    return projectSummaries.filter((p) => {
-      // 1. Keyword search
-      if (searchKeyword.trim()) {
-        const kw = searchKeyword.trim().toLowerCase();
-        if (!p.detailedProject.toLowerCase().includes(kw)) return false;
+    const trimmedKw = searchKeyword.trim().toLowerCase();
+    const list: ProjectSimulationSummary[] = [];
+    for (let i = 0; i < projectSummaries.length; i++) {
+      const p = projectSummaries[i];
+      if (trimmedKw && !p.detailedProject.toLowerCase().includes(trimmedKw)) {
+        continue;
       }
-      // 2. Status filter
-      if (statusFilter === 'deficit') {
-        if (!p.isDeficit) return false;
-      } else if (statusFilter === 'normal') {
-        if (p.isDeficit) return false;
-      }
-      return true;
-    });
+      if (statusFilter === 'deficit' && !p.isDeficit) continue;
+      if (statusFilter === 'normal' && p.isDeficit) continue;
+      list.push(p);
+    }
+    return list;
   }, [projectSummaries, searchKeyword, statusFilter]);
 
-  // Filtered Stat Item Summaries
+  // Filtered Stat Item Summaries (Single-pass index loop)
   const filteredStatItems = useMemo(() => {
-    return statItemSummaries.filter((s) => {
-      // 1. Keyword search
-      if (searchKeyword.trim()) {
-        const kw = searchKeyword.trim().toLowerCase();
+    const trimmedKw = searchKeyword.trim().toLowerCase();
+    const list: StatItemSimulationSummary[] = [];
+    for (let i = 0; i < statItemSummaries.length; i++) {
+      const s = statItemSummaries[i];
+      if (trimmedKw) {
         const combined = `${s.detailedProject} ${s.statItem}`.toLowerCase();
-        if (!combined.includes(kw)) return false;
+        if (!combined.includes(trimmedKw)) continue;
       }
-      // 2. Status filter
-      if (statusFilter === 'deficit') {
-        if (!s.isDeficit) return false;
-      } else if (statusFilter === 'normal') {
-        if (s.isDeficit) return false;
-      }
-      return true;
-    });
+      if (statusFilter === 'deficit' && !s.isDeficit) continue;
+      if (statusFilter === 'normal' && s.isDeficit) continue;
+      list.push(s);
+    }
+    return list;
   }, [statItemSummaries, searchKeyword, statusFilter]);
 
-  // Grouped Stat Items by Detailed Project
-  const groupedStatItems = useMemo(() => {
+  // Grouped Stat Items by Detailed Project with single-pass aggregation & statTotals calculation
+  const { groupedStatItems, statTotals } = useMemo(() => {
     const map = new Map<
       string,
       {
@@ -107,9 +103,17 @@ export const SimulationResultTable: React.FC<SimulationResultTableProps> = React
       }
     >();
 
-    filteredStatItems.forEach((s) => {
-      if (!map.has(s.detailedProject)) {
-        map.set(s.detailedProject, {
+    let totalBudget = 0;
+    let currentSpent = 0;
+    let currentRemaining = 0;
+    let simulatedExpenditure = 0;
+    let finalExpectedBalance = 0;
+
+    for (let i = 0; i < filteredStatItems.length; i++) {
+      const s = filteredStatItems[i];
+      let group = map.get(s.detailedProject);
+      if (!group) {
+        group = {
           detailedProject: s.detailedProject,
           items: [],
           totalBudget: 0,
@@ -118,10 +122,10 @@ export const SimulationResultTable: React.FC<SimulationResultTableProps> = React
           simulatedExpenditure: 0,
           finalExpectedBalance: 0,
           isDeficit: false,
-        });
+        };
+        map.set(s.detailedProject, group);
       }
 
-      const group = map.get(s.detailedProject)!;
       group.items.push(s);
       group.totalBudget += s.totalBudget;
       group.currentSpent += s.currentSpent;
@@ -131,9 +135,18 @@ export const SimulationResultTable: React.FC<SimulationResultTableProps> = React
       if (s.finalExpectedBalance < 0) {
         group.isDeficit = true;
       }
-    });
 
-    return Array.from(map.values());
+      totalBudget += s.totalBudget;
+      currentSpent += s.currentSpent;
+      currentRemaining += s.currentRemaining;
+      simulatedExpenditure += s.simulatedExpenditure;
+      finalExpectedBalance += s.finalExpectedBalance;
+    }
+
+    return {
+      groupedStatItems: Array.from(map.values()),
+      statTotals: { totalBudget, currentSpent, currentRemaining, simulatedExpenditure, finalExpectedBalance }
+    };
   }, [filteredStatItems]);
 
   const toggleAllCollapse = useCallback(() => {
@@ -158,34 +171,21 @@ export const SimulationResultTable: React.FC<SimulationResultTableProps> = React
       let simulatedExpenditure = 0;
       let finalExpectedBalance = 0;
 
-      filteredProjects.forEach((p) => {
+      for (let i = 0; i < filteredProjects.length; i++) {
+        const p = filteredProjects[i];
         totalBudget += p.totalBudget;
         currentSpent += p.currentSpent;
         currentRemaining += p.currentRemaining;
         simulatedExpenditure += p.simulatedExpenditure;
         finalExpectedBalance += p.finalExpectedBalance;
-      });
+      }
 
       return { totalBudget, currentSpent, currentRemaining, simulatedExpenditure, finalExpectedBalance };
     } else if (viewMode === 'stat') {
-      let totalBudget = 0;
-      let currentSpent = 0;
-      let currentRemaining = 0;
-      let simulatedExpenditure = 0;
-      let finalExpectedBalance = 0;
-
-      filteredStatItems.forEach((s) => {
-        totalBudget += s.totalBudget;
-        currentSpent += s.currentSpent;
-        currentRemaining += s.currentRemaining;
-        simulatedExpenditure += s.simulatedExpenditure;
-        finalExpectedBalance += s.finalExpectedBalance;
-      });
-
-      return { totalBudget, currentSpent, currentRemaining, simulatedExpenditure, finalExpectedBalance };
+      return statTotals;
     }
     return null;
-  }, [viewMode, filteredProjects, filteredStatItems]);
+  }, [viewMode, filteredProjects, statTotals]);
 
   return (
     <div className="bg-white border border-slate-200/90 rounded-2xl p-5 md:p-6 shadow-xs space-y-5 text-slate-800">

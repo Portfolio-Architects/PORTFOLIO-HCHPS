@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { FestivalValidationReport } from '@/hooks/useFestivalValidation';
 import { ShieldAlert, ShieldCheck, AlertTriangle, Zap, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
 
@@ -8,8 +8,16 @@ interface DetectiveValidationHUDProps {
   report: FestivalValidationReport;
 }
 
-export const DetectiveValidationHUD: React.FC<DetectiveValidationHUDProps> = ({ report }) => {
+const DetectiveValidationHUDComponent: React.FC<DetectiveValidationHUDProps> = ({ report }) => {
   const { permits, budgetValidation, overallRiskLevel, injectMissingPermits } = report;
+
+  const verifiedCount = useMemo(() => {
+    let c = 0;
+    for (let i = 0; i < permits.length; i++) {
+      if (permits[i].status === 'VERIFIED') c++;
+    }
+    return c;
+  }, [permits]);
 
   const formatKW = (amount: number) => {
     const mans = Math.round(amount / 10000);
@@ -109,7 +117,7 @@ export const DetectiveValidationHUD: React.FC<DetectiveValidationHUDProps> = ({ 
           <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
             <span>📋 필수 인허가 4종 점검표</span>
             <span className="text-[10px] text-slate-500">
-              {permits.filter(p => p.status === 'VERIFIED').length} / 4 완료
+              {verifiedCount} / 4 완료
             </span>
           </div>
           <div className="grid grid-cols-2 gap-1.5">
@@ -167,3 +175,6 @@ export const DetectiveValidationHUD: React.FC<DetectiveValidationHUDProps> = ({ 
     </div>
   );
 };
+
+DetectiveValidationHUDComponent.displayName = 'DetectiveValidationHUD';
+export const DetectiveValidationHUD = React.memo(DetectiveValidationHUDComponent);

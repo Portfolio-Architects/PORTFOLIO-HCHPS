@@ -120,6 +120,7 @@ export class OntologyCanvasEngine {
   private lastActiveLayers: Set<number> | null = null;
   private isCollapsedNodesDirty = true;
   public isPaused: boolean = false;
+  private lastFrameTime: number = 0;
 
   public pause(): void {
     this.isPaused = true;
@@ -127,6 +128,7 @@ export class OntologyCanvasEngine {
 
   public resume(): void {
     this.isPaused = false;
+    this.lastFrameTime = performance.now();
     this.wakeUp();
   }
 
@@ -507,7 +509,8 @@ export class OntologyCanvasEngine {
   // ============ Tick (per frame) ============
 
   // force-directed simulation tick
-  private runPhysicsTick(): boolean {
+  private runPhysicsTick(delta: number = 16.67): boolean {
+    if (delta <= 0) return false;
     return false; // 2D 평면 상대적 방사형 배치에서는 겹침이 기하학적으로 방지되어 척력이 필요 없음 (물리 비활성화)
 
     // 노드 수 80개 이상일 때 2프레임당 1회 계산 (연산량 절반으로 분산)
@@ -819,6 +822,12 @@ export class OntologyCanvasEngine {
 
   tick(): boolean {
     if (this.isPaused) return false;
+    const now = performance.now();
+    const rawDelta = this.lastFrameTime > 0 ? now - this.lastFrameTime : 16.67;
+    // Delta clamping guard (Zero-Stall Rule 2-J-2: clamp to 100ms max to prevent whiplash divergence)
+    const clampedDelta = Math.min(rawDelta, 100);
+    this.lastFrameTime = now;
+
     let isDirty = false;
 
     // LERP 상태나 카메라 모션이 존재하는지 확인
@@ -865,7 +874,7 @@ export class OntologyCanvasEngine {
 
     // 4차 최적화: 물리 시뮬레이션 프레임 연동 및 더티 마킹 (Spatial Hash Grid 기반)
     const t0 = performance.now();
-    const ranPhysics = this.runPhysicsTick();
+    const ranPhysics = this.runPhysicsTick(clampedDelta);
     const t1 = performance.now();
     PerformanceProfiler.getInstance().recordPhysics(ranPhysics ? (t1 - t0) : 0);
 

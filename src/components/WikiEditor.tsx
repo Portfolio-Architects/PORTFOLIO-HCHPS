@@ -65,7 +65,7 @@ const getCustomSlashMenuItems = (editor: any): DefaultReactSuggestionItem[] => [
   }
 ];
 
-export function WikiEditor(props: WikiEditorProps) {
+function WikiEditorComponent(props: WikiEditorProps) {
   const { nodeId, nodeTitle, initialBlocks, onChange, onClose } = props;
 
   const wikiSyncMutation = useWikiSync();
@@ -90,6 +90,53 @@ export function WikiEditor(props: WikiEditorProps) {
 
   const [lastSavedMsg, setLastSavedMsg] = useState('');
 
+  const handleCloseAction = React.useCallback(async () => {
+    if (onChange && editor) {
+      onChange(editor.document);
+      setLastSavedMsg('저장 성공!');
+    }
+    
+    if (editor) {
+      try {
+        const docText = await editor.blocksToMarkdownLossy(editor.document);
+        wikiSyncMutation.mutate({
+          id: `HCHPS-Wiki-${nodeId}`,
+          text: `${nodeTitle}\n\n${docText}`
+        });
+      } catch (e) {
+        console.log('Failed to sync to Vectorize:', e);
+      }
+    }
+
+    setTimeout(() => onClose?.(), 100);
+  }, [editor, nodeId, nodeTitle, onChange, onClose, wikiSyncMutation]);
+
+  const handleEditorChange = React.useCallback(() => {
+    if (onChange && editor) {
+      onChange(editor.document);
+      const now = new Date();
+      setLastSavedMsg(`자동 저장됨 (${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')})`);
+    }
+  }, [editor, onChange]);
+
+  const customSlashMenuItems = React.useMemo(() => {
+    if (!editor) return [];
+    return getCustomSlashMenuItems(editor);
+  }, [editor]);
+
+  const handleGetSlashMenuItems = React.useCallback(async (query: string) => {
+    const lower = query.toLowerCase();
+    const len = customSlashMenuItems.length;
+    const filtered = [];
+    for (let i = 0; i < len; i++) {
+      const item = customSlashMenuItems[i];
+      if (item.title.toLowerCase().includes(lower) || (item.aliases && item.aliases.some(a => a.toLowerCase().includes(lower)))) {
+        filtered.push(item);
+      }
+    }
+    return filtered;
+  }, [customSlashMenuItems]);
+
   return (
     <div className="flex flex-col h-full bg-white dark:bg-slate-950 relative">
       {/* 윗부분 헤더 */}
@@ -111,24 +158,7 @@ export function WikiEditor(props: WikiEditorProps) {
 
           {onClose && (
             <button 
-              onClick={async () => {
-                if (onChange) {
-                  onChange(editor.document);
-                  setLastSavedMsg('저장 성공!');
-                }
-                
-                try {
-                  const docText = await editor.blocksToMarkdownLossy(editor.document);
-                  wikiSyncMutation.mutate({
-                    id: `HCHPS-Wiki-${nodeId}`,
-                    text: `${nodeTitle}\n\n${docText}`
-                  });
-                } catch (e) {
-                  console.log('Failed to sync to Vectorize:', e);
-                }
-
-                setTimeout(() => onClose(), 100);
-              }}
+              onClick={handleCloseAction}
               className="p-2 text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:hover:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800 flex items-center justify-center rounded-full transition-colors"
               title="닫기"
             >
@@ -142,30 +172,20 @@ export function WikiEditor(props: WikiEditorProps) {
       <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
         <BlockNoteView
           editor={editor}
-          onChange={() => {
-            if (onChange) {
-               // 최신 블록트리 onChange 이벤트 발생
-               onChange(editor.document);
-               
-               const now = new Date();
-               setLastSavedMsg(`자동 저장됨 (${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')})`);
-            }
-          }}
+          onChange={handleEditorChange}
           slashMenu={false}
           theme={isDark ? "dark" : "light"}
           className="min-h-full"
         >
           <SuggestionMenuController
             triggerCharacter="/"
-            getItems={async (query) =>
-              getCustomSlashMenuItems(editor).filter((item) =>
-                item.title.toLowerCase().includes(query.toLowerCase()) || 
-                (item.aliases && item.aliases.some(a => a.toLowerCase().includes(query.toLowerCase())))
-              )
-            }
+            getItems={handleGetSlashMenuItems}
           />
         </BlockNoteView>
       </div>
     </div>
   );
 }
+
+WikiEditorComponent.displayName = 'WikiEditor';
+export const WikiEditor = React.memo(WikiEditorComponent);

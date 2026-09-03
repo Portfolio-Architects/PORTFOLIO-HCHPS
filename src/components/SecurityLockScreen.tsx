@@ -10,8 +10,10 @@ interface Props {
 }
 
 const PIN_LENGTH = 4;
+const PIN_INDICES = [0, 1, 2, 3];
+const NUM_PAD_DIGITS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
-export const SecurityLockScreen: React.FC<Props> = ({ hasSetupPIN, onVerify, onSetup, appMode = 'VITAL' }) => {
+const SecurityLockScreenComponent: React.FC<Props> = ({ hasSetupPIN, onVerify, onSetup, appMode = 'VITAL' }) => {
   const [pin, setPin] = useState<string>('');
   const [setupStep, setSetupStep] = useState<1 | 2>(1);
   const [firstPin, setFirstPin] = useState<string>('');
@@ -112,7 +114,7 @@ export const SecurityLockScreen: React.FC<Props> = ({ hasSetupPIN, onVerify, onS
 
       {/* 핀 도트 */}
       <div className={`flex gap-4 mb-12 ${isShaking ? 'animate-[shake_0.5s_ease-in-out]' : ''}`}>
-        {Array.from({ length: PIN_LENGTH }).map((_, i) => (
+        {PIN_INDICES.map((i) => (
           <div 
             key={i} 
             className={`w-4 h-4 rounded-full border-2 transition-all duration-200 ${
@@ -126,7 +128,7 @@ export const SecurityLockScreen: React.FC<Props> = ({ hasSetupPIN, onVerify, onS
 
       {/* 숫자 패드 */}
       <div className="grid grid-cols-3 gap-x-8 gap-y-6 max-w-[280px] w-full">
-        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
+        {NUM_PAD_DIGITS.map((n) => (
           <button
             key={n}
             onClick={() => handleNumberClick(n)}
@@ -162,3 +164,6 @@ export const SecurityLockScreen: React.FC<Props> = ({ hasSetupPIN, onVerify, onS
     </div>
   );
 };
+
+SecurityLockScreenComponent.displayName = 'SecurityLockScreen';
+export const SecurityLockScreen = React.memo(SecurityLockScreenComponent);

@@ -33,36 +33,47 @@ function minutesToTime(mins: number): string {
   return `${h}:${m}`;
 }
 
-// Schedule type style helper
-function getTypeConfig(schedType: ScheduleType) {
-  switch (schedType) {
-    case 'security':
-      return {
-        bg: 'bg-indigo-50/70 border-indigo-100 hover:border-indigo-200 text-indigo-700 dark:bg-indigo-950/40 dark:border-indigo-900/50 dark:text-indigo-300',
-        badge: 'bg-indigo-100/80 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300',
-        icon: <Shield className="w-3.5 h-3.5" />
-      };
-    case 'meeting':
-      return {
-        bg: 'bg-emerald-50/70 border-emerald-100 hover:border-emerald-200 text-emerald-700 dark:bg-emerald-950/40 dark:border-emerald-900/50 dark:text-emerald-300',
-        badge: 'bg-emerald-100/80 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300',
-        icon: <Users className="w-3.5 h-3.5" />
-      };
-    case 'education':
-      return {
-        bg: 'bg-amber-50/70 border-amber-100 hover:border-amber-200 text-amber-700 dark:bg-amber-950/40 dark:border-amber-900/50 dark:text-amber-300',
-        badge: 'bg-amber-100/85 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
-        icon: <BookOpen className="w-3.5 h-3.5" />
-      };
-    case 'other':
-    default:
-      return {
-        bg: 'bg-slate-50/70 border-slate-100 hover:border-slate-200 text-slate-700 dark:bg-slate-800/50 dark:border-slate-700/50 dark:text-slate-300',
-        badge: 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-350',
-        icon: <Calendar className="w-3.5 h-3.5" />
-      };
+// Schedule type style helper (Pre-cached static map for GC-Free O(1) lookup)
+const TYPE_CONFIG_MAP: Record<ScheduleType, { bg: string; badge: string; icon: React.ReactNode }> = {
+  security: {
+    bg: 'bg-indigo-50/70 border-indigo-100 hover:border-indigo-200 text-indigo-700 dark:bg-indigo-950/40 dark:border-indigo-900/50 dark:text-indigo-300',
+    badge: 'bg-indigo-100/80 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300',
+    icon: <Shield className="w-3.5 h-3.5" />
+  },
+  meeting: {
+    bg: 'bg-emerald-50/70 border-emerald-100 hover:border-emerald-200 text-emerald-700 dark:bg-emerald-950/40 dark:border-emerald-900/50 dark:text-emerald-300',
+    badge: 'bg-emerald-100/80 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300',
+    icon: <Users className="w-3.5 h-3.5" />
+  },
+  education: {
+    bg: 'bg-amber-50/70 border-amber-100 hover:border-amber-200 text-amber-700 dark:bg-amber-950/40 dark:border-amber-900/50 dark:text-amber-300',
+    badge: 'bg-amber-100/85 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
+    icon: <BookOpen className="w-3.5 h-3.5" />
+  },
+  other: {
+    bg: 'bg-slate-50/70 border-slate-100 hover:border-slate-200 text-slate-700 dark:bg-slate-800/50 dark:border-slate-700/50 dark:text-slate-300',
+    badge: 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-350',
+    icon: <Calendar className="w-3.5 h-3.5" />
   }
+};
+
+function getTypeConfig(schedType: ScheduleType) {
+  return TYPE_CONFIG_MAP[schedType] || TYPE_CONFIG_MAP.other;
 }
+
+const SCHEDULE_TYPE_MODAL_OPTIONS: Array<{ type: ScheduleType; label: string }> = [
+  { type: 'security', label: '보안' },
+  { type: 'meeting', label: '회의' },
+  { type: 'education', label: '교육' },
+  { type: 'other', label: '기타' }
+];
+
+const SCHEDULE_TYPE_FORM_OPTIONS: Array<{ type: ScheduleType; label: string }> = [
+  { type: 'security', label: '보안' },
+  { type: 'meeting', label: '업무 회의' },
+  { type: 'education', label: '직원 교육' },
+  { type: 'other', label: '기타 일정' }
+];
 
 // ============ Schedule Direct Creation / Edit Modal ============
 interface ScheduleModalProps {
@@ -111,6 +122,49 @@ const ScheduleModal = React.memo(({
     if (preset.notes) setNotes(preset.notes);
   }, []);
 
+  const handleTitleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setTitle(e.target.value);
+  }, []);
+
+  const handlePersonChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setPerson(e.target.value);
+  }, []);
+
+  const handleDateChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setDate(e.target.value);
+  }, []);
+
+  const handleEndDateChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setEndDate(e.target.value);
+  }, []);
+
+  const handleRangeToggle = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setIsRange(e.target.checked);
+    if (e.target.checked) {
+      setEndDate(prev => prev || date);
+    }
+  }, [date]);
+
+  const handleStartTimeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setStartTime(e.target.value);
+  }, []);
+
+  const handleEndTimeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setEndTime(e.target.value);
+  }, []);
+
+  const handleNotesChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setNotes(e.target.value);
+  }, []);
+
+  const handleOpenPresetModal = useCallback(() => {
+    setIsPresetModalOpen(true);
+  }, []);
+
+  const handleClosePresetModal = useCallback(() => {
+    setIsPresetModalOpen(false);
+  }, []);
+
   React.useEffect(() => {
     if (!isOpen) return;
     if (schedule) {
@@ -138,9 +192,7 @@ const ScheduleModal = React.memo(({
     setError(null);
   }, [isOpen, schedule, initialDate, initialStartTime, initialEndTime]);
 
-  if (!isOpen) return null;
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
       setError('일정 제목을 입력해주세요.');
@@ -179,14 +231,16 @@ const ScheduleModal = React.memo(({
       });
     }
     onClose();
-  };
+  }, [title, person, startTime, endTime, isEditing, schedule, onSaveUpdate, onSaveAdd, onClose, type, date, isRange, endDate, notes]);
 
-  const handleDelete = () => {
+  const handleDelete = useCallback(() => {
     if (schedule && confirm(`'${schedule.title}' 일정을 삭제하시겠습니까?`)) {
       onDeleteSchedule(schedule.id);
       onClose();
     }
-  };
+  }, [schedule, onDeleteSchedule, onClose]);
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-150">
@@ -199,6 +253,7 @@ const ScheduleModal = React.memo(({
             </h3>
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg transition-colors cursor-pointer border-0 bg-transparent"
           >
@@ -218,7 +273,7 @@ const ScheduleModal = React.memo(({
           <div className="flex flex-col gap-1.5">
             <label className="text-[11px] font-bold text-slate-500">일정 분류</label>
             <div className="grid grid-cols-4 gap-1.5">
-              {(['security', 'meeting', 'education', 'other'] as const).map((t) => (
+              {SCHEDULE_TYPE_MODAL_OPTIONS.map(({ type: t, label }) => (
                 <button
                   key={t}
                   type="button"
@@ -229,10 +284,7 @@ const ScheduleModal = React.memo(({
                       : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
                   }`}
                 >
-                  {t === 'security' && '보안'}
-                  {t === 'meeting' && '회의'}
-                  {t === 'education' && '교육'}
-                  {t === 'other' && '기타'}
+                  {label}
                 </button>
               ))}
             </div>
@@ -242,7 +294,7 @@ const ScheduleModal = React.memo(({
           <SchedulePresetChips
             currentType={type}
             onSelectPreset={handleSelectPreset}
-            onOpenManageModal={() => setIsPresetModalOpen(true)}
+            onOpenManageModal={handleOpenPresetModal}
           />
 
           <div className="flex flex-col gap-1.5">
@@ -251,7 +303,7 @@ const ScheduleModal = React.memo(({
               type="text"
               required
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={handleTitleChange}
               className="px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-950 focus:outline-none focus:border-indigo-500"
             />
           </div>
@@ -262,7 +314,7 @@ const ScheduleModal = React.memo(({
               type="text"
               required
               value={person}
-              onChange={(e) => setPerson(e.target.value)}
+              onChange={handlePersonChange}
               className="px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-950 focus:outline-none focus:border-indigo-500"
             />
           </div>
@@ -274,7 +326,7 @@ const ScheduleModal = React.memo(({
                 type="date"
                 required
                 value={date}
-                onChange={(e) => setDate(e.target.value)}
+                onChange={handleDateChange}
                 className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-950"
               />
             </div>
@@ -284,7 +336,7 @@ const ScheduleModal = React.memo(({
                 type="date"
                 value={isRange ? endDate : date}
                 disabled={!isRange}
-                onChange={(e) => setEndDate(e.target.value)}
+                onChange={handleEndDateChange}
                 className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-950 disabled:opacity-50"
               />
             </div>
@@ -295,10 +347,7 @@ const ScheduleModal = React.memo(({
               type="checkbox"
               id="modalRangeCheck"
               checked={isRange}
-              onChange={(e) => {
-                setIsRange(e.target.checked);
-                if (e.target.checked) setEndDate(date);
-              }}
+              onChange={handleRangeToggle}
               className="w-4 h-4 rounded text-indigo-600"
             />
             <label htmlFor="modalRangeCheck" className="text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer">
@@ -312,7 +361,7 @@ const ScheduleModal = React.memo(({
               <input
                 type="time"
                 value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
+                onChange={handleStartTimeChange}
                 className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-950"
               />
             </div>
@@ -321,7 +370,7 @@ const ScheduleModal = React.memo(({
               <input
                 type="time"
                 value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
+                onChange={handleEndTimeChange}
                 className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-950"
               />
             </div>
@@ -332,7 +381,7 @@ const ScheduleModal = React.memo(({
             <textarea
               rows={3}
               value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+              onChange={handleNotesChange}
               placeholder="상세 내용을 적어주세요."
               className="px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-950"
             />
@@ -386,7 +435,7 @@ const ScheduleModal = React.memo(({
       {/* 자주 쓰는 상용구 관리 모달 */}
       <SchedulePresetManageModal
         isOpen={isPresetModalOpen}
-        onClose={() => setIsPresetModalOpen(false)}
+        onClose={handleClosePresetModal}
         onSelectPreset={handleSelectPreset}
         currentFormValues={{
           title,
@@ -421,18 +470,22 @@ const GoogleCalendarSyncModal = React.memo(({
   const [importStatus, setImportStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [importMessage, setImportMessage] = useState('');
 
-  if (!isOpen) return null;
+  const feedUrl = useMemo(() => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001';
+    return `${origin}/api/calendar/feed.ics`;
+  }, []);
 
-  const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001';
-  const feedUrl = `${origin}/api/calendar/feed.ics`;
+  const handleImportUrlChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setImportUrl(e.target.value);
+  }, []);
 
-  const handleCopyFeedUrl = () => {
+  const handleCopyFeedUrl = useCallback(() => {
     navigator.clipboard.writeText(feedUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  };
+  }, [feedUrl]);
 
-  const handleImport = async (e: React.FormEvent) => {
+  const handleImport = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!importUrl.trim()) return;
 
@@ -453,7 +506,9 @@ const GoogleCalendarSyncModal = React.memo(({
       setImportStatus('error');
       setImportMessage(err?.message || '네트워크 오류가 발생했습니다.');
     }
-  };
+  }, [importUrl, onImportCalendar, onRefresh]);
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-150">
@@ -474,6 +529,7 @@ const GoogleCalendarSyncModal = React.memo(({
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg transition-colors cursor-pointer border-0 bg-transparent"
           >
@@ -535,7 +591,7 @@ const GoogleCalendarSyncModal = React.memo(({
                 required
                 placeholder="https://calendar.google.com/calendar/ical/.../basic.ics"
                 value={importUrl}
-                onChange={(e) => setImportUrl(e.target.value)}
+                onChange={handleImportUrlChange}
                 className="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-950 focus:outline-none focus:border-emerald-500 font-mono"
               />
               <button
@@ -613,12 +669,59 @@ const ScheduleForm = React.memo(({
     if (preset.notes) setNotes(preset.notes);
   }, []);
 
+  const handleTitleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setTitle(e.target.value);
+  }, []);
+
+  const handlePersonChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setPerson(e.target.value);
+  }, []);
+
+  const handleNotesChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setNotes(e.target.value);
+  }, []);
+
   const handleDateChange = useCallback((newVal: string) => {
     setDate(newVal);
     if (endDate < newVal) {
       setEndDate(newVal);
     }
   }, [setDate, endDate, setEndDate]);
+
+  const handleEndDateChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setEndDate(e.target.value);
+  }, [setEndDate]);
+
+  const handleRangeToggle = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setIsRange(e.target.checked);
+    if (e.target.checked) {
+      setEndDate(date);
+    }
+  }, [setIsRange, setEndDate, date]);
+
+  const handleStartHourChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    setStartTime(prev => `${e.target.value}:${prev.split(':')[1] || '30'}`);
+  }, []);
+
+  const handleStartMinChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    setStartTime(prev => `${prev.split(':')[0] || '11'}:${e.target.value}`);
+  }, []);
+
+  const handleEndHourChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    setEndTime(prev => `${e.target.value}:${prev.split(':')[1] || '00'}`);
+  }, []);
+
+  const handleEndMinChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    setEndTime(prev => `${prev.split(':')[0] || '13'}:${e.target.value}`);
+  }, []);
+
+  const handleOpenPresetModal = useCallback(() => {
+    setIsPresetModalOpen(true);
+  }, []);
+
+  const handleClosePresetModal = useCallback(() => {
+    setIsPresetModalOpen(false);
+  }, []);
 
   const hours = useMemo(() => Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')), []);
   const minutes = useMemo(() => ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'], []);
@@ -628,7 +731,7 @@ const ScheduleForm = React.memo(({
     setEndTime(end);
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -665,7 +768,7 @@ const ScheduleForm = React.memo(({
     setNotes('');
     setIsRange(false);
     setEndDate(date);
-  };
+  }, [title, person, startTime, endTime, isRange, endDate, date, addSchedule, type, notes, setIsRange, setEndDate]);
 
   return (
     <form onSubmit={handleSubmit} className="xl:col-span-3 flex flex-col gap-4 bg-slate-50/20 dark:bg-slate-900/60 p-6 rounded-2xl border border-slate-200/40 dark:border-slate-800 backdrop-blur-xs max-h-[580px] overflow-y-auto">
@@ -683,7 +786,7 @@ const ScheduleForm = React.memo(({
       <div className="flex flex-col gap-1.5">
         <label className="text-[11px] font-bold text-slate-500">일정 분류</label>
         <div className="grid grid-cols-2 gap-1.5">
-          {(['security', 'meeting', 'education', 'other'] as const).map((t) => (
+          {SCHEDULE_TYPE_FORM_OPTIONS.map(({ type: t, label }) => (
             <button
               key={t}
               type="button"
@@ -694,10 +797,7 @@ const ScheduleForm = React.memo(({
                   : 'bg-white dark:bg-slate-850 border-slate-200 dark:border-slate-700 text-slate-650 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-800'
               }`}
             >
-              {t === 'security' && '보안'}
-              {t === 'meeting' && '업무 회의'}
-              {t === 'education' && '직원 교육'}
-              {t === 'other' && '기타 일정'}
+              {label}
             </button>
           ))}
         </div>
@@ -707,7 +807,7 @@ const ScheduleForm = React.memo(({
       <SchedulePresetChips
         currentType={type}
         onSelectPreset={handleSelectPreset}
-        onOpenManageModal={() => setIsPresetModalOpen(true)}
+        onOpenManageModal={handleOpenPresetModal}
       />
 
       <div className="flex flex-col gap-1.5">
@@ -715,9 +815,9 @@ const ScheduleForm = React.memo(({
         <input
           type="text"
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          onChange={handleTitleChange}
           placeholder="예: 4층 보안"
-          className="w-full px-4.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white/50 dark:bg-slate-950/40 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-300 dark:placeholder:text-slate-650 placeholder:font-semibold"
+          className="w-full px-4.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white/50 dark:bg-slate-950/40 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-300 dark:placeholder:text-slate-655 placeholder:font-semibold"
           required
         />
       </div>
@@ -727,9 +827,9 @@ const ScheduleForm = React.memo(({
         <input
           type="text"
           value={person}
-          onChange={(e) => setPerson(e.target.value)}
+          onChange={handlePersonChange}
           placeholder="담당 당번 혹은 회의 주최자"
-          className="w-full px-4.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white/50 dark:bg-slate-950/40 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-300 dark:placeholder:text-slate-650 placeholder:font-semibold"
+          className="w-full px-4.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white/50 dark:bg-slate-950/40 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-300 dark:placeholder:text-slate-655 placeholder:font-semibold"
           required
         />
       </div>
@@ -750,12 +850,7 @@ const ScheduleForm = React.memo(({
           type="checkbox"
           id="isRangeCheck"
           checked={isRange}
-          onChange={(e) => {
-            setIsRange(e.target.checked);
-            if (e.target.checked) {
-              setEndDate(date);
-            }
-          }}
+          onChange={handleRangeToggle}
           className="w-4 h-4 rounded text-indigo-650 border-slate-300 dark:border-slate-750 focus:ring-indigo-500 cursor-pointer"
         />
         <label htmlFor="isRangeCheck" className="text-xs font-bold text-slate-600 dark:text-slate-400 cursor-pointer">
@@ -769,7 +864,7 @@ const ScheduleForm = React.memo(({
           <input
             type="date"
             value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
+            onChange={handleEndDateChange}
             min={date}
             className="w-full px-4.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white/50 dark:bg-slate-950/40 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
             required
@@ -833,14 +928,14 @@ const ScheduleForm = React.memo(({
           <div className="flex gap-1.5">
             <select
               value={startTime.split(':')[0] || '11'}
-              onChange={(e) => setStartTime(`${e.target.value}:${startTime.split(':')[1] || '30'}`)}
+              onChange={handleStartHourChange}
               className="w-1/2 px-3 py-2.5 rounded-xl border border-slate-200/60 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white/50 dark:bg-slate-950/40 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
             >
               {hours.map(h => <option key={h} value={h}>{h}시</option>)}
             </select>
             <select
               value={startTime.split(':')[1] || '30'}
-              onChange={(e) => setStartTime(`${startTime.split(':')[0] || '11'}:${e.target.value}`)}
+              onChange={handleStartMinChange}
               className="w-1/2 px-3 py-2.5 rounded-xl border border-slate-200/60 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white/50 dark:bg-slate-950/40 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
             >
               {minutes.map(m => <option key={m} value={m}>{m}분</option>)}
@@ -852,14 +947,14 @@ const ScheduleForm = React.memo(({
           <div className="flex gap-1.5">
             <select
               value={endTime.split(':')[0] || '13'}
-              onChange={(e) => setEndTime(`${e.target.value}:${endTime.split(':')[1] || '00'}`)}
+              onChange={handleEndHourChange}
               className="w-1/2 px-3 py-2.5 rounded-xl border border-slate-200/60 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white/50 dark:bg-slate-950/40 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
             >
               {hours.map(h => <option key={h} value={h}>{h}시</option>)}
             </select>
             <select
               value={endTime.split(':')[1] || '00'}
-              onChange={(e) => setEndTime(`${endTime.split(':')[0] || '13'}:${e.target.value}`)}
+              onChange={handleEndMinChange}
               className="w-1/2 px-3 py-2.5 rounded-xl border border-slate-200/60 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white/50 dark:bg-slate-950/40 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
             >
               {minutes.map(m => <option key={m} value={m}>{m}분</option>)}
@@ -872,9 +967,9 @@ const ScheduleForm = React.memo(({
         <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">메모 / 특이사항</label>
         <textarea
           value={notes}
-          onChange={(e) => setNotes(e.target.value)}
+          onChange={handleNotesChange}
           placeholder="상세 위치, 안건 및 기타 중요 특이사항을 적어주세요."
-          className="w-full px-4.5 py-2.5 rounded-xl border border-slate-200/60 dark:border-slate-700 text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white/50 dark:bg-slate-950/40 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-300 dark:placeholder:text-slate-650 placeholder:font-semibold resize-none h-20"
+          className="w-full px-4.5 py-2.5 rounded-xl border border-slate-200/60 dark:border-slate-700 text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white/50 dark:bg-slate-950/40 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-300 dark:placeholder:text-slate-655 placeholder:font-semibold resize-none h-20"
         />
       </div>
 
@@ -888,7 +983,7 @@ const ScheduleForm = React.memo(({
       {/* 자주 쓰는 상용구 관리 모달 */}
       <SchedulePresetManageModal
         isOpen={isPresetModalOpen}
-        onClose={() => setIsPresetModalOpen(false)}
+        onClose={handleClosePresetModal}
         onSelectPreset={handleSelectPreset}
         currentFormValues={{
           title,
@@ -1402,11 +1497,33 @@ const WeeklySchedulerComponent: React.FC = () => {
     const dayMap = new Map<string, Schedule[]>();
     const timetableMap = new Map<string, Schedule[]>();
 
-    for (const s of schedules) {
+    for (let i = 0; i < schedules.length; i++) {
+      const s = schedules[i];
       const startDate = s.date;
       const endDateVal = s.endDate || s.date;
       const hourPrefix = s.startTime ? s.startTime.split(':')[0] : '00';
       
+      // Fast path for single-day schedules (avoids Date object allocations)
+      if (startDate === endDateVal || !s.endDate) {
+        const dStr = startDate.includes('T') ? startDate.split('T')[0] : startDate;
+        
+        let dayList = dayMap.get(dStr);
+        if (!dayList) {
+          dayList = [];
+          dayMap.set(dStr, dayList);
+        }
+        dayList.push(s);
+
+        const slotKey = `${dStr}:${hourPrefix}`;
+        let slotList = timetableMap.get(slotKey);
+        if (!slotList) {
+          slotList = [];
+          timetableMap.set(slotKey, slotList);
+        }
+        slotList.push(s);
+        continue;
+      }
+
       let cur = new Date(startDate.includes('T') ? startDate : `${startDate}T00:00:00`);
       const end = new Date(endDateVal.includes('T') ? endDateVal : `${endDateVal}T00:00:00`);
       while (cur <= end) {
@@ -1433,11 +1550,12 @@ const WeeklySchedulerComponent: React.FC = () => {
       }
     }
 
+    const fastTimeSort = (a: Schedule, b: Schedule) => (a.startTime > b.startTime ? 1 : a.startTime < b.startTime ? -1 : 0);
     for (const list of dayMap.values()) {
-      list.sort((a, b) => a.startTime.localeCompare(b.startTime));
+      list.sort(fastTimeSort);
     }
     for (const list of timetableMap.values()) {
-      list.sort((a, b) => a.startTime.localeCompare(b.startTime));
+      list.sort(fastTimeSort);
     }
 
     return { schedulesByDayMap: dayMap, timetableSchedulesMap: timetableMap };
@@ -1494,6 +1612,12 @@ const WeeklySchedulerComponent: React.FC = () => {
     setIsModalOpen(false);
   }, []);
 
+  const handleSetWeekView = useCallback(() => setViewMode('week'), []);
+  const handleSetMonthView = useCallback(() => setViewMode('month'), []);
+  const handleSetTimetableView = useCallback(() => setViewMode('timetable'), []);
+  const handleOpenGCalModal = useCallback(() => setIsGCalModalOpen(true), []);
+  const handleCloseGCalModal = useCallback(() => setIsGCalModalOpen(false), []);
+
   const dayNames = useMemo(() => ['월', '화', '수', '목', '금', '토', '일'], []);
   const timetableHours = useMemo(() => Array.from({ length: 13 }, (_, i) => String(i + 8).padStart(2, '0')), []);
 
@@ -1517,7 +1641,7 @@ const WeeklySchedulerComponent: React.FC = () => {
           {/* View Mode Switcher */}
           <div className="flex p-1 bg-slate-100/80 dark:bg-slate-800 rounded-xl border border-slate-200/60 dark:border-slate-700">
             <button
-              onClick={() => setViewMode('week')}
+              onClick={handleSetWeekView}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border-0 ${
                 viewMode === 'week'
                   ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-xs'
@@ -1528,7 +1652,7 @@ const WeeklySchedulerComponent: React.FC = () => {
               <span>주간</span>
             </button>
             <button
-              onClick={() => setViewMode('month')}
+              onClick={handleSetMonthView}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border-0 ${
                 viewMode === 'month'
                   ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-xs'
@@ -1539,7 +1663,7 @@ const WeeklySchedulerComponent: React.FC = () => {
               <span>월간</span>
             </button>
             <button
-              onClick={() => setViewMode('timetable')}
+              onClick={handleSetTimetableView}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border-0 ${
                 viewMode === 'timetable'
                   ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-xs'
@@ -1555,7 +1679,7 @@ const WeeklySchedulerComponent: React.FC = () => {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setIsGCalModalOpen(true)}
+              onClick={handleOpenGCalModal}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:hover:bg-blue-900/50 dark:text-blue-300 border border-blue-200/60 dark:border-blue-900 rounded-xl text-xs font-bold transition-all cursor-pointer hover:shadow-2xs active:scale-[0.97]"
               title="구글 캘린더 실시간 연동 및 iCal 구독"
             >
@@ -1734,7 +1858,7 @@ const WeeklySchedulerComponent: React.FC = () => {
       {/* Google Calendar & iCal Sync Modal */}
       <GoogleCalendarSyncModal
         isOpen={isGCalModalOpen}
-        onClose={() => setIsGCalModalOpen(false)}
+        onClose={handleCloseGCalModal}
         onImportCalendar={importCalendar}
       />
     </div>

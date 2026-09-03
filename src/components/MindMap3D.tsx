@@ -120,18 +120,30 @@ export const MindMap3D: React.FC<MindMap3DProps> = ({
     return edges;
   }, [customEdges, deletedEdges, manualNodes]);
 
-  // Active node item
-  const activeNode = useMemo(() => {
-    if (!activeNodeId) return null;
-    return manualNodes.find(n => n.id === activeNodeId) || null;
-  }, [activeNodeId, manualNodes]);
-
-  // Node Map for O(1) lookups during curve calculations
+  // Node Map for O(1) lookups during curve calculations and card interactions
   const nodeMap = useMemo(() => {
     const map = new Map<string, ManualNodeItem>();
     manualNodes.forEach(n => map.set(n.id, n));
     return map;
   }, [manualNodes]);
+
+  // Precomputed child counts for O(1) lookup, eliminating O(N^2) render filtering
+  const childCountMap = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (let i = 0; i < manualNodes.length; i++) {
+      const pId = manualNodes[i].parentId;
+      if (pId) {
+        counts.set(pId, (counts.get(pId) || 0) + 1);
+      }
+    }
+    return counts;
+  }, [manualNodes]);
+
+  // Active node item with O(1) map lookup
+  const activeNode = useMemo(() => {
+    if (!activeNodeId) return null;
+    return nodeMap.get(activeNodeId) || null;
+  }, [activeNodeId, nodeMap]);
 
   // Canvas wheel event handler
   const handleCanvasWheel = useCallback((e: WheelEvent) => {
@@ -312,11 +324,11 @@ export const MindMap3D: React.FC<MindMap3DProps> = ({
   }, [manualNodes.length, addCustomNode]);
 
   const handleAddChildNode = useCallback((parentId: string, title = '하위 생각') => {
-    const parent = manualNodes.find(n => n.id === parentId);
+    const parent = nodeMap.get(parentId);
     const parentX = parent ? parent.x : 0;
     const parentY = parent ? parent.y : 0;
 
-    const siblingCount = manualNodes.filter(n => n.parentId === parentId).length;
+    const siblingCount = childCountMap.get(parentId) || 0;
     const childX = parentX + CARD_WIDTH + 60;
     const childY = parentY + siblingCount * (CARD_HEIGHT + 30) - 20;
 
@@ -326,12 +338,12 @@ export const MindMap3D: React.FC<MindMap3DProps> = ({
     setNodeOverride(newNode.id, { 
       customParent: parentId, 
       fixedX: childX, 
-      fixedY: childY,
+      fixedY: childY, 
       customColor: childColor 
     });
     addCustomEdge(parentId, newNode.id);
     setActiveNodeId(newNode.id);
-  }, [manualNodes, addCustomNode, setNodeOverride, addCustomEdge]);
+  }, [nodeMap, childCountMap, addCustomNode, setNodeOverride, addCustomEdge]);
 
   const handleDeleteNode = useCallback((id: string, cascade = false) => {
     if (cascade) {
@@ -585,7 +597,7 @@ export const MindMap3D: React.FC<MindMap3DProps> = ({
               ) : true;
 
               const nodeColor = node.color || '#3b82f6';
-              const childCount = manualNodes.filter(n => n.parentId === node.id).length;
+              const childCount = childCountMap.get(node.id) || 0;
 
               return (
                 <div

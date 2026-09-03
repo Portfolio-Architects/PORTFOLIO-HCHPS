@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { PieChart, Pie, Cell, Line, Bar, ReferenceLine, XAxis, YAxis, Tooltip as RechartsTooltip, Area, CartesianGrid, ComposedChart, ResponsiveContainer } from 'recharts';
 import { Task, BudgetCategory, BudgetEntry } from '@/types';
 import { usePortfolioAnalytics } from '@/hooks/usePortfolioAnalytics';
@@ -101,6 +101,9 @@ const CustomComposedTooltip = React.memo(({ active, payload, label, chartType, i
 });
 CustomComposedTooltip.displayName = 'CustomComposedTooltip';
 
+const HCHPS_THEME_COLORS = ['#059669', '#064e3b', '#34d399', '#047857', '#6ee7b7', '#d1fae5'];
+const VITAL_THEME_COLORS = ['#3B82F6', '#1E3A8A', '#93C5FD', '#1D4ED8', '#60A5FA', '#DBEAFE'];
+
 function PortfolioDashboardViewComponent({ budgetCategories, budgetEntries, appMode = 'VITAL' }: DashboardProps) {
   const [chartType, setChartType] = useState<'monthly' | 'cumulative'>('monthly');
 
@@ -122,18 +125,19 @@ function PortfolioDashboardViewComponent({ budgetCategories, budgetEntries, appM
     recommendedMonthlySpendForTarget,
   } = usePortfolioAnalytics(budgetCategories, budgetEntries);
 
-
   const isHchps = appMode === 'HCHPS';
-  const themeColors = useMemo(() => {
-    return isHchps
-      ? ['#059669', '#064e3b', '#34d399', '#047857', '#6ee7b7', '#d1fae5']
-      : ['#3B82F6', '#1E3A8A', '#93C5FD', '#1D4ED8', '#60A5FA', '#DBEAFE'];
-  }, [isHchps]);
+  const themeColors = isHchps ? HCHPS_THEME_COLORS : VITAL_THEME_COLORS;
+
+  const handleSetMonthly = useCallback(() => setChartType('monthly'), []);
+  const handleSetCumulative = useCallback(() => setChartType('cumulative'), []);
+  const handleSelectProject = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedProject(e.target.value);
+  }, [setSelectedProject]);
 
   const dynamicPieData = useMemo(() => {
     return [
-      { ...pieData[0], color: isHchps ? '#059669' : '#3B82F6' },
-      { ...pieData[1] }
+      { ...(pieData[0] || { name: '집행', value: 0 }), color: isHchps ? '#059669' : '#3B82F6' },
+      { ...(pieData[1] || { name: '잔액', value: 0 }) }
     ];
   }, [pieData, isHchps]);
 
@@ -149,14 +153,14 @@ function PortfolioDashboardViewComponent({ budgetCategories, budgetEntries, appM
         {/* Left Column */}
         <div className="xl:col-span-6 flex flex-col gap-6">
           {/* Budget Allocation */}
-          <div className="glass-panel dark:glass-panel-dark rounded-[2rem] p-8 shadow-2xs hover:shadow-md hover:scale-[1.002] transition-all duration-150 flex flex-col h-[400px]">
-          <div className="flex justify-between items-center z-10 mb-8">
+          <div className="glass-panel dark:glass-panel-dark rounded-[2rem] p-6 sm:p-7 shadow-2xs hover:shadow-md hover:scale-[1.002] transition-all duration-150 flex flex-col h-[380px]">
+          <div className="flex justify-between items-center z-10 mb-4 sm:mb-5">
             <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
               Budget Allocation
             </h2>
             <select
               value={selectedProject}
-              onChange={(e) => setSelectedProject(e.target.value)}
+              onChange={handleSelectProject}
               className={`bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-750 text-slate-700 dark:text-slate-200 text-sm font-bold rounded-xl px-4 py-2.5 outline-none focus:border-${isHchps ? 'emerald' : 'blue'}-500 focus:ring-2 focus:ring-${isHchps ? 'emerald' : 'blue'}-500/20 transition-all cursor-pointer shadow-sm min-w-[180px]`}
             >
               <option value="ALL">세부사업명 전체</option>
@@ -166,17 +170,17 @@ function PortfolioDashboardViewComponent({ budgetCategories, budgetEntries, appM
             </select>
           </div>
           
-          <div className="flex-1 w-full h-[250px] flex flex-col sm:flex-row items-stretch justify-center mb-6 gap-6 sm:gap-8 md:gap-12 lg:gap-16">
-            <div className="w-full sm:w-[260px] h-[250px] flex-shrink-0 flex justify-center items-center">
-              <div className="w-[230px] h-[230px] relative flex-shrink-0">
+          <div className="flex-1 w-full h-[238px] flex flex-col sm:flex-row items-stretch justify-center mb-3 gap-6 sm:gap-8 md:gap-12 lg:gap-16">
+            <div className="w-full sm:w-[250px] h-[238px] flex-shrink-0 flex justify-center items-center">
+              <div className="w-[218px] h-[218px] relative flex-shrink-0">
                 {renderCharts && (
-                  <PieChart width={230} height={230}>
+                  <PieChart width={218} height={218}>
                     <Pie
                       data={dynamicPieData}
                       cx="50%"
                       cy="50%"
-                      innerRadius={80}
-                      outerRadius={110}
+                      innerRadius={76}
+                      outerRadius={104}
                       paddingAngle={0}
                       dataKey="value"
                       stroke="none"
@@ -202,7 +206,7 @@ function PortfolioDashboardViewComponent({ budgetCategories, budgetEntries, appM
             </div>
 
             <div className="flex-shrink-0 flex justify-center sm:justify-start w-full sm:w-[300px] md:w-[340px] lg:w-[360px] h-full items-center min-w-0">
-              <div className="w-full max-w-[380px] flex flex-col gap-4 justify-start min-w-0 max-h-[260px] overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin' }}>
+              <div className="w-full max-w-[380px] flex flex-col gap-3 justify-start min-w-0 max-h-[245px] overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin' }}>
                 {breakdownData.map((item, idx) => (
                 <div 
                   key={item.formationItem ? `${item.formationItem}-${item.name}` : item.name} 
@@ -234,13 +238,13 @@ function PortfolioDashboardViewComponent({ budgetCategories, budgetEntries, appM
         </div>
 
           {/* KPI Mini Cards Grid */}
-          <div className="grid grid-cols-2 gap-x-4 sm:gap-x-6 gap-y-2 sm:gap-y-3 content-start">
+          <div className="grid grid-cols-2 gap-x-4 sm:gap-x-6 gap-y-2 content-start">
             {/* 1. Execution Rate */}
-            <div className="glass-panel dark:glass-panel-dark shadow-2xs border border-white/20 dark:border-slate-800/40 rounded-[1.5rem] p-4 flex flex-col justify-between relative overflow-hidden group hover:scale-[1.01] hover:shadow-md transition-all duration-150">
-              <span className={`text-[10px] font-bold ${isHchps ? 'text-emerald-600 dark:text-emerald-400' : 'text-blue-600 dark:text-blue-400'} uppercase tracking-widest relative z-10 mb-3`}>BUDGET EXECUTION</span>
+            <div className="glass-panel dark:glass-panel-dark shadow-2xs border border-white/20 dark:border-slate-800/40 rounded-[1.5rem] py-3 px-4 sm:py-3.5 sm:px-4 flex flex-col justify-between relative overflow-hidden group hover:scale-[1.01] hover:shadow-md transition-all duration-150">
+              <span className={`text-[10px] font-bold ${isHchps ? 'text-emerald-600 dark:text-emerald-400' : 'text-blue-600 dark:text-blue-400'} uppercase tracking-widest relative z-10 mb-2 sm:mb-2.5`}>BUDGET EXECUTION</span>
               <span className={`text-2xl font-bold ${isHchps ? 'text-emerald-600 dark:text-emerald-400' : 'text-blue-600 dark:text-blue-400'} leading-none relative z-10`}>{executionRate.toFixed(1)}%</span>
               <div 
-                className="absolute right-4 bottom-4 w-8 h-8 rounded-full shrink-0 flex items-center justify-center shadow-sm opacity-80 group-hover:scale-110 transition-transform"
+                className="absolute right-4 bottom-3 sm:bottom-3.5 w-8 h-8 rounded-full shrink-0 flex items-center justify-center shadow-sm opacity-80 group-hover:scale-110 transition-transform"
                 style={{ background: `conic-gradient(${isHchps ? '#10b981' : '#3b82f6'} ${executionRate}%, #e2e8f0 0)` }}
               >
                 <div className="w-[20px] h-[20px] bg-white dark:bg-slate-900 rounded-full" />
@@ -248,11 +252,11 @@ function PortfolioDashboardViewComponent({ budgetCategories, budgetEntries, appM
             </div>
 
             {/* 2. Remaining Budget */}
-            <div className="glass-panel dark:glass-panel-dark shadow-2xs border border-white/20 dark:border-slate-800/40 rounded-[1.5rem] p-4 flex flex-col justify-between relative overflow-hidden group hover:scale-[1.01] hover:shadow-md transition-all duration-150">
-              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest relative z-10 mb-3">REMAINING BUDGET</span>
+            <div className="glass-panel dark:glass-panel-dark shadow-2xs border border-white/20 dark:border-slate-800/40 rounded-[1.5rem] py-3 px-4 sm:py-3.5 sm:px-4 flex flex-col justify-between relative overflow-hidden group hover:scale-[1.01] hover:shadow-md transition-all duration-150">
+              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest relative z-10 mb-2 sm:mb-2.5">REMAINING BUDGET</span>
               <span className="text-2xl font-bold text-slate-900 dark:text-white leading-none relative z-10">{(100 - executionRate).toFixed(1)}%</span>
               <div 
-                className="absolute right-4 bottom-4 w-8 h-8 rounded-full shrink-0 flex items-center justify-center shadow-sm opacity-80 group-hover:scale-110 transition-transform"
+                className="absolute right-4 bottom-3 sm:bottom-3.5 w-8 h-8 rounded-full shrink-0 flex items-center justify-center shadow-sm opacity-80 group-hover:scale-110 transition-transform"
                 style={{ background: `conic-gradient(#94a3b8 ${100 - executionRate}%, #e2e8f0 0)` }}
               >
                 <div className="w-[20px] h-[20px] bg-white dark:bg-slate-900 rounded-full" />
@@ -260,16 +264,16 @@ function PortfolioDashboardViewComponent({ budgetCategories, budgetEntries, appM
             </div>
 
             {/* 3. Executed Amount */}
-            <div className="glass-panel dark:glass-panel-dark shadow-2xs border border-white/20 dark:border-slate-800/40 rounded-[1.5rem] p-4 flex flex-col justify-between relative overflow-hidden group hover:scale-[1.01] hover:shadow-md transition-all duration-150">
-              <span className={`text-[10px] font-bold ${isHchps ? 'text-emerald-600 dark:text-emerald-400' : 'text-blue-600 dark:text-blue-400'} uppercase tracking-widest relative z-10 mb-3`}>EXECUTED AMOUNT</span>
+            <div className="glass-panel dark:glass-panel-dark shadow-2xs border border-white/20 dark:border-slate-800/40 rounded-[1.5rem] py-3 px-4 sm:py-3.5 sm:px-4 flex flex-col justify-between relative overflow-hidden group hover:scale-[1.01] hover:shadow-md transition-all duration-150">
+              <span className={`text-[10px] font-bold ${isHchps ? 'text-emerald-600 dark:text-emerald-400' : 'text-blue-600 dark:text-blue-400'} uppercase tracking-widest relative z-10 mb-2 sm:mb-2.5`}>EXECUTED AMOUNT</span>
               <span className="text-xl font-bold text-slate-900 dark:text-white leading-none relative z-10 truncate" title={`${executedBudget.toLocaleString()} KRW`}>
                 {executedBudget.toLocaleString()}<span className="text-xs text-slate-400 dark:text-slate-500 ml-1">KRW</span>
               </span>
             </div>
 
             {/* 4. Remaining Amount */}
-            <div className="glass-panel dark:glass-panel-dark shadow-2xs border border-white/20 dark:border-slate-800/40 rounded-[1.5rem] p-4 flex flex-col justify-between relative overflow-hidden group hover:scale-[1.01] hover:shadow-md transition-all duration-150">
-              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest relative z-10 mb-3">REMAINING AMOUNT</span>
+            <div className="glass-panel dark:glass-panel-dark shadow-2xs border border-white/20 dark:border-slate-800/40 rounded-[1.5rem] py-3 px-4 sm:py-3.5 sm:px-4 flex flex-col justify-between relative overflow-hidden group hover:scale-[1.01] hover:shadow-md transition-all duration-150">
+              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest relative z-10 mb-2 sm:mb-2.5">REMAINING AMOUNT</span>
               <span className="text-xl font-bold text-slate-900 dark:text-white truncate block leading-none relative z-10" title={`${remainingBudget.toLocaleString()} KRW`}>
                 {remainingBudget.toLocaleString()}<span className="text-xs text-slate-400 dark:text-slate-500 ml-1">KRW</span>
               </span>
@@ -279,7 +283,7 @@ function PortfolioDashboardViewComponent({ budgetCategories, budgetEntries, appM
 
         {/* Right Panel: Predictive Budget Modeling */}
         <div className="xl:col-span-6 flex flex-col gap-6">
-          <div className="glass-panel dark:glass-panel-dark rounded-[2rem] p-8 shadow-2xs h-full flex flex-col relative overflow-hidden hover:scale-[1.002] hover:shadow-md transition-all duration-150">
+          <div className="glass-panel dark:glass-panel-dark rounded-[2rem] p-6 sm:p-7 shadow-2xs h-full flex flex-col relative overflow-hidden hover:scale-[1.002] hover:shadow-md transition-all duration-150">
             {/* Background Decor */}
             <div className={`absolute -top-24 -right-24 w-64 h-64 ${isHchps ? 'bg-emerald-500/5 dark:bg-emerald-950/20' : 'bg-blue-500/5 dark:bg-blue-950/20'} rounded-full blur-3xl pointer-events-none`} />
 
@@ -294,13 +298,13 @@ function PortfolioDashboardViewComponent({ budgetCategories, budgetEntries, appM
               {/* Chart Type Toggle Switch */}
               <div className="flex p-1 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200/60 dark:border-slate-700 shadow-inner shrink-0">
                 <button 
-                  onClick={() => setChartType('monthly')} 
+                  onClick={handleSetMonthly} 
                   className={`px-3.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${chartType === 'monthly' ? `bg-white dark:bg-slate-700 ${isHchps ? 'text-emerald-600 dark:text-emerald-300' : 'text-blue-600 dark:text-blue-300'} shadow-sm border border-slate-200/50 dark:border-slate-850/40` : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 border border-transparent'}`}
                 >
                   월별 집행액
                 </button>
                 <button 
-                  onClick={() => setChartType('cumulative')} 
+                  onClick={handleSetCumulative} 
                   className={`px-3.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${chartType === 'cumulative' ? `bg-white dark:bg-slate-700 ${isHchps ? 'text-emerald-600 dark:text-emerald-300' : 'text-blue-600 dark:text-blue-300'} shadow-sm border border-slate-200/50 dark:border-slate-850/40` : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 border border-transparent'}`}
                 >
                   누적 집행액
@@ -309,7 +313,7 @@ function PortfolioDashboardViewComponent({ budgetCategories, budgetEntries, appM
             </div>
 
             {/* KPIs for 11-Month Total Execution Target */}
-            <div className="grid grid-cols-3 gap-2 sm:gap-4 mt-6 relative z-10">
+            <div className="grid grid-cols-3 gap-2 sm:gap-4 mt-4 sm:mt-5 relative z-10">
               <div className="flex flex-col">
                 <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1 truncate">PEAK SPENDING</span>
                 <div className="flex flex-col sm:flex-row sm:items-baseline gap-0.5 sm:gap-1">
@@ -334,9 +338,9 @@ function PortfolioDashboardViewComponent({ budgetCategories, budgetEntries, appM
             </div>
 
             {/* Monthly Trend Chart */}
-            <div className="flex-1 mt-6 relative w-full min-h-[385px] h-[385px]">
+            <div className="flex-1 mt-4 sm:mt-5 relative w-full min-h-[365px] h-[365px]">
               {renderCharts && (
-                <ResponsiveContainer width="100%" height={385}>
+                <ResponsiveContainer width="100%" height={365}>
                   <ComposedChart data={monthlyExecutionData} margin={{ top: 25, right: 10, left: -20, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorCumulative" x1="0" y1="0" x2="0" y2="1">

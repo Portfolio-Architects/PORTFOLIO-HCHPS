@@ -22,7 +22,13 @@ interface LedgerModalProps {
 
 function formatN(n: number) { return n.toLocaleString('ko-KR'); }
 
-export function LedgerModal({
+function sortEntriesDesc(a: BudgetEntry, b: BudgetEntry): number {
+  const dateA = a.date || '';
+  const dateB = b.date || '';
+  return dateB > dateA ? 1 : dateB < dateA ? -1 : 0;
+}
+
+function LedgerModalComponent({
   isOpen,
   onClose,
   categories,
@@ -60,64 +66,95 @@ export function LedgerModal({
   // Group entries by categoryId in O(E) time
   const entriesByCatId = useMemo(() => {
     const map: Record<string, BudgetEntry[]> = {};
-    categories.forEach(cat => {
-      map[cat.id] = [];
-    });
-    entries.forEach(e => {
+    for (let i = 0; i < categories.length; i++) {
+      map[categories[i].id] = [];
+    }
+    for (let i = 0; i < entries.length; i++) {
+      const e = entries[i];
       if (map[e.categoryId]) {
         map[e.categoryId].push(e);
       }
-    });
+    }
     return map;
   }, [categories, entries]);
 
-  // Filtered entries for Ledger/Split views
-  const filteredEntries = useMemo(() => {
-    if (!debouncedSearchTerm.trim()) return entries;
-    const term = debouncedSearchTerm.toLowerCase().trim();
-    return entries.filter(e =>
-      e.purpose?.toLowerCase().includes(term) ||
-      e.docRegNum?.toLowerCase().includes(term) ||
-      e.memo?.toLowerCase().includes(term) ||
-      e.amount.toString().includes(term)
-    );
+  // Single-pass filtering, id array extraction, and Set generation (Zero intermediate array)
+  const { filteredEntries, allVisibleEntryIds, filteredEntryIdSet } = useMemo(() => {
+    const trimmed = debouncedSearchTerm.trim();
+    if (!trimmed) {
+      const ids: string[] = [];
+      const set = new Set<string>();
+      for (let i = 0; i < entries.length; i++) {
+        const id = entries[i].id;
+        ids.push(id);
+        set.add(id);
+      }
+      return { filteredEntries: entries, allVisibleEntryIds: ids, filteredEntryIdSet: set };
+    }
+
+    const term = trimmed.toLowerCase();
+    const result: BudgetEntry[] = [];
+    const ids: string[] = [];
+    const set = new Set<string>();
+
+    for (let i = 0; i < entries.length; i++) {
+      const e = entries[i];
+      if (
+        (e.purpose && e.purpose.toLowerCase().includes(term)) ||
+        (e.docRegNum && e.docRegNum.toLowerCase().includes(term)) ||
+        (e.memo && e.memo.toLowerCase().includes(term)) ||
+        e.amount.toString().includes(term)
+      ) {
+        result.push(e);
+        ids.push(e.id);
+        set.add(e.id);
+      }
+    }
+
+    return { filteredEntries: result, allVisibleEntryIds: ids, filteredEntryIdSet: set };
   }, [entries, debouncedSearchTerm]);
 
-  // All visible entry IDs (for select all toggle)
-  const allVisibleEntryIds = useMemo(() => {
-    return filteredEntries.map(e => e.id);
-  }, [filteredEntries]);
-
-  // Filtered entry IDs set for O(1) time complexity lookup
-  const filteredEntryIdSet = useMemo(() => new Set(filteredEntries.map(e => e.id)), [filteredEntries]);
   const selectedEntryIdsSet = useMemo(() => new Set(selectedEntryIds), [selectedEntryIds]);
   const categoriesMap = useMemo(() => new Map(categories.map(c => [c.id, c])), [categories]);
 
-  // Pre-calculate / memoize T-Account grouping and zero-allocation sorting
+  // Pre-calculate / memoize T-Account grouping and single-pass zero-allocation sorting
   const tAccountData = useMemo(() => {
-    return categories
-      .map(cat => {
-        const stats = getCategoryStats(cat.id);
-        const catEntries = (entriesByCatId[cat.id] || []).filter(e => filteredEntryIdSet.has(e.id));
-        
-        // Left side: planned & issuances (zero-allocation date comparison)
-        const plannedTasks = catEntries
-          .filter(e => e.isPlanned && !e.isSettled)
-          .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-        const issuances = catEntries
-          .filter(e => !e.isPlanned && e.actionType === 'issuance')
-          .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-        const leftItems = [...plannedTasks, ...issuances]
-          .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    const result: Array<{
+      cat: BudgetCategory;
+      stats: CategoryStats | null;
+      leftItems: BudgetEntry[];
+      rightItems: BudgetEntry[];
+    }> = [];
 
-        // Right side: settled & actual expenses
-        const rightItems = catEntries
-          .filter(e => !e.isPlanned && e.actionType !== 'issuance')
-          .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    for (let i = 0; i < categories.length; i++) {
+      const cat = categories[i];
+      const stats = getCategoryStats(cat.id);
+      const rawEntries = entriesByCatId[cat.id] || [];
 
-        return { cat, stats, leftItems, rightItems };
-      })
-      .filter(data => data.leftItems.length > 0 || data.rightItems.length > 0);
+      const leftItems: BudgetEntry[] = [];
+      const rightItems: BudgetEntry[] = [];
+
+      for (let j = 0; j < rawEntries.length; j++) {
+        const e = rawEntries[j];
+        if (!filteredEntryIdSet.has(e.id)) continue;
+
+        if (e.isPlanned && !e.isSettled) {
+          leftItems.push(e);
+        } else if (!e.isPlanned && e.actionType === 'issuance') {
+          leftItems.push(e);
+        } else if (!e.isPlanned && e.actionType !== 'issuance') {
+          rightItems.push(e);
+        }
+      }
+
+      if (leftItems.length > 0 || rightItems.length > 0) {
+        leftItems.sort(sortEntriesDesc);
+        rightItems.sort(sortEntriesDesc);
+        result.push({ cat, stats, leftItems, rightItems });
+      }
+    }
+
+    return result;
   }, [categories, getCategoryStats, entriesByCatId, filteredEntryIdSet]);
 
   // Toggle individual selection
@@ -666,3 +703,6 @@ export function LedgerModal({
     </Modal>
   );
 }
+
+LedgerModalComponent.displayName = 'LedgerModal';
+export const LedgerModal = React.memo(LedgerModalComponent);

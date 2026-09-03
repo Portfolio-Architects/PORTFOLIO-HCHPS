@@ -16,7 +16,7 @@ function formatAmount(n: number): string {
   return `${n.toLocaleString()}원`;
 }
 
-export function QuickInput({ onCreateTask, onAddSignal, onSearch, onNavigate }: QuickInputProps) {
+function QuickInputComponent({ onCreateTask, onAddSignal, onSearch, onNavigate }: QuickInputProps) {
   const [text, setText] = useState('');
   const [justCreated, setJustCreated] = useState(false);
   const [createdLabel, setCreatedLabel] = useState('업무 생성 완료!');
@@ -30,7 +30,11 @@ export function QuickInput({ onCreateTask, onAddSignal, onSearch, onNavigate }: 
     if (!parsed || text.trim().length < 2) return;
 
     const tags: string[] = [...parsed.tags];
-    if (parsed.people.length > 0) parsed.people.forEach(p => tags.push(p));
+    if (parsed.people.length > 0) {
+      for (let i = 0; i < parsed.people.length; i++) {
+        tags.push(parsed.people[i]);
+      }
+    }
     if (parsed.location) tags.push(parsed.location);
     if (parsed.amount) tags.push(formatAmount(parsed.amount));
 
@@ -66,12 +70,16 @@ export function QuickInput({ onCreateTask, onAddSignal, onSearch, onNavigate }: 
     setTimeout(() => setJustCreated(false), 2500);
   }, [parsed, text, onCreateTask, onAddSignal, onSearch, onNavigate]);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleTextChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setText(e.target.value);
+  }, []);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
     }
-  };
+  }, [handleSubmit]);
 
   return (
     <div className="relative overflow-visible">
@@ -79,7 +87,7 @@ export function QuickInput({ onCreateTask, onAddSignal, onSearch, onNavigate }: 
         <input
           type="text"
           value={text}
-          onChange={e => setText(e.target.value)}
+          onChange={handleTextChange}
           onKeyDown={handleKeyDown}
           className="flex-1 min-w-0 bg-transparent text-sm outline-none placeholder:text-[var(--color-text-tertiary)] font-medium text-[var(--color-text-primary)]"
           placeholder="Ask anything..."
@@ -158,3 +166,6 @@ export function QuickInput({ onCreateTask, onAddSignal, onSearch, onNavigate }: 
     </div>
   );
 }
+
+QuickInputComponent.displayName = 'QuickInput';
+export const QuickInput = React.memo(QuickInputComponent);

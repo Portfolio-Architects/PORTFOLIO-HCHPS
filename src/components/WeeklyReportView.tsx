@@ -8,12 +8,12 @@ interface WeeklyReportViewProps {
 
 
 
-export function WeeklyReportView({ addSignal }: WeeklyReportViewProps) {
+function WeeklyReportViewComponent({ addSignal }: WeeklyReportViewProps) {
   const [extractedRawText, setExtractedRawText] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePdfUpload = React.useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -36,7 +36,15 @@ export function WeeklyReportView({ addSignal }: WeeklyReportViewProps) {
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const textContent = await page.getTextContent();
-        const pageText = textContent.items.map((item) => (item as { str?: string }).str || '').join(' ');
+        const items = textContent.items;
+        const len = items.length;
+        let pageText = '';
+        for (let j = 0; j < len; j++) {
+          const str = (items[j] as { str?: string })?.str;
+          if (str) {
+            pageText += (pageText ? ' ' : '') + str;
+          }
+        }
         extractedText += pageText + '\n\n';
       }
 
@@ -48,9 +56,22 @@ export function WeeklyReportView({ addSignal }: WeeklyReportViewProps) {
       setIsProcessing(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
-  };
+  }, []);
 
+  const handleOpenFilePicker = React.useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
 
+  const handleReset = React.useCallback(() => {
+    setExtractedRawText('');
+  }, []);
+
+  const handleSendToSignal = React.useCallback(() => {
+    if (!extractedRawText) return;
+    addSignal?.(`[주간보고 정리 원문]\n${extractedRawText.substring(0, 300)}...`);
+    alert('데이터가 메모장으로 이동되었습니다.');
+    setExtractedRawText('');
+  }, [addSignal, extractedRawText]);
 
   return (
     <div className="space-y-6 flex flex-col h-full animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-5xl mx-auto">
@@ -81,7 +102,7 @@ export function WeeklyReportView({ addSignal }: WeeklyReportViewProps) {
             onChange={handlePdfUpload}
           />
           <button
-            onClick={() => fileInputRef.current?.click()}
+            onClick={handleOpenFilePicker}
             disabled={isProcessing}
             className="mt-2 px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl shadow-lg hover:shadow-xl hover:opacity-90 transition-all font-semibold"
           >
@@ -102,17 +123,13 @@ export function WeeklyReportView({ addSignal }: WeeklyReportViewProps) {
           />
           <div className="flex justify-end gap-3 mt-4">
              <button
-               onClick={() => setExtractedRawText('')}
+               onClick={handleReset}
                className="px-4 py-2 border rounded-lg text-sm font-medium hover:bg-gray-50 text-gray-600"
              >
                초기화
              </button>
              <button 
-               onClick={() => {
-                 addSignal?.(`[주간보고 정리 원문]\n${extractedRawText.substring(0, 300)}...`);
-                 alert('데이터가 메모장으로 이동되었습니다.');
-                 setExtractedRawText('');
-               }}
+               onClick={handleSendToSignal}
                className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg text-sm font-bold shadow-md hover:opacity-90 transition-all flex items-center gap-2"
              >
                데이터 메모로 전송하기
@@ -123,3 +140,6 @@ export function WeeklyReportView({ addSignal }: WeeklyReportViewProps) {
     </div>
   );
 }
+
+WeeklyReportViewComponent.displayName = 'WeeklyReportView';
+export const WeeklyReportView = React.memo(WeeklyReportViewComponent);

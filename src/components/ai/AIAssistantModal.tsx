@@ -47,7 +47,45 @@ function extractTextFromBlocks(blocks: any[]): string {
   return text;
 }
 
-export function AIAssistantModal({ isOpen, onClose, contextData, appMode = 'VITAL' }: AIAssistantModalProps) {
+function getCanonicalId(id: string): string {
+  if (id.startsWith('leaf-')) {
+    if (id.startsWith('leaf-tag-')) {
+      const parts = id.split('-');
+      if (parts.length >= 4) return `leaf-kw-${parts.slice(3).join('-')}`;
+    }
+    const parts = id.split('-');
+    if (parts[1] === 'kw') return id;
+    return `leaf-kw-${parts.slice(1).join('-')}`;
+  }
+  return id;
+}
+
+const LAYER_LABELS: Record<number, string> = {
+  0: 'L0:인물/조직',
+  1: 'L1:예산/비품',
+  2: 'L2:업무/회의',
+  3: 'L3:위키/문서'
+};
+
+function getLayerLabel(n: any): string {
+  let layerId = 3;
+  if (n.layerId !== undefined && n.layerId !== null) {
+    layerId = Number(n.layerId);
+  } else {
+    const label = n.label || '';
+    const id = n.id || '';
+    if (/[가-힣]+ (이사|대리|부장|과장|사원|담당|대표|팀장|주임)/.test(label) || label.endsWith('님') || id.startsWith('user_') || id.includes('person')) {
+      layerId = 0;
+    } else if (label.includes('예산') || label.includes('비용') || label.includes('구매') || label.includes('임대') || label.includes('비품') || label.includes('원') || id.includes('budget') || id.includes('inventory')) {
+      layerId = 1;
+    } else if (label.includes('회의') || label.includes('개발') || label.includes('추진') || label.includes('기획') || label.includes('구축') || label.includes('작업') || id.startsWith('task-') || id.startsWith('project-') || id.startsWith('meeting-')) {
+      layerId = 2;
+    }
+  }
+  return LAYER_LABELS[layerId] || 'L3:위키/문서';
+}
+
+function AIAssistantModalComponent({ isOpen, onClose, contextData, appMode = 'VITAL' }: AIAssistantModalProps) {
   const { messages, addMessage, clearMessages: baseClearMessages, isTyping, setIsTyping, chatMutation } = useAIChat();
   const [input, setInput] = useState('');
   const [wikiContextMap, setWikiContextMap] = useState<Record<string, string>>({});
@@ -86,19 +124,6 @@ export function AIAssistantModal({ isOpen, onClose, contextData, appMode = 'VITA
         const nodeLabel = override?.customLabel || cn.label || '';
         
         if (nodeLabel.length >= 2 && userQuery.includes(nodeLabel)) {
-          const getCanonicalId = (id: string) => {
-            if (id.startsWith('leaf-')) {
-              if (id.startsWith('leaf-tag-')) {
-                const parts = id.split('-');
-                if (parts.length >= 4) return `leaf-kw-${parts.slice(3).join('-')}`;
-              }
-              const parts = id.split('-');
-              if (parts[1] === 'kw') return id;
-              return `leaf-kw-${parts.slice(1).join('-')}`;
-            }
-            return id;
-          };
-          
           const canonicalId = getCanonicalId(cn.id);
           const wikiStr = localStorage.getItem(`HCHPS-Wiki-${canonicalId}`) || localStorage.getItem(`HCHPS-Wiki-${cn.id}`);
           
@@ -170,31 +195,6 @@ export function AIAssistantModal({ isOpen, onClose, contextData, appMode = 'VITA
         // 노드 레이블 및 레이어 정보 맵 작성
         const nodeLabelMap = new Map<string, string>();
         const nodeLayerMap = new Map<string, string>();
-        
-        const layerLabels: Record<number, string> = {
-          0: 'L0:인물/조직',
-          1: 'L1:예산/비품',
-          2: 'L2:업무/회의',
-          3: 'L3:위키/문서'
-        };
-
-        const getLayerLabel = (n: any) => {
-          let layerId = 3;
-          if (n.layerId !== undefined && n.layerId !== null) {
-            layerId = Number(n.layerId);
-          } else {
-            const label = n.label || '';
-            const id = n.id || '';
-            if (/[가-힣]+ (이사|대리|부장|과장|사원|담당|대표|팀장|주임)/.test(label) || label.endsWith('님') || id.startsWith('user_') || id.includes('person')) {
-              layerId = 0;
-            } else if (label.includes('예산') || label.includes('비용') || label.includes('구매') || label.includes('임대') || label.includes('비품') || label.includes('원') || id.includes('budget') || id.includes('inventory')) {
-              layerId = 1;
-            } else if (label.includes('회의') || label.includes('개발') || label.includes('추진') || label.includes('기획') || label.includes('구축') || label.includes('작업') || id.startsWith('task-') || id.startsWith('project-') || id.startsWith('meeting-')) {
-              layerId = 2;
-            }
-          }
-          return layerLabels[layerId] || 'L3:위키/문서';
-        };
 
         subgraphNodes.forEach(n => {
           nodeLabelMap.set(n.id, n.label || n.id);
@@ -402,3 +402,6 @@ export function AIAssistantModal({ isOpen, onClose, contextData, appMode = 'VITA
     </div>
   );
 }
+
+AIAssistantModalComponent.displayName = 'AIAssistantModal';
+export const AIAssistantModal = React.memo(AIAssistantModalComponent);

@@ -1,4 +1,25 @@
-import { useQuery } from '@tanstack/react-query';
+'use client';
+
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+
+export interface MilestoneItem {
+  id: number;
+  number: string;
+  title: string;
+  status: 'done' | 'in-progress' | 'todo';
+  period: string;
+  cooperationDepts?: string[];
+  details: string[];
+}
+
+export interface BoothItem {
+  id: number;
+  category: string;
+  name: string;
+  scale: string;
+  program: string;
+  status: string;
+}
 
 export interface FestivalData {
   meta: {
@@ -9,10 +30,10 @@ export interface FestivalData {
     location: string;
     course: string;
     targetAudience: string;
+    programStructure?: string[];
     organizer: string;
     overallProgress: number;
     lastUpdated: string;
-    programStructure?: string[];
   };
   budget: {
     total: number;
@@ -25,202 +46,369 @@ export interface FestivalData {
     agencyQuotation: number;
     agencyCompany: string;
   };
-  weeklyRoadmap: Array<{
-    week: number;
-    label?: string;
-    period: string;
-    title: string;
-    status: 'done' | 'in-progress' | 'todo';
-    details: string[];
-  }>;
-  booths: Array<{
-    id: number;
-    category: string;
-    name: string;
-    scale: string;
-    program: string;
-    status: string;
-  }>;
-  departmentsCooperation: Array<{
+  milestones: MilestoneItem[];
+  booths: BoothItem[];
+  departmentsCooperation?: {
     dept: string;
     task: string;
     status: string;
-  }>;
+  }[];
 }
 
 export const YANGJAE_FALLBACK_DATA: FestivalData = {
-  meta: {
-    title: "『강남구보건소』와 함께하는 2026 양재천 걷자! 건강 페스티벌",
-    shortTitle: "2026 양재천 건강 페스티벌",
-    eventDate: "2026-10-31",
-    eventTime: "09:00 ~ 14:00",
-    location: "양재천 수변문화쉼터 및 출발마당 (개포동 1279 일원)",
-    course: "수변문화쉼터 ↔ 영동5교 왕복 (약 4km)",
-    targetAudience: "강남구민 800명 (사전 온라인 접수)",
-    programStructure: [
+  "meta": {
+    "title": "2026 양재천 걷자! 건강 페스티벌",
+    "shortTitle": "2026 양재천 건강 페스티벌",
+    "eventDate": "2026-10-31(토)",
+    "eventTime": "09:00 ~ 14:00",
+    "location": "양재천 수변문화쉼터 및 출발마당 (개포동 1279 일원)",
+    "course": "수변문화쉼터 ↔ 영동5교 왕복 (약 4km)",
+    "targetAudience": "강남구민 800명 (사전 접수)",
+    "programStructure": [
       "강남구보건소와 함께하는 건강 걷기 체험 프로그램",
-      "보건 사업 및 민간 건강 관련 체험·홍보 : 20~30개 부스"
+      "의료 및 건강 관련 체험·홍보 부스 운영"
     ],
-    organizer: "강남구보건소 보건행정과 건강증진팀",
-    overallProgress: 65,
-    lastUpdated: "2026-09-01"
+    "organizer": "강남구보건소 보건행정과 건강증진팀",
+    "overallProgress": 65,
+    "lastUpdated": "2026-09-03"
   },
-  budget: {
-    total: 49900000,
-    allocated: {
-      agencyService: 36950000,
-      suppliesAndRental: 9300000,
-      refreshments: 2450000,
-      volunteerSupport: 1200000
+  "budget": {
+    "total": 49900000,
+    "allocated": {
+      "agencyService": 36950000,
+      "suppliesAndRental": 9300000,
+      "refreshments": 2450000,
+      "volunteerSupport": 1200000
     },
-    agencyQuotation: 50215000,
-    agencyCompany: "제이민 커뮤니케이션"
+    "agencyQuotation": 50215000,
+    "agencyCompany": "제이민 커뮤니케이션"
   },
-  weeklyRoadmap: [
+  "milestones": [
     {
-      week: 1,
-      label: "8월 실적",
-      period: "7월 말 ~ 8.31.",
-      title: "현장 사전답사(1~4차) 및 기획 실무회의(5차)",
-      status: "done",
-      details: [
-        "1차 사전답사(7월 말): 현장 실사 및 장소 '수변문화쉼터' 검토",
-        "2차 사전답사(8월): 과장, 팀장(김지영), 서승오, 오창선 코스 답사",
+      "id": 1,
+      "number": "추진과제 1",
+      "title": "장소 및 일시 확정",
+      "status": "done",
+      "period": "7월 말 ~ 8.31. (완료)",
+      "cooperationDepts": [
+        "치수과",
+        "공원녹지과"
+      ],
+      "details": [
+        "1차 사전답사(7.29.(수), 오창선): 현장 실사 및 행사장소 '수변문화쉼터' 검토 완료",
+        "2차 사전답사(8월): 과장, 건강증진팀장(김지영), 서승오, 오창선 코스 답사",
         "3차 현장미팅(8월): 팀장(김지영), 오창선, 제이민(대행사) 수변문화쉼터 실무 협의",
         "4차 종합미팅(8월): 과장, 팀장(김지영), 오창선, 제이민(대행사) 운영안 조율",
-        "5차 실무회의(8.31.): 행사 세부 운영안 및 현안 5차 실무 회의 진행",
-        "치수과 하천점용허가 신청 및 승인 완료 (개포동 1279 일원)"
+        "5차 실무회의(8.31.): 행사 세부 운영안 및 현안 5차 실무 회의 완료",
+        "[협조완료] 치수과: 하천점용허가 신청 및 승인 완료 (개포동 1279 일원)",
+        "[협조완료] 공원녹지과: 다리 밑 전기 사용 승인 및 청소카트 2대 지원 협의"
       ]
     },
     {
-      week: 2,
-      period: "9월 1주 (09.01~09.06)",
-      title: "전문 검진/웰니스 부스 섭외 및 계약심사 의뢰",
-      status: "in-progress",
-      details: [
-        "민간 전문 4대 기관 섭외 확정 (고대척추 X-Ray 버스, 자생한방, 차병원, 유디치과)",
-        "신체정보(리얼피티), 서울체력장(강남센터), 케이스튜디오 부스 신청 접수",
-        "행사시설 설치 및 운영 대행용역 계약심사 및 일상감사 의뢰"
+      "id": 2,
+      "number": "추진과제 2",
+      "title": "행사 식순 기획",
+      "status": "in-progress",
+      "period": "9월 1주 ~ 9월 3주",
+      "cooperationDepts": [
+        "체육진흥과",
+        "문화도시과"
+      ],
+      "details": [
+        "09:00~09:30 : 구민 집결, 현장 등록 및 식전 힐링 문화공연",
+        "09:30~09:50 : 개막식 공식행사 (국민의례, 내빈소개, 구청장님 개회사 및 축사)",
+        "09:50~10:00 : 전문 트레이너와 함께하는 출발 전 부상방지 스트레칭 체조",
+        "10:00~11:30 : 양재천 건강 걷기 출발 (수변문화쉼터 ↔ 영동5교 왕복 4km)",
+        "11:30~13:30 : 코스 완주 인증, 기념품(인센티브) 수령 및 20개 테마 부스 자유 체험",
+        "13:30~14:00 : 행사 마무리 및 행사장 주변 환경정비"
       ]
     },
     {
-      week: 3,
-      period: "9월 2주 (09.08~09.13)",
-      title: "구청 내 협조부서 실무협의 및 부스 확정",
-      status: "todo",
-      details: [
-        "보건소 내 13개 테마 부스(정신건강, 치매, CPR, 감염병 등) 담당자 지정",
-        "도시계획과(현수막 게첨), 공원녹지과(전기/청소카트), 주차관리과 협조 공문 발송",
-        "혁신전략과 웨어러블 보행로봇(엔젤로보틱스) 시연 부스 조율"
+      "id": 3,
+      "number": "추진과제 3",
+      "title": "운영 부스 기획",
+      "status": "in-progress",
+      "period": "9월 1주 ~ 9월 2주",
+      "cooperationDepts": [
+        "의약과",
+        "혁신전략과",
+        "자원순환과"
+      ],
+      "details": [
+        "민간 전문 4대 의료기관 섭외 완료 (고대척추 X-Ray 버스, 자생한방, 차병원, 유디치과)",
+        "민간 헬스케어 부스 확정 (한국신체정보 바른자세분석, 서울체력장 체력측정, 케이스튜디오)",
+        "보건소 특화 13개 테마 부스 구성 (정신건강, 치매, CPR, 금연, 만성질환 등)",
+        "[협조확정] 의약과: 현장 의료부스 의사 배치 및 의료폐기물 수거통 지원",
+        "[협조협의] 혁신전략과: 엔젤로보틱스 웨어러블 보행로봇 시연 부스 조율",
+        "[협조예정] 자원순환과: 행사장 대형 쓰레기통 및 분리수거함 현장 배치 지원"
       ]
     },
     {
-      week: 4,
-      period: "9월 3주 (09.15~09.20)",
-      title: "대행사 계약 체결 및 홍보물 디자인 확정",
-      status: "todo",
-      details: [
-        "운영 대행 용역 정식 계약 체결 및 착수 보고",
-        "홍보 포스터, 리플렛, 현수막, 걷기 완주 인증 팔찌 디자인 확정",
-        "구청 홈페이지, SNS, 알림톡 사전 홍보안 기획"
+      "id": 4,
+      "number": "추진과제 4",
+      "title": "행사 홍보",
+      "status": "todo",
+      "period": "9월 3주 ~ 10월 2주",
+      "cooperationDepts": [
+        "도시계획과",
+        "정책홍보실",
+        "자치행정과"
+      ],
+      "details": [
+        "구민 800명 온라인 사전접수 시스템 오픈 (강남구청 통합예약 시스템)",
+        "홍보 포스터, 리플렛, 현수막, 걷기 완주 인증 팔찌 디자인 시안 확정",
+        "[협조예정] 도시계획과: 양재천 교량 및 산책로 현수막 15일간 게첨 승인",
+        "[협조기획] 정책홍보실: 구청 홈페이지, SNS, 카카오 알림톡, 보도자료 배포",
+        "22개 동 주민센터 민원실 홍보 포스터 및 안내 리플렛 비치 배포"
       ]
     },
     {
-      week: 5,
-      period: "9월 4주 (09.22~09.27)",
-      title: "구민 800명 온라인 사전접수 시스템 오픈",
-      status: "todo",
-      details: [
-        "강남구청 통합예약 시스템 참가자 800명 사전 접수 개시",
-        "양재천 일대 가로등 배너 및 교량 현수막 15일간 게첨 시작",
-        "동 주민센터 홍보 포스터 및 리플렛 배포"
+      "id": 5,
+      "number": "추진과제 5",
+      "title": "방침 및 계약",
+      "status": "in-progress",
+      "period": "9월 1주 ~ 9월 3주",
+      "cooperationDepts": [
+        "재무과",
+        "감사실",
+        "재난안전과",
+        "주차관리과"
+      ],
+      "details": [
+        "2026 양재천 걷자! 건강 페스티벌 세부 추진계획(방침) 수립 및 결재",
+        "행사시설 설치 및 운영 대행용역 계약심사 및 일상감사 의뢰",
+        "대행용역(제이민 커뮤니케이션) 조달/수의 계약 체결 및 착수 보고회",
+        "행사장 안전관리계획 수립 및 심의 (재난안전과/경찰서/소방서 합동 심의)",
+        "[협조예정] 주차관리과: 행사 당일 지정구역 행사차량 주차단속 유예"
       ]
     },
     {
-      week: 6,
-      period: "10월 2주 (10.05~10.11)",
-      title: "안전관리계획 심의 및 자원봉사자 모집",
-      status: "todo",
-      details: [
-        "행사장 안전관리계획 수립 및 재난안전과/경찰서/소방서 합동 심의",
-        "현장 안전요원 20명, 자원봉사자 30명 모집 및 사전 교육",
-        "응급의료부스 의사 배치 및 구급차(영동5교/대치교) 비상동선 점검"
-      ]
-    },
-    {
-      week: 7,
-      period: "10월 3주 (10.12~10.18)",
-      title: "시스템/발전차/부스 배치 현장 기술 실사",
-      status: "todo",
-      details: [
-        "수변문화쉼터 앞 20개 부스 2D/3D 배치 실측 및 라인 마킹",
-        "150kW 발전차 위치 및 다리 밑 분전함 간선 전기 배선 실사",
-        "음향 5kW 시뮬레이션 및 무대(목공백월 8x3.5m) 설치 위치 확정"
-      ]
-    },
-    {
-      week: 8,
-      period: "10월 4주 (10.19~10.31)",
-      title: "최종 리허설 및 D-Day 행사 개최",
-      status: "todo",
-      details: [
-        "10/30(금) 14:00~ 무대/천막/에어아치/전기 시스템 사전 설치",
-        "10/31(토) 08:00 스태프 집결, 09:00 개막식 및 800명 걷기 출발",
-        "14:00 완주 인센티브 지급, 철수 및 양재천 환경정비 완료"
+      "id": 6,
+      "number": "추진과제 6",
+      "title": "VIP 초청 관련",
+      "status": "todo",
+      "period": "9월 4주 ~ 10월 3주",
+      "cooperationDepts": [
+        "총무과(의전팀)",
+        "기획예산과"
+      ],
+      "details": [
+        "주요 초청 내빈 리스트 확정 (구청장님, 구의장 및 구의원, 국회의원, 보건소장, 의사회장 등)",
+        "공식 초청장(모바일 및 인쇄본) 제작 및 발송",
+        "VIP 개막식 의전 시나리오 및 동선 수립 (귀빈 대기실, 축사 순서, 걷기 출발 선포 터치버튼)",
+        "VIP 테마 부스 순회 투어 동선 및 주요 체험 프로그램(X-Ray 버스, 보행로봇 등) 안내 계획"
       ]
     }
   ],
-  booths: [
-    { id: 1, category: "전문 의료·검진", name: "고려대학교부설 척추측만증연구소", scale: "2동 + 검진버스", program: "거북목·척추측만증 X-Ray 무료 촬영 및 교정 상담", status: "확정" },
-    { id: 2, category: "전문 의료·검진", name: "자생한방병원", scale: "3동", program: "간이 침 치료, 스포츠 테이핑 및 한의학 상담", status: "확정" },
-    { id: 3, category: "전문 의료·검진", name: "강남 차병원", scale: "3동", program: "중년 여성 유방 자가검진 교육, 여성질환 및 영양 상담", status: "확정" },
-    { id: 4, category: "전문 의료·검진", name: "유디치과", scale: "2동 + 검진버스", program: "구강 검진 및 구강건강 관리법 안내", status: "확정" },
-    { id: 5, category: "전문 의료·검진", name: "서울시 간호조무사회", scale: "2동", program: "혈당 및 혈압 측정, 만성질환 1:1 상담", status: "확정" },
-    { id: 6, category: "민간 헬스케어", name: "한국신체정보(주)", scale: "2동", program: "『리얼피티 프로 플러스』 40초 바른자세·체형 분석 및 운동처방", status: "신청완료" },
-    { id: 7, category: "민간 헬스케어", name: "서울체력장 강남센터", scale: "2동", program: "서울체력장 인증 체력측정 (성인: 2분제자리걷기/악력, 시니어: 의자일어서기)", status: "확정" },
-    { id: 8, category: "민간 헬스케어", name: "케이스튜디오 (디아르스)", scale: "1동", program: "퍼스널 컬러 진단 및 계절별 산책·야외운동 메이크업 봉사", status: "신청완료" },
-    { id: 9, category: "첨단 로봇", name: "혁신전략과 / 엔젤로보틱스", scale: "2동", program: "시니어 보행보조 웨어러블 로봇 착용 및 체험", status: "협의중" },
-    { id: 10, category: "보건소 특화", name: "마음건강 충전소 (정신건강팀)", scale: "1동", program: "스트레스 완화 및 정서 안정을 돕는 마음건강 검사", status: "확정" },
-    { id: 11, category: "보건소 특화", name: "두뇌건강 치매예방 (어르신건강팀)", scale: "1동", program: "인지능력 향상 체험 교구 및 치매 조기선별 안내", status: "확정" },
-    { id: 12, category: "보건소 특화", name: "어르신 낙상예방 민첩성 운동", scale: "1동", program: "균형감각 및 민첩성 향상 신체활동 체험", status: "확정" },
-    { id: 13, category: "보건소 특화", name: "골든타임 심폐소생술(CPR)", scale: "1동", program: "마네킹 활용 CPR 실습 및 자동심장충격기(AED) 사용법", status: "확정" },
-    { id: 14, category: "보건소 특화", name: "금연·절주 클리닉 (NO담배 NO음주)", scale: "1동", program: "일산화탄소 측정, 금연상담 및 음주 고글 체험", status: "확정" },
-    { id: 15, category: "보건소 특화", name: "건강식습관 저염·저당 체험", scale: "1동", program: "염도계 시연, 가공식품 당류 함량 비교 전시", status: "확정" },
-    { id: 16, category: "보건소 특화", name: "우리동네 건강코치", scale: "1동", program: "생활 속 건강관리 습관 형성을 위한 전문 코칭", status: "확정" },
-    { id: 17, category: "보건소 특화", name: "마약류 오남용 예방 (약무팀)", scale: "1동", program: "마약류 위험성 홍보 및 안전한 의약품 폐기 안내", status: "확정" },
-    { id: 18, category: "보건소 특화", name: "감염병 예방 (손씻기/진드기)", scale: "1동", program: "뷰박스 손씻기 체험 및 야외 진드기 기피제 배부", status: "확정" },
-    { id: 19, category: "보건소 특화", name: "만성질환 예방관리 (강남도감)", scale: "1동", program: "고혈압·당뇨병 예방수칙 및 건강상식 퀴즈", status: "확정" },
-    { id: 20, category: "구정 연계", name: "강남 메디컬투어센터 K-Culture", scale: "1동", program: "글로벌 의료관광 홍보 및 외국인 의료 프로그램 소개", status: "확정" }
-  ],
-  departmentsCooperation: [
-    { dept: "치수과", task: "하천점용허가 승인 및 하천변 안전시설 사전 정비", status: "완료" },
-    { dept: "공원녹지과", task: "다리 밑 전기 사용 허가 및 청소카트 2대 지원", status: "협의완료" },
-    { dept: "주차관리과", task: "행사 당일 지정구역 행사차량 주차단속 유예", status: "협조요청예정" },
-    { dept: "도시계획과", task: "양재천 교량 및 산책로 현수막 15일 게첨 승인", status: "협조요청예정" },
-    { dept: "정책홍보실", task: "구청 홈페이지, SNS, 알림톡, 보도자료 배포", status: "기획중" },
-    { dept: "자원순환과", task: "행사장 대형 쓰레기통 및 분리수거함 지원", status: "예정" },
-    { dept: "의약과", task: "현장 의료부스 의사 배치 및 의료폐기물 수거통 지원", status: "확정" }
+  "booths": [
+    {
+      "id": 1,
+      "category": "전문 의료·검진",
+      "name": "고려대학교부설 척추측만증연구소",
+      "scale": "2동 + 검진버스",
+      "program": "거북목·척추측만증 X-Ray 무료 촬영 및 교정 상담",
+      "status": "확정"
+    },
+    {
+      "id": 2,
+      "category": "전문 의료·검진",
+      "name": "자생한방병원",
+      "scale": "3동",
+      "program": "간이 침 치료, 스포츠 테이핑 및 한의학 상담",
+      "status": "확정"
+    },
+    {
+      "id": 3,
+      "category": "전문 의료·검진",
+      "name": "강남 차병원",
+      "scale": "3동",
+      "program": "중년 여성 유방 자가검진 교육, 여성질환 및 영양 상담",
+      "status": "확정"
+    },
+    {
+      "id": 4,
+      "category": "전문 의료·검진",
+      "name": "유디치과",
+      "scale": "2동 + 검진버스",
+      "program": "구강 검진 및 구강건강 관리법 안내",
+      "status": "확정"
+    },
+    {
+      "id": 5,
+      "category": "전문 의료·검진",
+      "name": "서울시 간호조무사회",
+      "scale": "2동",
+      "program": "혈당 및 혈압 측정, 만성질환 1:1 상담",
+      "status": "확정"
+    },
+    {
+      "id": 6,
+      "category": "민간 헬스케어",
+      "name": "한국신체정보(주)",
+      "scale": "2동",
+      "program": "『리얼피티 프로 플러스』 40초 바른자세·체형 분석 및 운동처방",
+      "status": "신청완료"
+    },
+    {
+      "id": 7,
+      "category": "민간 헬스케어",
+      "name": "서울체력장 강남센터",
+      "scale": "2동",
+      "program": "서울체력장 인증 체력측정 (성인: 2분제자리걷기/악력, 시니어: 의자일어서기)",
+      "status": "확정"
+    },
+    {
+      "id": 8,
+      "category": "민간 헬스케어",
+      "name": "케이스튜디오 (디아르스)",
+      "scale": "1동",
+      "program": "퍼스널 컬러 진단 및 계절별 산책·야외운동 메이크업 봉사",
+      "status": "신청완료"
+    },
+    {
+      "id": 9,
+      "category": "첨단 로봇",
+      "name": "혁신전략과 / 엔젤로보틱스",
+      "scale": "2동",
+      "program": "시니어 보행보조 웨어러블 로봇 착용 및 체험",
+      "status": "협의중"
+    },
+    {
+      "id": 10,
+      "category": "보건소 특화",
+      "name": "마음건강 충전소 (정신건강팀)",
+      "scale": "1동",
+      "program": "스트레스 완화 및 정서 안정을 돕는 마음건강 검사",
+      "status": "확정"
+    },
+    {
+      "id": 11,
+      "category": "보건소 특화",
+      "name": "두뇌건강 치매예방 (어르신건강팀)",
+      "scale": "1동",
+      "program": "인지능력 향상 체험 교구 및 치매 조기선별 안내",
+      "status": "확정"
+    },
+    {
+      "id": 12,
+      "category": "보건소 특화",
+      "name": "어르신 낙상예방 민첩성 운동",
+      "scale": "1동",
+      "program": "균형감각 및 민첩성 향상 신체활동 체험",
+      "status": "확정"
+    },
+    {
+      "id": 13,
+      "category": "보건소 특화",
+      "name": "골든타임 심폐소생술(CPR)",
+      "scale": "1동",
+      "program": "마네킹 활용 CPR 실습 및 자동심장충격기(AED) 사용법",
+      "status": "확정"
+    },
+    {
+      "id": 14,
+      "category": "보건소 특화",
+      "name": "금연·절주 클리닉 (NO담배 NO음주)",
+      "scale": "1동",
+      "program": "일산화탄소 측정, 금연상담 및 음주 고글 체험",
+      "status": "확정"
+    },
+    {
+      "id": 15,
+      "category": "보건소 특화",
+      "name": "건강식습관 저염·저당 체험",
+      "scale": "1동",
+      "program": "염도계 시연, 가공식품 당류 함량 비교 전시",
+      "status": "확정"
+    },
+    {
+      "id": 16,
+      "category": "보건소 특화",
+      "name": "우리동네 건강코치",
+      "scale": "1동",
+      "program": "생활 속 건강관리 습관 형성을 위한 전문 코칭",
+      "status": "확정"
+    },
+    {
+      "id": 17,
+      "category": "보건소 특화",
+      "name": "마약류 오남용 예방 (약무팀)",
+      "scale": "1동",
+      "program": "마약류 위험성 홍보 및 안전한 의약품 폐기 안내",
+      "status": "확정"
+    },
+    {
+      "id": 18,
+      "category": "보건소 특화",
+      "name": "감염병 예방 (손씻기/진드기)",
+      "scale": "1동",
+      "program": "뷰박스 손씻기 체험 및 야외 진드기 기피제 배부",
+      "status": "확정"
+    },
+    {
+      "id": 19,
+      "category": "보건소 특화",
+      "name": "만성질환 예방관리 (강남도감)",
+      "scale": "1동",
+      "program": "고혈압·당뇨병 예방수칙 및 건강상식 퀴즈",
+      "status": "확정"
+    },
+    {
+      "id": 20,
+      "category": "구정 연계",
+      "name": "강남 메디컬투어센터 K-Culture",
+      "scale": "1동",
+      "program": "글로벌 의료관광 홍보 및 외국인 의료 프로그램 소개",
+      "status": "확정"
+    }
   ]
 };
 
-async function fetchYangjaeFestivalData(): Promise<FestivalData> {
-  const res = await fetch('/api/festival/yangjae');
-  if (!res.ok) {
-    throw new Error('Failed to fetch festival data: ' + res.statusText);
-  }
-  const data = await res.json();
-  if (data && data.meta) {
-    return data;
-  }
-  return YANGJAE_FALLBACK_DATA;
-}
+export const initialFallbackData = YANGJAE_FALLBACK_DATA;
 
 export function useYangjaeFestival() {
   return useQuery<FestivalData>({
     queryKey: ['festival', 'yangjae'],
-    queryFn: fetchYangjaeFestivalData,
-    initialData: YANGJAE_FALLBACK_DATA,
-    staleTime: 1000 * 60 * 5,
-    refetchOnWindowFocus: false,
+    queryFn: async () => {
+      const res = await fetch('/api/festival/yangjae?t=' + Date.now(), {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+        },
+      });
+      if (!res.ok) {
+        throw new Error('Failed to fetch festival data');
+      }
+      return res.json();
+    },
+    placeholderData: initialFallbackData,
+    staleTime: 0,
+    gcTime: 1000 * 60 * 30,
+    refetchOnWindowFocus: true,
+  });
+}
+
+export function useSaveYangjaeFestival() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (updatedData: FestivalData) => {
+      const res = await fetch('/api/festival/yangjae', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updatedData),
+      });
+      if (!res.ok) {
+        throw new Error('Failed to save festival data to disk');
+      }
+      return res.json();
+    },
+    onSuccess: (savedData) => {
+      queryClient.setQueryData(['festival', 'yangjae'], savedData);
+      queryClient.invalidateQueries({ queryKey: ['festival', 'yangjae'] });
+    },
   });
 }

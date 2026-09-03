@@ -17,7 +17,200 @@ interface SemanticReviewModalProps {
   ) => void;
 }
 
-export function SemanticReviewModal({
+interface ReviewNodeRowItemProps {
+  node: OntologyNode;
+  onUpdate: (id: string, field: keyof OntologyNode, value: any) => void;
+  onDelete: (id: string) => void;
+}
+
+const ReviewNodeRowItem = React.memo(({ node, onUpdate, onDelete }: ReviewNodeRowItemProps) => {
+  const handleLabelChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    onUpdate(node.id, 'label', e.target.value);
+  }, [node.id, onUpdate]);
+
+  const handleLayerChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    onUpdate(node.id, 'layerId', parseInt(e.target.value) as OntologyLayerId);
+  }, [node.id, onUpdate]);
+
+  const handleGroupChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    onUpdate(node.id, 'group', e.target.value as OntologyGroup);
+  }, [node.id, onUpdate]);
+
+  const handleValueChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    onUpdate(node.id, 'baseValue', parseInt(e.target.value));
+  }, [node.id, onUpdate]);
+
+  const handleDelete = useCallback(() => {
+    onDelete(node.id);
+  }, [node.id, onDelete]);
+
+  return (
+    <div 
+      className="p-4 bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/80 rounded-2xl shadow-3xs flex flex-col gap-3 transition-all hover:border-slate-350 dark:hover:border-slate-700"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <input
+            type="text"
+            value={node.label}
+            onChange={handleLabelChange}
+            className="w-full text-sm font-bold text-slate-800 dark:text-white bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none pb-0.5"
+          />
+          <div className="text-[10px] text-slate-400 font-mono mt-1 select-none">ID: {node.id}</div>
+        </div>
+        <button
+          type="button"
+          onClick={handleDelete}
+          className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-xl cursor-pointer transition-colors"
+          title="노드 삭제"
+        >
+          <Trash2 size={15} />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2.5 pt-1">
+        {/* Layer select */}
+        <div>
+          <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">레이어</label>
+          <select
+            value={node.layerId ?? 3}
+            onChange={handleLayerChange}
+            className="w-full text-[11px] font-semibold bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl px-2 py-1 focus:outline-none"
+          >
+            <option value={0}>{LAYER_LABELS[0]}</option>
+            <option value={1}>{LAYER_LABELS[1]}</option>
+            <option value={2}>{LAYER_LABELS[2]}</option>
+            <option value={3}>{LAYER_LABELS[3]}</option>
+          </select>
+        </div>
+
+        {/* Group select */}
+        <div>
+          <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">분류 그룹</label>
+          <select
+            value={node.group}
+            onChange={handleGroupChange}
+            className="w-full text-[11px] font-semibold bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl px-2 py-1 focus:outline-none"
+          >
+            {(Object.keys(GROUP_LABELS) as OntologyGroup[]).map(g => (
+              <option key={g} value={g}>{GROUP_LABELS[g]}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Value slider */}
+        <div>
+          <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1 flex justify-between">
+            <span>가중치</span>
+            <span className="font-mono text-indigo-500 font-bold">{node.baseValue}</span>
+          </label>
+          <input
+            type="range"
+            min="10"
+            max="100"
+            step="5"
+            value={node.baseValue}
+            onChange={handleValueChange}
+            className="w-full h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+          />
+        </div>
+      </div>
+    </div>
+  );
+});
+ReviewNodeRowItem.displayName = 'ReviewNodeRowItem';
+
+interface ReviewEdgeRowItemProps {
+  edge: OntologyEdge;
+  index: number;
+  sourceLabel: string;
+  targetLabel: string;
+  onUpdate: (index: number, field: keyof OntologyEdge, value: any) => void;
+  onDelete: (index: number) => void;
+}
+
+const ReviewEdgeRowItem = React.memo(({
+  edge,
+  index,
+  sourceLabel,
+  targetLabel,
+  onUpdate,
+  onDelete
+}: ReviewEdgeRowItemProps) => {
+  const handleTypeChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    onUpdate(index, 'type', e.target.value as EdgeType);
+  }, [index, onUpdate]);
+
+  const handleWeightChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    onUpdate(index, 'weight', parseFloat(e.target.value));
+  }, [index, onUpdate]);
+
+  const handleDelete = useCallback(() => {
+    onDelete(index);
+  }, [index, onDelete]);
+
+  return (
+    <div 
+      className="p-4 bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/80 rounded-2xl shadow-3xs flex flex-col gap-3 transition-all hover:border-slate-350 dark:hover:border-slate-700"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex-1 min-w-0 text-xs font-semibold text-slate-600 dark:text-slate-300 flex flex-wrap items-center gap-1.5">
+          <span className="bg-slate-100 dark:bg-slate-850 px-2 py-0.5 rounded text-slate-800 dark:text-white font-bold max-w-[150px] truncate">
+            {sourceLabel}
+          </span>
+          <span className="text-indigo-500 font-bold mx-0.5">➔</span>
+          <span className="bg-slate-100 dark:bg-slate-850 px-2 py-0.5 rounded text-slate-800 dark:text-white font-bold max-w-[150px] truncate">
+            {targetLabel}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={handleDelete}
+          className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-xl cursor-pointer transition-colors"
+          title="관계 삭제"
+        >
+          <Trash2 size={15} />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2.5 pt-1">
+        {/* Edge Type */}
+        <div>
+          <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">관계 성격</label>
+          <select
+            value={edge.type}
+            onChange={handleTypeChange}
+            className="w-full text-[11px] font-semibold bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl px-2 py-1 focus:outline-none"
+          >
+            {(Object.keys(EDGE_TYPE_LABELS) as EdgeType[]).map(t => (
+              <option key={t} value={t}>{EDGE_TYPE_LABELS[t]}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Weight Slider */}
+        <div>
+          <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1 flex justify-between">
+            <span>가중 강도</span>
+            <span className="font-mono text-indigo-500 font-bold">{edge.weight.toFixed(1)}</span>
+          </label>
+          <input
+            type="range"
+            min="-1.0"
+            max="1.0"
+            step="0.1"
+            value={edge.weight}
+            onChange={handleWeightChange}
+            className="w-full h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+          />
+        </div>
+      </div>
+    </div>
+  );
+});
+ReviewEdgeRowItem.displayName = 'ReviewEdgeRowItem';
+
+function SemanticReviewModalComponent({
   isOpen,
   onClose,
   pendingNodes,
@@ -61,25 +254,31 @@ export function SemanticReviewModal({
   const [newEdgeWeight, setNewEdgeWeight] = useState(1.0);
 
   // Node editing handlers
-  const handleUpdateNode = (id: string, field: keyof OntologyNode, value: any) => {
+  const handleUpdateNode = useCallback((id: string, field: keyof OntologyNode, value: any) => {
     setNodes(prev => prev.map(n => n.id === id ? { ...n, [field]: value } : n));
-  };
+  }, []);
 
-  const handleDeleteNode = (id: string) => {
+  const handleDeleteNode = useCallback((id: string) => {
     setNodes(prev => prev.filter(n => n.id !== id));
-    setSkippedIds(prev => [...prev, id]);
-    // Also remove any edges referencing this node
+    
+    // Also remove any edges referencing this node and batch update skippedIds
     setEdges(prev => {
-      const removedEdges = prev.filter(e => e.source === id || e.target === id);
-      removedEdges.forEach(e => {
-        const edgeKey = `${e.source}|||${e.target}`;
-        setSkippedIds(s => [...s, edgeKey]);
-      });
-      return prev.filter(e => e.source !== id && e.target !== id);
+      const remainingEdges: OntologyEdge[] = [];
+      const edgeSkippedKeys: string[] = [id];
+      for (let i = 0; i < prev.length; i++) {
+        const e = prev[i];
+        if (e.source === id || e.target === id) {
+          edgeSkippedKeys.push(`${e.source}|||${e.target}`);
+        } else {
+          remainingEdges.push(e);
+        }
+      }
+      setSkippedIds(s => [...s, ...edgeSkippedKeys]);
+      return remainingEdges;
     });
-  };
+  }, []);
 
-  const handleAddNode = () => {
+  const handleAddNode = useCallback(() => {
     if (!newNodeLabel.trim()) return;
     const generatedId = `custom-ai-${Date.now()}`;
     const newNode: OntologyNode = {
@@ -92,23 +291,25 @@ export function SemanticReviewModal({
     };
     setNodes(prev => [...prev, newNode]);
     setNewNodeLabel('');
-  };
+  }, [newNodeLabel, newNodeGroup, newNodeLayer, newNodeValue]);
 
   // Edge editing handlers
-  const handleUpdateEdge = (index: number, field: keyof OntologyEdge, value: any) => {
+  const handleUpdateEdge = useCallback((index: number, field: keyof OntologyEdge, value: any) => {
     setEdges(prev => prev.map((e, idx) => idx === index ? { ...e, [field]: value } : e));
-  };
+  }, []);
 
-  const handleDeleteEdge = (index: number) => {
-    const edgeToDelete = edges[index];
-    if (edgeToDelete) {
-      const edgeKey = `${edgeToDelete.source}|||${edgeToDelete.target}`;
-      setSkippedIds(prev => [...prev, edgeKey]);
-    }
-    setEdges(prev => prev.filter((_, idx) => idx !== index));
-  };
+  const handleDeleteEdge = useCallback((index: number) => {
+    setEdges(prev => {
+      const edgeToDelete = prev[index];
+      if (edgeToDelete) {
+        const edgeKey = `${edgeToDelete.source}|||${edgeToDelete.target}`;
+        setSkippedIds(s => [...s, edgeKey]);
+      }
+      return prev.filter((_, idx) => idx !== index);
+    });
+  }, []);
 
-  const handleAddEdge = () => {
+  const handleAddEdge = useCallback(() => {
     if (!newEdgeSource || !newEdgeTarget) return;
     if (newEdgeSource === newEdgeTarget) {
       alert('출발 노드와 도착 노드는 서로 달라야 합니다.');
@@ -123,7 +324,7 @@ export function SemanticReviewModal({
     setEdges(prev => [...prev, newEdge]);
     setNewEdgeSource('');
     setNewEdgeTarget('');
-  };
+  }, [newEdgeSource, newEdgeTarget, newEdgeType, newEdgeWeight]);
 
   // Compute all available node IDs for edge connection selection
   const allAvailableNodeIds = useMemo(() => {
@@ -186,7 +387,7 @@ export function SemanticReviewModal({
   }, [nodes, edges, existingNodeIds, allAvailableNodeIds, getNodeLabelById]);
 
   // Submit Handler
-  const handleApprove = () => {
+  const handleApprove = useCallback(() => {
     const finalApprovedNodeIds = new Set(nodes.map(n => n.id));
     const finalApprovedEdgeKeys = new Set(edges.map(e => `${e.source}|||${e.target}`));
 
@@ -202,7 +403,10 @@ export function SemanticReviewModal({
 
     approveAndMerge(nodes, edges, allSkipped);
     onClose();
-  };
+  }, [nodes, edges, initialNodes, initialEdges, skippedIds, approveAndMerge, onClose]);
+
+  const handleSetTabNodes = useCallback(() => setActiveTab('nodes'), []);
+  const handleSetTabEdges = useCallback(() => setActiveTab('edges'), []);
 
   if (!isOpen) return null;
 
@@ -222,6 +426,7 @@ export function SemanticReviewModal({
             </div>
           </div>
           <button 
+            type="button"
             onClick={onClose}
             className="p-2 text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-full transition-colors cursor-pointer"
           >
@@ -249,7 +454,8 @@ export function SemanticReviewModal({
         <div className="shrink-0 border-b border-slate-200 dark:border-slate-800 px-6 flex justify-between items-center bg-slate-50/20 dark:bg-slate-900/10">
           <div className="flex gap-1 pt-2">
             <button
-              onClick={() => setActiveTab('nodes')}
+              type="button"
+              onClick={handleSetTabNodes}
               className={`px-5 py-3 border-b-2 font-bold text-xs sm:text-sm tracking-wide transition-all cursor-pointer ${
                 activeTab === 'nodes'
                   ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 bg-indigo-50/20 dark:bg-indigo-950/10'
@@ -259,7 +465,8 @@ export function SemanticReviewModal({
               추출된 노드 검토 ({nodes.length})
             </button>
             <button
-              onClick={() => setActiveTab('edges')}
+              type="button"
+              onClick={handleSetTabEdges}
               className={`px-5 py-3 border-b-2 font-bold text-xs sm:text-sm tracking-wide transition-all cursor-pointer ${
                 activeTab === 'edges'
                   ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 bg-indigo-50/20 dark:bg-indigo-950/10'
@@ -285,77 +492,12 @@ export function SemanticReviewModal({
                   </div>
                 ) : (
                   nodes.map((node) => (
-                    <div 
-                      key={node.id} 
-                      className="p-4 bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/80 rounded-2xl shadow-3xs flex flex-col gap-3 transition-all hover:border-slate-350 dark:hover:border-slate-700"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <input
-                            type="text"
-                            value={node.label}
-                            onChange={(e) => handleUpdateNode(node.id, 'label', e.target.value)}
-                            className="w-full text-sm font-bold text-slate-800 dark:text-white bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none pb-0.5"
-                          />
-                          <div className="text-[10px] text-slate-400 font-mono mt-1 select-none">ID: {node.id}</div>
-                        </div>
-                        <button
-                          onClick={() => handleDeleteNode(node.id)}
-                          className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-xl cursor-pointer transition-colors"
-                          title="노드 삭제"
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
-
-                      <div className="grid grid-cols-3 gap-2.5 pt-1">
-                        {/* Layer select */}
-                        <div>
-                          <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">레이어</label>
-                          <select
-                            value={node.layerId ?? 3}
-                            onChange={(e) => handleUpdateNode(node.id, 'layerId', parseInt(e.target.value) as OntologyLayerId)}
-                            className="w-full text-[11px] font-semibold bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl px-2 py-1 focus:outline-none"
-                          >
-                            <option value={0}>{LAYER_LABELS[0]}</option>
-                            <option value={1}>{LAYER_LABELS[1]}</option>
-                            <option value={2}>{LAYER_LABELS[2]}</option>
-                            <option value={3}>{LAYER_LABELS[3]}</option>
-                          </select>
-                        </div>
-
-                        {/* Group select */}
-                        <div>
-                          <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">분류 그룹</label>
-                          <select
-                            value={node.group}
-                            onChange={(e) => handleUpdateNode(node.id, 'group', e.target.value as OntologyGroup)}
-                            className="w-full text-[11px] font-semibold bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl px-2 py-1 focus:outline-none"
-                          >
-                            {(Object.keys(GROUP_LABELS) as OntologyGroup[]).map(g => (
-                              <option key={g} value={g}>{GROUP_LABELS[g]}</option>
-                            ))}
-                          </select>
-                        </div>
-
-                        {/* Value slider */}
-                        <div>
-                          <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1 flex justify-between">
-                            <span>가중치</span>
-                            <span className="font-mono text-indigo-500 font-bold">{node.baseValue}</span>
-                          </label>
-                          <input
-                            type="range"
-                            min="10"
-                            max="100"
-                            step="5"
-                            value={node.baseValue}
-                            onChange={(e) => handleUpdateNode(node.id, 'baseValue', parseInt(e.target.value))}
-                            className="w-full h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
-                          />
-                        </div>
-                      </div>
-                    </div>
+                    <ReviewNodeRowItem
+                      key={node.id}
+                      node={node}
+                      onUpdate={handleUpdateNode}
+                      onDelete={handleDeleteNode}
+                    />
                   ))
                 )}
               </div>
@@ -368,62 +510,15 @@ export function SemanticReviewModal({
                   </div>
                 ) : (
                   edges.map((edge, index) => (
-                    <div 
-                      key={index} 
-                      className="p-4 bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/80 rounded-2xl shadow-3xs flex flex-col gap-3 transition-all hover:border-slate-350 dark:hover:border-slate-700"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex-1 min-w-0 text-xs font-semibold text-slate-600 dark:text-slate-300 flex flex-wrap items-center gap-1.5">
-                          <span className="bg-slate-100 dark:bg-slate-850 px-2 py-0.5 rounded text-slate-800 dark:text-white font-bold max-w-[150px] truncate">
-                            {getNodeLabelById(edge.source)}
-                          </span>
-                          <span className="text-indigo-500 font-bold mx-0.5">➔</span>
-                          <span className="bg-slate-100 dark:bg-slate-850 px-2 py-0.5 rounded text-slate-800 dark:text-white font-bold max-w-[150px] truncate">
-                            {getNodeLabelById(edge.target)}
-                          </span>
-                        </div>
-                        <button
-                          onClick={() => handleDeleteEdge(index)}
-                          className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-xl cursor-pointer transition-colors"
-                          title="관계 삭제"
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2.5 pt-1">
-                        {/* Edge Type */}
-                        <div>
-                          <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">관계 성격</label>
-                          <select
-                            value={edge.type}
-                            onChange={(e) => handleUpdateEdge(index, 'type', e.target.value as EdgeType)}
-                            className="w-full text-[11px] font-semibold bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl px-2 py-1 focus:outline-none"
-                          >
-                            {(Object.keys(EDGE_TYPE_LABELS) as EdgeType[]).map(t => (
-                              <option key={t} value={t}>{EDGE_TYPE_LABELS[t]}</option>
-                            ))}
-                          </select>
-                        </div>
-
-                        {/* Weight Slider */}
-                        <div>
-                          <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1 flex justify-between">
-                            <span>가중 강도</span>
-                            <span className="font-mono text-indigo-500 font-bold">{edge.weight.toFixed(1)}</span>
-                          </label>
-                          <input
-                            type="range"
-                            min="-1.0"
-                            max="1.0"
-                            step="0.1"
-                            value={edge.weight}
-                            onChange={(e) => handleUpdateEdge(index, 'weight', parseFloat(e.target.value))}
-                            className="w-full h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
-                          />
-                        </div>
-                      </div>
-                    </div>
+                    <ReviewEdgeRowItem
+                      key={`${edge.source}-${edge.target}-${edge.type}-${index}`}
+                      edge={edge}
+                      index={index}
+                      sourceLabel={getNodeLabelById(edge.source)}
+                      targetLabel={getNodeLabelById(edge.target)}
+                      onUpdate={handleUpdateEdge}
+                      onDelete={handleDeleteEdge}
+                    />
                   ))
                 )}
               </div>
@@ -613,3 +708,6 @@ export function SemanticReviewModal({
     </div>
   );
 }
+
+SemanticReviewModalComponent.displayName = 'SemanticReviewModal';
+export const SemanticReviewModal = React.memo(SemanticReviewModalComponent);

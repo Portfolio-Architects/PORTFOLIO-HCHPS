@@ -18,7 +18,7 @@ interface ExpenseEntryModalProps {
 
 const inputClass = "w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition-shadow";
 
-export function ExpenseEntryModal({
+function ExpenseEntryModalComponent({
   isOpen,
   onClose,
   categories,
@@ -128,8 +128,15 @@ export function ExpenseEntryModal({
         setEntryError('정산(결산) 대상 산출내역을 선택해야 합니다.');
         return;
       }
-      const existingSettlements = entries.filter(en => en.categoryId === selectedCatId && en.linkedSubItemId === entryLinkedSubItemId && en.actionType === 'settle' && en.id !== editEntryId);
-      if (existingSettlements.length > 0) {
+      let hasExistingSettlement = false;
+      for (let i = 0; i < entries.length; i++) {
+        const en = entries[i];
+        if (en.categoryId === selectedCatId && en.linkedSubItemId === entryLinkedSubItemId && en.actionType === 'settle' && en.id !== editEntryId) {
+          hasExistingSettlement = true;
+          break;
+        }
+      }
+      if (hasExistingSettlement) {
         setEntryError('해당 산출내역에 이미 정산(결산) 항목이 존재합니다. 하나의 산출내역당 하나의 정산만 가능합니다.');
         return;
       }
@@ -408,3 +415,6 @@ export function ExpenseEntryModal({
     </Modal>
   );
 }
+
+ExpenseEntryModalComponent.displayName = 'ExpenseEntryModal';
+export const ExpenseEntryModal = React.memo(ExpenseEntryModalComponent);

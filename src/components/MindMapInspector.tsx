@@ -686,7 +686,7 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                           {matchedTasks.length > 0 && (
                             <div className="flex flex-col gap-1 border-t border-slate-200/20 pt-1.5">
                               {matchedTasks.slice(0, 2).map((t, idx) => (
-                                <div key={idx} className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-500">
+                                <div key={t.id || `task-${t.title || (t as any).text || ''}-${idx}`} className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-500">
                                   <span className={`w-1.5 h-1.5 rounded-full ${(t as any).isCompleted || (t as any).status === '완료' || (t.status as any) === 'DONE' || (t.status as any) === 'done' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
                                   <span className="truncate flex-1">{t.title || (t as any).text || ''}</span>
                                 </div>
@@ -1464,7 +1464,7 @@ export const MindMapInspector = React.memo(function MindMapInspector(props: Mind
                                   </div>
                                   <div className="flex flex-col gap-0.5">
                                     {reasons.map((r, idx) => (
-                                      <span key={idx} className="text-[9.5px] font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                                      <span key={`${node.id}-reason-${r}-${idx}`} className="text-[9.5px] font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1">
                                         {r}
                                       </span>
                                     ))}

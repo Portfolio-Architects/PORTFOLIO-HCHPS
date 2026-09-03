@@ -72,19 +72,42 @@ function arePolicyGroupCardPropsEqual(
 
   if (prevProps.entries === nextProps.entries) return true;
 
-  const catIdSet = new Set(nCats.map(c => c.id));
-  const pGroupEntries = prevProps.entries.filter(e => catIdSet.has(e.categoryId));
-  const nGroupEntries = nextProps.entries.filter(e => catIdSet.has(e.categoryId));
-  if (pGroupEntries.length !== nGroupEntries.length) return false;
-  for (let i = 0; i < pGroupEntries.length; i++) {
-    if (
-      pGroupEntries[i].id !== nGroupEntries[i].id ||
-      pGroupEntries[i].amount !== nGroupEntries[i].amount ||
-      pGroupEntries[i].date !== nGroupEntries[i].date ||
-      pGroupEntries[i].purpose !== nGroupEntries[i].purpose ||
-      pGroupEntries[i].docRegNum !== nGroupEntries[i].docRegNum
-    ) {
-      return false;
+  const catIdSet = new Set<string>();
+  for (let i = 0; i < nCats.length; i++) {
+    catIdSet.add(nCats[i].id);
+  }
+
+  // Count relevant entries without intermediate array allocations
+  let pCount = 0;
+  for (let i = 0; i < prevProps.entries.length; i++) {
+    if (catIdSet.has(prevProps.entries[i].categoryId)) pCount++;
+  }
+  let nCount = 0;
+  for (let i = 0; i < nextProps.entries.length; i++) {
+    if (catIdSet.has(nextProps.entries[i].categoryId)) nCount++;
+  }
+  if (pCount !== nCount) return false;
+
+  // Stream two-pointer comparison (Zero-Allocation)
+  let pIdx = 0;
+  let nIdx = 0;
+  while (pIdx < prevProps.entries.length && nIdx < nextProps.entries.length) {
+    while (pIdx < prevProps.entries.length && !catIdSet.has(prevProps.entries[pIdx].categoryId)) pIdx++;
+    while (nIdx < nextProps.entries.length && !catIdSet.has(nextProps.entries[nIdx].categoryId)) nIdx++;
+    if (pIdx < prevProps.entries.length && nIdx < nextProps.entries.length) {
+      const p = prevProps.entries[pIdx];
+      const n = nextProps.entries[nIdx];
+      if (
+        p.id !== n.id ||
+        p.amount !== n.amount ||
+        p.date !== n.date ||
+        p.purpose !== n.purpose ||
+        p.docRegNum !== n.docRegNum
+      ) {
+        return false;
+      }
+      pIdx++;
+      nIdx++;
     }
   }
 
@@ -114,47 +137,67 @@ const PolicyGroupCardComponent = ({
   const { policyName, cats } = group;
 
   const { totalBudget, spent, planned, remaining, usageRate, groupEntries, entriesByCatId, groupedByDetail, groupFunding, groupTypes, groupStatus, catMap } = useMemo(() => {
-    const tBudget = cats.reduce((s, c) => s + c.totalBudget, 0);
-    let tSpent = 0; let tPlanned = 0; let tRemaining = 0;
-    
-    cats.forEach(c => {
-      const st = getCategoryStats(c.id);
-      if (st) { tSpent += st.spent; tPlanned += st.planned; tRemaining += st.remaining; }
-    });
-    
-    const rate = tBudget > 0 ? ((tSpent + tPlanned) / tBudget) * 100 : 0;
-    
-    const catIdSet = new Set(cats.map(c => c.id));
-    const gEntries = entries
-      .filter(e => catIdSet.has(e.categoryId))
-      .map(e => ({ entry: e, ts: Date.parse(e.date) || 0 }))
-      .sort((a, b) => b.ts - a.ts)
-      .map(item => item.entry);
+    let tBudget = 0;
+    let tSpent = 0;
+    let tPlanned = 0;
+    let tRemaining = 0;
 
+    const catIdSet = new Set<string>();
     const entriesByCatMap: Record<string, BudgetEntry[]> = {};
-    cats.forEach(c => {
-      entriesByCatMap[c.id] = [];
-    });
-    gEntries.forEach(e => {
-      if (entriesByCatMap[e.categoryId]) {
-        entriesByCatMap[e.categoryId].push(e);
-      }
-    });
-
     const categoryLookupMap: Record<string, BudgetCategory> = {};
-    cats.forEach(c => {
-      categoryLookupMap[c.id] = c;
-    });
-
     const groupsMap: Record<string, BudgetCategory[]> = {};
-    cats.forEach(cat => {
-      const detail = cat.detailedProject || '분류되지 않은 세부사업';
-      if (!groupsMap[detail]) {
-        groupsMap[detail] = [];
+    const groupFundingSet = new Set<string>();
+    const groupTypesSet = new Set<string>();
+
+    for (let i = 0; i < cats.length; i++) {
+      const c = cats[i];
+      tBudget += c.totalBudget;
+      catIdSet.add(c.id);
+      entriesByCatMap[c.id] = [];
+      categoryLookupMap[c.id] = c;
+
+      const st = getCategoryStats(c.id);
+      if (st) {
+        tSpent += st.spent;
+        tPlanned += st.planned;
+        tRemaining += st.remaining;
       }
-      groupsMap[detail].push(cat);
-    });
-    
+
+      const detail = c.detailedProject || '분류되지 않은 세부사업';
+      let gList = groupsMap[detail];
+      if (!gList) {
+        gList = [];
+        groupsMap[detail] = gList;
+      }
+      gList.push(c);
+
+      if (c.fundingSource) {
+        const clean = c.fundingSource.replace(/\([^)]+\)/g, '');
+        const parts = clean.split(',');
+        for (let p = 0; p < parts.length; p++) {
+          const t = parts[p].trim();
+          if (t && t !== '구비') groupFundingSet.add(t);
+        }
+      }
+
+      if (c.budgetType && c.budgetType !== '본예산') {
+        groupTypesSet.add(c.budgetType);
+      }
+    }
+
+    const rate = tBudget > 0 ? ((tSpent + tPlanned) / tBudget) * 100 : 0;
+
+    const gEntries: BudgetEntry[] = [];
+    for (let i = 0; i < entries.length; i++) {
+      const e = entries[i];
+      if (catIdSet.has(e.categoryId)) {
+        gEntries.push(e);
+        entriesByCatMap[e.categoryId]?.push(e);
+      }
+    }
+
+    gEntries.sort((a, b) => (Date.parse(b.date) || 0) - (Date.parse(a.date) || 0));
+
     const groups = Object.keys(groupsMap).map(detail => {
       const detailCats = groupsMap[detail];
       detailCats.sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
@@ -169,7 +212,8 @@ const PolicyGroupCardComponent = ({
       const detailFundingSet = new Set<string>();
       const detailTypesSet = new Set<string>();
 
-      for (const c of detailCats) {
+      for (let i = 0; i < detailCats.length; i++) {
+        const c = detailCats[i];
         detailTotalBudget += c.totalBudget;
 
         const st = getCategoryStats(c.id);
@@ -184,8 +228,8 @@ const PolicyGroupCardComponent = ({
         if (c.fundingSource) {
           const clean = c.fundingSource.replace(/구비\(자체\)/g, '구비').replace(/\([^)]+\)/g, '');
           const parts = clean.split(',');
-          for (let i = 0; i < parts.length; i++) {
-            const t = parts[i].trim();
+          for (let p = 0; p < parts.length; p++) {
+            const t = parts[p].trim();
             if (t && t !== '구비') {
               detailFundingSet.add(t);
             }
@@ -216,18 +260,8 @@ const PolicyGroupCardComponent = ({
       };
     });
 
-    const groupFundingSet = new Set<string>();
-    cats.forEach(c => {
-       if (c.fundingSource) {
-          const clean = c.fundingSource.replace(/\([^)]+\)/g, '');
-          clean.split(',').forEach(p => {
-             const t = p.trim();
-             if (t && t !== '구비') groupFundingSet.add(t);
-          });
-       }
-     });
     const groupFunding = Array.from(groupFundingSet);
-    const groupTypes = Array.from(new Set(cats.map(c => c.budgetType).filter(t => t && t !== '본예산')));
+    const groupTypes = Array.from(groupTypesSet);
     const groupStatus: CategoryStatus = getCategoryStatus(rate, tRemaining);
 
     return { 

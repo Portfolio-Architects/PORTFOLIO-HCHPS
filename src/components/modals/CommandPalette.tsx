@@ -43,7 +43,34 @@ export interface CommandPaletteProps {
   meetings?: Meeting[];
 }
 
-export function CommandPalette({
+const STATIC_NAV_ITEMS: { module: ModuleType; title: string; subtitle: string; icon: React.ReactNode }[] = [
+  {
+    module: 'dashboard',
+    title: '대시보드 (Dashboard)',
+    subtitle: '메인 업무 인사이트, 주간 일정 및 시그널 피드',
+    icon: <LayoutDashboard className="w-4 h-4 text-emerald-400" />
+  },
+  {
+    module: 'workspace',
+    title: '예산 & 재고 관리 (Workspace)',
+    subtitle: '품의 결재, 정산 내역 및 물품 수량 관리',
+    icon: <Wallet className="w-4 h-4 text-blue-400" />
+  },
+  {
+    module: 'festival',
+    title: '양재천 페스티벌 (Festival)',
+    subtitle: '2026 양재천 건강 페스티벌 추진 로드맵 및 부스 현황',
+    icon: <Briefcase className="w-4 h-4 text-purple-400" />
+  },
+  {
+    module: 'simulator',
+    title: '예산 시뮬레이터 (Simulator)',
+    subtitle: '실시간 예산 변동 시뮬레이션 및 재원 배분 분석',
+    icon: <Network className="w-4 h-4 text-indigo-400" />
+  }
+];
+
+function CommandPaletteComponent({
   isOpen,
   onClose,
   onSelectModule,
@@ -80,38 +107,13 @@ export function CommandPalette({
   }, [isOpen]);
 
   // Aggregate all searchable items
+  // Aggregate all searchable items
   const allItems = useMemo<CommandItem[]>(() => {
     const items: CommandItem[] = [];
 
     // 1. Navigation items
-    const navItems: { module: ModuleType; title: string; subtitle: string; icon: React.ReactNode }[] = [
-      {
-        module: 'dashboard',
-        title: '대시보드 (Dashboard)',
-        subtitle: '메인 업무 인사이트, 주간 일정 및 시그널 피드',
-        icon: <LayoutDashboard className="w-4 h-4 text-emerald-400" />
-      },
-      {
-        module: 'workspace',
-        title: '예산 & 재고 관리 (Workspace)',
-        subtitle: '품의 결재, 정산 내역 및 물품 수량 관리',
-        icon: <Wallet className="w-4 h-4 text-blue-400" />
-      },
-      {
-        module: 'festival',
-        title: '양재천 페스티벌 (Festival)',
-        subtitle: '2026 양재천 건강 페스티벌 추진 로드맵 및 부스 현황',
-        icon: <Briefcase className="w-4 h-4 text-purple-400" />
-      },
-      {
-        module: 'simulator',
-        title: '예산 시뮬레이터 (Simulator)',
-        subtitle: '실시간 예산 변동 시뮬레이션 및 재원 배분 분석',
-        icon: <Network className="w-4 h-4 text-indigo-400" />
-      }
-    ];
-
-    navItems.forEach(nav => {
+    for (let i = 0; i < STATIC_NAV_ITEMS.length; i++) {
+      const nav = STATIC_NAV_ITEMS[i];
       const searchTerms = `${nav.title} ${nav.subtitle} navigation module 대시보드 예산 관리 페스티벌 시뮬레이터`;
       items.push({
         id: `nav-${nav.module}`,
@@ -125,10 +127,11 @@ export function CommandPalette({
         icon: nav.icon,
         onSelect: () => onSelectModule(nav.module)
       });
-    });
+    }
 
     // 2. Tasks
-    tasks.forEach(task => {
+    for (let i = 0; i < tasks.length; i++) {
+      const task = tasks[i];
       const searchTerms = `${task.title} ${task.category || ''} ${task.description || ''} ${(task.tags || []).join(' ')} ${task.status}`;
       items.push({
         id: `task-${task.id}`,
@@ -142,11 +145,15 @@ export function CommandPalette({
         icon: <CheckSquare className="w-4 h-4 text-amber-400" />,
         onSelect: () => onSelectModule('dashboard')
       });
-    });
+    }
 
     // 3. Budget Items
-    const catMap = new Map(budgetCategories.map(c => [c.id, c.name]));
-    budgetEntries.forEach(entry => {
+    const catMap = new Map<string, string>();
+    for (let i = 0; i < budgetCategories.length; i++) {
+      catMap.set(budgetCategories[i].id, budgetCategories[i].name);
+    }
+    for (let i = 0; i < budgetEntries.length; i++) {
+      const entry = budgetEntries[i];
       const catName = catMap.get(entry.categoryId) || '기타예산';
       const searchTerms = `${entry.purpose} ${catName} ${entry.amount} ${entry.docRegNum || ''} ${entry.memo || ''}`;
       items.push({
@@ -161,10 +168,11 @@ export function CommandPalette({
         icon: <Receipt className="w-4 h-4 text-emerald-400" />,
         onSelect: () => onSelectModule('workspace')
       });
-    });
+    }
 
     // 4. Inventory Items
-    inventoryItems.forEach(inv => {
+    for (let i = 0; i < inventoryItems.length; i++) {
+      const inv = inventoryItems[i];
       const searchTerms = `${inv.name} ${inv.category}`;
       items.push({
         id: `inv-${inv.id}`,
@@ -178,10 +186,11 @@ export function CommandPalette({
         icon: <Package className="w-4 h-4 text-cyan-400" />,
         onSelect: () => onSelectModule('workspace')
       });
-    });
+    }
 
     // 5. Contacts
-    contacts.forEach(contact => {
+    for (let i = 0; i < contacts.length; i++) {
+      const contact = contacts[i];
       const searchTerms = `${contact.name} ${contact.phone} ${contact.email || ''} ${contact.notes || ''}`;
       items.push({
         id: `contact-${contact.id}`,
@@ -195,10 +204,11 @@ export function CommandPalette({
         icon: <User className="w-4 h-4 text-pink-400" />,
         onSelect: () => onSelectModule('dashboard')
       });
-    });
+    }
 
     // 6. Projects
-    projects.forEach(project => {
+    for (let i = 0; i < projects.length; i++) {
+      const project = projects[i];
       const searchTerms = `${project.name} ${project.description || ''} ${project.target || ''} ${project.location || ''}`;
       items.push({
         id: `project-${project.id}`,
@@ -212,10 +222,11 @@ export function CommandPalette({
         icon: <Briefcase className="w-4 h-4 text-violet-400" />,
         onSelect: () => onSelectModule('dashboard')
       });
-    });
+    }
 
     // 7. Meetings
-    meetings.forEach(meeting => {
+    for (let i = 0; i < meetings.length; i++) {
+      const meeting = meetings[i];
       const searchTerms = `${meeting.title} ${meeting.location || ''} ${meeting.agenda || ''} ${(meeting.attendees || []).join(' ')}`;
       items.push({
         id: `meeting-${meeting.id}`,
@@ -229,22 +240,36 @@ export function CommandPalette({
         icon: <Calendar className="w-4 h-4 text-rose-400" />,
         onSelect: () => onSelectModule('dashboard')
       });
-    });
+    }
 
     return items;
   }, [onSelectModule, tasks, budgetEntries, budgetCategories, inventoryItems, contacts, projects, meetings]);
 
-  // Instant multi-token search filtering
+  // Instant multi-token search filtering (Single-pass index loop with early-break)
   const filteredItems = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) {
       return allItems;
     }
     const tokens = query.split(/\s+/).filter(Boolean);
-    return allItems.filter(item => {
+    const list: CommandItem[] = [];
+
+    for (let i = 0; i < allItems.length; i++) {
+      const item = allItems[i];
       const text = item.searchTermsLower || item.searchTerms.toLowerCase();
-      return tokens.every(token => text.includes(token));
-    });
+      let match = true;
+      for (let j = 0; j < tokens.length; j++) {
+        if (!text.includes(tokens[j])) {
+          match = false;
+          break;
+        }
+      }
+      if (match) {
+        list.push(item);
+      }
+    }
+
+    return list;
   }, [searchQuery, allItems]);
 
   // Handle selected item activation
@@ -264,7 +289,7 @@ export function CommandPalette({
   }, [selectedIndex]);
 
   // Keyboard navigation inside input / dialog
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       e.preventDefault();
       onClose();
@@ -285,7 +310,12 @@ export function CommandPalette({
         handleActivateItem(filteredItems[selectedIndex]);
       }
     }
-  };
+  }, [filteredItems, selectedIndex, handleActivateItem, onClose]);
+
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+    setSelectedIndex(0);
+  }, []);
 
   if (!isOpen) return null;
 
@@ -316,10 +346,7 @@ export function CommandPalette({
             aria-controls="command-palette-results"
             aria-autocomplete="list"
             value={searchQuery}
-            onChange={e => {
-              setSearchQuery(e.target.value);
-              setSelectedIndex(0);
-            }}
+            onChange={handleSearchChange}
             placeholder="모듈 이동, 업무, 예산, 주소록 검색... (Multi-Token Search)"
             className="w-full bg-transparent text-slate-100 placeholder-slate-500 text-sm font-medium focus:outline-none pl-3"
           />
@@ -465,3 +492,6 @@ export function CommandPalette({
     </div>
   );
 }
+
+CommandPaletteComponent.displayName = 'CommandPalette';
+export const CommandPalette = React.memo(CommandPaletteComponent);
