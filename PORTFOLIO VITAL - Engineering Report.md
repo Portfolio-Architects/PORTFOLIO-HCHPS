@@ -3909,6 +3909,11 @@ sequenceDiagram
   - 브라우저 RAM 점유율 60% 이상 대폭 절감 및 유휴 CPU 사용률 0% 달성, 탭 전환 0ms 즉시 응답성 확보.
 
 ### 8. 양재천 건강 페스티벌 모바일 관제판 최적화 및 안정화 (Phase 13 - 완료)
+- [x] **의료 카테고리 다중 별칭 필터 통합, 8개 과제/12개 부스 폴백 동기화 및 Pages 빌드 파이프라인 릴리즈 (Milestone 117 - 2026-09-04)**
+  - `categoryBoothsMap`, `handleMoveBoothUp`, `handleMoveBoothDown` 전반에 `전문 의료·검진`, `의료·검진`, `의료 검진` 3중 별칭 교차 매핑 엔진 탑재로 필터 탭 선택 시 부스 누락 0건 보장.
+  - `useYangjaeFestival.ts` 및 `functions/api/festival/yangjae.ts` 내 `YANGJAE_FALLBACK_DATA`를 최신 라이브 데이터(추진과제 7 안전관리, 8 기타사항, 12개 부스 전체)와 100% 동기화.
+  - `scripts/prepare-pages-output.js` 스크립트를 `package.json` 빌드 체인에 결합하여 Next.js 빌드 시 Cloudflare Pages 정적 에셋 자동 복제 파이프라인 구축.
+  - 단위/통합 테스트 25/25 ALL PASS 유지.
 - [x] **Cloudflare Pages 24/7 읽기 전용 레플리카 API 및 로컬 SSOT 듀얼 싱크 릴리즈 (Milestone 116 - 2026-09-04)**
   - 로컬 PC 전원 꺼짐 또는 터널 단절 시에도 24시간 365일 관제판 열람이 가능하도록 Cloudflare Pages Function(`functions/api/festival/yangjae.ts`) 레플리카 API 구축.
   - 로컬 Next.js API(`src/app/api/festival/yangjae/route.ts`) 디스크 SSOT 저장 시 Cloudflare Pages로 스냅샷을 비동기 듀얼 발행(`syncToCloudflareReplica`, 4초 타임아웃 및 Graceful Offline 폴백).

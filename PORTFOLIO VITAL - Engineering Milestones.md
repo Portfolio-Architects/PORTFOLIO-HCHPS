@@ -2,6 +2,25 @@
 
 ## 8. 최근 엔지니어링 마일스톤 (요약)
 
+### [Milestone 117: Medical Category Multi-Alias Filter Integration, 8-Milestones/12-Booths Fallback Sync & Pages Build Optimization Release] Full multi-alias mapping for medical categories (전문 의료·검진, 의료·검진, 의료 검진), complete 8-milestones & 12-booths fallback data synchronization, Pages build script integration, with 25/25 test suite pass. (2026-09-04)
+* **개요 및 개발 목적**:
+  - 부스 카테고리 다중 별칭 지원 및 클라우드 배포 빌드 파이프라인 무결성 확보:
+    1. **의료·검진 카테고리 다중 별칭(Multi-Alias) 완벽 통합**:
+       - 데이터 파일(`FESTIVAL_YANGJAE_2026.json`)의 `의료·검진` / `의료 검진`과 뷰 UI 탭의 `전문 의료·검진` 간의 카테고리 미스매치를 방어하기 위해 `categoryBoothsMap`, `handleMoveBoothUp`, `handleMoveBoothDown` 전반에 3중 별칭 교차 매핑 엔진 탑재.
+       - 필터 탭 선택 시 부스 누락 0건 보장 및 순서 재배치 핸들러 동기화.
+    2. **8개 추진과제 & 12개 부스 전체 폴백 데이터 정합성 동기화**:
+       - `useYangjaeFestival.ts` 및 `functions/api/festival/yangjae.ts` 내 `YANGJAE_FALLBACK_DATA`를 최신 라이브 데이터(추진과제 7 안전관리, 8 기타사항, 12개 부스 전체)와 100% 동기화.
+    3. **Cloudflare Pages 빌드 파이프라인 자동화**:
+       - `scripts/prepare-pages-output.js` 스크립트를 `package.json` 빌드 체인에 결합하여 Next.js 빌드 시 Cloudflare Pages 정적 에셋 자동 복제 파이프라인 구축.
+* **핵심 변경 내역**:
+  - `src/components/festival/YangjaeFestivalDashboard.tsx`: `categoryBoothsMap`, `handleMoveBoothUp`, `handleMoveBoothDown` 내 3중 의료 별칭 지원.
+  - `src/hooks/useYangjaeFestival.ts` & `functions/api/festival/yangjae.ts`: 8개 추진과제 및 12개 부스 풀 스냅샷 동기화.
+  - `package.json`: build 스크립트에 `prepare-pages-output.js` 연결.
+* **정량적 검증 성과**:
+  - 단위/통합 테스트: **25 / 25 ALL PASS**.
+  - TypeScript 컴파일 (`npx tsc --noEmit`): **0 errors (PASS)**.
+  - 게이트키퍼 검증 (`run-harness.js`): **0 Zod errors, 0 ESLint errors/warnings, 0 Arch violations, 0 Perf bottlenecks (ALL PASS)**.
+
 ### [Milestone 116: Cloudflare Pages 24/7 Read-Only Replica API & Local SSOT Dual-Sync Engine Release] Cloudflare Pages Function replica endpoint, local SSOT dual-sync publisher with offline fallback, workers types configuration, with 25/25 test suite pass. (2026-09-04)
 * **개요 및 개발 목적**:
   - 로컬 PC(단일 진실 공급원 - SSOT) 전원이 꺼지거나 터널이 일시 단절된 환경에서도 양재천 축제 관제판을 24시간 365일 무중단 열람할 수 있도록 Cloudflare Pages 24/7 읽기 전용 레플리카 API 구축:
