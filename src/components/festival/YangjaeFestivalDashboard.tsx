@@ -275,17 +275,19 @@ function DetailEditRow({
   canMoveDown = false,
 }: DetailEditRowProps) {
   const parsed = useMemo(() => parseDetail(initialDetail), [initialDetail]);
-  const [date, setDate] = useState(parsed.date);
+  const [prevDetail, setPrevDetail] = useState<string>(initialDetail);
+  const [date, setDate] = useState<string>(parsed.date);
   const [status, setStatus] = useState<'done' | 'in-progress' | 'todo'>(parsed.status);
-  const [attendees, setAttendees] = useState(parsed.attendees);
-  const [text, setText] = useState(parsed.text);
+  const [attendees, setAttendees] = useState<string>(parsed.attendees);
+  const [text, setText] = useState<string>(parsed.text);
 
-  useEffect(() => {
-    setDate((prev) => (prev === parsed.date ? prev : parsed.date));
-    setStatus((prev) => (prev === parsed.status ? prev : parsed.status));
-    setAttendees((prev) => (prev === parsed.attendees ? prev : parsed.attendees));
-    setText((prev) => (prev === parsed.text ? prev : parsed.text));
-  }, [parsed]);
+  if (prevDetail !== initialDetail) {
+    setPrevDetail(initialDetail);
+    setDate(parsed.date);
+    setStatus(parsed.status);
+    setAttendees(parsed.attendees);
+    setText(parsed.text);
+  }
 
   const emitChange = (newDate: string, newStatus: 'done' | 'in-progress' | 'todo', newAttendees: string, newText: string) => {
     onUpdate(formatDetail({ date: newDate, status: newStatus, attendees: newAttendees, text: newText }));
@@ -823,7 +825,7 @@ ${targetUrl}`;
               <span className={`${isLargeFont ? 'text-sm' : 'text-[11px]'} font-medium text-slate-300 whitespace-nowrap shrink-0`}>강남구보건소 보건행정과</span>
               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/50 text-[10px] text-emerald-300 font-semibold shadow-2xs whitespace-nowrap shrink-0">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-                <span>실시간 자동 동기화 중</span>
+                <span className="whitespace-nowrap">실시간 자동 동기화 중</span>
               </span>
             </div>
             <div className={`${isLargeFont ? 'text-lg' : 'text-sm'} font-bold tracking-tight truncate`}>2026 양재천 건강 페스티벌</div>

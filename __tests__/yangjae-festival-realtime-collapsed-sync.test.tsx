@@ -535,8 +535,8 @@ describe('Yangjae Festival Real-time Multi-Device Sync & UX Verification', () =>
       renderWithClient(<YangjaeFestivalDashboard />);
 
       const badge = await screen.findByText('실시간 자동 동기화 중');
-      // Parent span of badge should have whitespace-nowrap and shrink-0
-      const badgeContainer = badge.closest('span');
+      expect(badge).toHaveClass('whitespace-nowrap');
+      const badgeContainer = badge.closest('span.inline-flex');
       expect(badgeContainer).toHaveClass('whitespace-nowrap');
       expect(badgeContainer).toHaveClass('shrink-0');
 
