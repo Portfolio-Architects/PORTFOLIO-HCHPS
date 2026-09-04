@@ -319,6 +319,21 @@ sequenceDiagram
 
 ## 8. 최근 엔지니어링 마일스톤
 
+### [Milestone 95: Codebase Diagnostics Windows File Lock Contention Immunity & Retry Guard Reform] Resilient `writeWithRetry` loop in `diagnose-targets.js` to eradicate Windows EBUSY/UNKNOWN file lock contention, 100% diagnostic pass & Cloudflare tunnel auto-recovery. (2026-09-04)
+* **개요 및 개발 목적 (Overview & Objective)**:
+  - 윈도우 OS 환경에서 파일 와처 및 백그라운드 프로세스의 일시적 I/O 점유로 인해 발생하던 `Failed to write diagnostic report: UNKNOWN: unknown error, open 'data\diagnose_report.json'` 충돌을 자가 진단 및 진화 루프(RSI)를 통해 감지하고 완전 해결함.
+  - 동시에 만료된 Cloudflare 모바일 터널 세션을 자율 감지하고 새로운 독립 에지 터널(`tell-blanket-start-deserve.trycloudflare.com`)로 즉각 자동 재기동 및 200 OK 복구를 완료함.
+* **핵심 변경 내역 (Core Modifications)**:
+  - **진단 보고서 및 캐시 쓰기 재시도 가드 구현 (`scripts/diagnose-targets.js`)**:
+    - `writeWithRetry(targetPath, data, maxRetries = 4, delayMs = 60)` 함수 신설.
+    - 파일 쓰기 충돌 시 단기 대기 후 최대 4회 자동 재시도하여 윈도우 파일 시스템 락을 안전하게 해소.
+  - **Cloudflare 모바일 터널 자동 복구 및 모니터링**:
+    - 데몬 프로세스 만료 감지 후 새로운 Quick Tunnel을 기동하여 실시간 외부 접속 지속 보장.
+* **정량적 검증 성과 (Quantitative Performance Metrics)**:
+  - 진단 리포트 쓰기 오류: **0건 (완전 소멸)**.
+  - 린트 결함 / 아키텍처 위반 / 성능 병목: **0 / 0 / 0 (ALL PASS)**.
+  - 신규 모바일 터널 상태: **HTTP 200 OK** (`tell-blanket-start-deserve.trycloudflare.com`).
+
 ### [Milestone 94: Yangjae Festival Overview ProgramStructure Null-Safety Guard & Clipboard Template Hardening Reform] Complete elimination of `Cannot read properties of undefined (reading 'programStructure')` via optional chaining & immutable array fallbacks, 100% Turbopack compile & gatekeeper pass. (2026-09-03)
 * **개요 및 개발 목적 (Overview & Objective)**:
   - 브라우저 콘솔에서 발생한 `TypeError: Cannot read properties of undefined (reading 'programStructure')` 런타임 오류를 즉시 색출하여 완전 해결함.

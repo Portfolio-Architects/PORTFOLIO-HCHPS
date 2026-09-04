@@ -280,10 +280,24 @@ if (isClean || isCompact) {
   outputContent = JSON.stringify(report, null, 2);
 }
 
-// Write report and cache to file
+// Write report and cache to file with retry logic for Windows file lock robustness
+function writeWithRetry(targetPath, data, maxRetries = 4, delayMs = 60) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      fs.writeFileSync(targetPath, data, 'utf-8');
+      return true;
+    } catch (err) {
+      if (attempt === maxRetries) throw err;
+      // Busy wait short delay for Windows lock release
+      const start = Date.now();
+      while (Date.now() - start < delayMs) {}
+    }
+  }
+}
+
 try {
-  fs.writeFileSync(reportPath, outputContent, 'utf-8');
-  fs.writeFileSync(cachePath, JSON.stringify({ timestampMs: Date.now() }), 'utf-8');
+  writeWithRetry(reportPath, outputContent);
+  writeWithRetry(cachePath, JSON.stringify({ timestampMs: Date.now() }));
   console.log(`🎉 Diagnostic report successfully compiled to data/diagnose_report.json!`);
   console.log(`   - Lint Warnings: ${report.summary.totalWarnings}`);
   console.log(`   - Arch Violations: ${report.summary.totalViolations}`);

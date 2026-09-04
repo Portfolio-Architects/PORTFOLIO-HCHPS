@@ -142,7 +142,7 @@
    - 무인 자율 구동 시 위 3개 검증 스위트를 통과한 변경 건만 자율 배포(Auto-Merge)되며, 패치 완료 시 `node scripts/sync-rules.js`를 구동하여 `AGENTS.md` 하단 마일스톤 로그를 100% 최신 상태로 유지합니다.
 
 ## 5. 최신 동기화된 마일스톤 (Synced Milestones Log)
-- **최신 동기화 일자:** 2026-09-03
+- **최신 동기화 일자:** 2026-09-04
 - **동기화된 마일스톤:**
   - [Milestone 18: Yangjae Festival Pure Render State Alignment & Memoized Booths Selection Self-Healing Reform] Eradication of redundant `useEffect` setState hooks & `activeBooths` memoization via `useMemo` (`src/components/festival/YangjaeFestivalDashboard.tsx`), 100% gatekeeper pass. (2026-09-03)
   - [Milestone 17: Wiki Editor Memoized Handlers, Cached Slash Menu & React.memo Boundary Isolation Reform] Stable `useCallback` for `handleCloseAction`, `handleEditorChange`, & `handleGetSlashMenuItems`, cached `customSlashMenuItems`, and `React.memo` container isolation (`src/components/WikiEditor.tsx`), 100% gatekeeper pass. (2026-09-03)
