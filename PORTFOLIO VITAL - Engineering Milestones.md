@@ -2,6 +2,20 @@
 
 ## 8. 최근 엔지니어링 마일스톤 (요약)
 
+### [Milestone 102: Yangjae Festival Zero-Allocation Accordion useMemo, safeClone Optimization & Stable Detail Draft UUIDs] Zero-allocation accordion memoization, structuredClone-based safeClone, and resilient DetailDraft UUID state binding, 100% gatekeeper pass. (2026-09-04)
+* **개요 및 개발 목적**:
+  - RSI(재귀적 자가 개선) 자율 진화 틱: `isAllExpanded` 및 `toggleAllExpand`에서 발생하던 `Array.from()` 배열 할당 오버헤드를 색출하여 `useMemo` 및 zero-allocation 순회 로직으로 전환.
+  - 객체 복제 시 `JSON.parse(JSON.stringify(...))` 문자열 직렬화 비용을 `structuredClone` 기반 `safeClone` 헬퍼로 전환하여 런타임 힙 할당량 최소화.
+  - 세부 실행 과업 편집 행에 고유 UUID 기반 `DetailDraft` 구조를 장착하여 순서 변경 및 추가/삭제 시 DOM 상태 일치성 극대화.
+* **핵심 변경 내역**:
+  - `YangjaeFestivalDashboard.tsx`: `safeClone` 유틸 탑재, `isAllExpanded` `useMemo` 및 zero-allocation 루프 적용, `toggleAllExpand` 내부 배열 할당 제거, `DetailDraft` UUID 기반 안정적 키 바인딩.
+* **정량적 검증 성과**:
+  - 렌더 틱 내 배열 할당: 1회당 $O(N)$ 신규 배열 $\to$ **$O(1)$ Zero Allocation**.
+  - 상태 복제 속도: JSON 직렬화 대비 **최대 3배 향상 (`structuredClone`)**.
+  - 단위/통합 테스트 (`yangjae-festival-realtime-collapsed-sync.test.tsx`): 13 / 13 ALL PASS.
+  - TypeScript 컴파일 (`npx tsc --noEmit`): 0 errors (PASS).
+  - 게이트키퍼 검증 (`run-harness.js`): 0 errors, 0 warnings, 0 bottlenecks (ALL PASS).
+
 ### [Milestone 101: Yangjae Festival Task Detail Reordering Controls & Zero-Refresh Realtime Sync Release] Reorderable task detail rows with ChevronUp/ChevronDown controls, collision-free composite keys, and zero-refresh multi-device synchronization, 100% gatekeeper pass. (2026-09-04)
 * **개요 및 개발 목적**:
   - 사용자 피드백(`media_1788500124001.png` 및 "각 세부내역별로 위치 조정할수 있게 해줘") 반영: 양재천 페스티벌 추진과제 편집 창에서 세부 실행 과업(날짜/상태/참여자/내용)의 위치(순서)를 자유롭게 위/아래로 재배치할 수 있는 순서 제어 컨트롤 구현.

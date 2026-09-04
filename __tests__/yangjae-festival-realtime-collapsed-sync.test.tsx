@@ -2,7 +2,7 @@ import React from 'react';
 import '@testing-library/jest-dom';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useYangjaeFestival, useSaveYangjaeFestival, YANGJAE_FALLBACK_DATA, FestivalData } from '@/hooks/useYangjaeFestival';
+import { useYangjaeFestival, useSaveYangjaeFestival, YANGJAE_FALLBACK_DATA, FestivalData, calculateFestivalBudgetSummary } from '@/hooks/useYangjaeFestival';
 import { YangjaeFestivalDashboard } from '@/components/festival/YangjaeFestivalDashboard';
 import { renderHook } from '@testing-library/react';
 
@@ -434,6 +434,127 @@ describe('Yangjae Festival Real-time Multi-Device Sync & UX Verification', () =>
       expect(dateInputsRestored[0].value).toBe(firstDateBefore);
       expect(dateInputsRestored[1].value).toBe(secondDateBefore);
     });
+
+    it('preserves input identity and focus stability without unmounting when typing in detail fields', async () => {
+      renderWithClient(<YangjaeFestivalDashboard />);
+
+      await waitFor(() => {
+        expect(screen.getByText('2026 양재천 건강 페스티벌')).toBeInTheDocument();
+      });
+
+      const editButtons = screen.getAllByTitle('과제 수정');
+      fireEvent.click(editButtons[0]);
+
+      await waitFor(() => {
+        expect(screen.getByText('▲▼ 버튼으로 순서 이동 가능')).toBeInTheDocument();
+      });
+
+      const dateInputs = screen.getAllByPlaceholderText('날짜 (7.29)') as HTMLInputElement[];
+      const targetInput = dateInputs[0];
+      targetInput.focus();
+      expect(document.activeElement).toBe(targetInput);
+
+      // Type into date input
+      fireEvent.change(targetInput, { target: { value: '8.15' } });
+      expect(targetInput.value).toBe('8.15');
+
+      // The input element must remain mounted and focused
+      expect(document.activeElement).toBe(targetInput);
+
+      // Now type into textarea of first row
+      const textareas = screen.getAllByPlaceholderText(/세부 과업 내용 입력/) as HTMLTextAreaElement[];
+      const targetTextarea = textareas[0];
+      targetTextarea.focus();
+      expect(document.activeElement).toBe(targetTextarea);
+
+      fireEvent.change(targetTextarea, { target: { value: '새로운 세부 과업 내용 입력 테스트' } });
+      expect(targetTextarea.value).toBe('새로운 세부 과업 내용 입력 테스트');
+      expect(document.activeElement).toBe(targetTextarea);
+    });
+  });
+
+  describe('R5. Budget Calculations & Zero-Refresh Live Updates Robustness', () => {
+    it('calculates festival budget metrics safely with NaN guards for malformed or undefined numbers', () => {
+      // 1. undefined budget
+      const resUndefined = calculateFestivalBudgetSummary(undefined);
+      expect(resUndefined).toEqual({
+        total: 0,
+        allocatedTotal: 0,
+        balance: 0,
+        executionRate: 0,
+      });
+
+      // 2. Normal budget
+      const resNormal = calculateFestivalBudgetSummary({
+        total: 49900000,
+        allocated: {
+          agencyService: 36950000,
+          suppliesAndRental: 9300000,
+          refreshments: 2450000,
+          volunteerSupport: 1200000,
+        },
+        agencyQuotation: 50215000,
+        agencyCompany: '제이민 커뮤니케이션',
+      });
+      expect(resNormal.total).toBe(49900000);
+      expect(resNormal.allocatedTotal).toBe(49900000);
+      expect(resNormal.balance).toBe(0);
+      expect(resNormal.executionRate).toBe(100);
+
+      // 3. Malformed strings / NaN / partial values
+      const resMalformed = calculateFestivalBudgetSummary({
+        total: NaN,
+        allocated: {
+          agencyService: '30000000' as any,
+          suppliesAndRental: undefined as any,
+          refreshments: null as any,
+          volunteerSupport: 'not-a-number' as any,
+        },
+        agencyQuotation: NaN,
+        agencyCompany: '',
+      });
+      expect(resMalformed.total).toBe(0);
+      expect(resMalformed.allocatedTotal).toBe(30000000);
+      expect(resMalformed.balance).toBe(-30000000);
+      expect(resMalformed.executionRate).toBe(0);
+      expect(Number.isNaN(resMalformed.executionRate)).toBe(false);
+    });
+
+    it('displays live budget overview in Section 1 and updates with zero refresh', async () => {
+      renderWithClient(<YangjaeFestivalDashboard />);
+
+      // Section 1 budget row should be displayed
+      expect(await screen.findByText(/4,990만원/)).toBeInTheDocument();
+      expect(screen.getByText(/배정완료 100%/)).toBeInTheDocument();
+      expect(screen.getByText(/대행용역 3,695만/)).toBeInTheDocument();
+    });
+  });
+
+  describe('R6. Mobile Ultra-Narrow 320px Responsive Layout & Truncation Guard', () => {
+    it('applies whitespace-nowrap and responsive padding to prevent badge/button wrapping on 320px screens', async () => {
+      renderWithClient(<YangjaeFestivalDashboard />);
+
+      const badge = await screen.findByText('실시간 자동 동기화 중');
+      // Parent span of badge should have whitespace-nowrap and shrink-0
+      const badgeContainer = badge.closest('span');
+      expect(badgeContainer).toHaveClass('whitespace-nowrap');
+      expect(badgeContainer).toHaveClass('shrink-0');
+
+      // Dept header span should also be protected against word-splitting
+      const deptSpan = screen.getByText('강남구보건소 보건행정과');
+      expect(deptSpan).toHaveClass('whitespace-nowrap');
+      expect(deptSpan).toHaveClass('shrink-0');
+
+      // Top sticky header should have responsive padding for 320px
+      const headerContainer = deptSpan.closest('.sticky');
+      expect(headerContainer).toHaveClass('px-3');
+      expect(headerContainer).toHaveClass('sm:px-4');
+
+      // Action buttons should have whitespace-nowrap
+      const shareBtn = screen.getByRole('button', { name: /공유/i });
+      expect(shareBtn).toHaveClass('whitespace-nowrap');
+    });
   });
 });
+
 

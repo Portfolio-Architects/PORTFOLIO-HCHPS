@@ -441,3 +441,39 @@ export function useSaveYangjaeFestival() {
     },
   });
 }
+
+export function calculateFestivalBudgetSummary(budget?: FestivalData['budget']) {
+  if (!budget) {
+    return {
+      total: 0,
+      allocatedTotal: 0,
+      balance: 0,
+      executionRate: 0,
+    };
+  }
+
+  const total = Number(budget.total);
+  const safeTotal = Number.isFinite(total) && total >= 0 ? total : 0;
+
+  const allocated = budget.allocated || ({} as Record<string, number>);
+  const agencyService = Number(allocated.agencyService);
+  const suppliesAndRental = Number(allocated.suppliesAndRental);
+  const refreshments = Number(allocated.refreshments);
+  const volunteerSupport = Number(allocated.volunteerSupport);
+
+  const safeAgencyService = Number.isFinite(agencyService) && agencyService >= 0 ? agencyService : 0;
+  const safeSuppliesAndRental = Number.isFinite(suppliesAndRental) && suppliesAndRental >= 0 ? suppliesAndRental : 0;
+  const safeRefreshments = Number.isFinite(refreshments) && refreshments >= 0 ? refreshments : 0;
+  const safeVolunteerSupport = Number.isFinite(volunteerSupport) && volunteerSupport >= 0 ? volunteerSupport : 0;
+
+  const allocatedTotal = safeAgencyService + safeSuppliesAndRental + safeRefreshments + safeVolunteerSupport;
+  const balance = safeTotal - allocatedTotal;
+  const executionRate = safeTotal > 0 ? Math.round((allocatedTotal / safeTotal) * 100) : 0;
+
+  return {
+    total: safeTotal,
+    allocatedTotal,
+    balance,
+    executionRate,
+  };
+}

@@ -2,7 +2,12 @@
 
 import React, { useState, useEffect, useMemo, useSyncExternalStore, useCallback } from 'react';
 import { Check, Share2, Edit3, Save, X, Plus, Trash2, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
-import { useYangjaeFestival, useSaveYangjaeFestival, YANGJAE_FALLBACK_DATA, FestivalData, MilestoneItem, BoothItem } from '@/hooks/useYangjaeFestival';
+import { useYangjaeFestival, useSaveYangjaeFestival, YANGJAE_FALLBACK_DATA, FestivalData, MilestoneItem, BoothItem, calculateFestivalBudgetSummary } from '@/hooks/useYangjaeFestival';
+
+export interface DetailDraft {
+  uid: string;
+  raw: string;
+}
 
 // Universal Robust Clipboard Copy (Works on all mobile/desktop browsers, webviews, and sandboxes)
 async function copyToClipboardSafe(text: string): Promise<boolean> {
@@ -49,6 +54,13 @@ function fallbackCopy(text: string): boolean {
 
 const FESTIVAL_CATEGORIES = ['전체', '전문 의료·검진', '민간 헬스케어', '보건소 특화', '첨단 로봇', '구정 연계'];
 const FESTIVAL_TARGET_TIMESTAMP = new Date("2026-10-31T09:00:00").getTime();
+
+function safeClone<T>(data: T): T {
+  if (typeof structuredClone === 'function') {
+    return structuredClone(data);
+  }
+  return JSON.parse(JSON.stringify(data));
+}
 
 const YANGJAE_REPORT_TABS = [
   { id: 'milestones' as const, label: '1. 추진과제' },
@@ -269,10 +281,10 @@ function DetailEditRow({
   const [text, setText] = useState(parsed.text);
 
   useEffect(() => {
-    setDate(parsed.date);
-    setStatus(parsed.status);
-    setAttendees(parsed.attendees);
-    setText(parsed.text);
+    setDate((prev) => (prev === parsed.date ? prev : parsed.date));
+    setStatus((prev) => (prev === parsed.status ? prev : parsed.status));
+    setAttendees((prev) => (prev === parsed.attendees ? prev : parsed.attendees));
+    setText((prev) => (prev === parsed.text ? prev : parsed.text));
   }, [parsed]);
 
   const emitChange = (newDate: string, newStatus: 'done' | 'in-progress' | 'todo', newAttendees: string, newText: string) => {
@@ -381,7 +393,7 @@ function DetailEditRow({
 const subscribeDays = () => () => {};
 const getClientDaysLeft = () => {
   const diff = Math.ceil((FESTIVAL_TARGET_TIMESTAMP - Date.now()) / (1000 * 60 * 60 * 24));
-  return diff > 0 ? diff : 0;
+  return typeof diff === 'number' && !isNaN(diff) && diff > 0 ? diff : 0;
 };
 const getServerDaysLeft = () => 0;
 
@@ -406,6 +418,7 @@ function YangjaeFestivalDashboardComponent() {
 
   const [editingMilestoneId, setEditingMilestoneId] = useState<number | null>(null);
   const [editMilestoneData, setEditMilestoneData] = useState<MilestoneItem | null>(null);
+  const [detailDrafts, setDetailDrafts] = useState<DetailDraft[]>([]);
 
   const [editingBooths, setEditingBooths] = useState<boolean>(false);
   const [editBoothsData, setEditBoothsData] = useState<BoothItem[]>(() => data?.booths || YANGJAE_FALLBACK_DATA.booths || []);
@@ -434,35 +447,51 @@ function YangjaeFestivalDashboardComponent() {
   }, []);
 
   const allMilestoneIds = useMemo(() => {
-    const list = data.milestones || [];
+    const list = data?.milestones || [];
     const ids = new Set<number>();
     for (let i = 0; i < list.length; i++) {
-      ids.add(list[i].id);
+      if (list[i]?.id !== undefined) {
+        ids.add(list[i].id);
+      }
     }
     return ids;
-  }, [data.milestones]);
+  }, [data?.milestones]);
 
-  const isAllExpanded = allMilestoneIds.size > 0 && Array.from(allMilestoneIds).every((id) => expandedTaskIds.has(id));
+  const isAllExpanded = useMemo(() => {
+    if (allMilestoneIds.size === 0) return false;
+    for (const id of allMilestoneIds) {
+      if (!expandedTaskIds.has(id)) return false;
+    }
+    return true;
+  }, [allMilestoneIds, expandedTaskIds]);
 
   const toggleAllExpand = useCallback(() => {
     setExpandedTaskIds((prev) => {
       if (allMilestoneIds.size === 0) return new Set();
-      const allExpanded = Array.from(allMilestoneIds).every((id) => prev.has(id));
+      let allExpanded = true;
+      for (const id of allMilestoneIds) {
+        if (!prev.has(id)) {
+          allExpanded = false;
+          break;
+        }
+      }
       return allExpanded ? new Set() : new Set(allMilestoneIds);
     });
   }, [allMilestoneIds]);
 
-  // Derived D-Day calculation
+  // Derived D-Day calculation & Safe Budget Summary
   const daysLeft = useSyncExternalStore(subscribeDays, getClientDaysLeft, getServerDaysLeft);
+  const budgetSummary = useMemo(() => calculateFestivalBudgetSummary(data?.budget), [data?.budget]);
 
   const activeBooths = useMemo(() => {
-    return editingBooths ? editBoothsData : (data.booths || []);
-  }, [editingBooths, editBoothsData, data.booths]);
+    return (editingBooths ? editBoothsData : (data?.booths || [])) || [];
+  }, [editingBooths, editBoothsData, data?.booths]);
 
   const confirmedBoothCount = useMemo(() => {
     let count = 0;
-    for (let i = 0; i < activeBooths.length; i++) {
-      if (activeBooths[i].status === '확정') {
+    const list = activeBooths || [];
+    for (let i = 0; i < list.length; i++) {
+      if (list[i]?.status === '확정') {
         count++;
       }
     }
@@ -471,10 +500,12 @@ function YangjaeFestivalDashboardComponent() {
 
   const categoryBoothsMap = useMemo(() => {
     const map = new Map<string, BoothItem[]>();
-    map.set('전체', activeBooths);
-    for (let i = 0; i < activeBooths.length; i++) {
-      const b = activeBooths[i];
-      const cat = b.category;
+    const list = activeBooths || [];
+    map.set('전체', list);
+    for (let i = 0; i < list.length; i++) {
+      const b = list[i];
+      if (!b) continue;
+      const cat = b.category || '기타';
       if (!map.has(cat)) {
         map.set(cat, []);
       }
@@ -495,7 +526,7 @@ function YangjaeFestivalDashboardComponent() {
 
   // 1. 행사 개요 독립 편집 핸들러
   const handleStartEditOverview = () => {
-    setEditOverviewData(JSON.parse(JSON.stringify(data.meta)));
+    setEditOverviewData(safeClone(data.meta));
     setEditingOverview(true);
   };
   const handleCancelEditOverview = () => {
@@ -518,19 +549,32 @@ function YangjaeFestivalDashboardComponent() {
 
   // 2. 개별 추진과제 독립 편집 핸들러
   const handleStartEditMilestone = (m: MilestoneItem) => {
-    setEditMilestoneData(JSON.parse(JSON.stringify(m)));
+    setEditMilestoneData(safeClone(m));
     setEditingMilestoneId(m.id);
     setExpandedTaskIds((prev) => new Set([...prev, m.id]));
+    const drafts: DetailDraft[] = (m.details || []).map((detail, idx) => ({
+      uid: `m-${m.id}-detail-${idx}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      raw: detail,
+    }));
+    setDetailDrafts(drafts);
   };
   const handleCancelEditMilestone = () => {
     setEditingMilestoneId(null);
     setEditMilestoneData(null);
+    setDetailDrafts([]);
   };
   const handleSaveMilestone = async () => {
     if (!editMilestoneData || editingMilestoneId === null) return;
     try {
+      const finalDetails = detailDrafts.length > 0
+        ? detailDrafts.map((d) => d.raw)
+        : (editMilestoneData.details || []);
+      const updatedMilestone: MilestoneItem = {
+        ...editMilestoneData,
+        details: finalDetails,
+      };
       const nextMilestones = (data.milestones || []).map((m) =>
-        m.id === editingMilestoneId ? editMilestoneData : m
+        m.id === editingMilestoneId ? updatedMilestone : m
       );
       await saveMutation.mutateAsync({
         ...data,
@@ -538,6 +582,7 @@ function YangjaeFestivalDashboardComponent() {
       });
       setEditingMilestoneId(null);
       setEditMilestoneData(null);
+      setDetailDrafts([]);
       setToastMessage('추진과제가 저장되었습니다!');
       setSaveToast(true);
       setTimeout(() => setSaveToast(false), 3000);
@@ -546,8 +591,9 @@ function YangjaeFestivalDashboardComponent() {
     }
   };
   const handleAddMilestone = async () => {
-    const maxId = (data.milestones || []).reduce((max, m) => Math.max(max, m.id || 0), 0);
-    const nextId = maxId + 1;
+    const maxId = (data.milestones || []).reduce((max, m) => Math.max(max, Number(m?.id) || 0), 0);
+    const nextId = (Number.isFinite(maxId) ? maxId : 0) + 1;
+    const initialDetailStr = '세부 추진 계획을 입력하세요.';
     const newTask: MilestoneItem = {
       id: nextId,
       number: `추진과제 ${nextId}`,
@@ -555,7 +601,7 @@ function YangjaeFestivalDashboardComponent() {
       status: 'todo',
       period: '',
       cooperationDepts: [],
-      details: ['세부 추진 계획을 입력하세요.'],
+      details: [initialDetailStr],
     };
     const nextMilestones = [...(data.milestones || []), newTask];
     try {
@@ -566,6 +612,12 @@ function YangjaeFestivalDashboardComponent() {
       setExpandedTaskIds((prev) => new Set([...prev, nextId]));
       setEditMilestoneData(newTask);
       setEditingMilestoneId(nextId);
+      setDetailDrafts([
+        {
+          uid: `m-${nextId}-detail-0-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          raw: initialDetailStr,
+        },
+      ]);
     } catch {
       alert('과제 추가에 실패했습니다.');
     }
@@ -586,6 +638,7 @@ function YangjaeFestivalDashboardComponent() {
       if (editingMilestoneId === id) {
         setEditingMilestoneId(null);
         setEditMilestoneData(null);
+        setDetailDrafts([]);
       }
       setToastMessage('추진과제가 삭제되었습니다.');
       setSaveToast(true);
@@ -597,7 +650,7 @@ function YangjaeFestivalDashboardComponent() {
 
   // 3. 부스 현황 독립 편집 핸들러
   const handleStartEditBooths = () => {
-    setEditBoothsData(JSON.parse(JSON.stringify(data.booths || [])));
+    setEditBoothsData(safeClone(data.booths || []));
     setEditingBooths(true);
   };
   const handleCancelEditBooths = () => {
@@ -683,14 +736,16 @@ ${targetUrl}`;
   }, [data, daysLeft, PUBLIC_SHARE_URL]);
 
   const filteredBooths = useMemo(() => {
-    if (selectedCategory === '전체') return activeBooths;
+    if (selectedCategory === '전체') return activeBooths || [];
     if (categoryBoothsMap.has(selectedCategory)) {
       return categoryBoothsMap.get(selectedCategory)!;
     }
     const list: BoothItem[] = [];
-    for (let i = 0; i < activeBooths.length; i++) {
-      if (activeBooths[i].category.includes(selectedCategory)) {
-        list.push(activeBooths[i]);
+    const booths = activeBooths || [];
+    for (let i = 0; i < booths.length; i++) {
+      const b = booths[i];
+      if (b && typeof b.category === 'string' && b.category.includes(selectedCategory)) {
+        list.push(b);
       }
     }
     return list;
@@ -762,11 +817,11 @@ ${targetUrl}`;
         `}</style>
         
         {/* Top Sticky Header */}
-        <div className="sticky top-0 z-30 bg-slate-900 text-white px-4 py-3 flex items-center justify-between gap-2 border-b border-slate-800 shadow-sm">
-          <div className="min-w-0">
+        <div className="sticky top-0 z-30 bg-slate-900 text-white px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between gap-1.5 sm:gap-2 border-b border-slate-800 shadow-sm">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className={`${isLargeFont ? 'text-sm' : 'text-[11px]'} font-medium text-slate-300`}>강남구보건소 보건행정과</span>
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/50 text-[10px] text-emerald-300 font-semibold shadow-2xs">
+              <span className={`${isLargeFont ? 'text-sm' : 'text-[11px]'} font-medium text-slate-300 whitespace-nowrap shrink-0`}>강남구보건소 보건행정과</span>
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/50 text-[10px] text-emerald-300 font-semibold shadow-2xs whitespace-nowrap shrink-0">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                 <span>실시간 자동 동기화 중</span>
               </span>
@@ -775,19 +830,19 @@ ${targetUrl}`;
           </div>
 
           {/* Quick Action Buttons */}
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
             {/* Large Font Toggle Button */}
             <button
               type="button"
               onClick={() => setIsLargeFont(!isLargeFont)}
-              className={`px-2.5 py-1 rounded-lg text-xs font-black border transition-all cursor-pointer flex items-center gap-1 active:scale-95 ${
+              className={`px-2 sm:px-2.5 py-1 rounded-lg text-[11px] sm:text-xs font-black border transition-all cursor-pointer flex items-center gap-1 active:scale-95 whitespace-nowrap ${
                 isLargeFont 
                   ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-md ring-2 ring-amber-300/60' 
                   : 'bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700'
               }`}
               title="글자 크기 확대/보통 전환"
             >
-              <span className="font-extrabold text-[13px]">{isLargeFont ? '가-' : '가+'}</span>
+              <span className="font-extrabold text-[12px] sm:text-[13px]">{isLargeFont ? '가-' : '가+'}</span>
               <span>{isLargeFont ? '보통' : '큰글씨'}</span>
             </button>
 
@@ -795,10 +850,10 @@ ${targetUrl}`;
             <button
               type="button"
               onClick={handleCopySummary}
-              className="px-2.5 py-1 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95 transition-all"
+              className="px-2 sm:px-2.5 py-1 text-[11px] sm:text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg flex items-center gap-1 sm:gap-1.5 shadow-xs cursor-pointer active:scale-95 transition-all whitespace-nowrap"
               title="카카오톡/문자 주간 추진실적 공유"
             >
-              <Share2 className="w-3.5 h-3.5" />
+              <Share2 className="w-3.5 h-3.5 shrink-0" />
               <span>공유</span>
             </button>
           </div>
@@ -1024,6 +1079,23 @@ ${targetUrl}`;
                       <span>구성 항목 추가</span>
                     </button>
                   )}
+                </div>
+              </div>
+
+              {/* 소요 예산 (실시간 연동 & 안전 계산) */}
+              <div className={`grid ${isLargeFont ? 'grid-cols-[68px_10px_1fr] text-sm' : 'grid-cols-[58px_8px_1fr] text-xs'} items-baseline gap-1 pt-0.5`}>
+                <span className="font-bold text-slate-600 tracking-wider">• 예&nbsp;&nbsp;&nbsp;&nbsp;산</span>
+                <span className="font-bold text-slate-400 text-center">:</span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-extrabold text-slate-900">
+                    {budgetSummary.total > 0 ? `${(budgetSummary.total / 10000).toLocaleString('ko-KR')}만원` : '4,990만원'}
+                  </span>
+                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-300 whitespace-nowrap">
+                    배정완료 {budgetSummary.executionRate}%
+                  </span>
+                  <span className="text-[10.5px] text-slate-500 font-medium">
+                    (대행용역 {(budgetSummary.allocatedTotal > 0 ? Math.round((Number(data?.budget?.allocated?.agencyService) || 36950000) / 10000) : 3695).toLocaleString('ko-KR')}만, 물품·임차 {(budgetSummary.allocatedTotal > 0 ? Math.round((Number(data?.budget?.allocated?.suppliesAndRental) || 9300000) / 10000) : 930).toLocaleString('ko-KR')}만 등)
+                  </span>
                 </div>
               </div>
             </div>
@@ -1262,51 +1334,71 @@ ${targetUrl}`;
                                 <span>세부 실행 과업 (날짜 / 상태 / 참여자 / 내용)</span>
                                 <span className="text-[10px] text-slate-500 font-normal">▲▼ 버튼으로 순서 이동 가능</span>
                               </div>
-                              {(targetItem?.details || []).map((detail: string, dIdx: number) => (
-                                <DetailEditRow
-                                  key={`${targetItem.id}-detail-${dIdx}-${detail.slice(0, 15)}`}
-                                  initialDetail={detail}
-                                  canMoveUp={dIdx > 0}
-                                  canMoveDown={dIdx < (targetItem?.details || []).length - 1}
-                                  onMoveUp={() => {
-                                    if (dIdx <= 0) return;
-                                    const nextDetails = [...targetItem.details];
-                                    const [moved] = nextDetails.splice(dIdx, 1);
-                                    nextDetails.splice(dIdx - 1, 0, moved);
-                                    setEditMilestoneData({ ...targetItem, details: nextDetails });
-                                  }}
-                                  onMoveDown={() => {
-                                    if (dIdx >= targetItem.details.length - 1) return;
-                                    const nextDetails = [...targetItem.details];
-                                    const [moved] = nextDetails.splice(dIdx, 1);
-                                    nextDetails.splice(dIdx + 1, 0, moved);
-                                    setEditMilestoneData({ ...targetItem, details: nextDetails });
-                                  }}
-                                  onUpdate={(newDetailStr) => {
-                                    const nextDetails = [...targetItem.details];
-                                    nextDetails[dIdx] = newDetailStr;
-                                    setEditMilestoneData({ ...targetItem, details: nextDetails });
-                                  }}
-                                  onDelete={() => {
-                                    const nextDetails = targetItem.details.filter((_: string, i: number) => i !== dIdx);
-                                    setEditMilestoneData({ ...targetItem, details: nextDetails });
-                                  }}
-                                />
-                              ))}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const nextDetails = [
-                                    ...targetItem.details,
-                                    formatDetail({ date: '', status: 'todo', attendees: '', text: '신규 세부 과업 내용' })
-                                  ];
-                                  setEditMilestoneData({ ...targetItem, details: nextDetails });
-                                }}
-                                className="mt-1 px-2.5 py-1 text-[11px] font-bold bg-amber-100 text-amber-900 rounded border border-amber-300 hover:bg-amber-200 flex items-center gap-1 cursor-pointer"
-                              >
-                                <Plus className="w-3.5 h-3.5" />
-                                <span>세부 과업 추가</span>
-                              </button>
+                              {(() => {
+                                const activeDetailItems: DetailDraft[] = detailDrafts.length > 0
+                                  ? detailDrafts
+                                  : (targetItem?.details || []).map((detail, idx) => ({
+                                      uid: `m-${targetItem.id}-detail-fallback-${idx}`,
+                                      raw: detail,
+                                    }));
+
+                                return (
+                                  <>
+                                    {activeDetailItems.map((draft, dIdx) => (
+                                      <DetailEditRow
+                                        key={draft.uid}
+                                        initialDetail={draft.raw}
+                                        canMoveUp={dIdx > 0}
+                                        canMoveDown={dIdx < activeDetailItems.length - 1}
+                                        onMoveUp={() => {
+                                          if (dIdx <= 0) return;
+                                          const next = [...activeDetailItems];
+                                          const [moved] = next.splice(dIdx, 1);
+                                          next.splice(dIdx - 1, 0, moved);
+                                          setDetailDrafts(next);
+                                          setEditMilestoneData((prev) => (prev ? { ...prev, details: next.map((d) => d.raw) } : null));
+                                        }}
+                                        onMoveDown={() => {
+                                          if (dIdx >= activeDetailItems.length - 1) return;
+                                          const next = [...activeDetailItems];
+                                          const [moved] = next.splice(dIdx, 1);
+                                          next.splice(dIdx + 1, 0, moved);
+                                          setDetailDrafts(next);
+                                          setEditMilestoneData((prev) => (prev ? { ...prev, details: next.map((d) => d.raw) } : null));
+                                        }}
+                                        onUpdate={(newDetailStr) => {
+                                          const next = [...activeDetailItems];
+                                          next[dIdx] = { ...next[dIdx], raw: newDetailStr };
+                                          setDetailDrafts(next);
+                                          setEditMilestoneData((prev) => (prev ? { ...prev, details: next.map((d) => d.raw) } : null));
+                                        }}
+                                        onDelete={() => {
+                                          const next = activeDetailItems.filter((_, i) => i !== dIdx);
+                                          setDetailDrafts(next);
+                                          setEditMilestoneData((prev) => (prev ? { ...prev, details: next.map((d) => d.raw) } : null));
+                                        }}
+                                      />
+                                    ))}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const newDetailStr = formatDetail({ date: '', status: 'todo', attendees: '', text: '신규 세부 과업 내용' });
+                                        const newDraft: DetailDraft = {
+                                          uid: `m-${targetItem.id}-detail-new-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                                          raw: newDetailStr,
+                                        };
+                                        const next = [...activeDetailItems, newDraft];
+                                        setDetailDrafts(next);
+                                        setEditMilestoneData((prev) => (prev ? { ...prev, details: next.map((d) => d.raw) } : null));
+                                      }}
+                                      className="mt-1 px-2.5 py-1 text-[11px] font-bold bg-amber-100 text-amber-900 rounded border border-amber-300 hover:bg-amber-200 flex items-center gap-1 cursor-pointer"
+                                    >
+                                      <Plus className="w-3.5 h-3.5" />
+                                      <span>세부 과업 추가</span>
+                                    </button>
+                                  </>
+                                );
+                              })()}
                             </div>
                           ) : (
                             <div className="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden divide-y divide-slate-200/90 shadow-2xs">
@@ -1406,8 +1498,8 @@ ${targetUrl}`;
                       <button
                         type="button"
                         onClick={() => {
-                          const maxId = editBoothsData.reduce((max, b) => Math.max(max, b.id || 0), 0);
-                          const nextId = maxId + 1;
+                          const maxId = (editBoothsData || []).reduce((max, b) => Math.max(max, Number(b?.id) || 0), 0);
+                          const nextId = (Number.isFinite(maxId) ? maxId : 0) + 1;
                           setEditBoothsData([
                             ...editBoothsData,
                             {
@@ -1630,14 +1722,14 @@ export function YangjaeFestivalSkeleton() {
     <div className="w-full flex justify-center pb-16">
       <div className="w-full max-w-md bg-white sm:rounded-2xl sm:border-2 sm:border-slate-300 sm:shadow-lg overflow-hidden flex flex-col min-h-screen animate-pulse">
         {/* Top Header Skeleton */}
-        <div className="bg-slate-900 px-4 py-3 flex items-center justify-between gap-2 border-b border-slate-800">
+        <div className="bg-slate-900 px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between gap-1.5 sm:gap-2 border-b border-slate-800">
           <div className="space-y-1">
             <div className="h-3 w-28 bg-slate-700 rounded" />
             <div className="h-4 w-44 bg-slate-600 rounded" />
           </div>
-          <div className="flex items-center gap-1.5">
-            <div className="h-7 w-16 bg-slate-800 rounded-lg" />
-            <div className="h-7 w-14 bg-emerald-700/60 rounded-lg" />
+          <div className="flex items-center gap-1 sm:gap-1.5">
+            <div className="h-7 w-14 sm:w-16 bg-slate-800 rounded-lg" />
+            <div className="h-7 w-12 sm:w-14 bg-emerald-700/60 rounded-lg" />
           </div>
         </div>
         {/* Content Skeleton */}
