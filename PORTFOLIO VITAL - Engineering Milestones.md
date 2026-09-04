@@ -2,7 +2,42 @@
 
 ## 8. 최근 엔지니어링 마일스톤 (요약)
 
-### [Milestone 104: Yangjae Festival Dashboard Unused useEffect Import Cleanup & Zero-Warning Self-Healing Release] Eradication of unused useEffect import in YangjaeFestivalDashboard.tsx, achieving 100% zero-warning codebase purity and passing all gatekeeper suites. (2026-09-04)
+### [Milestone 106: Yangjae Festival Mobile Tunnel Interactivity Restoration, Dynamic Client SSR:false Isolation & Official 16-Event Timetable Sync Release] AllowedDevOrigins HMR tunnel fix, dynamic client component with ssr:false isolation, and complete 16-event official timetable sync for task 2, 100% gatekeeper pass. (2026-09-04)
+* **개요 및 개발 목적**:
+  - 모바일 관제판 터널 환경(Cloudflare trycloudflare.com) 접속 시 발생하던 버튼 인터랙션(글자 크기 토글, 전체 펼치기/접기, 아코디언) 불능 및 실시간 업데이트 미반영 문제의 근본 원인 규명 및 완전 해결:
+    1. Turbopack CSWSH 보안 차단 해제: 터널 도메인의 HMR WebSocket 요청이 dev server에서거부(Unauthorized/502 Bad Gateway)되던 현상을 `next.config.ts`의 `allowedDevOrigins: ['*.trycloudflare.com', '*.loca.lt', 'localhost', '127.0.0.1']` 구성으로 인가하여 HMR 락 원천 제거.
+    2. Rule I 서버 하이드레이션 격리 준수: 대용량 관제판을 SSR 시점 불일치 없이 순수 클라이언트 렌더링하도록 `YangjaeFestivalClientWrapper.tsx` (`dynamic(() => import(...), { ssr: false })` + 고대비 스켈레톤 fallback)을 신설하여 클라이언트 React Hydration 락을 원천 차단.
+  - 사용자 제공 타임테이블 이미지(`media_1788507605185.png`) 기반 공식 행사 식순 16개 항목 전체를 추진과제 2("행사 식순 (타임테이블 확정)")에 행정 표준 포맷으로 완벽 동기화.
+    - 식전행사: 행사준비(BGM, 30분), 식전공연(브라스밴드 '푸라비다', 30분).
+    - 공식행사: 김연태 MC 오프닝(5분), 국민의례(2분), 내빈소개(5분), 인사말씀&축사(8분), 레크레이션(5분), 치어리더 '팜팜' 공연&준비운동(10분).
+    - 코사진행: 이동(10분), START 아치 기념촬영(5분), 1그룹 출발(190분), 2그룹 출발(180분).
+    - 이벤트: K-POP공연팀 축하공연(20분), 스틱잡기챌린지 레크레이션(20분), '더뉴재즈밴드' 축하공연(30분), 행사 마무리 및 환경정비.
+  - Playwright 실 모바일 브라우저(Cloudflare 터널 URL 환경) 자동화 테스트 스크립트(`scratch/test-timetable-mobile.js`) 구동 검증 완료: HMR 정상 연결(`[HMR] connected`), 버튼 탭 즉각 반응(`가+ 큰글씨 -> 가- 보통`, `전체 펼치기 -> 전체 접기`), 16개 식순 렌더링 100% 정상 통과.
+* **핵심 변경 내역**:
+  - `next.config.ts`: `allowedDevOrigins` 설정 추가.
+  - `src/components/festival/YangjaeFestivalClientWrapper.tsx`: dynamic import `ssr: false` 클라이언트 래퍼 신설.
+  - `src/app/festival/yangjae/page.tsx`: 래퍼 연결 및 SSR 하이드레이션 격리.
+  - `data/FESTIVAL_YANGJAE_2026.json` & `src/hooks/useYangjaeFestival.ts`: 추진과제 2 식순 타임테이블 16개 항목 행정 표준 포맷 갱신.
+  - `__tests__/yangjae-festival-realtime-collapsed-sync.test.tsx`: 18개 단위/통합 테스트 전건 GREEN 유지.
+* **정량적 검증 성과**:
+  - 모바일 터널 HMR WebSocket 연결 성공률: 100% (`101 Switching Protocols`).
+  - 식순 타임테이블 반영율: 16 / 16 항목 (100% 매핑).
+  - 단위/통합 테스트: 18 / 18 ALL PASS.
+  - TypeScript 컴파일 (`npx tsc --noEmit`): 0 errors (PASS).
+  - 게이트키퍼 검증 (`run-harness.js`): 0 Zod errors, 0 ESLint errors/warnings, 0 Arch violations, 0 Perf bottlenecks (ALL PASS).
+
+### [Milestone 105: Yangjae Festival Executive Header Compaction, Staff Alternative Day-Off & Direct Line Optimization] Streamlined header layout, elimination of redundant contact badges, staff alternative day-off policy clause in event overview, 100% gatekeeper pass. (2026-09-04)
+* **개요 및 개발 목적**:
+  - 사용자 피드백 반영: 상단 타이틀 불필요 문구 및 중복 직통번호 정비, 임석훤 주무관(02-3423-7012) 및 남상희 주무관(02-3423-7025) 공식 연락망 일원화.
+  - 행사 개요(Section 1) 최하단에 행정 인사 안내 조항 `"행사 참여 직원 대체휴무 시행 예정"` 조항 신설 및 실시간 동기화.
+* **핵심 변경 내역**:
+  - `src/components/festival/YangjaeFestivalDashboard.tsx`: 타이틀 바 간소화 및 중복 배지 제거, 대체휴무 안내 행 신설.
+  - `data/FESTIVAL_YANGJAE_2026.json` & `src/hooks/useYangjaeFestival.ts`: `meta.staffNote` 스키마 및 기본 데이터 탑재.
+* **정량적 검증 성과**:
+  - 헤더 가시 영역 확보 및 타이틀 시각적 노이즈 소거 완료.
+  - 단위/통합 테스트: 18 / 18 ALL PASS.
+  - TypeScript 컴파일: 0 errors (PASS).
+  - 게이트키퍼 검증: 0 / 0 / 0 ALL PASS.
 * **개요 및 개발 목적**:
   - RSI(재귀적 자가 개선) 자율 진화 루틴에 의한 정적 분석 진단(`diagnose-targets.js`): `YangjaeFestivalDashboard.tsx`에서 React 19 render-time prop sync 리팩토링 후 잔존하던 미사용 `useEffect` 임포트 경고(1건)를 자율 색출.
   - 임포트 구문을 정밀 정리하여 ESLint 경고를 0으로 소거하고 코드베이스 순도 100%를 달성.

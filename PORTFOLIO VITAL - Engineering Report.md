@@ -3802,9 +3802,17 @@ sequenceDiagram
   - 브라우저 RAM 점유율 60% 이상 대폭 절감 및 유휴 CPU 사용률 0% 달성, 탭 전환 0ms 즉시 응답성 확보.
 
 ### 8. 양재천 건강 페스티벌 모바일 관제판 최적화 및 안정화 (Phase 13 - 완료)
+- [x] **모바일 관제판 터널 인터랙션 복구, Dynamic Client SSR:false 격리 및 공식 16개 식순 타임테이블 동기화 (Milestone 106 - 2026-09-04)**
+  - Turbopack CSWSH 허용 설정: `next.config.ts`의 `allowedDevOrigins`에 Cloudflare 및 localtunnel 도메인을 추가하여 터널 환경에서의 HMR WebSocket 연결 거부(502 Bad Gateway) 및 런타임 락 현상 완전 해결.
+  - Rule I 서버 하이드레이션 격리: `src/components/festival/YangjaeFestivalClientWrapper.tsx`를 신설하여 `dynamic(() => import(...), { ssr: false })` 및 스켈레톤 fallback 적용, SSR 하이드레이션 불일치 및 모바일 클릭 이벤트 바인딩 실패 원천 차단.
+  - 추진과제 2("행사 식순 (타임테이블 확정)")에 사용자 제공 타임테이블 이미지 기반 16개 공식 식순(식전행사, 김연태 MC 공식행사, 1/2그룹 코사진행, 축하공연 및 레크레이션)을 행정 표준 포맷으로 100% 동기화.
+  - Playwright 실 모바일 브라우저(Cloudflare 터널 URL) 인터랙션 자동화 검증 완료 (`scratch/test-timetable-mobile.js`): HMR 정상 연결, 글자 크기 전환, 전체 펼치기/접기 및 16개 식순 렌더링 100% 통과.
+- [x] **양재천 건강 페스티벌 헤더 콤팩트화, 담당 주무관 직통번호 정비 및 직원 대체휴무 조항 신설 (Milestone 105 - 2026-09-04)**
+  - 상단 헤더 타이틀 불필요 문구 및 중복 직통번호 정비, 임석훤 주무관(02-3423-7012), 남상희 주무관(02-3423-7025) 공식 연락망 일원화.
+  - 행사 개요(Section 1) 최하단에 `"행사 참여 직원 대체휴무 시행 예정"` 조항 반영 및 실시간 동기화.
 - [x] **양재천 건강 페스티벌 대시보드 미사용 useEffect 제거 및 코드베이스 순도 100% 자가 치유 패치 (Milestone 104 - 2026-09-04)**
   - `src/components/festival/YangjaeFestivalDashboard.tsx`: React 19 render-time prop sync 리팩토링 후 잔존하던 미사용 `useEffect` 임포트 제거.
   - `diagnose-targets.js` 정적 분석 린트 경고 0건, 아키텍처 위반 0건, 성능 병목 0건 달성.
   - Milestone 103의 세부과업 포커스 안정성, 예산 안전 계산 및 320px 반응형 헤더 기능 100% 보존.
-  - 17개 단위/통합 테스트 전건 PASS 및 게이트키퍼 0 오류 통과.
+  - 18개 단위/통합 테스트 전건 PASS 및 게이트키퍼 0 오류 통과.
 

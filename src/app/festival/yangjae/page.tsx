@@ -1,6 +1,6 @@
 import React from 'react';
 import { Metadata, Viewport } from 'next';
-import YangjaeFestivalDashboard from '@/components/festival/YangjaeFestivalDashboard';
+import YangjaeFestivalClientWrapper from '@/components/festival/YangjaeFestivalClientWrapper';
 
 export const metadata: Metadata = {
   title: '2026 양재천 건강 페스티벌 주간 관제판 | 강남구보건소',
@@ -17,7 +17,7 @@ export const viewport: Viewport = {
 export default function YangjaeFestivalPage() {
   return (
     <div className="min-h-screen bg-slate-100/70 sm:py-8 sm:px-4 flex justify-center items-start">
-      <YangjaeFestivalDashboard />
+      <YangjaeFestivalClientWrapper />
     </div>
   );
 }

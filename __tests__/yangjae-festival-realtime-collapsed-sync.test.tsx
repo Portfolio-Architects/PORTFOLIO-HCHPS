@@ -115,17 +115,17 @@ describe('Yangjae Festival Real-time Multi-Device Sync & UX Verification', () =>
       // Expand Task 1
       fireEvent.click(task1Btn);
       expect(screen.getByText(/수변문화쉼터.*검토/i)).toBeInTheDocument();
-      expect(screen.queryByText(/09:00~09:30/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/08:00~08:30/i)).not.toBeInTheDocument();
 
       // Expand Task 2
       fireEvent.click(task2Btn);
       expect(screen.getByText(/수변문화쉼터.*검토/i)).toBeInTheDocument();
-      expect(screen.getByText(/09:00~09:30/i)).toBeInTheDocument();
+      expect(screen.getByText(/08:00~08:30/i)).toBeInTheDocument();
 
       // Collapse Task 1 only
       fireEvent.click(task1Btn);
       expect(screen.queryByText(/수변문화쉼터.*검토/i)).not.toBeInTheDocument();
-      expect(screen.getByText(/09:00~09:30/i)).toBeInTheDocument();
+      expect(screen.getByText(/08:00~08:30/i)).toBeInTheDocument();
     });
   });
 
