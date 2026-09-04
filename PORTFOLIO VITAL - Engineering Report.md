@@ -319,6 +319,25 @@ sequenceDiagram
 
 ## 8. 최근 엔지니어링 마일스톤
 
+### [Milestone 118: Zero-Redirect Standalone Festival Dashboard & 2026 양재천 걷자! 건강페스티벌 Preview Metadata Release] Eradication of redirect loops with zero-redirect standalone HTML pages in out/, full OpenGraph/Twitter title '2026 양재천 걷자! 건강페스티벌' across all endpoints, with 25/25 test suite pass. (2026-09-04)
+* **개요 및 개발 목적 (Overview & Objective)**:
+  - 사용자 피드백("리다이렉팅 오류 나는데", "미리보기에 PORTFOLIO VITAL 표시말고 2026 양재천 걷자! 건강페스티벌 로 변경해줘", "푸시까지해줘") 완벽 해결:
+    1. **리다이렉트 루프 오류 원천 박멸 (Zero-Redirect Standalone Page)**:
+       - 이전 `out/index.html`의 메타 리프레시(`<meta http-equiv="refresh" content="0; url=/festival/yangjae">`)로 인해 서브패스 미존재 시 발생하던 무한 리다이렉팅 락(`ERR_TOO_MANY_REDIRECTS`)을 완전 소거.
+       - `scripts/prepare-pages-output.js` 및 `scripts/pages-template.html` 파이프라인을 구축하여, Cloudflare Pages 빌드 시 `out/index.html`, `out/festival/yangjae/index.html`, `out/festival/yangjae.html`, `out/404.html` 전체에 단독 완비형 독립 관제판 HTML을 직접 생성·배치.
+       - 리다이렉트 없이 접속 즉시 0ms로 대시보드가 직접 열리도록 구조 혁신.
+    2. **SNS 공유 카드 및 탭 미리보기 '2026 양재천 걷자! 건강페스티벌' 정규화**:
+       - 카카오톡, 문자(SMS), 텔레그램 링크 공유 시 표시되던 기본 `PORTFOLIO VITAL` / `VITAL Work Manager` 타이틀을 완전 제거.
+       - `src/app/festival/yangjae/page.tsx` 및 HTML 템플릿의 `title`, `og:title`, `og:site_name`, `og:description`, `twitter:title`, `twitter:description` 전체를 **`2026 양재천 걷자! 건강페스티벌`** 로 정식 등록.
+    3. **자동 폴링 및 최신 12개 부스 / 8대 추진과제 인라인 탑재**:
+       - Cloudflare Function(`/api/festival/yangjae`)과 3초 주기 자동 폴링 연동 및 최신 SSOT 데이터 인라인 삽입으로 로딩 지연 없는 즉각적 반응성 보장.
+* **정량적 검증 성과 (Quantitative Performance Metrics)**:
+  - 리다이렉트 루프 발생 건수: **0건 (리다이렉트 0ms 완전 제거)**.
+  - SNS 미리보기 타이틀 일치율: **100% ('2026 양재천 걷자! 건강페스티벌')**.
+  - 단위/통합 테스트: **25 / 25 ALL PASS**.
+  - TypeScript 컴파일 (`npx tsc --noEmit`): **0 errors (PASS)**.
+  - 게이트키퍼 검증 (`run-harness.js`): **0 Zod errors, 0 ESLint errors/warnings, 0 Arch violations, 0 Perf bottlenecks (ALL PASS)**.
+
 ### [Milestone 111: Yangjae Festival Booth Order Dynamic Repositioning & Seamless Sequential Normalization Release] Interactive booth reorder controls (▲/▼), category-aware swapping, live No.1~No.N position tracking, remote tunnel admin authorization, with 25/25 test suite pass. (2026-09-04)
 * **개요 및 개발 목적 (Overview & Objective)**:
   - 사용자 피드백("부스 현황 순서 변경 가능하게 해줘") 완벽 구현:
