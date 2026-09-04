@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useSyncExternalStore, useCallback } from 'react';
+import React, { useState, useMemo, useSyncExternalStore, useCallback } from 'react';
 import { Check, Share2, Edit3, Save, X, Plus, Trash2, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { useYangjaeFestival, useSaveYangjaeFestival, YANGJAE_FALLBACK_DATA, FestivalData, MilestoneItem, BoothItem, calculateFestivalBudgetSummary } from '@/hooks/useYangjaeFestival';
 
@@ -140,7 +140,7 @@ export function parseDetail(raw: string): ParsedDetail {
     const header = parts[0].trim();
     const rest = parts.slice(1).join(':').trim();
     
-    const peoplePattern = /(과장|팀장(\([^)]*\))?|오창선|서승오|김지영|제이민(\(대행사\))?)/g;
+    const peoplePattern = /(과장|팀장(\([^)]*\))?|오창선|서승오|임석훤|남상희|김지영|제이민(\(대행사\))?)/g;
     const matches = rest.match(peoplePattern);
     if (matches && matches.length >= 2) {
       attendees = matches.map(m => m.replace(/\s+/g, '')).join(', ');
@@ -166,6 +166,12 @@ export const STAFF_PHONE_MAP: Record<string, { ext: string; full: string; role: 
   '서승오': { ext: '7034', full: '02-3423-7034', role: '주무관' },
   '서승오주무관': { ext: '7034', full: '02-3423-7034', role: '주무관' },
   '서승오 주무관': { ext: '7034', full: '02-3423-7034', role: '주무관' },
+  '임석훤': { ext: '7012', full: '02-3423-7012', role: '주무관' },
+  '임석훤주무관': { ext: '7012', full: '02-3423-7012', role: '주무관' },
+  '임석훤 주무관': { ext: '7012', full: '02-3423-7012', role: '주무관' },
+  '남상희': { ext: '7025', full: '02-3423-7025', role: '주무관' },
+  '남상희주무관': { ext: '7025', full: '02-3423-7025', role: '주무관' },
+  '남상희 주무관': { ext: '7025', full: '02-3423-7025', role: '주무관' },
   '김지영팀장님': { ext: '7113', full: '02-3423-7113', role: '팀장' },
   '김지영 팀장님': { ext: '7113', full: '02-3423-7113', role: '팀장' },
   '김지영팀장': { ext: '7113', full: '02-3423-7113', role: '팀장' },
@@ -335,7 +341,7 @@ function DetailEditRow({
             setAttendees(e.target.value);
             emitChange(date, status, e.target.value, text);
           }}
-          placeholder="참석자 (예: 오창선 7116, 김지영팀장님 7113, 서승오 7034, 과장님 7010)"
+          placeholder="참석자 (예: 오창선 7116, 김지영팀장님 7113, 임석훤 7012, 남상희 7025, 서승오 7034)"
           className="flex-1 min-w-0 px-2 py-0.5 border border-slate-300 rounded text-xs font-medium text-slate-800 bg-white"
         />
         {/* 위치(순서) 이동 및 삭제 버튼 그룹 */}

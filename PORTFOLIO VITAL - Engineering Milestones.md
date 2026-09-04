@@ -2,6 +2,20 @@
 
 ## 8. 최근 엔지니어링 마일스톤 (요약)
 
+### [Milestone 104: Yangjae Festival Dashboard Unused useEffect Import Cleanup & Zero-Warning Self-Healing Release] Eradication of unused useEffect import in YangjaeFestivalDashboard.tsx, achieving 100% zero-warning codebase purity and passing all gatekeeper suites. (2026-09-04)
+* **개요 및 개발 목적**:
+  - RSI(재귀적 자가 개선) 자율 진화 루틴에 의한 정적 분석 진단(`diagnose-targets.js`): `YangjaeFestivalDashboard.tsx`에서 React 19 render-time prop sync 리팩토링 후 잔존하던 미사용 `useEffect` 임포트 경고(1건)를 자율 색출.
+  - 임포트 구문을 정밀 정리하여 ESLint 경고를 0으로 소거하고 코드베이스 순도 100%를 달성.
+  - 기존 Milestone 103의 포커스 안정성, 예산 안전 계산 및 320px 모바일 반응형 헤더 기능을 완전 무결하게 유지.
+* **핵심 변경 내역**:
+  - `src/components/festival/YangjaeFestivalDashboard.tsx`: 미사용 `useEffect` 임포트 제거.
+  - `__tests__/yangjae-festival-realtime-collapsed-sync.test.tsx`: 17개 단위/통합 테스트 전건 GREEN 유지.
+* **정량적 검증 성과**:
+  - ESLint 경고: 1건 $\to$ **0건 (Codebase Zero-Warning Pure)**.
+  - 단위/통합 테스트: 17 / 17 ALL PASS.
+  - TypeScript 컴파일 (`npx tsc --noEmit`): 0 errors (PASS).
+  - 게이트키퍼 검증 (`run-harness.js`): 0 Zod errors, 0 ESLint errors/warnings, 0 Arch violations, 0 Perf bottlenecks (ALL PASS).
+
 ### [Milestone 103: Yangjae Festival Task Detail Focus Stability, Safe Budget Calculation & 320px Responsive Header Release] Resilient DetailDraft UID focus preservation, NaN-safe budget calculation with live zero-refresh updates, and 320px mobile responsive header layout, 100% gatekeeper pass. (2026-09-04)
 * **개요 및 개발 목적**:
   - Round 3 최종 적대적 리뷰(Adversarial Review) 검증 및 고도화:
