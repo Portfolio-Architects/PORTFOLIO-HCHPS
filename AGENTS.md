@@ -144,6 +144,7 @@
 ## 5. 최신 동기화된 마일스톤 (Synced Milestones Log)
 - **최신 동기화 일자:** 2026-09-04
 - **동기화된 마일스톤:**
+  - [Milestone 98: Yangjae Festival Weekly Progress Report (8.31.~9.4.) Custom Sharing Pipeline & Milestone Sync Reform] Weekly-focused administrative SMS/messenger sharing template, multi-category placement of 5 key weekly tasks in festival SSOT & fallback data, live Cloudflare tunnel URL refresh, 100% gatekeeper pass. (2026-09-04)
   - [Milestone 18: Yangjae Festival Pure Render State Alignment & Memoized Booths Selection Self-Healing Reform] Eradication of redundant `useEffect` setState hooks & `activeBooths` memoization via `useMemo` (`src/components/festival/YangjaeFestivalDashboard.tsx`), 100% gatekeeper pass. (2026-09-03)
   - [Milestone 17: Wiki Editor Memoized Handlers, Cached Slash Menu & React.memo Boundary Isolation Reform] Stable `useCallback` for `handleCloseAction`, `handleEditorChange`, & `handleGetSlashMenuItems`, cached `customSlashMenuItems`, and `React.memo` container isolation (`src/components/WikiEditor.tsx`), 100% gatekeeper pass. (2026-09-03)
   - [Milestone 16: Weekly Report PDF Extraction GC-Free Loop & Callback Handlers Memoization Reform] Pre-allocated single index `for` loop text concatenation & stable `useCallback` for `handlePdfUpload`, `handleOpenFilePicker`, `handleReset`, and `handleSendToSignal` (`src/components/WeeklyReportView.tsx`), 100% gatekeeper pass. (2026-09-03)
@@ -155,5 +156,4 @@
   - [Milestone 10: Contacts & Budget Tab Data Persistence & Legacy E2EE Overwrite Eradication Reform] Complete sanitization of residual encrypted strings, React Query onSettled SSOT cache invalidation, API write error throwing & cache eviction, plain-text disk SSOT alignment. (2026-08-31)
   - [Milestone 9: React 19 & Next.js 16 (Turbopack) Zero-Mismatch Hydration Architecture Reform] Deterministic `useSyncExternalStore` mount gate (`src/components/ClientApp.tsx`), Server Component root page alignment (`src/app/page.tsx`), explicit `<head />` normalization & inline script detachment (`src/app/layout.tsx`), Next.js 16 standard proxy export & ReDoS regex mitigation (`src/proxy.ts`). (2026-08-31)
   - [Milestone 8: Pure Client-Only Hydration Mount Gate & Zero-Mismatch Architecture Reform] Complete eradication of React 19 Suspense / LoadableComponent SSR hydration mismatch, synchronous splash matching, and seamless client-side mount transition. (2026-08-28)
-  - [Milestone 7: Zero-Freezing Performance Leap & Unused Heavy Hooks Elimination Reform] Complete elimination of `useMergedSignals` NLP regex parsing, removal of `preloadModulesOnIdle` background bundle stalling, detachment of `useFreezeDetector` overhead, removal of 10s disk polling in `useGraphCustomization`, pure 60 FPS zero-stall architecture. (2026-08-27)
-  - 그 외 과거 누적 마일스톤 총 172건 통합 요약 (초기 ~ 2026-08-27 이전 패치 내역)
+  - 그 외 과거 누적 마일스톤 총 173건 통합 요약 (초기 ~ 2026-08-27 이전 패치 내역)

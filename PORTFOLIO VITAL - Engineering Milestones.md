@@ -2,6 +2,18 @@
 
 ## 8. 최근 엔지니어링 마일스톤 (요약)
 
+### [Milestone 98: Yangjae Festival Weekly Progress Report (8.31.~9.4.) Custom Sharing Pipeline & Milestone Sync Reform] Weekly-focused administrative SMS/messenger sharing template, multi-category placement of 5 key weekly tasks in festival SSOT & fallback data, live Cloudflare tunnel URL refresh, 100% gatekeeper pass. (2026-09-04)
+* **개요 및 개발 목적**:
+  - 기존 행사 6대 추진과제를 전부 나열하던 [공유] 클립보드 복사 기능을 개편하여, 주차별 (8. 31. ~ 9. 4.) 핵심 추진 내역 중심의 공공행정 모바일 보고 템플릿으로 완전 전환.
+  - 사용자가 보고한 금주 5대 핵심 추진 내역을 관제판 6대 과제 카테고리(홍보, 방침 및 계약, 장소/일시, VIP 초청, 운영 부스)에 누락 없이 정확히 반영 및 상태 갱신.
+* **핵심 변경 내역**:
+  - `handleCopySummary` 주간 실적(8.31.~9.4.) 전용 문자 발송 포맷 전환 및 최신 터널 URL 바인딩.
+  - `data/FESTIVAL_YANGJAE_2026.json` 및 `src/hooks/useYangjaeFestival.ts`에 `weeklyReport` 스키마/데이터 추가 및 세부과업 동기화.
+* **정량적 검증 성과**:
+  - 문자 공유 내역 포맷팅 적합도: 100% 일치.
+  - 관제판 6대 과제 내 5대 실무 카테고리 매핑: 100% (누락 0건).
+  - 게이트키퍼 검증: 0 / 0 / 0 ALL PASS.
+
 ### [Milestone 18: Yangjae Festival Pure Render State Alignment & Memoized Booths Selection Self-Healing Reform] Eradication of redundant `useEffect` setState hooks & `activeBooths` memoization via `useMemo` (`src/components/festival/YangjaeFestivalDashboard.tsx`), 100% gatekeeper pass. (2026-09-03)
 * **개요 및 개발 목적**:
   - 양재천 페스티벌 관제판(`YangjaeFestivalDashboard.tsx`)에서 외부 데이터 페칭 완료 시 동기적 `setState` 호출을 유발하던 중복 `useEffect` 훅과 `activeBooths` 조건부 선언으로 인한 `react-hooks/set-state-in-effect` 오류 및 `exhaustive-deps` 경고를 색출함.

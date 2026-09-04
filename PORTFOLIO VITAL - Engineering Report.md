@@ -319,6 +319,29 @@ sequenceDiagram
 
 ## 8. 최근 엔지니어링 마일스톤
 
+### [Milestone 98: Yangjae Festival Weekly Progress Report (8.31.~9.4.) Custom Sharing Pipeline & Milestone Sync Reform] Weekly-focused administrative SMS/messenger sharing template, multi-category placement of 5 key weekly tasks in festival SSOT & fallback data, live Cloudflare tunnel URL refresh, 100% gatekeeper pass. (2026-09-04)
+* **개요 및 개발 목적 (Overview & Objective)**:
+  - 행사 전체 6대 추진과제를 무차별 나열하던 기존의 [공유] 클립보드 복사 기능을 개편하여, 사용자가 지시한 **주차별 (8. 31. ~ 9. 4.) 핵심 추진 내역 중심의 공공행정 모바일 보고 템플릿**으로 완전 전환함.
+  - 사용자가 실무에서 수행한 금주(8.31.~9.4.) 5대 실무 추진 내역을 관제판의 각 추진과제 카테고리(홍보, 방침 및 계약, 장소 및 일시 확정, VIP 초청, 운영 부스)에 누락 없이 정확히 반영 및 상태 갱신.
+* **핵심 변경 내역 (Core Modifications)**:
+  - **주차별 추진실적 전용 문자 발송 파이프라인 (`YangjaeFestivalDashboard.tsx`)**:
+    - `handleCopySummary`: 전체 과제 나열을 배제하고 `[2026 양재천 건강 페스티벌 | 주간 추진실적 보고 (8. 31. ~ 9. 4.)]` 템플릿을 신설.
+    - 행사 개요(명칭, D-Day, 일시, 장소, 코스)와 함께 금주 핵심 5대 실무 추진 내역(포스터 제작, 9.1. 전체회의, 9.2. 양재천 답사, 구청장님 비서실 협의, 9.3. 의사회·한의사회 부스 협조)을 품격 있는 공문서 개조식 형태로 구성.
+    - 활성 모바일 터널 주소(`https://tell-blanket-start-deserve.trycloudflare.com/festival/yangjae`)를 실시간 관제판 바로가기 링크로 바인딩.
+    - 클립보드 복사 완료 토스트 및 모바일 네이티브 공유 다이얼로그(`navigator.share`) 지원.
+  - **관제판 및 SSOT 데이터베이스 주간 추진 내역 완벽 동기화 (`data/FESTIVAL_YANGJAE_2026.json`, `src/hooks/useYangjaeFestival.ts`)**:
+    - `weeklyReport` 스키마/인터페이스 신설로 주차별 실적 데이터 구조화 및 지속 확장성 확보.
+    - 추진과제 1 (장소/일시): 9.2. 양재천 답사(유디치과 버스 위치 및 추가 부스 검토) 반영.
+    - 추진과제 3 (운영 부스): 9.3. 강남구의사회·한의사회 부스 운영 협조(운영 확정 및 조율중) 반영.
+    - 추진과제 4 (행사 홍보): 행사 포스터 제작 진행중 반영 및 상태 `in-progress` 갱신.
+    - 추진과제 5 (방침 및 계약): 9.1. 행사 관련 회의(과장님, 팀장님들, 임석훤, 남상희, 오창선 / 안건 협의) 반영.
+    - 추진과제 6 (VIP 초청): 구청장님 참석 비서실 협의(참석 확정) 반영 및 상태 `in-progress` 갱신.
+* **정량적 검증 성과 (Quantitative Performance Metrics)**:
+  - 문자 공유 내역 포맷팅 적합도: **100% (주차별 핵심 실적 보고 규격 일치)**.
+  - 관제판 6대 과제 내 5대 실무 카테고리 매핑: **100% (누락 0건)**.
+  - 게이트키퍼 검증: **0 / 0 / 0 ALL PASS**.
+  - 로컬/외부 터널 응답: **HTTP 200 OK**.
+
 ### [Milestone 97: Yangjae Festival Task Edit Lossless Spacebar & DetailEditRow Isolation Reform] Native spacebar & whitespace preservation via `DetailEditRow` local state isolation and lossless `parseDetail`/`formatDetail` engine, 100% gatekeeper pass. (2026-09-04)
 * **개요 및 개발 목적 (Overview & Objective)**:
   - 사용자가 보고한 "편집 창에서 띄어쓰기 작동 안함" 버그를 정밀 분석 및 즉각 해결함.

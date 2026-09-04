@@ -408,7 +408,7 @@ function YangjaeFestivalDashboardComponent() {
     setSelectedCategory(cat);
   }, []);
 
-  const PUBLIC_SHARE_URL = 'https://meetings-sheets-contractors-traditions.trycloudflare.com/festival/yangjae';
+  const PUBLIC_SHARE_URL = 'https://tell-blanket-start-deserve.trycloudflare.com/festival/yangjae';
 
   // 1. 행사 개요 독립 편집 핸들러
   const handleStartEditOverview = () => {
@@ -534,35 +534,30 @@ function YangjaeFestivalDashboardComponent() {
       ? `${window.location.origin}/festival/yangjae`
       : PUBLIC_SHARE_URL;
 
-    const milestonesText = (data?.milestones || []).map((m) => {
-      const statusIcon = m?.status === 'done' ? '✓ 완료' : m?.status === 'in-progress' ? '▶ 진행중' : '○ 예정';
-      const depts = m?.cooperationDepts && m?.cooperationDepts.length > 0 ? ` (협조: ${m.cooperationDepts.join(', ')})` : '';
-      const items = (m?.details || []).slice(0, 3).map((d) => `   - ${d}`).join('\n');
-      return `[${m?.number || ''}] ${m?.title || ''} [${statusIcon}]${depts}\n${items}`;
-    }).join('\n\n');
+    const period = data?.weeklyReport?.period || '8. 31. ~ 9. 4.';
+    const weekTitle = data?.weeklyReport?.weekTitle || '주간 추진실적 보고';
 
-    const text = `[2026 양재천 건강 페스티벌 | D-${daysLeft} 추진과제 보고]
+    const weeklyLines = data?.weeklyReport?.items && data.weeklyReport.items.length > 0
+      ? data.weeklyReport.items.join('\n')
+      : [
+          '1. [홍보] 행사 포스터 제작 진행중 (지영팀장님, 오창선)',
+          '2. [기획/회의] 9. 1. 행사 관련 회의 완료\n   - 참석: 과장님, 희선팀장님, 지영팀장님, 임석훤, 남상희, 오창선\n   - 안건: 행사 추진 관련 전반, VIP 초청, 참가자 모집 방법, 보도자료 등',
+          '3. [장소/현장] 9. 2. 양재천 답사 실시\n   - 참석: 지영팀장님, 오창선, 유디치과 직원\n   - 내용: 유디치과 검진버스 위치 및 추가 부스 설치 장소 검토',
+          '4. [의전] 구청장님 참석 비서실 사전 협의 (참석 확정, 지영팀장님)',
+          '5. [부스] 9. 3. 강남구의사회·한의사회 부스 운영 협조\n   - 참석: 과장님, 오창선\n   - 내용: 부스 운영 확정 및 세부 운영안 조율중',
+        ].join('\n');
 
-■ 건강도시 강남! 2026 양재천 걷자! 건강 페스티벌 추진 현황을 공유합니다.
+    const text = `[2026 양재천 건강 페스티벌 | ${weekTitle}]
+(추진기간: ${period})
 
 ■ 행사개요
- - 행 사 명: ${data?.meta?.title || ''}
- - 일    시: ${data?.meta?.eventDate || ''} (${data?.meta?.eventTime || ''})
- - 장    소: ${data?.meta?.location || ''}
- - 코    스: ${data?.meta?.course || ''}
- - 참    여: ${data?.meta?.targetAudience || ''}
+ - 행사명: ${data?.meta?.title || '2026 양재천 걷자! 건강 페스티벌'} (D-${daysLeft})
+ - 일  시: ${data?.meta?.eventDate || '2026-10-31(토)'} (${data?.meta?.eventTime || '09:00 ~ 14:00'})
+ - 장  소: ${data?.meta?.location || '양재천 수변문화쉼터 및 출발마당'}
+ - 코  스: ${data?.meta?.course || '수변문화쉼터 ↔ 영동5교 왕복 (약 4km)'}
 
-■ 행사구성
- - 강남구보건소와 함께하는 건강 걷기 체험 프로그램
- - 의료 및 건강 관련 체험·홍보 부스 운영
-
-■ 6대 추진과제별 현황
-${milestonesText}
-
-■ 부스 현황: 총 ${data?.booths?.length || 0}개 중 ${confirmedBoothCount}개 부스 확정 완료
- - 민간 전문 4대 의료기관 (고대척추 X-Ray 버스, 자생한방, 차병원, 유디치과)
- - 민간 헬스케어 (한국신체정보, 서울체력장, 케이스튜디오)
- - 보건소 특화 13개 테마 부스 (정신건강, 치매, CPR, 감염병 등)
+■ 금주(${period}) 핵심 추진내역
+${weeklyLines}
 
 ※ [실시간 모바일 관제판 바로가기]
 ${targetUrl}`;
@@ -574,7 +569,7 @@ ${targetUrl}`;
     if (typeof navigator !== 'undefined' && navigator.share && /Mobi|Android|iPhone/i.test(navigator.userAgent)) {
       try {
         await navigator.share({
-          title: '2026 양재천 건강 페스티벌 모바일 관제판',
+          title: `2026 양재천 건강 페스티벌 주간 실적보고 (${period})`,
           text: text,
           url: targetUrl,
         });
@@ -582,7 +577,7 @@ ${targetUrl}`;
         // Fallback already copied to clipboard
       }
     }
-  }, [data, daysLeft, confirmedBoothCount, PUBLIC_SHARE_URL]);
+  }, [data, daysLeft, PUBLIC_SHARE_URL]);
 
   const activeBooths = useMemo(() => {
     return editingBooths ? editBoothsData : (data.booths || []);
@@ -607,8 +602,8 @@ ${targetUrl}`;
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 border border-slate-700">
           <Check className="w-5 h-5 text-emerald-400 stroke-[3]" />
           <div>
-            <div className="font-bold text-sm">단톡방 공유 문구가 복사되었습니다!</div>
-            <div className="text-xs text-slate-300">카카오톡 단톡방에 붙여넣기(Ctrl+V) 하세요.</div>
+            <div className="font-bold text-sm">금주(8. 31. ~ 9. 4.) 주간 추진실적이 복사되었습니다!</div>
+            <div className="text-xs text-slate-300">카카오톡 또는 문자에 바로 붙여넣기(Ctrl+V) 하세요.</div>
           </div>
         </div>
       )}

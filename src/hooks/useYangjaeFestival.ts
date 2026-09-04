@@ -21,6 +21,12 @@ export interface BoothItem {
   status: string;
 }
 
+export interface WeeklyReportItem {
+  weekTitle: string;
+  period: string;
+  items: string[];
+}
+
 export interface FestivalData {
   meta: {
     title: string;
@@ -46,6 +52,7 @@ export interface FestivalData {
     agencyQuotation: number;
     agencyCompany: string;
   };
+  weeklyReport?: WeeklyReportItem;
   milestones: MilestoneItem[];
   booths: BoothItem[];
   departmentsCooperation?: {
@@ -83,6 +90,17 @@ export const YANGJAE_FALLBACK_DATA: FestivalData = {
     "agencyQuotation": 50215000,
     "agencyCompany": "제이민 커뮤니케이션"
   },
+  "weeklyReport": {
+    "weekTitle": "주간 추진실적 보고",
+    "period": "8. 31. ~ 9. 4.",
+    "items": [
+      "1. [홍보] 행사 포스터 제작 진행중 (지영팀장님, 오창선)",
+      "2. [기획/회의] 9. 1. 행사 관련 회의 완료\n   - 참석: 과장님, 희선팀장님, 지영팀장님, 임석훤, 남상희, 오창선\n   - 안건: 행사 추진 관련 전반, VIP 초청, 참가자 모집 방법, 보도자료 등",
+      "3. [장소/현장] 9. 2. 양재천 답사 실시\n   - 참석: 지영팀장님, 오창선, 유디치과 직원\n   - 내용: 유디치과 검진버스 위치 및 추가 부스 설치 장소 검토",
+      "4. [의전] 구청장님 참석 비서실 사전 협의 (참석 확정, 지영팀장님)",
+      "5. [부스] 9. 3. 강남구의사회·한의사회 부스 운영 협조\n   - 참석: 과장님, 오창선\n   - 내용: 부스 운영 확정 및 세부 운영안 조율중"
+    ]
+  },
   "milestones": [
     {
       "id": 1,
@@ -95,11 +113,12 @@ export const YANGJAE_FALLBACK_DATA: FestivalData = {
         "공원녹지과"
       ],
       "details": [
-        "1차 사전답사(7.29.(수), 오창선): 현장 실사 및 행사장소 '수변문화쉼터' 검토 완료",
-        "2차 사전답사(8월): 과장, 건강증진팀장(김지영), 서승오, 오창선 코스 답사",
+        "[완료][7.29.(수)][참여:오창선] 1차 사전답사: 행사장소 '수변문화쉼터' 검토",
+        "[완료][8월][참여:과장님, 지영팀장님, 서승오, 오창선] 2차 사전답사 :걷기코스및장소확정",
         "3차 현장미팅(8월): 팀장(김지영), 오창선, 제이민(대행사) 수변문화쉼터 실무 협의",
         "4차 종합미팅(8월): 과장, 팀장(김지영), 오창선, 제이민(대행사) 운영안 조율",
         "5차 실무회의(8.31.): 행사 세부 운영안 및 현안 5차 실무 회의 완료",
+        "[완료][9.2.][참여:김지영 팀장님, 오창선, 유디 직원] 양재천 답사: 유디치과 검진버스 위치 및 추가 부스 설치 장소 검토",
         "[협조완료] 치수과: 하천점용허가 신청 및 승인 완료 (개포동 1279 일원)",
         "[협조완료] 공원녹지과: 다리 밑 전기 사용 승인 및 청소카트 2대 지원 협의"
       ]
@@ -135,6 +154,7 @@ export const YANGJAE_FALLBACK_DATA: FestivalData = {
         "자원순환과"
       ],
       "details": [
+        "[진행][9.3.][참여:과장님, 오창선] 강남구의사회·한의사회 부스 운영 협조: 운영 확정 및 세부 사항 조율중",
         "민간 전문 4대 의료기관 섭외 완료 (고대척추 X-Ray 버스, 자생한방, 차병원, 유디치과)",
         "민간 헬스케어 부스 확정 (한국신체정보 바른자세분석, 서울체력장 체력측정, 케이스튜디오)",
         "보건소 특화 13개 테마 부스 구성 (정신건강, 치매, CPR, 금연, 만성질환 등)",
@@ -147,14 +167,15 @@ export const YANGJAE_FALLBACK_DATA: FestivalData = {
       "id": 4,
       "number": "추진과제 4",
       "title": "행사 홍보",
-      "status": "todo",
-      "period": "9월 3주 ~ 10월 2주",
+      "status": "in-progress",
+      "period": "9월 1주 ~ 10월 2주",
       "cooperationDepts": [
         "도시계획과",
         "정책홍보실",
         "자치행정과"
       ],
       "details": [
+        "[진행][참여:김지영 팀장님, 오창선] 행사 포스터 제작 진행중",
         "구민 800명 온라인 사전접수 시스템 오픈 (강남구청 통합예약 시스템)",
         "홍보 포스터, 리플렛, 현수막, 걷기 완주 인증 팔찌 디자인 시안 확정",
         "[협조예정] 도시계획과: 양재천 교량 및 산책로 현수막 15일간 게첨 승인",
@@ -175,6 +196,7 @@ export const YANGJAE_FALLBACK_DATA: FestivalData = {
         "주차관리과"
       ],
       "details": [
+        "[완료][9.1.][참여:과장님, 희선팀장님, 김지영 팀장님, 임석훤, 남상희, 오창선] 행사 관련 회의: 행사 추진 관련 전반, VIP 초청, 참가자 모집 방법, 보도자료 등 안건 협의",
         "2026 양재천 걷자! 건강 페스티벌 세부 추진계획(방침) 수립 및 결재",
         "행사시설 설치 및 운영 대행용역 계약심사 및 일상감사 의뢰",
         "대행용역(제이민 커뮤니케이션) 조달/수의 계약 체결 및 착수 보고회",
@@ -186,13 +208,14 @@ export const YANGJAE_FALLBACK_DATA: FestivalData = {
       "id": 6,
       "number": "추진과제 6",
       "title": "VIP 초청 관련",
-      "status": "todo",
-      "period": "9월 4주 ~ 10월 3주",
+      "status": "in-progress",
+      "period": "9월 1주 ~ 10월 3주",
       "cooperationDepts": [
         "총무과(의전팀)",
         "기획예산과"
       ],
       "details": [
+        "[완료][참여:김지영 팀장님] 구청장님 참석 비서실 협의: 참석 확정",
         "주요 초청 내빈 리스트 확정 (구청장님, 구의장 및 구의원, 국회의원, 보건소장, 의사회장 등)",
         "공식 초청장(모바일 및 인쇄본) 제작 및 발송",
         "VIP 개막식 의전 시나리오 및 동선 수립 (귀빈 대기실, 축사 순서, 걷기 출발 선포 터치버튼)",

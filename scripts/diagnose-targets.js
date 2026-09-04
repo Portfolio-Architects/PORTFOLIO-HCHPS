@@ -281,16 +281,17 @@ if (isClean || isCompact) {
 }
 
 // Write report and cache to file with retry logic for Windows file lock robustness
-function writeWithRetry(targetPath, data, maxRetries = 4, delayMs = 60) {
+function writeWithRetry(targetPath, data, maxRetries = 10, delayMs = 100) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       fs.writeFileSync(targetPath, data, 'utf-8');
       return true;
     } catch (err) {
       if (attempt === maxRetries) throw err;
-      // Busy wait short delay for Windows lock release
+      // Incremental delay for Windows lock release (e.g. Defender or Turbopack watcher)
+      const waitTime = delayMs * attempt;
       const start = Date.now();
-      while (Date.now() - start < delayMs) {}
+      while (Date.now() - start < waitTime) {}
     }
   }
 }
