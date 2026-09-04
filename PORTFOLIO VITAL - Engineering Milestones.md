@@ -2,6 +2,24 @@
 
 ## 8. 최근 엔지니어링 마일스톤 (요약)
 
+### [Milestone 103: Yangjae Festival Task Detail Focus Stability, Safe Budget Calculation & 320px Responsive Header Release] Resilient DetailDraft UID focus preservation, NaN-safe budget calculation with live zero-refresh updates, and 320px mobile responsive header layout, 100% gatekeeper pass. (2026-09-04)
+* **개요 및 개발 목적**:
+  - Round 3 최종 적대적 리뷰(Adversarial Review) 검증 및 고도화:
+    1. 세부 실행과업 편집 필드(날짜/상태/참석자/내용) 타이핑 시 컴포넌트 언마운트 및 포커스 소실(Input Blur) 방지: 고유 `draft.uid` 영속 키 바인딩 및 `DetailEditRow` 내 동등성 가드 탑재로 한글 IME 조합 및 연속 타이핑 100% 보존.
+    2. 예산 계산 안전성 강화: `calculateFestivalBudgetSummary` 헬퍼 신설로 `total`, `allocated` 수치가 `undefined`, `null`, `NaN`, 비숫자 문자열일 때도 `NaN` 반환을 영구 차단하고, 행사 개요(Section 1)에 실시간 예산 집행 현황 행을 배치하여 다중 기기 무새로고침 스마트 폴링 시 변경 사항이 2.5초 내 자동 반영되도록 연동.
+    3. 초협소 모바일(320px, 갤럭시 폴드 외면/아이폰 SE) 반응형 헤더 최적화: `px-3 sm:px-4 py-2.5 sm:py-3` 및 배지/부서명/공유버튼 `whitespace-nowrap shrink-0` 적용으로 텍스트 줄바꿈 깨짐 및 버튼 잘림 현상 원천 차단.
+    4. 부스 및 마일스톤 추가 시 `Number(id)` 및 `isFinite` 가드로 ID 충돌 및 `NaN` 생성 방어.
+* **핵심 변경 내역**:
+  - `src/hooks/useYangjaeFestival.ts`: `calculateFestivalBudgetSummary` 수출 함수 신설 (NaN 및 유한수 방어).
+  - `src/components/festival/YangjaeFestivalDashboard.tsx`: `DetailDraft` 기반 고유 식별자 상태 관리, `DetailEditRow` 내부 동등성 가드, 행사 개요 소요예산 실시간 행 추가, 부스/과제 `maxId` 계산 정밀화, 320px 헤더 반응형 레이아웃 및 스켈레톤 동기화.
+  - `__tests__/yangjae-festival-realtime-collapsed-sync.test.tsx`: 17개 전 단위/통합 테스트 100% GREEN (포커스 유지 검증, 예산 NaN 방어, 실시간 렌더링, 320px 반응형 클래스 검증 등).
+* **정량적 검증 성과**:
+  - 세부과업 타이핑 시 포커스 유지율: 100% (언마운트 0건).
+  - 예산 계산 무결성: 0 NaN (불량 입력 시에도 정상 산출).
+  - 단위/통합 테스트: 17 / 17 ALL PASS.
+  - TypeScript 컴파일 (`npx tsc --noEmit`): 0 errors (PASS).
+  - 게이트키퍼 검증 (`node scripts/run-harness.js`): 0 Zod errors, 0 ESLint errors/warnings, 0 Arch violations, 0 Perf bottlenecks (ALL PASS).
+
 ### [Milestone 102: Yangjae Festival Zero-Allocation Accordion useMemo, safeClone Optimization & Stable Detail Draft UUIDs] Zero-allocation accordion memoization, structuredClone-based safeClone, and resilient DetailDraft UUID state binding, 100% gatekeeper pass. (2026-09-04)
 * **개요 및 개발 목적**:
   - RSI(재귀적 자가 개선) 자율 진화 틱: `isAllExpanded` 및 `toggleAllExpand`에서 발생하던 `Array.from()` 배열 할당 오버헤드를 색출하여 `useMemo` 및 zero-allocation 순회 로직으로 전환.

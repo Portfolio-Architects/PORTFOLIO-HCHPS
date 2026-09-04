@@ -1027,7 +1027,7 @@ ${targetUrl}`;
                 <span className="font-bold text-slate-400 text-center">:</span>
                 <div className="space-y-1">
                   {(editingOverview ? (editOverviewData?.programStructure || []) : (data?.meta?.programStructure || [])).map((item: string, pIdx: number) => (
-                    <div key={pIdx} className="flex items-start">
+                    <div key={`prog-${pIdx}-${item.slice(0, 15)}`} className="flex items-start">
                       {editingOverview ? (
                         <div className="flex items-center gap-1 flex-1">
                           <input
@@ -1316,7 +1316,7 @@ ${targetUrl}`;
                             targetItem?.cooperationDepts && targetItem.cooperationDepts.length > 0 ? (
                               targetItem.cooperationDepts.map((dept: string, dIdx: number) => (
                                 <span
-                                  key={dIdx}
+                                  key={`${targetItem?.id}-dept-${dept}-${dIdx}`}
                                   className={`${isLargeFont ? 'text-xs px-2 py-0.5' : 'text-[10px] px-1.5 py-0.5'} font-bold bg-indigo-50 text-indigo-800 border border-indigo-200 rounded-md`}
                                 >
                                   {dept}
@@ -1409,7 +1409,7 @@ ${targetUrl}`;
                                 const isCoopTask = parsed.text.includes('[협조') || detail.includes('[협조');
                                 return (
                                   <div 
-                                    key={dIdx} 
+                                    key={`${item.id}-detail-row-${dIdx}-${detail.slice(0, 20)}`} 
                                     className={`p-2.5 flex items-start gap-2.5 transition-colors ${
                                       isCoopTask 
                                         ? 'bg-indigo-50/50 hover:bg-indigo-50/80' 
