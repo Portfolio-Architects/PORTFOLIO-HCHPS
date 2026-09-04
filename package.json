@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "next dev -p 3001",
-    "build": "next build",
+    "build": "next build && node scripts/prepare-pages-output.js",
     "start": "next start",
     "lint": "eslint src",
     "test": "jest",

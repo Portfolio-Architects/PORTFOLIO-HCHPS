@@ -623,6 +623,15 @@ function YangjaeFestivalDashboardComponent() {
         if (!map.has('보건소 사업')) map.set('보건소 사업', []);
         map.get('보건소 사업')!.push(b);
       }
+
+      // Multi-key alias support for '전문 의료·검진', '의료·검진', '의료 검진'
+      if (cat === '전문 의료·검진' || cat === '의료·검진' || cat === '의료 검진') {
+        const medicalAliases = ['전문 의료·검진', '의료·검진', '의료 검진'];
+        for (const alias of medicalAliases) {
+          if (!map.has(alias)) map.set(alias, []);
+          if (alias !== cat) map.get(alias)!.push(b);
+        }
+      }
     }
     return map;
   }, [activeBooths]);
@@ -787,6 +796,9 @@ function YangjaeFestivalDashboardComponent() {
           if (selectedCategory === '보건소 사업' || selectedCategory === '보건소 특화') {
             return b.category === '보건소 사업' || b.category === '보건소 특화';
           }
+          if (selectedCategory === '전문 의료·검진' || selectedCategory === '의료·검진' || selectedCategory === '의료 검진') {
+            return b.category === '전문 의료·검진' || b.category === '의료·검진' || b.category === '의료 검진';
+          }
           return b.category === selectedCategory || (typeof b.category === 'string' && b.category.includes(selectedCategory));
         });
         const filteredIdx = filtered.findIndex((b) => b.id === boothId);
@@ -818,6 +830,9 @@ function YangjaeFestivalDashboardComponent() {
         const filtered = list.filter((b) => {
           if (selectedCategory === '보건소 사업' || selectedCategory === '보건소 특화') {
             return b.category === '보건소 사업' || b.category === '보건소 특화';
+          }
+          if (selectedCategory === '전문 의료·검진' || selectedCategory === '의료·검진' || selectedCategory === '의료 검진') {
+            return b.category === '전문 의료·검진' || b.category === '의료·검진' || b.category === '의료 검진';
           }
           return b.category === selectedCategory || (typeof b.category === 'string' && b.category.includes(selectedCategory));
         });
