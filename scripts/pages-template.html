@@ -1,0 +1,340 @@
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>2026 양재천 걷자! 건강페스티벌</title>
+  <meta name="description" content="『강남구보건소』와 함께하는 2026 양재천 걷자! 건강 페스티벌 실시간 진행현황 대시보드" />
+  
+  <!-- OpenGraph / SNS Sharing Metadata (KakaoTalk, SMS, Telegram) -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="2026 양재천 걷자! 건강페스티벌" />
+  <meta property="og:description" content="『강남구보건소』와 함께하는 2026 양재천 걷자! 건강 페스티벌 실시간 진행현황 대시보드" />
+  <meta property="og:site_name" content="2026 양재천 걷자! 건강페스티벌" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="2026 양재천 걷자! 건강페스티벌" />
+  <meta name="twitter:description" content="『강남구보건소』와 함께하는 2026 양재천 걷자! 건강 페스티벌 실시간 진행현황 대시보드" />
+
+  <link rel="icon" href="/icon.png" sizes="64x64" type="image/png" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans KR", sans-serif; }
+    .is-large-font { font-size: 1.25em !important; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-900 selection:bg-slate-800 selection:text-white pb-16 flex justify-center">
+  <div id="app-root" class="w-full max-w-md bg-white sm:rounded-2xl sm:border-2 sm:shadow-lg overflow-hidden flex flex-col min-h-screen text-slate-900 transition-all sm:border-slate-300">
+    <!-- Header -->
+    <div class="sticky top-0 z-30 bg-slate-900 text-white px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between gap-1.5 sm:gap-2 border-b border-slate-800 shadow-sm">
+      <div class="min-w-0 flex-1">
+        <div id="header-title" class="text-sm font-bold tracking-tight truncate">__SHORT_TITLE__</div>
+      </div>
+      <div class="flex items-center gap-1 sm:gap-1.5 shrink-0">
+        <button id="btn-toggle-font" type="button" class="px-2 sm:px-2.5 py-1 rounded-lg text-[11px] sm:text-xs font-black border transition-all cursor-pointer flex items-center gap-1 active:scale-95 bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700">
+          <span class="font-extrabold text-[12px] sm:text-[13px]">가+</span>
+          <span>큰글씨</span>
+        </button>
+        <button id="btn-share" type="button" class="px-2 sm:px-2.5 py-1 text-[11px] sm:text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg flex items-center gap-1 sm:gap-1.5 shadow-xs cursor-pointer active:scale-95 transition-all">
+          <span>공유</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="flex-1 p-3.5 space-y-4 bg-slate-100">
+      <!-- Section 1: Overview -->
+      <div class="bg-white border-2 border-slate-300 rounded-xl p-4 shadow-2xs">
+        <div class="flex items-center justify-between pb-2 mb-3 border-b-2 border-slate-900">
+          <div class="flex items-center gap-2">
+            <span class="inline-block w-4 h-4 border-2 border-slate-900 rounded-[1.5px] shrink-0"></span>
+            <span class="text-base font-black text-slate-900 tracking-tight">행사 개요</span>
+          </div>
+          <span class="px-2.5 py-0.5 rounded-full text-xs font-black bg-emerald-100 text-emerald-800 border border-emerald-300">D-57</span>
+        </div>
+        <div class="space-y-2 text-xs font-medium">
+          <div class="flex items-start gap-2">
+            <span class="font-bold text-slate-600 w-16 shrink-0">일시:</span>
+            <span class="text-slate-900 font-semibold">__EVENT_DATE__ __EVENT_TIME__</span>
+          </div>
+          <div class="flex items-start gap-2">
+            <span class="font-bold text-slate-600 w-16 shrink-0">장소:</span>
+            <span class="text-slate-900 font-semibold">__LOCATION__</span>
+          </div>
+          <div class="flex items-start gap-2">
+            <span class="font-bold text-slate-600 w-16 shrink-0">코스:</span>
+            <span class="text-slate-900 font-semibold">__COURSE__</span>
+          </div>
+          <div class="flex items-start gap-2">
+            <span class="font-bold text-slate-600 w-16 shrink-0">대상:</span>
+            <span class="text-slate-900 font-semibold">__TARGET__</span>
+          </div>
+          <div class="flex items-start gap-2 pt-1 border-t border-slate-200">
+            <span class="font-bold text-slate-600 w-16 shrink-0">비고:</span>
+            <span class="text-blue-700 font-extrabold">__STAFF_NOTE__</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 2: Tab Buttons -->
+      <div class="grid grid-cols-2 gap-1.5 bg-slate-200 p-1.5 rounded-xl border border-slate-300">
+        <button id="tab-milestones" type="button" class="py-2.5 text-xs font-extrabold rounded-lg transition-all cursor-pointer text-center bg-slate-900 text-white shadow-xs">
+          1. 추진과제
+        </button>
+        <button id="tab-booths" type="button" class="py-2.5 text-xs font-bold rounded-lg transition-all cursor-pointer text-center text-slate-700 hover:bg-slate-300/70">
+          2. 부스현황
+        </button>
+      </div>
+
+      <!-- Content 1: Milestones -->
+      <div id="content-milestones" class="space-y-3.5">
+        <div class="px-1 flex items-center justify-between">
+          <button id="btn-toggle-all-tasks" type="button" class="text-xs font-bold text-slate-600 hover:text-slate-900 cursor-pointer py-1">
+            전체 펼치기 / 접기
+          </button>
+        </div>
+        <div id="milestones-list" class="space-y-3"></div>
+      </div>
+
+      <!-- Content 2: Booths -->
+      <div id="content-booths" class="space-y-3.5 hidden">
+        <div class="flex items-center justify-between px-1">
+          <h3 class="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+            <span class="inline-block w-3 h-3 border-[1.5px] border-slate-900 rounded-[1px] shrink-0"></span>
+            <span>테마별 부스 배치 계획</span>
+          </h3>
+          <span id="booth-count-badge" class="text-xs font-bold text-slate-700"></span>
+        </div>
+        <div id="booth-filter-pills" class="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar"></div>
+        <div id="booths-list" class="space-y-2.5"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 border border-slate-700 hidden">
+    <div class="font-bold text-sm">주간 추진실적이 복사되었습니다!</div>
+  </div>
+
+  <script>
+    let appData = __APP_DATA_JSON__;
+    let activeTab = 'milestones';
+    let activeCategory = '전체';
+    let expandedTasks = new Set();
+    let isLargeFont = false;
+
+    const STAFF_PHONE_MAP = {
+      '오창선': { ext: '7116', tel: '02-3423-7116' },
+      '지영팀장님': { ext: '7031', tel: '02-3423-7031' },
+      '김지영팀장님': { ext: '7031', tel: '02-3423-7031' },
+      '김지영': { ext: '7031', tel: '02-3423-7031' },
+      '희선팀장님': { ext: '7011', tel: '02-3423-7011' },
+      '김희선팀장님': { ext: '7011', tel: '02-3423-7011' },
+      '김희선': { ext: '7011', tel: '02-3423-7011' },
+      '서승오': { ext: '7034', tel: '02-3423-7034' },
+      '임석훤': { ext: '7012', tel: '02-3423-7012' },
+      '남상희': { ext: '7025', tel: '02-3423-7025' }
+    };
+
+    function parseDetail(raw) {
+      if (!raw) return { date: '', status: 'todo', attendees: '', text: '' };
+      const m = raw.match(/^\[(완료|진행|예정)\](?:\[(?!참여:)([^\]]*)\])?(?:\[참여:([^\]]*)\])?(?:\s*([\s\S]*)|$)/);
+      if (m) {
+        return {
+          status: m[1] === '완료' ? 'done' : m[1] === '진행' ? 'in-progress' : 'todo',
+          date: m[2] || '',
+          attendees: m[3] || '',
+          text: m[4] !== undefined ? m[4] : ''
+        };
+      }
+      return { date: '', status: 'todo', attendees: '', text: raw };
+    }
+
+    function renderMilestones() {
+      const container = document.getElementById('milestones-list');
+      if (!container) return;
+      container.innerHTML = '';
+
+      (appData.milestones || []).forEach(m => {
+        const isExpanded = expandedTasks.has(m.id);
+        const card = document.createElement('div');
+        card.className = 'p-3.5 rounded-xl border-2 transition-all shadow-2xs ' +
+          (m.status === 'in-progress' ? 'bg-amber-50/70 border-amber-400' : m.status === 'done' ? 'bg-white border-slate-300' : 'bg-white border-slate-200');
+
+        let detailsHtml = '';
+        if (isExpanded && m.details && m.details.length > 0) {
+          detailsHtml = '<div class="mt-3 pt-2.5 border-t border-slate-200 space-y-2">' +
+            m.details.map(d => {
+              const p = parseDetail(d);
+              let attHtml = '';
+              if (p.attendees) {
+                attHtml = '<div class="flex flex-wrap gap-1 mt-1">' +
+                  p.attendees.split(',').map(name => {
+                    const clean = name.trim();
+                    let staff = STAFF_PHONE_MAP[clean];
+                    if (!staff) {
+                      if (clean.includes('희선')) staff = STAFF_PHONE_MAP['희선팀장님'];
+                      else if (clean.includes('지영')) staff = STAFF_PHONE_MAP['지영팀장님'];
+                    }
+                    if (staff) {
+                      return '<a href="tel:' + staff.tel + '" class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-black bg-amber-100 text-amber-950 border border-amber-300 hover:bg-amber-200">' +
+                        '<span>' + clean + '</span>' +
+                        '<span class="bg-amber-200 px-1 rounded text-[9.5px]">' + staff.ext + '</span>' +
+                      '</a>';
+                    }
+                    return '<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">' + clean + '</span>';
+                  }).join('') + '</div>';
+              }
+              const badgeClass = p.status === 'done' ? 'bg-emerald-100 text-emerald-800' : p.status === 'in-progress' ? 'bg-amber-100 text-amber-900' : 'bg-slate-100 text-slate-700';
+              const badgeText = p.status === 'done' ? '완료' : p.status === 'in-progress' ? '진행' : '예정';
+              return '<div class="text-xs p-2 bg-slate-50/80 rounded border border-slate-200">' +
+                '<div class="flex items-center gap-1.5 mb-1">' +
+                  '<span class="px-1.5 py-0.2 rounded text-[10px] font-black ' + badgeClass + '">' + badgeText + '</span>' +
+                  (p.date ? '<span class="font-mono font-bold text-slate-700 text-[10.5px]">[' + p.date + ']</span>' : '') +
+                '</div>' +
+                '<div class="text-slate-800 font-medium whitespace-pre-wrap">' + p.text + '</div>' +
+                attHtml +
+              '</div>';
+            }).join('') +
+          '</div>';
+        }
+
+        const statusBadge = m.status === 'done'
+          ? '<span class="px-2 py-0.5 rounded text-[11px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">완료</span>'
+          : m.status === 'in-progress'
+          ? '<span class="px-2 py-0.5 rounded text-[11px] font-black bg-amber-100 text-amber-900 border border-amber-300">진행중</span>'
+          : '<span class="px-2 py-0.5 rounded text-[11px] font-black bg-slate-100 text-slate-600 border border-slate-300">예정</span>';
+
+        card.innerHTML =
+          '<div class="flex items-center justify-between cursor-pointer" onclick="toggleTask(' + m.id + ')">' +
+            '<div class="flex items-center gap-2">' +
+              '<span class="px-2.5 py-0.5 rounded-full bg-slate-900 text-amber-300 font-black text-[11px]">' + m.number + '</span>' +
+              '<span class="font-bold text-slate-900 text-xs sm:text-sm">' + m.title + '</span>' +
+            '</div>' +
+            '<div class="flex items-center gap-1.5">' +
+              statusBadge +
+              '<span class="text-xs font-bold text-slate-500">' + (isExpanded ? '▲' : '▼') + '</span>' +
+            '</div>' +
+          '</div>' +
+          detailsHtml;
+        container.appendChild(card);
+      });
+    }
+
+    function renderBooths() {
+      const container = document.getElementById('booths-list');
+      const pillsContainer = document.getElementById('booth-filter-pills');
+      if (!container || !pillsContainer) return;
+
+      const categories = ['전체', '전문 의료·검진', '민간 헬스케어', '보건소 사업'];
+      pillsContainer.innerHTML = categories.map(cat =>
+        '<button type="button" onclick="selectCategory(\'' + cat + '\')" class="px-2.5 py-1 text-xs rounded-lg font-bold whitespace-nowrap border cursor-pointer ' +
+        (activeCategory === cat ? 'bg-slate-900 text-white border-slate-900 shadow-xs' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100') + '">' +
+        cat +
+        '</button>'
+      ).join('');
+
+      const booths = (appData.booths || []).filter(b => {
+        if (activeCategory === '전체') return true;
+        if (activeCategory === '전문 의료·검진') {
+          return b.category === '전문 의료·검진' || b.category === '의료·검진' || b.category === '의료 검진';
+        }
+        return b.category === activeCategory;
+      });
+
+      const confirmed = (appData.booths || []).filter(b => b.status === '확정').length;
+      document.getElementById('booth-count-badge').innerText = '확정 ' + confirmed + ' / 총 ' + (appData.booths || []).length + '개';
+
+      container.innerHTML = booths.map((b, idx) =>
+        '<div class="p-3.5 bg-white border-2 border-slate-300 rounded-xl shadow-2xs">' +
+          '<div class="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-200">' +
+            '<div class="flex items-center gap-1.5">' +
+              '<span class="text-[11px] font-mono font-black text-slate-700">No.' + (idx + 1) + '</span>' +
+              '<span class="px-1.5 py-0.2 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">' + b.category + '</span>' +
+            '</div>' +
+            '<span class="px-2 py-0.5 rounded text-[11px] font-black ' + (b.status === '확정' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-amber-100 text-amber-900 border border-amber-300') + '">' + b.status + '</span>' +
+          '</div>' +
+          '<div class="font-bold text-slate-900 text-xs sm:text-sm mb-1">' + b.name + '</div>' +
+          '<div class="text-xs text-slate-600 bg-slate-50 p-2 rounded border border-slate-200 mb-1.5 font-medium">' + b.program + '</div>' +
+          '<div class="text-[11px] font-bold text-slate-500">부스규모: <span class="text-slate-900">' + b.scale + '</span></div>' +
+        '</div>'
+      ).join('');
+    }
+
+    window.toggleTask = function(id) {
+      if (expandedTasks.has(id)) expandedTasks.delete(id);
+      else expandedTasks.add(id);
+      renderMilestones();
+    };
+
+    window.selectCategory = function(cat) {
+      activeCategory = cat;
+      renderBooths();
+    };
+
+    document.getElementById('tab-milestones').onclick = function() {
+      activeTab = 'milestones';
+      this.className = 'py-2.5 text-xs font-extrabold rounded-lg transition-all cursor-pointer text-center bg-slate-900 text-white shadow-xs';
+      document.getElementById('tab-booths').className = 'py-2.5 text-xs font-bold rounded-lg transition-all cursor-pointer text-center text-slate-700 hover:bg-slate-300/70';
+      document.getElementById('content-milestones').classList.remove('hidden');
+      document.getElementById('content-booths').classList.add('hidden');
+      renderMilestones();
+    };
+
+    document.getElementById('tab-booths').onclick = function() {
+      activeTab = 'booths';
+      this.className = 'py-2.5 text-xs font-extrabold rounded-lg transition-all cursor-pointer text-center bg-slate-900 text-white shadow-xs';
+      document.getElementById('tab-milestones').className = 'py-2.5 text-xs font-bold rounded-lg transition-all cursor-pointer text-center text-slate-700 hover:bg-slate-300/70';
+      document.getElementById('content-booths').classList.remove('hidden');
+      document.getElementById('content-milestones').classList.add('hidden');
+      renderBooths();
+    };
+
+    document.getElementById('btn-toggle-all-tasks').onclick = function() {
+      const allIds = (appData.milestones || []).map(m => m.id);
+      if (expandedTasks.size === allIds.length) {
+        expandedTasks.clear();
+      } else {
+        allIds.forEach(id => expandedTasks.add(id));
+      }
+      renderMilestones();
+    };
+
+    document.getElementById('btn-toggle-font').onclick = function() {
+      isLargeFont = !isLargeFont;
+      document.getElementById('app-root').classList.toggle('is-large-font', isLargeFont);
+      this.classList.toggle('bg-amber-400', isLargeFont);
+      this.classList.toggle('text-slate-950', isLargeFont);
+    };
+
+    document.getElementById('btn-share').onclick = function() {
+      const report = (appData.weeklyReport?.items || []).join('\n');
+      const text = '[' + (appData.meta?.title || '2026 양재천 걷자! 건강 페스티벌') + ' | 주간 추진실적 보고]\n(추진기간: ' + (appData.weeklyReport?.period || '8. 31. ~ 9. 4.') + ')\n\n**' + (appData.meta?.staffNote || '') + '**\n\n■ 추진내역\n' + report + '\n\n※ 전체 추진내역 열람:\n' + window.location.href;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text);
+      }
+      const t = document.getElementById('toast');
+      t.classList.remove('hidden');
+      setTimeout(() => t.classList.add('hidden'), 3000);
+    };
+
+    async function pollLatestData() {
+      try {
+        const res = await fetch('/api/festival/yangjae?t=' + Date.now());
+        if (res.ok) {
+          const fresh = await res.json();
+          if (fresh && fresh.booths && fresh.booths.length > 0) {
+            appData = fresh;
+            if (activeTab === 'milestones') renderMilestones();
+            else renderBooths();
+          }
+        }
+      } catch (e) {}
+    }
+    setInterval(pollLatestData, 3000);
+
+    renderMilestones();
+    renderBooths();
+  </script>
+</body>
+</html>
