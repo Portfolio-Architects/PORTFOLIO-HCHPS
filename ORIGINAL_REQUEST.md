@@ -346,3 +346,40 @@ Integrity mode: development
 - [ ] Local dev server (http://localhost:3001) boots and delivers warm page responses without stalling.
 - [ ] Zero blocking long tasks (>50ms) detected during active workspace and mindmap canvas interactions.
 - [ ] Rule synchronization (node scripts/sync-rules.js) executes cleanly and updates milestone logs in AGENTS.md.
+
+## Follow-up — 2026-09-04T05:08:33Z
+
+This is a single self-contained fix; keep it small and focused.
+2026 양재천 페스티벌 모바일 관제판의 실시간 무새로고침 다중 디바이스 동기화(스마트 폴링), 추진과제 섹터 기본 접힘(Default Collapsed) 상태 설정, 그리고 모바일 공유 기능 고도화를 신속하고 정확하게 구현 및 검증한다.
+
+Working directory: d:/Desktop/PORTFOLIO/PORTFOLIO - VITAL
+Integrity mode: development
+
+## Requirements
+
+### R1. 실시간 무새로고침 다중 디바이스 데이터 동기화 (Zero-Refresh Multi-Device Sync)
+- 타 디바이스(스마트폰/태블릿/원격 브라우저)에서 사용자가 F5 새로고침을 누르지 않아도, 관리자의 수정 내역이 2~3초 이내에 자동 반영되도록 `src/hooks/useYangjaeFestival.ts`의 React Query 훅에 스마트 폴링(`refetchInterval: 2500`, `staleTime: 1000`, `refetchOnWindowFocus: true`)을 구축한다.
+- Rule J(Zero-Stall & Visibility Pause) 규격에 따라 탭 비활성(`document.hidden`) 시에는 불필요한 백그라운드 폴링을 차단(`refetchIntervalInBackground: false`)하고, 탭 복귀 시 즉각 최신 데이터를 페칭한다.
+
+### R2. 추진과제 섹터별 기본 접힘(Default Collapsed) 상태 설정
+- `src/components/festival/YangjaeFestivalDashboard.tsx`의 6대 추진과제 아코디언 상태(`expandedTaskIds`) 초기값을 기본 빈 Set(`new Set()`)으로 설정하여, 메인 화면 로드 시 모든 과제 카드가 콤팩트하게 접힌 상태로 렌더링되도록 개선한다.
+- [전체 펼치기 / 전체 접기] 버튼 및 개별 과제 클릭 시의 O(1) 토글 상호작용은 기존과 동일하게 완벽히 보존한다.
+
+### R3. 공유 기능 고도화 및 실시간 동기화 상태 인디케이터
+- 헤더 또는 메인 뷰 상단에 실시간 자동 동기화 상태를 알리는 시각적 배지(예: 🟢 실시간 자동 동기화 중)를 가볍게 배치하여 외부 접속자에게 신뢰감을 제공한다.
+- 단톡방/문자 공유 템플릿의 최신 활성 Cloudflare 터널 URL(`https://tell-blanket-start-deserve.trycloudflare.com/festival/yangjae`) 및 주간(8.31.~9.4.) 추진실적 포맷이 손실 없이 복사/공유되도록 보장한다.
+
+## Acceptance Criteria
+
+### 실시간 데이터 동기화
+- [ ] PC 관리자 화면에서 과제 상태나 부스, 행사 개요를 수정한 후 저장하면, 다른 모바일/원격 브라우저에서 수동 새로고침 없이 3초 이내에 자동으로 변경 사항이 반영된다.
+- [ ] 브라우저 탭 비활성 시 불필요한 폴링이 멈추고, 탭으로 돌아왔을 때 즉시 최신 상태로 재동기화된다.
+
+### 기본 접힘(Default Collapsed) 레이아웃
+- [ ] 페이지 최초 접속 시 6대 핵심 추진과제가 모두 접힌(Collapsed) 상태로 시작하여 한눈에 모든 과제 타이틀을 스캔할 수 있다.
+- [ ] 상단 [전체 펼치기]를 누르면 모든 과제가 즉시 펼쳐지고, 다시 누르면 전체가 접힌다.
+
+### 시스템 무결성 및 빌드
+- [ ] `node scripts/run-harness.js` 검증 통과 (0 Zod errors, 0 ESLint errors, 0 warnings).
+- [ ] `npx tsc --noEmit` TypeScript 컴파일 0 오류 달성.
+- [ ] 패치 완료 후 `PORTFOLIO VITAL - Engineering Report.md`에 마일스톤 기록 및 `node scripts/sync-rules.js` 실행 완료.

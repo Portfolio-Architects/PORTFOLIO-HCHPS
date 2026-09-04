@@ -3,7 +3,7 @@ import '@testing-library/jest-dom';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useYangjaeFestival, useSaveYangjaeFestival, YANGJAE_FALLBACK_DATA, FestivalData, calculateFestivalBudgetSummary } from '@/hooks/useYangjaeFestival';
-import { YangjaeFestivalDashboard } from '@/components/festival/YangjaeFestivalDashboard';
+import { YangjaeFestivalDashboard, STAFF_PHONE_MAP, getStaffInfo } from '@/components/festival/YangjaeFestivalDashboard';
 import { renderHook } from '@testing-library/react';
 
 // Mock fetch globally
@@ -130,12 +130,14 @@ describe('Yangjae Festival Real-time Multi-Device Sync & UX Verification', () =>
   });
 
   describe('R3. Real-time Auto-Sync Badge & Mobile Sharing Pipeline', () => {
-    it('renders real-time auto-sync badge in the top sticky header', async () => {
+    it('renders clean single-line title without unrequested sync badges or department subtitles', async () => {
       renderWithClient(<YangjaeFestivalDashboard />);
 
-      // Check real-time sync badge is present
-      const syncBadge = await screen.findByText('실시간 자동 동기화 중');
-      expect(syncBadge).toBeInTheDocument();
+      // Main title should be cleanly rendered
+      expect(await screen.findByText('2026 양재천 건강 페스티벌')).toBeInTheDocument();
+      // Unrequested badges or subtitles should not be present in the header
+      expect(screen.queryByText('실시간 자동 동기화 중')).not.toBeInTheDocument();
+      expect(screen.queryByText('강남구보건소 보건행정과')).not.toBeInTheDocument();
     });
 
     it('renders share button and copies formatted weekly progress report with Cloudflare URL', async () => {
@@ -165,7 +167,7 @@ describe('Yangjae Festival Real-time Multi-Device Sync & UX Verification', () =>
       expect(copiedText).toContain('2026 양재천 건강 페스티벌');
       expect(copiedText).toContain('주간 추진실적 보고');
       expect(copiedText).toContain('8. 31. ~ 9. 4.');
-      expect(copiedText).toContain('https://tell-blanket-start-deserve.trycloudflare.com/festival/yangjae');
+      expect(copiedText).toContain('https://codes-investing-findings-lucas.trycloudflare.com/festival/yangjae');
       expect(copiedText).toContain('1. [홍보] 행사 포스터 제작 진행중');
     });
 
@@ -196,7 +198,7 @@ describe('Yangjae Festival Real-time Multi-Device Sync & UX Verification', () =>
       });
 
       const copiedText = writeTextMock.mock.calls[0][0];
-      expect(copiedText).toContain('https://tell-blanket-start-deserve.trycloudflare.com/festival/yangjae');
+      expect(copiedText).toContain('https://codes-investing-findings-lucas.trycloudflare.com/festival/yangjae');
       expect(copiedText).toContain('8. 31. ~ 9. 4.');
     });
 
@@ -283,7 +285,7 @@ describe('Yangjae Festival Real-time Multi-Device Sync & UX Verification', () =>
       const sharePayload = shareMock.mock.calls[0][0];
       expect(sharePayload.title).toContain('2026 양재천 건강 페스티벌 주간 실적보고');
       // text already contains the target URL; url field should not be redundantly passed to avoid duplication
-      expect(sharePayload.text).toContain('https://tell-blanket-start-deserve.trycloudflare.com/festival/yangjae');
+      expect(sharePayload.text).toContain('https://codes-investing-findings-lucas.trycloudflare.com/festival/yangjae');
       expect(sharePayload.url).toBeUndefined();
     });
   });
@@ -520,39 +522,56 @@ describe('Yangjae Festival Real-time Multi-Device Sync & UX Verification', () =>
       expect(Number.isNaN(resMalformed.executionRate)).toBe(false);
     });
 
-    it('displays live budget overview in Section 1 and updates with zero refresh', async () => {
+    it('does not display unrequested budget row in Section 1 overview card and displays staff substitute holiday note', async () => {
       renderWithClient(<YangjaeFestivalDashboard />);
 
-      // Section 1 budget row should be displayed
-      expect(await screen.findByText(/4,990만원/)).toBeInTheDocument();
-      expect(screen.getByText(/배정완료 100%/)).toBeInTheDocument();
-      expect(screen.getByText(/대행용역 3,695만/)).toBeInTheDocument();
+      // Section 1 overview should render meta items without unrequested budget row
+      expect(await screen.findByText('2026 양재천 건강 페스티벌')).toBeInTheDocument();
+      expect(screen.getByText(/양재천 수변문화쉼터/)).toBeInTheDocument();
+      // Unrequested budget row must NOT be rendered in Section 1
+      expect(screen.queryByText(/4,990만원/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/배정완료/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/대행용역 3,695만/)).not.toBeInTheDocument();
+
+      // Staff compensatory leave note should be rendered at the bottom of overview
+      expect(screen.getByText('행사 참여 직원 대체휴무 시행 예정')).toBeInTheDocument();
     });
   });
 
   describe('R6. Mobile Ultra-Narrow 320px Responsive Layout & Truncation Guard', () => {
-    it('applies whitespace-nowrap and responsive padding to prevent badge/button wrapping on 320px screens', async () => {
+    it('applies responsive padding and whitespace-nowrap to prevent button wrapping on 320px screens', async () => {
       renderWithClient(<YangjaeFestivalDashboard />);
 
-      const badge = await screen.findByText('실시간 자동 동기화 중');
-      expect(badge).toHaveClass('whitespace-nowrap');
-      const badgeContainer = badge.closest('span.inline-flex');
-      expect(badgeContainer).toHaveClass('whitespace-nowrap');
-      expect(badgeContainer).toHaveClass('shrink-0');
-
-      // Dept header span should also be protected against word-splitting
-      const deptSpan = screen.getByText('강남구보건소 보건행정과');
-      expect(deptSpan).toHaveClass('whitespace-nowrap');
-      expect(deptSpan).toHaveClass('shrink-0');
+      const titleEl = await screen.findByText('2026 양재천 건강 페스티벌');
+      expect(titleEl).toBeInTheDocument();
+      expect(titleEl).toHaveClass('truncate');
 
       // Top sticky header should have responsive padding for 320px
-      const headerContainer = deptSpan.closest('.sticky');
+      const headerContainer = titleEl.closest('.sticky');
       expect(headerContainer).toHaveClass('px-3');
       expect(headerContainer).toHaveClass('sm:px-4');
 
       // Action buttons should have whitespace-nowrap
       const shareBtn = screen.getByRole('button', { name: /공유/i });
       expect(shareBtn).toHaveClass('whitespace-nowrap');
+    });
+  });
+
+  describe('R7. Staff Extension Number Direct Phone Mapping', () => {
+    it('maps Lim Seok-hwon (7012) and Nam Sang-hee (7025) official extensions accurately', () => {
+      expect(STAFF_PHONE_MAP['임석훤']).toEqual({ ext: '7012', full: '02-3423-7012', role: '주무관' });
+      expect(STAFF_PHONE_MAP['남상희']).toEqual({ ext: '7025', full: '02-3423-7025', role: '주무관' });
+      expect(STAFF_PHONE_MAP['서승오']).toEqual({ ext: '7034', full: '02-3423-7034', role: '주무관' });
+
+      const infoLim = getStaffInfo('임석훤 주무관');
+      expect(infoLim).not.toBeNull();
+      expect(infoLim?.ext).toBe('7012');
+      expect(infoLim?.full).toBe('02-3423-7012');
+
+      const infoNam = getStaffInfo('남상희 주무관');
+      expect(infoNam).not.toBeNull();
+      expect(infoNam?.ext).toBe('7025');
+      expect(infoNam?.full).toBe('02-3423-7025');
     });
   });
 });

@@ -1402,5 +1402,41 @@
     "id": "mtjsvd9v9am8cw829",
     "createdAt": "2026-09-02T07:54:07.987Z",
     "updatedAt": "2026-09-02T07:54:07.987Z"
+  },
+  {
+    "name": "강남구의사회",
+    "phone": "02-549-0971",
+    "email": "",
+    "notes": "",
+    "id": "mtml9ygwx7fwahkps",
+    "createdAt": "2026-09-04T06:44:50.240Z",
+    "updatedAt": "2026-09-04T06:44:50.240Z"
+  },
+  {
+    "name": "서승오",
+    "phone": "02-3423-7034",
+    "email": "",
+    "notes": "보건행정과",
+    "id": "mtml-seo-seung-oh-7034",
+    "createdAt": "2026-09-04T07:20:00.000Z",
+    "updatedAt": "2026-09-04T07:20:00.000Z"
+  },
+  {
+    "name": "임석훤",
+    "phone": "02-3423-7012",
+    "email": "",
+    "notes": "보건행정과",
+    "id": "mtml-lim-seok-hwon-7012",
+    "createdAt": "2026-09-04T07:20:00.000Z",
+    "updatedAt": "2026-09-04T07:20:00.000Z"
+  },
+  {
+    "name": "남상희",
+    "phone": "02-3423-7025",
+    "email": "",
+    "notes": "보건행정과",
+    "id": "mtml-nam-sang-hee-7025",
+    "createdAt": "2026-09-04T07:20:00.000Z",
+    "updatedAt": "2026-09-04T07:20:00.000Z"
   }
 ]

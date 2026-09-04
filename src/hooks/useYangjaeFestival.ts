@@ -37,6 +37,7 @@ export interface FestivalData {
     course: string;
     targetAudience: string;
     programStructure?: string[];
+    staffNote?: string;
     organizer: string;
     overallProgress: number;
     lastUpdated: string;
@@ -75,6 +76,7 @@ export const YANGJAE_FALLBACK_DATA: FestivalData = {
       "강남구보건소와 함께하는 건강 걷기 체험 프로그램",
       "의료 및 건강 관련 체험·홍보 부스 운영"
     ],
+    "staffNote": "행사 참여 직원 대체휴무 시행 예정",
     "organizer": "강남구보건소 보건행정과 건강증진팀",
     "overallProgress": 65,
     "lastUpdated": "2026-09-03"

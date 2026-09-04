@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useSyncExternalStore, useCallback } from 'react';
 import { Check, Share2, Edit3, Save, X, Plus, Trash2, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
-import { useYangjaeFestival, useSaveYangjaeFestival, YANGJAE_FALLBACK_DATA, FestivalData, MilestoneItem, BoothItem, calculateFestivalBudgetSummary } from '@/hooks/useYangjaeFestival';
+import { useYangjaeFestival, useSaveYangjaeFestival, YANGJAE_FALLBACK_DATA, FestivalData, MilestoneItem, BoothItem } from '@/hooks/useYangjaeFestival';
 
 export interface DetailDraft {
   uid: string;
@@ -487,9 +487,8 @@ function YangjaeFestivalDashboardComponent() {
     });
   }, [allMilestoneIds]);
 
-  // Derived D-Day calculation & Safe Budget Summary
+  // Derived D-Day calculation
   const daysLeft = useSyncExternalStore(subscribeDays, getClientDaysLeft, getServerDaysLeft);
-  const budgetSummary = useMemo(() => calculateFestivalBudgetSummary(data?.budget), [data?.budget]);
 
   const activeBooths = useMemo(() => {
     return (editingBooths ? editBoothsData : (data?.booths || [])) || [];
@@ -530,7 +529,7 @@ function YangjaeFestivalDashboardComponent() {
     setSelectedCategory(cat);
   }, []);
 
-  const PUBLIC_SHARE_URL = 'https://tell-blanket-start-deserve.trycloudflare.com/festival/yangjae';
+  const PUBLIC_SHARE_URL = 'https://codes-investing-findings-lucas.trycloudflare.com/festival/yangjae';
 
   // 1. 행사 개요 독립 편집 핸들러
   const handleStartEditOverview = () => {
@@ -705,6 +704,7 @@ function YangjaeFestivalDashboardComponent() {
  - 일  시: ${data?.meta?.eventDate || '2026-10-31(토)'} (${data?.meta?.eventTime || '09:00 ~ 14:00'})
  - 장  소: ${data?.meta?.location || '양재천 수변문화쉼터 및 출발마당'}
  - 코  스: ${data?.meta?.course || '수변문화쉼터 ↔ 영동5교 왕복 (약 4km)'}
+ - 비  고: ${data?.meta?.staffNote || '행사 참여 직원 대체휴무 시행 예정'}
 
 ■ 금주(${period}) 핵심 추진내역
 ${weeklyLines}
@@ -827,13 +827,6 @@ ${targetUrl}`;
         {/* Top Sticky Header */}
         <div className="sticky top-0 z-30 bg-slate-900 text-white px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between gap-1.5 sm:gap-2 border-b border-slate-800 shadow-sm">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className={`${isLargeFont ? 'text-sm' : 'text-[11px]'} font-medium text-slate-300 whitespace-nowrap shrink-0`}>강남구보건소 보건행정과</span>
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/50 text-[10px] text-emerald-300 font-semibold shadow-2xs whitespace-nowrap shrink-0">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-                <span className="whitespace-nowrap">실시간 자동 동기화 중</span>
-              </span>
-            </div>
             <div className={`${isLargeFont ? 'text-lg' : 'text-sm'} font-bold tracking-tight truncate`}>2026 양재천 건강 페스티벌</div>
           </div>
 
@@ -1090,21 +1083,26 @@ ${targetUrl}`;
                 </div>
               </div>
 
-              {/* 소요 예산 (실시간 연동 & 안전 계산) */}
+              {/* 비고 (직원 복무) */}
               <div className={`grid ${isLargeFont ? 'grid-cols-[68px_10px_1fr] text-sm' : 'grid-cols-[58px_8px_1fr] text-xs'} items-baseline gap-1 pt-0.5`}>
-                <span className="font-bold text-slate-600 tracking-wider">• 예&nbsp;&nbsp;&nbsp;&nbsp;산</span>
+                <span className="font-bold text-slate-600 tracking-wider">• 비&nbsp;&nbsp;&nbsp;&nbsp;고</span>
                 <span className="font-bold text-slate-400 text-center">:</span>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="font-extrabold text-slate-900">
-                    {budgetSummary.total > 0 ? `${(budgetSummary.total / 10000).toLocaleString('ko-KR')}만원` : '4,990만원'}
+                {editingOverview ? (
+                  <input
+                    type="text"
+                    value={editOverviewData?.staffNote ?? data?.meta?.staffNote ?? '행사 참여 직원 대체휴무 시행 예정'}
+                    onChange={(e) => setEditOverviewData(prev => ({
+                      ...(prev || data?.meta || YANGJAE_FALLBACK_DATA.meta),
+                      staffNote: e.target.value
+                    }))}
+                    className="w-full px-2 py-1 border border-amber-400 rounded bg-amber-50/50 font-semibold text-slate-900"
+                    placeholder="행사 참여 직원 대체휴무 시행 예정"
+                  />
+                ) : (
+                  <span className="font-semibold text-slate-800 leading-snug break-keep">
+                    {data?.meta?.staffNote || '행사 참여 직원 대체휴무 시행 예정'}
                   </span>
-                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-300 whitespace-nowrap">
-                    배정완료 {budgetSummary.executionRate}%
-                  </span>
-                  <span className="text-[10.5px] text-slate-500 font-medium">
-                    (대행용역 {(budgetSummary.allocatedTotal > 0 ? Math.round((Number(data?.budget?.allocated?.agencyService) || 36950000) / 10000) : 3695).toLocaleString('ko-KR')}만, 물품·임차 {(budgetSummary.allocatedTotal > 0 ? Math.round((Number(data?.budget?.allocated?.suppliesAndRental) || 9300000) / 10000) : 930).toLocaleString('ko-KR')}만 등)
-                  </span>
-                </div>
+                )}
               </div>
             </div>
           </div>
@@ -1162,7 +1160,7 @@ ${targetUrl}`;
                 )}
               </div>
 
-              {(data?.milestones || []).map((item, mIdx) => {
+              {(data?.milestones || []).map((item) => {
                 if (!item) return null;
                 const isEditingThis = editingMilestoneId === item.id && editMilestoneData !== null;
                 const targetItem = (isEditingThis ? editMilestoneData : item) || item;
@@ -1171,7 +1169,7 @@ ${targetUrl}`;
 
                 return (
                   <div 
-                    key={item.id || mIdx}
+                    key={`milestone-card-${item.id}`}
                     className={`p-3.5 rounded-xl border-2 transition-all shadow-2xs ${
                       targetItem.status === 'in-progress'
                         ? 'bg-amber-50/70 border-amber-400 ring-1 ring-amber-300'
@@ -1453,7 +1451,7 @@ ${targetUrl}`;
                                             const staff = getStaffInfo(trimmed);
                                             return staff ? (
                                               <a
-                                                key={pIdx}
+                                                key={`attendee-${trimmed}-${pIdx}`}
                                                 href={`tel:${staff.full}`}
                                                 className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300 shadow-3xs transition-colors cursor-pointer"
                                                 title={`전화 연결: ${staff.full}`}
@@ -1465,7 +1463,7 @@ ${targetUrl}`;
                                               </a>
                                             ) : (
                                               <span
-                                                key={pIdx}
+                                                key={`attendee-${trimmed}-${pIdx}`}
                                                 className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200 shadow-3xs"
                                               >
                                                 {trimmed}
@@ -1577,9 +1575,9 @@ ${targetUrl}`;
 
               {/* Booths Cards List */}
               <div className="space-y-2.5">
-                {filteredBooths.map((booth, bIdx) => (
+                {filteredBooths.map((booth) => (
                   <div 
-                    key={booth.id || bIdx}
+                    key={`booth-card-${booth.id}`}
                     className="p-3.5 bg-white border-2 border-slate-300 rounded-xl shadow-2xs"
                   >
                     <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-200">
@@ -1731,9 +1729,8 @@ export function YangjaeFestivalSkeleton() {
       <div className="w-full max-w-md bg-white sm:rounded-2xl sm:border-2 sm:border-slate-300 sm:shadow-lg overflow-hidden flex flex-col min-h-screen animate-pulse">
         {/* Top Header Skeleton */}
         <div className="bg-slate-900 px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between gap-1.5 sm:gap-2 border-b border-slate-800">
-          <div className="space-y-1">
-            <div className="h-3 w-28 bg-slate-700 rounded" />
-            <div className="h-4 w-44 bg-slate-600 rounded" />
+          <div className="min-w-0 flex-1">
+            <div className="h-5 w-44 bg-slate-600 rounded" />
           </div>
           <div className="flex items-center gap-1 sm:gap-1.5">
             <div className="h-7 w-14 sm:w-16 bg-slate-800 rounded-lg" />

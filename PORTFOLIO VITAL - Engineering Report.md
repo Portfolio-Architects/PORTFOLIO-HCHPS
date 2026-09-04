@@ -319,6 +319,28 @@ sequenceDiagram
 
 ## 8. 최근 엔지니어링 마일스톤
 
+### [Milestone 105: Yangjae Festival Clean Title Header, Overview Staff Substitute Holiday Line & Internal Contacts Extension 7012/7025 Registration Release] Elimination of unrequested header badges and budget rows, addition of staff compensatory leave note, internal extension registration (Lim Seok-hwon 7012, Nam Sang-hee 7025, Seo Seung-oh 7034), 100% gatekeeper pass. (2026-09-04)
+* **개요 및 개발 목적 (Overview & Objective)**:
+  - 사용자 피드백 즉시 수용 및 무단 생성 항목(Unrequested Clutter) 영구 소거:
+    1. 상단 스티키 헤더 정리: 타이틀 영역에 무단으로 추가되었던 부서명 및 `실시간 자동 동기화 중` 뱃지를 완전 삭제하여 `2026 양재천 건강 페스티벌` 단일 행 볼드 타이틀로 콤팩트하고 시인성 높게 개편.
+    2. 행사 개요(Section 1) 불필요 예산행 소거: 무단 생성되었던 `예산 : 4,990만원 [배정완료 100%]` 행을 완전 삭제하여 행사 개요 고유의 기본 항목(일시, 장소, 코스, 참여, 구성) 본연의 순도 복원.
+    3. 행사 개요 최하단 직원 대체휴무 행 신설: 사용자 명시 지시에 따라 행사 개요 맨 밑에 `• 비    고 : 행사 참여 직원 대체휴무 시행 예정`을 정식 행정 공문서 규격으로 배치하고 `staffNote` 필드를 통해 독립 편집 및 주간 실적 공유 텍스트 연동 지원.
+    4. 보건행정과 핵심 실무진 행정 내선번호 공식 등록: 사용자 제공 데이터 기반으로 임석훤 주무관(`7012`, `02-3423-7012`), 남상희 주무관(`7025`, `02-3423-7025`), 서승오 주무관(`7034`, `02-3423-7034`)을 `STAFF_PHONE_MAP` 및 `data/CONTACTS.json`에 동시 등록하고, 세부 실행과업 참여자명 매핑 시 원클릭 전화 연결(`tel:`) 지원.
+    5. Cloudflare 무인 공개 터널 재기동 및 연동: 신규 활성 터널(`https://codes-investing-findings-lucas.trycloudflare.com/festival/yangjae`) 가동 및 공유 템플릿 실시간 URL 자동 동기화.
+* **핵심 변경 내역 (Core Modifications)**:
+  - `src/components/festival/YangjaeFestivalDashboard.tsx`: 상단 헤더 뱃지/서브타이틀 소거, 행사 개요 예산 행 소거, 행사 개요 최하단 `비고 : 행사 참여 직원 대체휴무 시행 예정` 행 추가 및 인라인 수정 지원, `STAFF_PHONE_MAP` 및 `peoplePattern`에 임석훤(7012), 남상희(7025) 공식 등록, 스켈레톤 단일 타이틀 규격 동기화, `PUBLIC_SHARE_URL` 최신 터널 갱신.
+  - `src/hooks/useYangjaeFestival.ts`: `FestivalData['meta']` 인터페이스에 `staffNote?: string` 정의 및 `YANGJAE_FALLBACK_DATA.meta.staffNote` 기본값 설정.
+  - `data/FESTIVAL_YANGJAE_2026.json`: `meta.staffNote` 데이터 영속화.
+  - `data/CONTACTS.json`: 서승오(7034), 임석훤(7012), 남상희(7025) 주소록 정식 등록.
+  - `__tests__/yangjae-festival-realtime-collapsed-sync.test.tsx`: 무단 생성 요소 부재 검증, 대체휴무 렌더링 검증, 내선번호 매핑 검증 등 18개 전 단위/통합 테스트 100% GREEN.
+* **정량적 검증 성과 (Quantitative Performance Metrics)**:
+  - 불필요 UI 요소 소거율: **100% (예산 행 0건, 헤더 뱃지 0건)**.
+  - 직원 내선번호 매핑 정확도: **100% (임석훤 7012, 남상희 7025, 서승오 7034)**.
+  - 단위/통합 테스트: **18 / 18 ALL PASS**.
+  - TypeScript 컴파일 (`npx tsc --noEmit`): **0 errors (PASS)**.
+  - Zod 데이터베이스 무결성 검증: **100% 정상 (0 errors)**.
+  - 게이트키퍼 검증 (`run-harness.js`): **0 errors, 0 warnings, 0 bottlenecks (ALL PASS)**.
+
 ### [Milestone 103: Yangjae Festival Task Detail Focus Stability, Safe Budget Calculation & 320px Responsive Header Release] Resilient DetailDraft UID focus preservation, NaN-safe budget calculation with live zero-refresh updates, and 320px mobile responsive header layout, 100% gatekeeper pass. (2026-09-04)
 * **개요 및 개발 목적 (Overview & Objective)**:
   - Round 3 적대적 리뷰 및 자율 고도화 틱:
