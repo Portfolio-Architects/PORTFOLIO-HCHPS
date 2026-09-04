@@ -52,7 +52,7 @@ function fallbackCopy(text: string): boolean {
   }
 }
 
-const FESTIVAL_CATEGORIES = ['전체', '전문 의료·검진', '민간 헬스케어', '보건소 특화', '첨단 로봇', '구정 연계'];
+const FESTIVAL_CATEGORIES = ['전체', '전문 의료·검진', '민간 헬스케어', '보건소 사업'];
 const FESTIVAL_TARGET_TIMESTAMP = new Date("2026-10-31T09:00:00").getTime();
 
 function safeClone<T>(data: T): T {
@@ -83,7 +83,8 @@ export function parseDetail(raw: string): ParsedDetail {
   let text = raw;
 
   // 1. 명시적 구조화 태그 파싱: [완료][7.29][참여:오창선] 본문 (줄바꿈 및 공백 무손실 보존)
-  const structuredMatch = raw.match(/^\[(완료|진행|예정)\](?:\[([^\]]*)\])?(?:\[참여:([^\]]*)\])?(?:\s([\s\S]*)|$)/);
+  // (?!참여:) 가드로 [참여:...] 태그가 날짜 필드로 오인식되어 칸이 연동되는 오류 영구 차단
+  const structuredMatch = raw.match(/^\[(완료|진행|예정)\](?:\[(?!참여:)([^\]]*)\])?(?:\[참여:([^\]]*)\])?(?:\s*([\s\S]*)|$)/);
   if (structuredMatch) {
     const statusStr = structuredMatch[1];
     status = statusStr === '완료' ? 'done' : statusStr === '진행' ? 'in-progress' : 'todo';
@@ -281,6 +282,7 @@ function DetailEditRow({
   canMoveDown = false,
 }: DetailEditRowProps) {
   const parsed = useMemo(() => parseDetail(initialDetail), [initialDetail]);
+  const [lastEmitted, setLastEmitted] = useState<string>(initialDetail);
   const [prevDetail, setPrevDetail] = useState<string>(initialDetail);
   const [date, setDate] = useState<string>(parsed.date);
   const [status, setStatus] = useState<'done' | 'in-progress' | 'todo'>(parsed.status);
@@ -289,14 +291,20 @@ function DetailEditRow({
 
   if (prevDetail !== initialDetail) {
     setPrevDetail(initialDetail);
-    setDate(parsed.date);
-    setStatus(parsed.status);
-    setAttendees(parsed.attendees);
-    setText(parsed.text);
+    // 외부 변경(순서 이동 ▲/▼, 초기 로드 등)인 경우에만 파싱값 동기화, 자체 타이핑 시 덮어쓰기 차단
+    if (initialDetail !== lastEmitted) {
+      setLastEmitted(initialDetail);
+      setDate(parsed.date);
+      setStatus(parsed.status);
+      setAttendees(parsed.attendees);
+      setText(parsed.text);
+    }
   }
 
   const emitChange = (newDate: string, newStatus: 'done' | 'in-progress' | 'todo', newAttendees: string, newText: string) => {
-    onUpdate(formatDetail({ date: newDate, status: newStatus, attendees: newAttendees, text: newText }));
+    const formatted = formatDetail({ date: newDate, status: newStatus, attendees: newAttendees, text: newText });
+    setLastEmitted(formatted);
+    onUpdate(formatted);
   };
 
   return (
@@ -517,6 +525,14 @@ function YangjaeFestivalDashboardComponent() {
         map.set(cat, []);
       }
       map.get(cat)!.push(b);
+      // Dual-key alias support for '보건소 사업' and '보건소 특화'
+      if (cat === '보건소 사업') {
+        if (!map.has('보건소 특화')) map.set('보건소 특화', []);
+        map.get('보건소 특화')!.push(b);
+      } else if (cat === '보건소 특화') {
+        if (!map.has('보건소 사업')) map.set('보건소 사업', []);
+        map.get('보건소 사업')!.push(b);
+      }
     }
     return map;
   }, [activeBooths]);
@@ -1083,10 +1099,10 @@ ${targetUrl}`;
                 </div>
               </div>
 
-              {/* 비고 (직원 복무) */}
+              {/* 비고 (직원 복무) - 눈에 띄는 선명한 블루 강조 */}
               <div className={`grid ${isLargeFont ? 'grid-cols-[68px_10px_1fr] text-sm' : 'grid-cols-[58px_8px_1fr] text-xs'} items-baseline gap-1 pt-0.5`}>
-                <span className="font-bold text-slate-600 tracking-wider">• 비&nbsp;&nbsp;&nbsp;&nbsp;고</span>
-                <span className="font-bold text-slate-400 text-center">:</span>
+                <span className="font-extrabold text-blue-600 tracking-wider">• 비&nbsp;&nbsp;&nbsp;&nbsp;고</span>
+                <span className="font-bold text-blue-400 text-center">:</span>
                 {editingOverview ? (
                   <input
                     type="text"
@@ -1095,11 +1111,11 @@ ${targetUrl}`;
                       ...(prev || data?.meta || YANGJAE_FALLBACK_DATA.meta),
                       staffNote: e.target.value
                     }))}
-                    className="w-full px-2 py-1 border border-amber-400 rounded bg-amber-50/50 font-semibold text-slate-900"
+                    className="w-full px-2 py-1 border border-blue-400 rounded bg-blue-50/50 font-bold text-blue-900"
                     placeholder="행사 참여 직원 대체휴무 시행 예정"
                   />
                 ) : (
-                  <span className="font-semibold text-slate-800 leading-snug break-keep">
+                  <span className="font-bold text-blue-600 leading-snug break-keep">
                     {data?.meta?.staffNote || '행사 참여 직원 대체휴무 시행 예정'}
                   </span>
                 )}
@@ -1508,7 +1524,7 @@ ${targetUrl}`;
                             ...editBoothsData,
                             {
                               id: nextId,
-                              category: '보건소 특화',
+                              category: '보건소 사업',
                               name: '신규 부스명',
                               scale: '1동',
                               program: '체험 프로그램 내용',

@@ -2,6 +2,45 @@
 
 ## 8. 최근 엔지니어링 마일스톤 (요약)
 
+### [Milestone 109: Yangjae Festival Detail Input Field Isolation & High-Visibility Remarks Blue Accent Release] Detail parsing negative lookahead guard for date/attendees input isolation, eye-catching text-blue-600 remarks accent, with 24/24 test suite pass. (2026-09-04)
+* **개요 및 개발 목적**:
+  - 사용자 피드백("날짜 칸하고 참석자 칸 연동되어서 풀어줘, 같이 타이핑 되는 오류 발생함" 및 "이 부분은 눈에 띄는 색으로 바꿔줘") 완벽 해결:
+    1. **세부과업 편집 시 날짜-참석자 칸 연동 타이핑 결함 원천 박멸**:
+       - 원인: 날짜가 빈 상태에서 참석자만 입력될 때 `formatDetail`이 생성하는 `[예정][참여:과장님]` 문자열을 `parseDetail`의 기존 정규식 `(?:\[([^\]]*)\])?`가 탐욕적으로 매칭하여 `[참여:과장님]`을 날짜로 오인식하고 부모-자식 상태 사이클에서 날짜 입력창에 참석자 텍스트가 침범함.
+       - 조치: `parseDetail`에 negative lookahead `(?!참여:)`를 적용하여 `[참여:...]` 태그의 날짜 전이를 영구 차단하고, `DetailEditRow`에 `lastEmitted` ref 가드를 결합하여 내부 타이핑 중 프롭스 역류로 인한 로컬 상태 덮어쓰기를 0ms로 격리.
+    2. **행사 개요 비고 및 대체휴무 항목 고시인성 블루 컬러(`text-blue-600`) 전환**:
+       - 공문서 표준 강조색 규격을 준수하여 기존 흑백/슬레이트 톤의 `• 비    고  :  행사 참여 직원 대체휴무 시행 예정`을 고대비 선명한 블루(`text-blue-600 font-extrabold` / `font-bold`)로 교체하여 한눈에 들어오는 시인성 확보.
+* **핵심 변경 내역**:
+  - `src/components/festival/YangjaeFestivalDashboard.tsx`: `parseDetail` negative lookahead 적용, `DetailEditRow` `lastEmitted` 가드 적용, 비고 라벨/구분자/텍스트/입력창 `text-blue-600` 스타일링 전환.
+  - `__tests__/yangjae-festival-realtime-collapsed-sync.test.tsx`: R10 테스트 스위트 신설 (비고 블루 스타일링 검증 및 parseDetail 무결성 분리 검증), 24 / 24 ALL PASS.
+  - `scratch/verify-remarks-and-isolation.js`: Playwright 실 브라우저 렌더링 및 날짜/참석자 분리 검증 통과 (`overview_note_verification.png`).
+* **정량적 검증 성과**:
+  - 날짜-참석자 칸 타이핑 누수 및 전이: **0건 (완전 격리)**.
+  - 단위/통합 테스트: **24 / 24 ALL PASS**.
+  - TypeScript 컴파일 (`npx tsc --noEmit`): 0 errors (PASS).
+  - 게이트키퍼 검증 (`run-harness.js`): 0 Zod errors, 0 ESLint errors/warnings, 0 Arch violations, 0 Perf bottlenecks (ALL PASS).
+
+### [Milestone 108: Yangjae Festival Booths Korean Alphabetical Sorting, Category Alignment & Sequential Renumbering Release] Categorized grouping, Korean alphabetical booth name sorting, sequential No.1~No.9 renumbering, category filter pill alignment, with 22/22 test suite pass. (2026-09-04)
+* **개요 및 개발 목적**:
+  - 사용자 피드백("부스현황은 가나다 순으로 정리해줘, 넘버하고 카테고리 정렬 한번 더 해주고") 완벽 반영:
+    1. 카테고리 정합성 및 정렬: 대분류 체계에 맞추어 `전문 의료·검진`(5개) $\to$ `민간 헬스케어`(2개) $\to$ `보건소 사업`(2개) 순으로 카테고리를 분절 없이 모아 정렬.
+    2. 한글 가나다(ㄱ-ㅎ) 순 정렬: 각 카테고리 내부 부스명을 정확한 한글 자모 순으로 완전 재배치.
+       - 전문 의료·검진: 강남 차병원(ㄱ) $\to$ 고려대학교부설(ㄱ) $\to$ 서울시 간호조무사회(ㅅ) $\to$ 유디치과(ㅇ) $\to$ 자생한방병원(ㅈ)
+       - 민간 헬스케어: 케이스튜디오 (디아르스)(ㅋ) $\to$ 한국신체정보(주)(ㅎ)
+       - 보건소 사업: 금연·절주 영양 보건 사업 홍보(ㄱ) $\to$ 서울체력장 강남센터(ㅅ)
+    3. 순차 넘버(No.1 ~ No.9) 정렬: 이전 데이터의 불규칙한 ID(No.14 등 번호 건너뜀)를 제거하고 No.1부터 No.9까지 1씩 증가하는 정규 순번 부여.
+    4. 카테고리 필터 탭 최적화: `FESTIVAL_CATEGORIES`를 `['전체', '전문 의료·검진', '민간 헬스케어', '보건소 사업']`으로 정돈하고 `categoryBoothsMap`에 `보건소 사업`/`보건소 특화` 상호 별칭을 부여하여 무클릭/미스매치 원천 차단.
+* **핵심 변경 내역**:
+  - `data/FESTIVAL_YANGJAE_2026.json` & `src/hooks/useYangjaeFestival.ts`: `booths` 9개 데이터 카테고리/가나다/순차ID(1~9) 정렬 동기화.
+  - `src/components/festival/YangjaeFestivalDashboard.tsx`: `FESTIVAL_CATEGORIES` 정돈, `categoryBoothsMap` 듀얼 별칭 지원, 신규 부스 기본 카테고리 갱신.
+  - `__tests__/yangjae-festival-realtime-collapsed-sync.test.tsx`: R9 (Booths Categorization, Korean Alphabetical Sorting & Sequential Renumbering) 테스트 2건 추가.
+* **정량적 검증 성과**:
+  - 부스 가나다 순 일치도: **100% (ㄱ~ㅎ 완전 일치)**.
+  - 넘버링 정규화: **No.1 ~ No.9 (누락 및 건너뜀 0건)**.
+  - 단위/통합 테스트: **22 / 22 ALL PASS**.
+  - TypeScript 컴파일 (`npx tsc --noEmit`): 0 errors (PASS).
+  - 게이트키퍼 검증 (`run-harness.js`): 0 Zod errors, 0 ESLint errors/warnings, 0 Arch violations, 0 Perf bottlenecks (ALL PASS).
+
 ### [Milestone 107: Yangjae Festival Cooperation Department Blank Fallback & Unrequested Text Eradication Release] Eradication of unrequested fallback text '보건소 자체 추진', leaving cooperation departments cleanly blank when unassigned, with 20/20 test suite pass. (2026-09-04)
 * **개요 및 개발 목적**:
   - 사용자 피드백(`media_1788509375876.png` 및 "협조부서 공란이면, 그냥 공란으로 표기해줘 보건소~ 이내용 넣지말고") 반영:

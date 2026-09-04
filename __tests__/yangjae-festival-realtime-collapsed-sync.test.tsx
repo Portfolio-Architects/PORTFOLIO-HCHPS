@@ -3,7 +3,7 @@ import '@testing-library/jest-dom';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useYangjaeFestival, useSaveYangjaeFestival, YANGJAE_FALLBACK_DATA, FestivalData, calculateFestivalBudgetSummary } from '@/hooks/useYangjaeFestival';
-import { YangjaeFestivalDashboard, STAFF_PHONE_MAP, getStaffInfo } from '@/components/festival/YangjaeFestivalDashboard';
+import { YangjaeFestivalDashboard, STAFF_PHONE_MAP, getStaffInfo, parseDetail } from '@/components/festival/YangjaeFestivalDashboard';
 import { renderHook } from '@testing-library/react';
 
 // Mock fetch globally
@@ -605,6 +605,106 @@ describe('Yangjae Festival Real-time Multi-Device Sync & UX Verification', () =>
       expect(screen.queryByText('보건소 자체 추진')).toBeNull();
     });
   });
+
+  describe('R9. Booths Categorization, Korean Alphabetical Sorting & Sequential Renumbering', () => {
+    it('switches to Booths tab and displays booths sorted by category and Korean alphabetical order with sequential No.1~No.9', async () => {
+      renderWithClient(<YangjaeFestivalDashboard />);
+
+      // Switch to '2. 부스현황' tab
+      const boothsTabBtn = await screen.findByRole('button', { name: /2\. 부스현황/i });
+      expect(boothsTabBtn).toBeInTheDocument();
+      fireEvent.click(boothsTabBtn);
+
+      // Verify all 9 booths are present
+      expect(await screen.findByText('강남 차병원')).toBeInTheDocument();
+      expect(screen.getByText('고려대학교부설 척추측만증연구소')).toBeInTheDocument();
+      expect(screen.getByText('서울시 간호조무사회')).toBeInTheDocument();
+      expect(screen.getByText('유디치과')).toBeInTheDocument();
+      expect(screen.getByText('자생한방병원')).toBeInTheDocument();
+      expect(screen.getByText('케이스튜디오 (디아르스)')).toBeInTheDocument();
+      expect(screen.getByText('한국신체정보(주)')).toBeInTheDocument();
+      expect(screen.getByText('금연·절주 영양 보건 사업 홍보')).toBeInTheDocument();
+      expect(screen.getByText('서울체력장 강남센터')).toBeInTheDocument();
+
+      // Verify sequential numbering No.1 through No.9 exists
+      for (let i = 1; i <= 9; i++) {
+        expect(screen.getByText(`No.${i}`)).toBeInTheDocument();
+      }
+
+      // Verify No.14 no longer exists
+      expect(screen.queryByText('No.14')).toBeNull();
+    });
+
+    it('filters booths accurately by category without losing any booth items', async () => {
+      renderWithClient(<YangjaeFestivalDashboard />);
+
+      // Switch to '2. 부스현황' tab
+      const boothsTabBtn = await screen.findByRole('button', { name: /2\. 부스현황/i });
+      fireEvent.click(boothsTabBtn);
+
+      // Click '전문 의료·검진' filter
+      const medicalFilter = await screen.findByRole('button', { name: '전문 의료·검진' });
+      fireEvent.click(medicalFilter);
+      expect(screen.getByText('강남 차병원')).toBeInTheDocument();
+      expect(screen.getByText('자생한방병원')).toBeInTheDocument();
+      expect(screen.queryByText('한국신체정보(주)')).toBeNull();
+      expect(screen.queryByText('서울체력장 강남센터')).toBeNull();
+
+      // Click '민간 헬스케어' filter
+      const privateFilter = screen.getByRole('button', { name: '민간 헬스케어' });
+      fireEvent.click(privateFilter);
+      expect(screen.getByText('케이스튜디오 (디아르스)')).toBeInTheDocument();
+      expect(screen.getByText('한국신체정보(주)')).toBeInTheDocument();
+      expect(screen.queryByText('강남 차병원')).toBeNull();
+
+      // Click '보건소 사업' filter
+      const publicFilter = screen.getByRole('button', { name: '보건소 사업' });
+      fireEvent.click(publicFilter);
+      expect(screen.getByText('금연·절주 영양 보건 사업 홍보')).toBeInTheDocument();
+      expect(screen.getByText('서울체력장 강남센터')).toBeInTheDocument();
+      expect(screen.queryByText('강남 차병원')).toBeNull();
+    });
+  });
+
+  describe('R10. Eye-catching Remarks Color & Detail Parsing Lookahead Guard', () => {
+    it('applies eye-catching blue font color to the staff substitute holiday row in Section 1 overview', async () => {
+      renderWithClient(<YangjaeFestivalDashboard />);
+
+      const noteText = await screen.findByText('행사 참여 직원 대체휴무 시행 예정');
+      expect(noteText).toBeInTheDocument();
+      expect(noteText).toHaveClass('text-blue-600');
+      expect(noteText).toHaveClass('font-bold');
+
+      const remarksLabel = screen.getByText(/비\s*고/);
+      expect(remarksLabel).toBeInTheDocument();
+      expect(remarksLabel).toHaveClass('text-blue-600');
+      expect(remarksLabel).toHaveClass('font-extrabold');
+    });
+
+    it('accurately isolates date and attendees in parseDetail without accidental linkage', () => {
+      // Case 1: Empty date, with attendees tag
+      const res1 = parseDetail('[예정][참여:과장님] 실무 협의');
+      expect(res1.status).toBe('todo');
+      expect(res1.date).toBe('');
+      expect(res1.attendees).toBe('과장님');
+      expect(res1.text).toBe('실무 협의');
+
+      // Case 2: Both date and attendees present
+      const res2 = parseDetail('[완료][7.29][참여:오창선] 기안 상신');
+      expect(res2.status).toBe('done');
+      expect(res2.date).toBe('7.29');
+      expect(res2.attendees).toBe('오창선');
+      expect(res2.text).toBe('기안 상신');
+
+      // Case 3: Date present, no attendees
+      const res3 = parseDetail('[진행][8.15] 현장 답사');
+      expect(res3.status).toBe('in-progress');
+      expect(res3.date).toBe('8.15');
+      expect(res3.attendees).toBe('');
+      expect(res3.text).toBe('현장 답사');
+    });
+  });
 });
+
 
 
