@@ -5,6 +5,45 @@ import path from 'path';
 export const dynamic = 'force-dynamic';
 
 const DATA_FILE = path.join(process.cwd(), 'data', 'FESTIVAL_YANGJAE_2026.json');
+const CLOUDFLARE_URL = process.env.CLOUDFLARE_PAGES_URL || process.env.NEXT_PUBLIC_CLOUDFLARE_PAGES_URL || 'https://portfolio-hchps.pages.dev';
+
+async function syncToCloudflareReplica(payload: unknown): Promise<boolean> {
+  try {
+    const target = `${CLOUDFLARE_URL.replace(/\/+$/, '')}/api/festival/yangjae`;
+    const token = process.env.HCHPS_AUTH_TOKEN || '';
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-Sync-Source': 'local-ssot-dual-sync',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 4000);
+
+    const res = await fetch(target, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    if (res.ok) {
+      console.info(`[Dual-Sync] Successfully published festival snapshot to Cloudflare (${target})`);
+      return true;
+    } else {
+      console.warn(`[Dual-Sync] Cloudflare replica returned HTTP ${res.status}`);
+      return false;
+    }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(`[Dual-Sync] Cloudflare replica offline or skipped: ${msg}`);
+    return false;
+  }
+}
 
 export async function GET() {
   try {
@@ -58,10 +97,18 @@ export async function POST(req: Request) {
     // Update lastUpdated timestamp
     payload.meta.lastUpdated = new Date().toISOString().split('T')[0];
 
-    // Write to disk
+    // Write to disk (Local SSOT)
     fs.writeFileSync(DATA_FILE, JSON.stringify(payload, null, 2), 'utf-8');
 
-    return NextResponse.json({ success: true, message: 'Saved successfully', data: payload }, {
+    // Dual-Sync to Cloudflare Pages 24/7 Read-Only Replica
+    const cloudSyncSuccess = await syncToCloudflareReplica(payload);
+
+    return NextResponse.json({
+      success: true,
+      message: 'Saved successfully',
+      data: payload,
+      cloudSync: cloudSyncSuccess,
+    }, {
       status: 200,
       headers: {
         'Access-Control-Allow-Origin': '*',

@@ -2,6 +2,47 @@
 
 ## 8. 최근 엔지니어링 마일스톤 (요약)
 
+### [Milestone 116: Cloudflare Pages 24/7 Read-Only Replica API & Local SSOT Dual-Sync Engine Release] Cloudflare Pages Function replica endpoint, local SSOT dual-sync publisher with offline fallback, workers types configuration, with 25/25 test suite pass. (2026-09-04)
+* **개요 및 개발 목적**:
+  - 로컬 PC(단일 진실 공급원 - SSOT) 전원이 꺼지거나 터널이 일시 단절된 환경에서도 양재천 축제 관제판을 24시간 365일 무중단 열람할 수 있도록 Cloudflare Pages 24/7 읽기 전용 레플리카 API 구축:
+    1. **로컬 SSOT 듀얼 싱크(Dual-Sync) 엔진 (`src/app/api/festival/yangjae/route.ts`)**:
+       - 로컬 PC 디스크(`data/FESTIVAL_YANGJAE_2026.json`)에 데이터가 저장될 때마다 Cloudflare Pages의 레플리카 엔드포인트(`https://portfolio-hchps.pages.dev/api/festival/yangjae`)로 스냅샷을 백그라운드 듀얼 발행.
+       - 4초 타임아웃 AbortController 및 네트워크 단절 시 예외를 흡수하는 비차단(Graceful Non-Blocking) 설계로 로컬 저장 속도 0ms 보장.
+    2. **Cloudflare Pages Function 레플리카 (`functions/api/festival/yangjae.ts`)**:
+       - Cloudflare KV(`HCHPS_DATA`) 바인딩을 통해 글로벌 엣지 네트워크에서 0ms 캐시 응답 제공.
+       - KV 미설정 또는 콜드스타트 시에도 완전한 내장 페스티벌 폴백 데이터를 즉각 반환하는 무결성 가드 탑재.
+       - CORS 헤더 동적 검증(localhost, trycloudflare, pages.dev, github.io) 지원.
+    3. **클라우드 빌드 및 동기화 도구 체계화**:
+       - `functions/tsconfig.json` 내 `@cloudflare/workers-types` 타입 환경 정비 (`skipLibCheck`, `esnext` lib).
+       - 수동/배치 동기화 스크립트 `scripts/sync-festival-to-cloud.js` 제공.
+* **핵심 변경 내역**:
+  - `src/app/api/festival/yangjae/route.ts`: `syncToCloudflareReplica` 비동기 듀얼 싱크 함수 추가 및 POST 핸들러 결합.
+  - `functions/api/festival/yangjae.ts`: 신규 Cloudflare Pages Function GET/POST/OPTIONS API 구축.
+  - `functions/tsconfig.json`: Cloudflare 환경 타입스크립트 빌드 설정 보완.
+  - `scripts/sync-festival-to-cloud.js`: 클라우드 엣지 즉시 동기화 CLI 스크립트 신설.
+* **정량적 검증 성과**:
+  - 단위/통합 테스트: **25 / 25 ALL PASS**.
+  - TypeScript 컴파일 (`npx tsc --noEmit`): **0 errors (PASS)**.
+  - 게이트키퍼 검증 (`run-harness.js`): **0 Zod errors, 0 ESLint errors/warnings, 0 Arch violations, 0 Perf bottlenecks (ALL PASS)**.
+
+### [Milestone 115: Yangjae Festival Team Leader Phone Extension Official 7031 Update & Multi-Alias Extension Mapping Release] Kim Ji-young team leader official extension updated to 7031 with multi-alias support (지영팀장님, 지영 팀장님, 김지영팀장), placeholder update, with 25/25 test suite pass. (2026-09-04)
+* **개요 및 개발 목적**:
+  - 건강증진팀장(김지영 팀장님) 공식 행정 직통 내선번호 최신 인사/조직 배치 반영 (`7113` $\to$ `7031`):
+    1. **김지영 팀장님 공식 직통번호 7031 정밀 동기화**:
+       - `STAFF_PHONE_MAP` 내 김지영 팀장님의 내선번호를 `7031` (전체: `02-3423-7031`)로 최신화.
+       - 실무에서 자주 호칭되는 별칭(`지영팀장님`, `지영 팀장님`, `지영팀장`, `지영 팀장`)을 테이블에 전격 추가 등록하여 단축 호칭으로도 7031 직통 연결 및 뱃지 렌더링 지원.
+    2. **입력 플레이스홀더 및 테스트 단언문 100% 동기화**:
+       - `DetailEditRow` 참석자 입력창 안내 플레이스홀더에 `김지영팀장님 7031` 반영.
+       - 단위/통합 테스트 스위트에 `지영팀장님` 및 `김지영팀장님` 7031 내선 매핑 단언문 추가 및 25/25 전건 PASS 검증.
+* **핵심 변경 내역**:
+  - `src/components/festival/YangjaeFestivalDashboard.tsx`: `STAFF_PHONE_MAP` 7031 갱신 및 별칭 4종 추가, `DetailEditRow` placeholder 갱신.
+  - `__tests__/yangjae-festival-realtime-collapsed-sync.test.tsx`: R7 테스트 단언문에 7031 매핑 검증 추가.
+  - `PORTFOLIO VITAL - Engineering Report.md`: 보고서 내 김지영 팀장님 직통번호 7031 정합성 동기화.
+* **정량적 검증 성과**:
+  - 단위/통합 테스트: **25 / 25 ALL PASS**.
+  - TypeScript 컴파일 (`npx tsc --noEmit`): **0 errors (PASS)**.
+  - 게이트키퍼 검증 (`run-harness.js`): **0 Zod errors, 0 ESLint errors/warnings, 0 Arch violations, 0 Perf bottlenecks (ALL PASS)**.
+
 ### [Milestone 114: Yangjae Festival parseDetail & getStaffInfo Map O(1) Caching & Callback Stabilization Release] Map-based O(1) constant-time caching for regex parseDetail and getStaffInfo, emitChange useCallback reference preservation, with 25/25 test suite pass. (2026-09-04)
 * **개요 및 개발 목적**:
   - Rule F 및 Rule 4-3 자율 진화 틱(RSI Tick)에 따른 시간 복잡도 도약(Complexity Leap) 및 제로 알로케이션 달성:

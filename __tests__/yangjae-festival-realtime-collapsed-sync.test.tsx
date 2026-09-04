@@ -566,6 +566,10 @@ describe('Yangjae Festival Real-time Multi-Device Sync & UX Verification', () =>
       expect(STAFF_PHONE_MAP['임석훤']).toEqual({ ext: '7012', full: '02-3423-7012', role: '주무관' });
       expect(STAFF_PHONE_MAP['남상희']).toEqual({ ext: '7025', full: '02-3423-7025', role: '주무관' });
       expect(STAFF_PHONE_MAP['서승오']).toEqual({ ext: '7034', full: '02-3423-7034', role: '주무관' });
+      expect(STAFF_PHONE_MAP['지영팀장님']).toEqual({ ext: '7031', full: '02-3423-7031', role: '팀장' });
+      expect(STAFF_PHONE_MAP['김지영팀장님']).toEqual({ ext: '7031', full: '02-3423-7031', role: '팀장' });
+      expect(STAFF_PHONE_MAP['희선팀장님']).toEqual({ ext: '7011', full: '02-3423-7011', role: '팀장' });
+      expect(STAFF_PHONE_MAP['김희선팀장님']).toEqual({ ext: '7011', full: '02-3423-7011', role: '팀장' });
 
       const infoLim = getStaffInfo('임석훤 주무관');
       expect(infoLim).not.toBeNull();
@@ -576,6 +580,16 @@ describe('Yangjae Festival Real-time Multi-Device Sync & UX Verification', () =>
       expect(infoNam).not.toBeNull();
       expect(infoNam?.ext).toBe('7025');
       expect(infoNam?.full).toBe('02-3423-7025');
+
+      const infoJiyoung = getStaffInfo('지영팀장님');
+      expect(infoJiyoung).not.toBeNull();
+      expect(infoJiyoung?.ext).toBe('7031');
+      expect(infoJiyoung?.full).toBe('02-3423-7031');
+
+      const infoHeesun = getStaffInfo('희선팀장님');
+      expect(infoHeesun).not.toBeNull();
+      expect(infoHeesun?.ext).toBe('7011');
+      expect(infoHeesun?.full).toBe('02-3423-7011');
     });
   });
 

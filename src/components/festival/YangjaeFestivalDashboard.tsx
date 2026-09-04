@@ -220,15 +220,30 @@ export const STAFF_PHONE_MAP: Record<string, { ext: string; full: string; role: 
   '남상희': { ext: '7025', full: '02-3423-7025', role: '주무관' },
   '남상희주무관': { ext: '7025', full: '02-3423-7025', role: '주무관' },
   '남상희 주무관': { ext: '7025', full: '02-3423-7025', role: '주무관' },
-  '김지영팀장님': { ext: '7113', full: '02-3423-7113', role: '팀장' },
-  '김지영 팀장님': { ext: '7113', full: '02-3423-7113', role: '팀장' },
-  '김지영팀장': { ext: '7113', full: '02-3423-7113', role: '팀장' },
-  '김지영 팀장': { ext: '7113', full: '02-3423-7113', role: '팀장' },
-  '김지영': { ext: '7113', full: '02-3423-7113', role: '팀장' },
-  '건강증진팀장(김지영)': { ext: '7113', full: '02-3423-7113', role: '팀장' },
-  '팀장(김지영)': { ext: '7113', full: '02-3423-7113', role: '팀장' },
-  '팀장님': { ext: '7113', full: '02-3423-7113', role: '팀장' },
-  '팀장': { ext: '7113', full: '02-3423-7113', role: '팀장' },
+  // 김희선 팀장님 (내선 7011)
+  '김희선팀장님': { ext: '7011', full: '02-3423-7011', role: '팀장' },
+  '김희선 팀장님': { ext: '7011', full: '02-3423-7011', role: '팀장' },
+  '희선팀장님': { ext: '7011', full: '02-3423-7011', role: '팀장' },
+  '희선 팀장님': { ext: '7011', full: '02-3423-7011', role: '팀장' },
+  '김희선팀장': { ext: '7011', full: '02-3423-7011', role: '팀장' },
+  '김희선 팀장': { ext: '7011', full: '02-3423-7011', role: '팀장' },
+  '희선팀장': { ext: '7011', full: '02-3423-7011', role: '팀장' },
+  '희선 팀장': { ext: '7011', full: '02-3423-7011', role: '팀장' },
+  '김희선': { ext: '7011', full: '02-3423-7011', role: '팀장' },
+  '희선': { ext: '7011', full: '02-3423-7011', role: '팀장' },
+  // 김지영 팀장님 (내선 7031)
+  '김지영팀장님': { ext: '7031', full: '02-3423-7031', role: '팀장' },
+  '김지영 팀장님': { ext: '7031', full: '02-3423-7031', role: '팀장' },
+  '지영팀장님': { ext: '7031', full: '02-3423-7031', role: '팀장' },
+  '지영 팀장님': { ext: '7031', full: '02-3423-7031', role: '팀장' },
+  '김지영팀장': { ext: '7031', full: '02-3423-7031', role: '팀장' },
+  '김지영 팀장': { ext: '7031', full: '02-3423-7031', role: '팀장' },
+  '지영팀장': { ext: '7031', full: '02-3423-7031', role: '팀장' },
+  '지영 팀장': { ext: '7031', full: '02-3423-7031', role: '팀장' },
+  '김지영': { ext: '7031', full: '02-3423-7031', role: '팀장' },
+  '지영': { ext: '7031', full: '02-3423-7031', role: '팀장' },
+  '건강증진팀장(김지영)': { ext: '7031', full: '02-3423-7031', role: '팀장' },
+  '팀장(김지영)': { ext: '7031', full: '02-3423-7031', role: '팀장' },
   '과장님': { ext: '7010', full: '02-3423-7010', role: '과장' },
   '과장': { ext: '7010', full: '02-3423-7010', role: '과장' },
   '보건행정과장': { ext: '7010', full: '02-3423-7010', role: '과장' },
@@ -245,6 +260,10 @@ export function getStaffInfo(name: string): { ext: string; full: string; role: s
   let result: { ext: string; full: string; role: string } | null = null;
   if (STAFF_PHONE_MAP[clean]) {
     result = STAFF_PHONE_MAP[clean];
+  } else if (clean.includes('희선')) {
+    result = STAFF_PHONE_MAP['희선팀장님'];
+  } else if (clean.includes('지영')) {
+    result = STAFF_PHONE_MAP['지영팀장님'];
   } else {
     for (let i = 0; i < STAFF_PHONE_ENTRIES.length; i++) {
       const [key, val] = STAFF_PHONE_ENTRIES[i];
@@ -415,7 +434,7 @@ const DetailEditRow = React.memo(function DetailEditRow({
             setAttendees(e.target.value);
             emitChange(date, status, e.target.value, text);
           }}
-          placeholder="참석자 (예: 오창선 7116, 김지영팀장님 7113, 임석훤 7012, 남상희 7025, 서승오 7034)"
+          placeholder="참석자 (예: 오창선 7116, 지영팀장님 7031, 희선팀장님 7011, 서승오 7034, 임석훤 7012, 남상희 7025)"
           className="flex-1 min-w-0 px-2 py-0.5 border border-slate-300 rounded text-xs font-medium text-slate-800 bg-white"
         />
         {/* 위치(순서) 이동 및 삭제 버튼 그룹 */}

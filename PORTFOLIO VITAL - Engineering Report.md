@@ -711,14 +711,14 @@ sequenceDiagram
   - 카카오톡 인앱 브라우저에서 만료된 Cloudflare 터널 링크로 인해 404가 발생하던 결함을 현재 정상 가동 중인 최신 터널 URL로 즉시 동기화함.
   - 추진과제 헤더의 분리된 번호 캡슐과 정사각형 기호, 제목을 단일 일체형 다크 캡슐(`[추진과제 1 | 장소 및 일시 확정]`)로 통합하여 시각적 노이즈를 완전 제거함.
   - 세부 실행 과업 리스트에서 날짜와 완료/예정 상태를 **세로 한 열(위: 날짜 / 아래: 상태) 캘린더 타일**로 콤팩트하게 통합 배치하여 하단 빈 여백을 100% 최적화하고 본문 가독 폭을 대폭 확장함.
-  - 텍스트 속에 묻혀 있던 인물을 '참석자' 태그로 분리하고, 강남구보건소 핵심 실무진(오창선 7116, 김지영 팀장님 7113, 과장님 7010)의 사내 행정 직통번호를 아이콘 없이 숫자 뱃지로 깔끔하게 연동(원클릭 `tel:` 연결)함.
+  - 텍스트 속에 묻혀 있던 인물을 '참석자' 태그로 분리하고, 강남구보건소 핵심 실무진(오창선 7116, 김지영 팀장님 7031, 과장님 7010)의 사내 행정 직통번호를 아이콘 없이 숫자 뱃지로 깔끔하게 연동(원클릭 `tel:` 연결)함.
   - 추진과제 2의 명칭을 사용자 지시에 따라 "행사 식순"에서 "행사 식순 기획"으로 최신화 반영함.
 * **핵심 변경 내역 (Core Modifications)**:
   - **세로 한 열 캘린더 타일 및 구분선 리스트 개편 (`src/components/festival/YangjaeFestivalDashboard.tsx`)**:
     - 날짜와 상태(완료/예정/진행)를 위아래 2단 세로 타일(`min-w-[56px]`)로 결합하여 하단 유휴 여백을 제거하고 가로 공간을 극대화.
     - 리스트 아이템 간 `divide-y divide-slate-200` 구분선 적용.
   - **참석자 행정 직통번호 연동 및 전화기 아이콘 제거**:
-    - `STAFF_PHONE_MAP` 및 `getStaffInfo`를 구축하여 참석자명 매핑 시 전화기 아이콘을 배제한 깔끔한 숫자 뱃지(`7116`, `7113`, `7010`) 및 모바일 `tel:` 링크 제공.
+    - `STAFF_PHONE_MAP` 및 `getStaffInfo`를 구축하여 참석자명 매핑 시 전화기 아이콘을 배제한 깔끔한 숫자 뱃지(`7116`, `7031`, `7010`) 및 모바일 `tel:` 링크 제공.
   - **추진과제 2 명칭 최신화 (`data/FESTIVAL_YANGJAE_2026.json` & `useYangjaeFestival.ts`)**:
     - 과제 2 제목을 `"행사 식순 기획"`으로 갱신.
 * **정량적 검증 성과 (Quantitative Performance Metrics)**:
@@ -3909,6 +3909,14 @@ sequenceDiagram
   - 브라우저 RAM 점유율 60% 이상 대폭 절감 및 유휴 CPU 사용률 0% 달성, 탭 전환 0ms 즉시 응답성 확보.
 
 ### 8. 양재천 건강 페스티벌 모바일 관제판 최적화 및 안정화 (Phase 13 - 완료)
+- [x] **Cloudflare Pages 24/7 읽기 전용 레플리카 API 및 로컬 SSOT 듀얼 싱크 릴리즈 (Milestone 116 - 2026-09-04)**
+  - 로컬 PC 전원 꺼짐 또는 터널 단절 시에도 24시간 365일 관제판 열람이 가능하도록 Cloudflare Pages Function(`functions/api/festival/yangjae.ts`) 레플리카 API 구축.
+  - 로컬 Next.js API(`src/app/api/festival/yangjae/route.ts`) 디스크 SSOT 저장 시 Cloudflare Pages로 스냅샷을 비동기 듀얼 발행(`syncToCloudflareReplica`, 4초 타임아웃 및 Graceful Offline 폴백).
+  - Cloudflare Workers 타입스크립트 빌드 환경(`functions/tsconfig.json`) 정비 및 `scripts/sync-festival-to-cloud.js` 수동/배치 CLI 유틸리티 신설.
+- [x] **건강증진팀장(김지영) 공식 행정 내선번호 7031 최신화 및 다중 별칭 지원 릴리즈 (Milestone 115 - 2026-09-04)**
+  - 김지영 팀장님 공식 직통 내선번호 최신 조직 배치(`7113` $\to$ `7031`, 전체: `02-3423-7031`) 일원화.
+  - 실무 다빈도 호칭(`지영팀장님`, `지영 팀장님`, `지영팀장`, `지영 팀장`)을 `STAFF_PHONE_MAP`에 전격 탑재하여 단축 호칭 렌더링 및 `tel:` 원클릭 연결 보장.
+  - `DetailEditRow` 입력 플레이스홀더 안내문 갱신 및 Jest 테스트 스위트 R7에 7031 매핑 단언문 신설 (25/25 ALL PASS).
 - [x] **과업 세부내역 및 직원 연락처 Map O(1) 캐싱 엔진 및 emitChange 메모이제이션 릴리즈 (Milestone 114 - 2026-09-04)**
   - Rule 4-3 시간 복잡도 도약: `parseDetail`의 다중 정규식 평가를 $O(1)$ 상수 시간으로 전환하기 위해 상한 500건 `PARSED_DETAIL_CACHE` Map을 도입하여 중복 파싱 0ms 반환.
   - `getStaffInfo`에 상한 200건 `STAFF_INFO_CACHE` Map을 장착하여 문자열 정규화 후 순차 배열 탐색 루프를 원천 차단하고 $O(1)$ 즉시 반환.

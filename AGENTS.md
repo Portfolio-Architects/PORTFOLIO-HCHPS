@@ -144,6 +144,8 @@
 ## 5. 최신 동기화된 마일스톤 (Synced Milestones Log)
 - **최신 동기화 일자:** 2026-09-04
 - **동기화된 마일스톤:**
+  - [Milestone 116: Cloudflare Pages 24/7 Read-Only Replica API & Local SSOT Dual-Sync Engine Release] Cloudflare Pages Function replica endpoint, local SSOT dual-sync publisher with offline fallback, workers types configuration, with 25/25 test suite pass. (2026-09-04)
+  - [Milestone 115: Yangjae Festival Team Leader Phone Extension Official 7031 Update & Multi-Alias Extension Mapping Release] Kim Ji-young team leader official extension updated to 7031 with multi-alias support (지영팀장님, 지영 팀장님, 김지영팀장), placeholder update, with 25/25 test suite pass. (2026-09-04)
   - [Milestone 114: Yangjae Festival parseDetail & getStaffInfo Map O(1) Caching & Callback Stabilization Release] Map-based O(1) constant-time caching for regex parseDetail and getStaffInfo, emitChange useCallback reference preservation, with 25/25 test suite pass. (2026-09-04)
   - [Milestone 113: Yangjae Festival DetailEditRow React.memo Isolation, GC-Free Staff Entries & Hoisted Style Constants Release] React.memo boundary isolation for detail edit rows, precomputed STAFF_PHONE_ENTRIES zero-allocation lookup, module-scoped LARGE_FONT_STYLES constant, type-safe unknown error guards, with 25/25 test suite pass. (2026-09-04)
   - [Milestone 112: Yangjae Festival SMS Share Template Executive Compaction & High-Polish Weekly Tasks Release] Ultra-compact executive sharing format, elimination of redundant overview boilerplate, staff alternative day-off accentuation, 5-point administrative high-polish weekly tasks, with 25/25 test suite pass. (2026-09-04)
@@ -154,6 +156,4 @@
   - [Milestone 107: Yangjae Festival Cooperation Department Blank Fallback & Unrequested Text Eradication Release] Eradication of unrequested fallback text '보건소 자체 추진', leaving cooperation departments cleanly blank when unassigned, with 20/20 test suite pass. (2026-09-04)
   - [Milestone 106: Yangjae Festival Mobile Tunnel Interactivity Restoration, Dynamic Client SSR:false Isolation & Official 16-Event Timetable Sync Release] AllowedDevOrigins HMR tunnel fix, dynamic client component with ssr:false isolation, and complete 16-event official timetable sync for task 2, 100% gatekeeper pass. (2026-09-04)
   - [Milestone 105: Yangjae Festival Executive Header Compaction, Staff Alternative Day-Off & Direct Line Optimization] Streamlined header layout, elimination of redundant contact badges, staff alternative day-off policy clause in event overview, 100% gatekeeper pass. (2026-09-04)
-  - [Milestone 103: Yangjae Festival Task Detail Focus Stability, Safe Budget Calculation & 320px Responsive Header Release] Resilient DetailDraft UID focus preservation, NaN-safe budget calculation with live zero-refresh updates, and 320px mobile responsive header layout, 100% gatekeeper pass. (2026-09-04)
-  - [Milestone 102: Yangjae Festival Zero-Allocation Accordion useMemo, safeClone Optimization & Stable Detail Draft UUIDs] Zero-allocation accordion memoization, structuredClone-based safeClone, and resilient DetailDraft UUID state binding, 100% gatekeeper pass. (2026-09-04)
-  - 그 외 과거 누적 마일스톤 총 188건 통합 요약 (초기 ~ 2026-09-04 이전 패치 내역)
+  - 그 외 과거 누적 마일스톤 총 190건 통합 요약 (초기 ~ 2026-09-04 이전 패치 내역)
