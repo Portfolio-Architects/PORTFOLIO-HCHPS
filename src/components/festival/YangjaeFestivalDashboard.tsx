@@ -141,6 +141,9 @@ export function formatDetail(item: ParsedDetail): string {
 // 보건소 핵심 담당자 행정 직통번호(내선) 매핑 테이블
 export const STAFF_PHONE_MAP: Record<string, { ext: string; full: string; role: string }> = {
   '오창선': { ext: '7116', full: '02-3423-7116', role: '주무관' },
+  '서승오': { ext: '7034', full: '02-3423-7034', role: '주무관' },
+  '서승오주무관': { ext: '7034', full: '02-3423-7034', role: '주무관' },
+  '서승오 주무관': { ext: '7034', full: '02-3423-7034', role: '주무관' },
   '김지영팀장님': { ext: '7113', full: '02-3423-7113', role: '팀장' },
   '김지영 팀장님': { ext: '7113', full: '02-3423-7113', role: '팀장' },
   '김지영팀장': { ext: '7113', full: '02-3423-7113', role: '팀장' },
@@ -1118,7 +1121,7 @@ ${targetUrl}`;
                                           nextDetails[dIdx] = formatDetail({ ...parsed, attendees: e.target.value });
                                           setEditMilestoneData({ ...targetItem, details: nextDetails });
                                         }}
-                                        placeholder="참석자 (예: 오창선 7116, 김지영팀장님 7113, 과장님 7010)"
+                                        placeholder="참석자 (예: 오창선 7116, 김지영팀장님 7113, 서승오 7034, 과장님 7010)"
                                         className="flex-1 min-w-0 px-2 py-0.5 border border-slate-300 rounded text-xs font-medium text-slate-800 bg-white"
                                       />
                                       <button

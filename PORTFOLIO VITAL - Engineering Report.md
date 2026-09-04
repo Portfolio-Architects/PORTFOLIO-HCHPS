@@ -319,6 +319,25 @@ sequenceDiagram
 
 ## 8. 최근 엔지니어링 마일스톤
 
+### [Milestone 96: Server Route Cache Re-initialization & Seo Seung-oh Extension 7034 Registration Reform] Clean dev server re-boot eradicating 404 route staleness, plus registration of official internal extension 7034 (`02-3423-7034`) for Seo Seung-oh in STAFF_PHONE_MAP, 100% gatekeeper pass. (2026-09-04)
+* **개요 및 개발 목적 (Overview & Objective)**:
+  - 사용자가 보고한 "해당페이지를 찾을수 없다고 나오는데 이유가 뭘까? 백엔드 연결 해야할까?" 현상을 즉시 정밀 진단함.
+  - **원인 분석**: 백엔드 API(`/api/festival/yangjae`)는 정상 가동 중이었으나, 오래된 Next.js 프로세스가 신규 프론트 라우트(`src/app/festival/yangjae/page.tsx`)를 메모리 캐시에서 누락하여 404를 유발했음. 또한 Cloudflare 임시 URL 세션 만료가 동반되었음.
+  - 오래된 프로세스를 완전 정리하고 개발 서버를 재기동하여 `HTTP 200 OK` 정상 라우팅을 영구 복구함.
+  - 동시에 신규 요청된 **서승오 주무관님의 행정 내선번호 `7034` (`02-3423-7034`)** 를 `STAFF_PHONE_MAP` 및 참여자 입력 placeholder에 즉각 반영함.
+* **핵심 변경 내역 (Core Modifications)**:
+  - **서버 클린 재기동 및 라우트 캐시 플러시**:
+    - 포트 3001의 오래된 프로세스를 완전히 해제하고 신규 dev 서버를 깨끗이 기동 (`Ready in 4.7s`).
+    - `/festival/yangjae` 로컬 및 Cloudflare 외부 터널 동시 `HTTP 200 OK` 복구 확인.
+  - **서승오 주무관 내선 번호 7034 공식 등록 (`src/components/festival/YangjaeFestivalDashboard.tsx`)**:
+    - `STAFF_PHONE_MAP`에 `서승오`, `서승오주무관`, `서승오 주무관`: `{ ext: '7034', full: '02-3423-7034', role: '주무관' }` 추가.
+    - 과제 참여자 입력 placeholder에 `서승오 7034` 안내 추가.
+* **정량적 검증 성과 (Quantitative Performance Metrics)**:
+  - 프론트엔드 라우트 응답: **HTTP 200 OK** (404 완전 해결).
+  - 백엔드 API 응답: **HTTP 200 OK**.
+  - Cloudflare 터널 응답: **HTTP 200 OK** (`tell-blanket-start-deserve.trycloudflare.com`).
+  - 게이트키퍼 검증: **0 / 0 / 0 ALL PASS**.
+
 ### [Milestone 95: Codebase Diagnostics Windows File Lock Contention Immunity & Retry Guard Reform] Resilient `writeWithRetry` loop in `diagnose-targets.js` to eradicate Windows EBUSY/UNKNOWN file lock contention, 100% diagnostic pass & Cloudflare tunnel auto-recovery. (2026-09-04)
 * **개요 및 개발 목적 (Overview & Objective)**:
   - 윈도우 OS 환경에서 파일 와처 및 백그라운드 프로세스의 일시적 I/O 점유로 인해 발생하던 `Failed to write diagnostic report: UNKNOWN: unknown error, open 'data\diagnose_report.json'` 충돌을 자가 진단 및 진화 루프(RSI)를 통해 감지하고 완전 해결함.
