@@ -2,6 +2,22 @@
 
 ## 8. 최근 엔지니어링 마일스톤 (요약)
 
+### [Milestone 114: Yangjae Festival parseDetail & getStaffInfo Map O(1) Caching & Callback Stabilization Release] Map-based O(1) constant-time caching for regex parseDetail and getStaffInfo, emitChange useCallback reference preservation, with 25/25 test suite pass. (2026-09-04)
+* **개요 및 개발 목적**:
+  - Rule F 및 Rule 4-3 자율 진화 틱(RSI Tick)에 따른 시간 복잡도 도약(Complexity Leap) 및 제로 알로케이션 달성:
+    1. **parseDetail Map 기반 O(1) 정규식 캐싱 엔진 탑재**:
+       - 행사 과업 세부내역 파싱 시 다수의 정규식(구조화 태그, 시간, 괄호 날짜, 참여자 패턴)이 반복 평가되던 CPU 병목을 해소하기 위해 `PARSED_DETAIL_CACHE` Map(상한 500건)을 장착하여 동일 문자열 재진입 시 0ms 즉각 반환.
+    2. **getStaffInfo O(1) 2차 메모이제이션 캐시 장착**:
+       - 직원 연락처 매핑 탐색 시 문자열 정규화 후 `STAFF_INFO_CACHE` Map(상한 200건)을 통해 반복적인 배열 루프 탐색을 원천 차단하고 $O(1)$ 상수 시간 룩업 완성.
+    3. **DetailEditRow emitChange 콜백 참조 안정성(useCallback) 확보**:
+       - 세부 행 편집기 컴포넌트 내 변경 이벤트 전파 함수 `emitChange`를 `useCallback`으로 감싸 불필요한 하위 이벤트 핸들러 재생성을 방어.
+* **핵심 변경 내역**:
+  - `src/components/festival/YangjaeFestivalDashboard.tsx`: `PARSED_DETAIL_CACHE`, `STAFF_INFO_CACHE`, `cacheAndReturnDetail` 유틸리티 추가, `parseDetail` 및 `getStaffInfo` 캐시 우선 반환, `emitChange` `useCallback` 메모이제이션.
+* **정량적 검증 성과**:
+  - 단위/통합 테스트: **25 / 25 ALL PASS**.
+  - TypeScript 컴파일 (`npx tsc --noEmit`): **0 errors (PASS)**.
+  - 게이트키퍼 검증 (`run-harness.js`): **0 Zod errors, 0 ESLint errors/warnings, 0 Arch violations, 0 Perf bottlenecks (ALL PASS)**.
+
 ### [Milestone 113: Yangjae Festival DetailEditRow React.memo Isolation, GC-Free Staff Entries & Hoisted Style Constants Release] React.memo boundary isolation for detail edit rows, precomputed STAFF_PHONE_ENTRIES zero-allocation lookup, module-scoped LARGE_FONT_STYLES constant, type-safe unknown error guards, with 25/25 test suite pass. (2026-09-04)
 * **개요 및 개발 목적**:
   - Rule F 및 Rule 4-3 자율 진화 틱(RSI Tick)에 따른 구조적 성능 개선 및 제로 알로케이션(Zero-Allocation) 달성:

@@ -144,6 +144,7 @@
 ## 5. 최신 동기화된 마일스톤 (Synced Milestones Log)
 - **최신 동기화 일자:** 2026-09-04
 - **동기화된 마일스톤:**
+  - [Milestone 114: Yangjae Festival parseDetail & getStaffInfo Map O(1) Caching & Callback Stabilization Release] Map-based O(1) constant-time caching for regex parseDetail and getStaffInfo, emitChange useCallback reference preservation, with 25/25 test suite pass. (2026-09-04)
   - [Milestone 113: Yangjae Festival DetailEditRow React.memo Isolation, GC-Free Staff Entries & Hoisted Style Constants Release] React.memo boundary isolation for detail edit rows, precomputed STAFF_PHONE_ENTRIES zero-allocation lookup, module-scoped LARGE_FONT_STYLES constant, type-safe unknown error guards, with 25/25 test suite pass. (2026-09-04)
   - [Milestone 112: Yangjae Festival SMS Share Template Executive Compaction & High-Polish Weekly Tasks Release] Ultra-compact executive sharing format, elimination of redundant overview boilerplate, staff alternative day-off accentuation, 5-point administrative high-polish weekly tasks, with 25/25 test suite pass. (2026-09-04)
   - [Milestone 111: Yangjae Festival Booth Order Dynamic Repositioning & Seamless Sequential Normalization Release] Interactive booth reorder controls (▲/▼), category-aware swapping, live No.1~No.N position tracking, remote tunnel admin authorization, with 25/25 test suite pass. (2026-09-04)
@@ -155,5 +156,4 @@
   - [Milestone 105: Yangjae Festival Executive Header Compaction, Staff Alternative Day-Off & Direct Line Optimization] Streamlined header layout, elimination of redundant contact badges, staff alternative day-off policy clause in event overview, 100% gatekeeper pass. (2026-09-04)
   - [Milestone 103: Yangjae Festival Task Detail Focus Stability, Safe Budget Calculation & 320px Responsive Header Release] Resilient DetailDraft UID focus preservation, NaN-safe budget calculation with live zero-refresh updates, and 320px mobile responsive header layout, 100% gatekeeper pass. (2026-09-04)
   - [Milestone 102: Yangjae Festival Zero-Allocation Accordion useMemo, safeClone Optimization & Stable Detail Draft UUIDs] Zero-allocation accordion memoization, structuredClone-based safeClone, and resilient DetailDraft UUID state binding, 100% gatekeeper pass. (2026-09-04)
-  - [Milestone 101: Yangjae Festival Task Detail Reordering Controls & Zero-Refresh Realtime Sync Release] Reorderable task detail rows with ChevronUp/ChevronDown controls, collision-free composite keys, and zero-refresh multi-device synchronization, 100% gatekeeper pass. (2026-09-04)
-  - 그 외 과거 누적 마일스톤 총 187건 통합 요약 (초기 ~ 2026-09-04 이전 패치 내역)
+  - 그 외 과거 누적 마일스톤 총 188건 통합 요약 (초기 ~ 2026-09-04 이전 패치 내역)

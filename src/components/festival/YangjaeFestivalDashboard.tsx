@@ -109,8 +109,20 @@ export interface ParsedDetail {
   text: string;
 }
 
+const PARSED_DETAIL_CACHE = new Map<string, ParsedDetail>();
+
+function cacheAndReturnDetail(raw: string, result: ParsedDetail): ParsedDetail {
+  if (PARSED_DETAIL_CACHE.size >= 500) {
+    PARSED_DETAIL_CACHE.clear();
+  }
+  PARSED_DETAIL_CACHE.set(raw, result);
+  return result;
+}
+
 export function parseDetail(raw: string): ParsedDetail {
   if (!raw) return { date: '', status: 'todo', attendees: '', text: '' };
+  const cached = PARSED_DETAIL_CACHE.get(raw);
+  if (cached) return cached;
 
   let status: 'done' | 'in-progress' | 'todo' = 'todo';
   let date = '';
@@ -126,7 +138,7 @@ export function parseDetail(raw: string): ParsedDetail {
     date = structuredMatch[2] || '';
     attendees = structuredMatch[3] || '';
     text = structuredMatch[4] !== undefined ? structuredMatch[4] : '';
-    return { date, status, attendees, text };
+    return cacheAndReturnDetail(raw, { date, status, attendees, text });
   }
 
   // 2. 협조 뱃지 파싱
@@ -149,7 +161,7 @@ export function parseDetail(raw: string): ParsedDetail {
   if (timeMatch) {
     date = timeMatch[1].replace(/\s/g, '');
     text = timeMatch[2];
-    return { date, status, attendees, text };
+    return cacheAndReturnDetail(raw, { date, status, attendees, text });
   }
 
   // 4. 괄호 속 날짜 및 참여자 추출 (예: "1차 사전답사(7.29.(수), 오창선): 현장 실사...")
@@ -185,7 +197,7 @@ export function parseDetail(raw: string): ParsedDetail {
     }
   }
 
-  return { date, status, attendees, text };
+  return cacheAndReturnDetail(raw, { date, status, attendees, text });
 }
 
 export function formatDetail(item: ParsedDetail): string {
@@ -223,17 +235,30 @@ export const STAFF_PHONE_MAP: Record<string, { ext: string; full: string; role: 
 };
 
 const STAFF_PHONE_ENTRIES = Object.entries(STAFF_PHONE_MAP);
+const STAFF_INFO_CACHE = new Map<string, { ext: string; full: string; role: string } | null>();
 
 export function getStaffInfo(name: string): { ext: string; full: string; role: string } | null {
   const clean = name.replace(/\s+/g, '');
-  if (STAFF_PHONE_MAP[clean]) return STAFF_PHONE_MAP[clean];
-  for (let i = 0; i < STAFF_PHONE_ENTRIES.length; i++) {
-    const [key, val] = STAFF_PHONE_ENTRIES[i];
-    if (clean.includes(key) || key.includes(clean)) {
-      return val;
+  if (STAFF_INFO_CACHE.has(clean)) {
+    return STAFF_INFO_CACHE.get(clean)!;
+  }
+  let result: { ext: string; full: string; role: string } | null = null;
+  if (STAFF_PHONE_MAP[clean]) {
+    result = STAFF_PHONE_MAP[clean];
+  } else {
+    for (let i = 0; i < STAFF_PHONE_ENTRIES.length; i++) {
+      const [key, val] = STAFF_PHONE_ENTRIES[i];
+      if (clean.includes(key) || key.includes(clean)) {
+        result = val;
+        break;
+      }
     }
   }
-  return null;
+  if (STAFF_INFO_CACHE.size >= 200) {
+    STAFF_INFO_CACHE.clear();
+  }
+  STAFF_INFO_CACHE.set(clean, result);
+  return result;
 }
 
 // 본문 내용을 개조식(-)으로 깔끔하게 렌더링하는 함수
@@ -339,11 +364,14 @@ const DetailEditRow = React.memo(function DetailEditRow({
     }
   }
 
-  const emitChange = (newDate: string, newStatus: 'done' | 'in-progress' | 'todo', newAttendees: string, newText: string) => {
-    const formatted = formatDetail({ date: newDate, status: newStatus, attendees: newAttendees, text: newText });
-    setLastEmitted(formatted);
-    onUpdate(formatted);
-  };
+  const emitChange = useCallback(
+    (newDate: string, newStatus: 'done' | 'in-progress' | 'todo', newAttendees: string, newText: string) => {
+      const formatted = formatDetail({ date: newDate, status: newStatus, attendees: newAttendees, text: newText });
+      setLastEmitted(formatted);
+      onUpdate(formatted);
+    },
+    [onUpdate]
+  );
 
   return (
     <div className="p-2 bg-white rounded-lg border border-slate-200 space-y-1.5 shadow-2xs">
