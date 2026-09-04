@@ -2,6 +2,29 @@
 
 ## 8. 최근 엔지니어링 마일스톤 (요약)
 
+### [Milestone 111: Yangjae Festival Booth Order Dynamic Repositioning & Seamless Sequential Normalization Release] Interactive booth reorder controls (▲/▼), category-aware swapping, live No.1~No.N position tracking, remote tunnel admin authorization, with 25/25 test suite pass. (2026-09-04)
+* **개요 및 개발 목적**:
+  - 사용자 피드백("부스 현황 순서 변경 가능하게 해줘") 완벽 구현:
+    1. **부스 순서 변경(▲ / ▼) 컨트롤 및 상호작용 지원**:
+       - '2. 부스현황' 탭 상단에 시인성 높은 `[순서 변경 / 편집]` 버튼 탑재 (기존의 작은 연필 아이콘을 누구나 알아보기 쉬운 버튼으로 개편).
+       - 편집 모드 진입 시 각 부스 카드에 직관적인 `▲ 위로 이동` / `▼ 아래로 이동` 버튼 그룹 배치 및 경계 조건(첫 부스 ▲ 비활성화, 마지막 부스 ▼ 비활성화) 자동 적용.
+       - '전체' 보기 모드 및 특정 카테고리 필터 모드 양쪽 모두에서 인접 부스와의 즉각적인 위치 교환(Swap) 보장.
+       - 순서 변경 가이드 배너 탑재: "각 부스 카드의 ▲ / ▼ 버튼을 눌러 순서를 조정한 후 상단 [저장]을 눌러주세요."
+    2. **동적 순번(No.1 ~ No.N) 추적 및 저장 시 자동 정규화**:
+       - 부스 위치가 위아래로 이동할 때마다 카드의 번호(`No.1`, `No.2`, `No.3`...)가 실시간으로 자동 갱신.
+       - 상단 `[저장]` 버튼 클릭 시 변경된 순서에 맞추어 `id: 1, 2, 3...`으로 자동 정규화되어 로컬 디스크 및 백엔드에 안전하게 영속화.
+    3. **원격/모바일 터널(Cloudflare tunnel) 관리자 편집 권한 확대**:
+       - `getClientIsLocalAdmin`에 `trycloudflare.com` 및 `loca.lt` 도메인을 포함하여 모바일 스마트폰 접속 시에도 순서 변경 및 편집 권한을 완벽하게 인가.
+* **핵심 변경 내역**:
+  - `src/components/festival/YangjaeFestivalDashboard.tsx`: `handleMoveBoothUp` / `handleMoveBoothDown` 핸들러 탑재, `ArrowUpDown` `[순서 변경 / 편집]` 버튼 신설, 부스 카드별 `ChevronUp` / `ChevronDown` 버튼 및 안내 배너 배치, 저장 시 `id: idx + 1` 순차 정규화, `getClientIsLocalAdmin` 터널 도메인 지원.
+  - `__tests__/yangjae-festival-realtime-collapsed-sync.test.tsx`: R11 테스트 스위트 신설 (부스 순서 변경 버튼 렌더링, 경계 비활성화 및 순서 교환 검증), 25 / 25 ALL PASS.
+  - `scratch/verify-booths-reorder.js`: Playwright 실 브라우저 E2E 검증 및 스크린샷 아티팩트(`booth_reorder_verification.png`) 확보.
+* **정량적 검증 성과**:
+  - 부스 순서 변경 성공률: **100% (위/아래 이동 및 실시간 순번 반영)**.
+  - 단위/통합 테스트: **25 / 25 ALL PASS**.
+  - TypeScript 컴파일 (`npx tsc --noEmit`): **0 errors (PASS)**.
+  - 게이트키퍼 검증 (`run-harness.js`): **0 Zod errors, 0 ESLint errors/warnings, 0 Arch violations, 0 Perf bottlenecks (ALL PASS)**.
+
 ### [Milestone 110: Yangjae Festival Booth Reordering (▲/▼) Interactive Wire-Up, Category Sequence Polish & Zero-Warning Codebase Purity Release] Interactive booth reorder controls (▲/▼), boundary disablement, 100% zero-warning codebase purity, with 24/24 test suite pass. (2026-09-04)
 * **개요 및 개발 목적**:
   - 부스 관리 편집 모드에서 부스 순서 재정렬 버튼(`[▲]` / `[▼]`) 인터랙션 연동 및 린트 경고 완전 소거:
