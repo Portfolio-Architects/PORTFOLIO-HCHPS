@@ -375,30 +375,49 @@ function YangjaeFestivalDashboardComponent() {
     });
   }, []);
 
-  const toggleAllExpand = useCallback(() => {
-    setExpandedTaskIds((prev) => {
-      const allIds = (data.milestones || []).map((m) => m.id);
-      if (prev.size === allIds.length) {
-        return new Set();
-      } else {
-        return new Set(allIds);
-      }
-    });
+  const allMilestoneIds = useMemo(() => {
+    const list = data.milestones || [];
+    const ids = new Set<number>();
+    for (let i = 0; i < list.length; i++) {
+      ids.add(list[i].id);
+    }
+    return ids;
   }, [data.milestones]);
+
+  const toggleAllExpand = useCallback(() => {
+    setExpandedTaskIds((prev) => (prev.size === allMilestoneIds.size ? new Set() : new Set(allMilestoneIds)));
+  }, [allMilestoneIds]);
 
   // Derived D-Day calculation
   const daysLeft = useSyncExternalStore(subscribeDays, getClientDaysLeft, getServerDaysLeft);
 
+  const activeBooths = useMemo(() => {
+    return editingBooths ? editBoothsData : (data.booths || []);
+  }, [editingBooths, editBoothsData, data.booths]);
+
   const confirmedBoothCount = useMemo(() => {
     let count = 0;
-    const booths = editingBooths ? editBoothsData : (data.booths || []);
-    for (let i = 0; i < booths.length; i++) {
-      if (booths[i].status === '확정') {
+    for (let i = 0; i < activeBooths.length; i++) {
+      if (activeBooths[i].status === '확정') {
         count++;
       }
     }
     return count;
-  }, [data.booths, editingBooths, editBoothsData]);
+  }, [activeBooths]);
+
+  const categoryBoothsMap = useMemo(() => {
+    const map = new Map<string, BoothItem[]>();
+    map.set('전체', activeBooths);
+    for (let i = 0; i < activeBooths.length; i++) {
+      const b = activeBooths[i];
+      const cat = b.category;
+      if (!map.has(cat)) {
+        map.set(cat, []);
+      }
+      map.get(cat)!.push(b);
+    }
+    return map;
+  }, [activeBooths]);
 
   const handleSelectTab = useCallback((tabId: 'milestones' | 'booths') => {
     setSelectedTab(tabId);
@@ -579,20 +598,19 @@ ${targetUrl}`;
     }
   }, [data, daysLeft, PUBLIC_SHARE_URL]);
 
-  const activeBooths = useMemo(() => {
-    return editingBooths ? editBoothsData : (data.booths || []);
-  }, [editingBooths, editBoothsData, data.booths]);
-
   const filteredBooths = useMemo(() => {
     if (selectedCategory === '전체') return activeBooths;
-    const list = [];
+    if (categoryBoothsMap.has(selectedCategory)) {
+      return categoryBoothsMap.get(selectedCategory)!;
+    }
+    const list: BoothItem[] = [];
     for (let i = 0; i < activeBooths.length; i++) {
       if (activeBooths[i].category.includes(selectedCategory)) {
         list.push(activeBooths[i]);
       }
     }
     return list;
-  }, [activeBooths, selectedCategory]);
+  }, [activeBooths, selectedCategory, categoryBoothsMap]);
 
   return (
     <div className="w-full flex justify-center selection:bg-slate-800 selection:text-white pb-16 relative">
@@ -950,7 +968,7 @@ ${targetUrl}`;
                   onClick={toggleAllExpand}
                   className="text-xs font-bold text-slate-600 hover:text-slate-900 flex items-center gap-1 cursor-pointer py-1"
                 >
-                  {expandedTaskIds.size === (data.milestones || []).length ? (
+                  {expandedTaskIds.size === allMilestoneIds.size ? (
                     <>
                       <ChevronUp className="w-3.5 h-3.5" />
                       <span>전체 접기</span>

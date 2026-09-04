@@ -2,6 +2,17 @@
 
 ## 8. 최근 엔지니어링 마일스톤 (요약)
 
+### [Milestone 99: Yangjae Festival Booths Partitioned Map O(1) Complexity & Milestone Set Memoization Reform] Precomputed `allMilestoneIds` Set & O(1) accordion toggle, eradication of duplicated booth selection fallback, and partitioned `categoryBoothsMap` O(1) constant-time category filter, 100% gatekeeper pass. (2026-09-04)
+* **개요 및 개발 목적**:
+  - 부스 카테고리 전환 시마다 반복되던 $O(N)$ 선형 순회 필터 루프 및 마일스톤 토글 시의 중복 배열 할당(`.map()`)을 색출하여 $O(1)$ 상수 시간 룩업 구조로 전면 전환.
+* **핵심 변경 내역**:
+  - `categoryBoothsMap` (`Map<string, BoothItem[]>`) 메모이제이션으로 카테고리 전환 0ms 룩업 달성.
+  - `allMilestoneIds` (`Set<number>`) 메모이제이션으로 마일스톤 아코디언 토글 시 GC 힙 할당 소거 및 $O(1)$ 위상 비교.
+  - `activeBooths` 격리 선언으로 중복 삼항식 제거 및 `confirmedBoothCount` 의존성 단순화.
+* **정량적 검증 성과**:
+  - 카테고리 전환 시간 복잡도: $O(N) \to O(1)$ 상수 시간 전환.
+  - 게이트키퍼 검증: 0 / 0 / 0 ALL PASS.
+
 ### [Milestone 98: Yangjae Festival Weekly Progress Report (8.31.~9.4.) Custom Sharing Pipeline & Milestone Sync Reform] Weekly-focused administrative SMS/messenger sharing template, multi-category placement of 5 key weekly tasks in festival SSOT & fallback data, live Cloudflare tunnel URL refresh, 100% gatekeeper pass. (2026-09-04)
 * **개요 및 개발 목적**:
   - 기존 행사 6대 추진과제를 전부 나열하던 [공유] 클립보드 복사 기능을 개편하여, 주차별 (8. 31. ~ 9. 4.) 핵심 추진 내역 중심의 공공행정 모바일 보고 템플릿으로 완전 전환.

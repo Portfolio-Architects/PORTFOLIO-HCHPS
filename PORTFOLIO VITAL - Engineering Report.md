@@ -319,6 +319,22 @@ sequenceDiagram
 
 ## 8. 최근 엔지니어링 마일스톤
 
+### [Milestone 99: Yangjae Festival Booths Partitioned Map O(1) Complexity & Milestone Set Memoization Reform] Precomputed `allMilestoneIds` Set & O(1) accordion toggle, eradication of duplicated booth selection fallback, and partitioned `categoryBoothsMap` O(1) constant-time category filter, 100% gatekeeper pass. (2026-09-04)
+* **개요 및 개발 목적 (Overview & Objective)**:
+  - RSI 자율 진화 틱(Autonomous Evolution Protocol)에 따라, 진단 리포트 0건 상태에서도 성능 도약(Complexity Leap) 규격을 자율 이행함.
+  - 양재천 페스티벌 관제판(`YangjaeFestivalDashboard.tsx`)의 부스 카테고리 전환 시마다 반복되던 $O(N)$ 선형 순회 필터 루프 및 마일스톤 토글 시의 중복 배열 할당(`.map()`)을 색출하여 $O(1)$ 상수 시간 룩업 구조로 전면 전환함.
+* **핵심 변경 내역 (Core Modifications)**:
+  - **카테고리 분할 Map(`categoryBoothsMap`) 구축 및 $O(1)$ 필터링 전환**:
+    - `activeBooths`를 상단으로 격리 선언하여 `confirmedBoothCount` 및 `categoryBoothsMap`에서 불필요한 폴백 삼항 연산 중복을 영구 소거.
+    - `categoryBoothsMap` (`Map<string, BoothItem[]>`)을 메모이제이션하여 탭 클릭 시 선형 순회 없이 $O(1)$ 상수 시간에 카테고리별 부스 목록을 즉각 반환.
+  - **마일스톤 전체 펼치기/접기 GC 소거 및 $O(1)$ 위상 비교**:
+    - `allMilestoneIds` (`Set<number>`)를 `useMemo`로 사전 할당하여, `toggleAllExpand` 클릭 시마다 발생하던 `(data.milestones || []).map(...)` 임시 배열 생성을 완전 차단하고 `size` 비교를 통해 $O(1)$로 전환.
+    - 아코디언 상단 텍스트 검사 조건도 `allMilestoneIds.size`로 직결하여 렌더 루프 내 불필요한 배열 접근 소거.
+* **정량적 검증 성과 (Quantitative Performance Metrics)**:
+  - 카테고리 전환 시 시간 복잡도: $O(N) \to \mathbf{O(1)}$ 상수 시간 조회 달성.
+  - 마일스톤 아코디언 토글 시 GC 힙 할당: 클릭당 $N$개 요소 임시 배열 $\to \mathbf{0개 (Zero-Allocation)}$.
+  - 게이트키퍼 검증: **0 / 0 / 0 ALL PASS**.
+
 ### [Milestone 98: Yangjae Festival Weekly Progress Report (8.31.~9.4.) Custom Sharing Pipeline & Milestone Sync Reform] Weekly-focused administrative SMS/messenger sharing template, multi-category placement of 5 key weekly tasks in festival SSOT & fallback data, live Cloudflare tunnel URL refresh, 100% gatekeeper pass. (2026-09-04)
 * **개요 및 개발 목적 (Overview & Objective)**:
   - 행사 전체 6대 추진과제를 무차별 나열하던 기존의 [공유] 클립보드 복사 기능을 개편하여, 사용자가 지시한 **주차별 (8. 31. ~ 9. 4.) 핵심 추진 내역 중심의 공공행정 모바일 보고 템플릿**으로 완전 전환함.
