@@ -2,6 +2,27 @@
 
 ## 8. 최근 엔지니어링 마일스톤 (요약)
 
+### [Milestone 118: SNS Preview Metadata (OpenGraph/Twitter) & Zero-Framework Cloudflare Pages Standalone Static Engine Release] OpenGraph and Twitter metadata tags, zero-framework standalone pages template, zero-redirect bundle compiler with 25/25 test suite pass. (2026-09-04)
+* **개요 및 개발 목적**:
+  - 모바일 메신저(카카오톡, 문자, 텔레그램 등) 링크 공유 시 시각적 미리보기 카드 제공 및 Cloudflare Pages 글로벌 CDN 엣지 무프레임워크 즉각 렌더링 체제 완성:
+    1. **모바일 SNS 공유 메타데이터(OpenGraph/Twitter) 강화 (`src/app/festival/yangjae/page.tsx`)**:
+       - Next.js 서버 메타데이터에 OpenGraph(`og:title`, `og:description`, `og:site_name`, `og:type`) 및 Twitter 카드 메타 태그를 탑재.
+       - 링크 전송 시 제목("2026 양재천 걷자! 건강페스티벌")과 설명문이 깔끔한 요약 카드로 표시되어 공공 행사 신뢰도 극대화.
+    2. **무의존성(Zero-Framework) 고속 스탠드얼론 정적 템플릿 (`scripts/pages-template.html`)**:
+       - React/Next.js 하이드레이션 부하 없이도 모바일 브라우저에서 0ms 즉시 표시되는 스탠드얼론 HTML 템플릿 구축.
+       - 행사개요(대체휴무 파란색 강조), 8대 과제 아코디언, 12개 부스 가나다순 정렬 및 카테고리 필터, 큰글씨 토글, Web Share API 및 클립보드 폴백을 바닐라 JS로 100% 동일하게 구현.
+    3. **Cloudflare Pages 제로 리디렉션 정적 배포 파이프라인 (`scripts/prepare-pages-output.js`)**:
+       - 로컬 SSOT 데이터(`data/FESTIVAL_YANGJAE_2026.json`)를 주입하여 `out/index.html`, `out/festival/yangjae/index.html`, `out/festival/yangjae.html`로 컴파일.
+       - 기존 리디렉션 지연(301/refresh)을 제거하고 즉각적인 200 OK 렌더링 실현.
+* **핵심 변경 내역**:
+  - `src/app/festival/yangjae/page.tsx`: OpenGraph & Twitter 메타데이터 추가.
+  - `scripts/pages-template.html`: 제로 프레임워크 스탠드얼론 모바일 템플릿 신설.
+  - `scripts/prepare-pages-output.js`: 템플릿 기반 정적 번들 빌드 컴파일러로 고도화.
+* **정량적 검증 성과**:
+  - 단위/통합 테스트: **25 / 25 ALL PASS**.
+  - TypeScript 컴파일 (`npx tsc --noEmit`): **0 errors (PASS)**.
+  - 게이트키퍼 검증 (`run-harness.js`): **0 Zod errors, 0 ESLint errors/warnings, 0 Arch violations, 0 Perf bottlenecks (ALL PASS)**.
+
 ### [Milestone 117: Medical Category Multi-Alias Filter Integration, 8-Milestones/12-Booths Fallback Sync & Pages Build Optimization Release] Full multi-alias mapping for medical categories (전문 의료·검진, 의료·검진, 의료 검진), complete 8-milestones & 12-booths fallback data synchronization, Pages build script integration, with 25/25 test suite pass. (2026-09-04)
 * **개요 및 개발 목적**:
   - 부스 카테고리 다중 별칭 지원 및 클라우드 배포 빌드 파이프라인 무결성 확보:

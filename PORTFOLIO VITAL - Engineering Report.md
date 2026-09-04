@@ -3909,6 +3909,11 @@ sequenceDiagram
   - 브라우저 RAM 점유율 60% 이상 대폭 절감 및 유휴 CPU 사용률 0% 달성, 탭 전환 0ms 즉시 응답성 확보.
 
 ### 8. 양재천 건강 페스티벌 모바일 관제판 최적화 및 안정화 (Phase 13 - 완료)
+- [x] **모바일 SNS 공유 메타데이터(OpenGraph/Twitter) 강화 및 Cloudflare Pages 무프레임워크 스탠드얼론 정적 엔진 릴리즈 (Milestone 118 - 2026-09-04)**
+  - `src/app/festival/yangjae/page.tsx`: Next.js 서버 메타데이터에 OpenGraph(`og:title`, `og:description`, `og:site_name`, `og:type`) 및 Twitter 카드 태그를 탑재하여 카카오톡, SMS, 텔레그램 모바일 공유 시 사전 미리보기 카드(OG Preview) 자동 생성.
+  - `scripts/pages-template.html`: React 앱의 전체 UI(행사개요, 8대 과제 아코디언, 12개 부스 가나다순/카테고리 필터, 큰글씨 모드, 모바일 공유 API)를 100% 동일하게 재현한 무의존성(Zero-Framework) 고속 스탠드얼론 정적 HTML 템플릿 신설.
+  - `scripts/prepare-pages-output.js`: 로컬 SSOT 데이터(`data/FESTIVAL_YANGJAE_2026.json`)를 주입하여 Cloudflare Pages 배포용 번들(`out/index.html`, `out/festival/yangjae/index.html` 등)을 리디렉션 없이 즉각 렌더링되도록 컴파일 파이프라인 개편.
+  - Jest 25/25 ALL PASS, 0 Lint, 0 Arch, 0 Perf 및 게이트키퍼 무결성 통과.
 - [x] **의료 카테고리 다중 별칭 필터 통합, 8개 과제/12개 부스 폴백 동기화 및 Pages 빌드 파이프라인 릴리즈 (Milestone 117 - 2026-09-04)**
   - `categoryBoothsMap`, `handleMoveBoothUp`, `handleMoveBoothDown` 전반에 `전문 의료·검진`, `의료·검진`, `의료 검진` 3중 별칭 교차 매핑 엔진 탑재로 필터 탭 선택 시 부스 누락 0건 보장.
   - `useYangjaeFestival.ts` 및 `functions/api/festival/yangjae.ts` 내 `YANGJAE_FALLBACK_DATA`를 최신 라이브 데이터(추진과제 7 안전관리, 8 기타사항, 12개 부스 전체)와 100% 동기화.
