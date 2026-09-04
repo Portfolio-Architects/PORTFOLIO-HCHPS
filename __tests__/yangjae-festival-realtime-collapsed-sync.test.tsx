@@ -574,6 +574,37 @@ describe('Yangjae Festival Real-time Multi-Device Sync & UX Verification', () =>
       expect(infoNam?.full).toBe('02-3423-7025');
     });
   });
+
+  describe('R8. Cooperation Departments Blank Fallback Guard', () => {
+    it('leaves cooperationDepts blank when empty and never displays "보건소 자체 추진"', async () => {
+      renderWithClient(<YangjaeFestivalDashboard />);
+
+      // Find task 2 button ("추진과제 2") which has cooperationDepts: []
+      const task2Btn = await screen.findByRole('button', { name: /추진과제 2/i });
+      expect(task2Btn).toBeInTheDocument();
+      fireEvent.click(task2Btn);
+
+      // "협조부서:" label is rendered
+      expect(screen.getAllByText('협조부서:').length).toBeGreaterThan(0);
+
+      // "보건소 자체 추진" should NEVER appear anywhere in the DOM
+      expect(screen.queryByText('보건소 자체 추진')).toBeNull();
+    });
+
+    it('renders department badges properly when cooperationDepts has valid departments', async () => {
+      renderWithClient(<YangjaeFestivalDashboard />);
+
+      // Find task 1 button ("추진과제 1") which has cooperationDepts: ["건설관리과(부지 소유자)", ...]
+      const task1Btn = await screen.findByRole('button', { name: /추진과제 1/i });
+      expect(task1Btn).toBeInTheDocument();
+      fireEvent.click(task1Btn);
+
+      // Verify badges are rendered
+      expect(screen.getByText('치수과')).toBeInTheDocument();
+      expect(screen.getByText('공원녹지과')).toBeInTheDocument();
+      expect(screen.queryByText('보건소 자체 추진')).toBeNull();
+    });
+  });
 });
 
 

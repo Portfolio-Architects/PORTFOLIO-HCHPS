@@ -3802,6 +3802,11 @@ sequenceDiagram
   - 브라우저 RAM 점유율 60% 이상 대폭 절감 및 유휴 CPU 사용률 0% 달성, 탭 전환 0ms 즉시 응답성 확보.
 
 ### 8. 양재천 건강 페스티벌 모바일 관제판 최적화 및 안정화 (Phase 13 - 완료)
+- [x] **협조부서 공란 처리 및 임의 대체 문구('보건소 자체 추진') 완전 소거 패치 (Milestone 107 - 2026-09-04)**
+  - 사용자 피드백 반영: 협조부서(`cooperationDepts`)가 비어있는 추진과제에서 자동 노출되던 하드코딩 문구 `보건소 자체 추진`을 완전 제거하고 순수 공란(`null`)으로 표기되도록 수정.
+  - `src/components/festival/YangjaeFestivalDashboard.tsx`: 협조부서 렌더링 삼항식의 fallback을 `null`로 정리.
+  - `__tests__/yangjae-festival-realtime-collapsed-sync.test.tsx`: R8 협조부서 공란 폴백 및 유효 부서 배지 검증 테스트 2건 신설.
+  - Playwright 실 브라우저 E2E 검증 및 Jest 20/20 ALL PASS, 게이트키퍼 100% 통과.
 - [x] **모바일 관제판 터널 인터랙션 복구, Dynamic Client SSR:false 격리 및 공식 16개 식순 타임테이블 동기화 (Milestone 106 - 2026-09-04)**
   - Turbopack CSWSH 허용 설정: `next.config.ts`의 `allowedDevOrigins`에 Cloudflare 및 localtunnel 도메인을 추가하여 터널 환경에서의 HMR WebSocket 연결 거부(502 Bad Gateway) 및 런타임 락 현상 완전 해결.
   - Rule I 서버 하이드레이션 격리: `src/components/festival/YangjaeFestivalClientWrapper.tsx`를 신설하여 `dynamic(() => import(...), { ssr: false })` 및 스켈레톤 fallback 적용, SSR 하이드레이션 불일치 및 모바일 클릭 이벤트 바인딩 실패 원천 차단.

@@ -1326,9 +1326,7 @@ ${targetUrl}`;
                                   {dept}
                                 </span>
                               ))
-                            ) : (
-                              <span className="text-[11px] text-slate-400">보건소 자체 추진</span>
-                            )
+                            ) : null
                           )}
                         </div>
 

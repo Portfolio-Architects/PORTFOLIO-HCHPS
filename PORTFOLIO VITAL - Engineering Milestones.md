@@ -2,6 +2,21 @@
 
 ## 8. 최근 엔지니어링 마일스톤 (요약)
 
+### [Milestone 107: Yangjae Festival Cooperation Department Blank Fallback & Unrequested Text Eradication Release] Eradication of unrequested fallback text '보건소 자체 추진', leaving cooperation departments cleanly blank when unassigned, with 20/20 test suite pass. (2026-09-04)
+* **개요 및 개발 목적**:
+  - 사용자 피드백(`media_1788509375876.png` 및 "협조부서 공란이면, 그냥 공란으로 표기해줘 보건소~ 이내용 넣지말고") 반영:
+    - 추진과제 상세 아코디언에서 협조부서(`cooperationDepts`) 데이터가 공란(`[]`)일 때 임의로 노출되던 대체 텍스트(`보건소 자체 추진`)를 완전 제거.
+    - 부서 데이터가 없을 경우 라벨 뒤를 완벽한 공란(`null`)으로 표기하여 행정 보고서 본래의 깔끔한 양식 복원.
+  - 부서가 지정된 과제(추진과제 1: 치수과, 공원녹지과 등)는 정상 알약 배지로 유지하고, 공란 과제는 텍스트 노이즈 없이 공란으로 처리.
+* **핵심 변경 내역**:
+  - `src/components/festival/YangjaeFestivalDashboard.tsx`: 협조부서 삼항식의 `<span className="text-[11px] text-slate-400">보건소 자체 추진</span>` fallback을 `null`로 교체.
+  - `__tests__/yangjae-festival-realtime-collapsed-sync.test.tsx`: R8 (Cooperation Departments Blank Fallback Guard) 테스트 2건 추가 (공란 검증 및 유효 부서 배지 검증).
+* **정량적 검증 성과**:
+  - `보건소 자체 추진` 임의 텍스트 잔존: **0건 (완전 소거)**.
+  - 단위/통합 테스트: **20 / 20 ALL PASS**.
+  - TypeScript 컴파일 (`npx tsc --noEmit`): 0 errors (PASS).
+  - 게이트키퍼 검증 (`run-harness.js`): 0 Zod errors, 0 ESLint errors/warnings, 0 Arch violations, 0 Perf bottlenecks (ALL PASS).
+
 ### [Milestone 106: Yangjae Festival Mobile Tunnel Interactivity Restoration, Dynamic Client SSR:false Isolation & Official 16-Event Timetable Sync Release] AllowedDevOrigins HMR tunnel fix, dynamic client component with ssr:false isolation, and complete 16-event official timetable sync for task 2, 100% gatekeeper pass. (2026-09-04)
 * **개요 및 개발 목적**:
   - 모바일 관제판 터널 환경(Cloudflare trycloudflare.com) 접속 시 발생하던 버튼 인터랙션(글자 크기 토글, 전체 펼치기/접기, 아코디언) 불능 및 실시간 업데이트 미반영 문제의 근본 원인 규명 및 완전 해결:
