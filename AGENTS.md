@@ -144,6 +144,7 @@
 ## 5. 최신 동기화된 마일스톤 (Synced Milestones Log)
 - **최신 동기화 일자:** 2026-09-04
 - **동기화된 마일스톤:**
+  - [Milestone 112: Yangjae Festival SMS Share Template Executive Compaction & High-Polish Weekly Tasks Release] Ultra-compact executive sharing format, elimination of redundant overview boilerplate, staff alternative day-off accentuation, 5-point administrative high-polish weekly tasks, with 25/25 test suite pass. (2026-09-04)
   - [Milestone 111: Yangjae Festival Booth Order Dynamic Repositioning & Seamless Sequential Normalization Release] Interactive booth reorder controls (▲/▼), category-aware swapping, live No.1~No.N position tracking, remote tunnel admin authorization, with 25/25 test suite pass. (2026-09-04)
   - [Milestone 110: Yangjae Festival Booth Reordering (▲/▼) Interactive Wire-Up, Category Sequence Polish & Zero-Warning Codebase Purity Release] Interactive booth reorder controls (▲/▼), boundary disablement, 100% zero-warning codebase purity, with 24/24 test suite pass. (2026-09-04)
   - [Milestone 109: Yangjae Festival Detail Input Field Isolation & High-Visibility Remarks Blue Accent Release] Detail parsing negative lookahead guard for date/attendees input isolation, eye-catching text-blue-600 remarks accent, with 24/24 test suite pass. (2026-09-04)
@@ -155,5 +156,4 @@
   - [Milestone 102: Yangjae Festival Zero-Allocation Accordion useMemo, safeClone Optimization & Stable Detail Draft UUIDs] Zero-allocation accordion memoization, structuredClone-based safeClone, and resilient DetailDraft UUID state binding, 100% gatekeeper pass. (2026-09-04)
   - [Milestone 101: Yangjae Festival Task Detail Reordering Controls & Zero-Refresh Realtime Sync Release] Reorderable task detail rows with ChevronUp/ChevronDown controls, collision-free composite keys, and zero-refresh multi-device synchronization, 100% gatekeeper pass. (2026-09-04)
   - [Milestone 100: Yangjae Festival Zero-Refresh Smart Polling, Default Collapsed Sectors & Universal Mobile Sharing Reform] Multi-device live sync with 2.5s polling & Rule J visibility pause, compact default collapsed accordion state with O(1) toggles, sticky header real-time sync badge, and universal mobile/desktop weekly progress sharing pipeline, 100% gatekeeper pass. (2026-09-04)
-  - [Milestone 99: Yangjae Festival Booths Partitioned Map O(1) Complexity & Milestone Set Memoization Reform] Precomputed `allMilestoneIds` Set & O(1) accordion toggle, eradication of duplicated booth selection fallback, and partitioned `categoryBoothsMap` O(1) constant-time category filter, 100% gatekeeper pass. (2026-09-04)
-  - 그 외 과거 누적 마일스톤 총 185건 통합 요약 (초기 ~ 2026-09-04 이전 패치 내역)
+  - 그 외 과거 누적 마일스톤 총 186건 통합 요약 (초기 ~ 2026-09-04 이전 패치 내역)

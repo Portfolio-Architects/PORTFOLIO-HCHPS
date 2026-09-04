@@ -2,6 +2,38 @@
 
 ## 8. 최근 엔지니어링 마일스톤 (요약)
 
+### [Milestone 112: Yangjae Festival SMS Share Template Executive Compaction & High-Polish Weekly Tasks Release] Ultra-compact executive sharing format, elimination of redundant overview boilerplate, staff alternative day-off accentuation, 5-point administrative high-polish weekly tasks, with 25/25 test suite pass. (2026-09-04)
+* **개요 및 개발 목적**:
+  - 사용자 맞춤형 문자 공유 템플릿 및 금주 추진내역 고도화 지시 완벽 이행:
+    1. **초압축 맞춤형 모바일 문자 공유 템플릿 전면 개편**:
+       - 기존의 장황했던 `■ 행사개요` (행사명, 일시, 장소, 코스 등) 블록을 완전히 소거하고 핵심 요약 정보로 직행하도록 구조 최적화.
+       - 행사 참여 직원 대체휴무 문구를 볼드 강조(`**행사 참여 직원 대체휴무 시행 예정**`) 단독 라인으로 전면 배치.
+       - 표준 간결 헤더(`■ 추진내역`) 및 하단 관제판 바로가기 안내(`※ 아래 링크 클릭하시면 전체 추진내역 열람이 가능합니다.`) 반영.
+    2. **금주(8.31.~9.4.) 5개 추진내역 실적 팩트 융합 및 행정 고도화**:
+       - 1. `[홍보] 행사 포스터 시안 제작 및 대구민 홍보 채널 구축 진행중 (지영팀장님, 오창선)`
+         - 내용: 메인 포스터 디자인 감수 및 구청·보건소 홈페이지 배너·통합예약 연계 준비
+       - 2. `[기획/회의] 9. 1. 행사 추진 총괄 및 현안 실무회의 완료`
+         - 참석: 과장님, 희선팀장님, 지영팀장님, 임석훤, 남상희, 오창선
+         - 안건: 행사 추진 관련 전반, VIP 초청, 참가자 모집 방법(800명), 보도자료 배포 등
+       - 3. `[장소/현장] 9. 2. 양재천 현장답사 및 유관기관 합동점검 실시`
+         - 참석: 지영팀장님, 오창선, 유디치과 관계자
+         - 내용: 유디치과 이동 검진버스 진입 동선 및 건강체험 추가 부스 설치 구역 현장 실측
+       - 4. `[의전] 구청장님 행사 참석 관련 구청 비서실 사전 협의 완료`
+         - 내용: 행사 개회식 및 걷기대회 구청장님 참석 확정 조율 (지영팀장님)
+       - 5. `[부스] 9. 3. 유관 의료단체(강남구의사회·한의사회) 부스 운영 협조 회의`
+         - 참석: 과장님, 오창선
+         - 내용: 전문 의료진 건강상담 부스 운영 확정 및 세부 프로그램 운영안 협의 조율중
+    3. **SSOT 디스크 DB 및 뷰 훅 완벽 동기화**:
+       - `data/FESTIVAL_YANGJAE_2026.json`, `src/hooks/useYangjaeFestival.ts`, `src/components/festival/YangjaeFestivalDashboard.tsx` 3중 동기화.
+* **핵심 변경 내역**:
+  - `src/components/festival/YangjaeFestivalDashboard.tsx`: `handleCopySummary` 템플릿 개편, 불필요한 행사개요 블록 배제, 대체휴무 볼드 표기, 정제된 fallbackWeeklyItems 탑재.
+  - `data/FESTIVAL_YANGJAE_2026.json` & `src/hooks/useYangjaeFestival.ts`: `weeklyReport.items` 5개 항목 행정 고도화.
+  - `__tests__/yangjae-festival-realtime-collapsed-sync.test.tsx`: R3 문자 공유 템플릿 단언문 갱신 및 25/25 ALL PASS.
+* **정량적 검증 성과**:
+  - 단위/통합 테스트: **25 / 25 ALL PASS**.
+  - TypeScript 컴파일 (`npx tsc --noEmit`): **0 errors (PASS)**.
+  - 게이트키퍼 검증 (`run-harness.js`): **0 Zod errors, 0 ESLint errors/warnings, 0 Arch violations, 0 Perf bottlenecks (ALL PASS)**.
+
 ### [Milestone 111: Yangjae Festival Booth Order Dynamic Repositioning & Seamless Sequential Normalization Release] Interactive booth reorder controls (▲/▼), category-aware swapping, live No.1~No.N position tracking, remote tunnel admin authorization, with 25/25 test suite pass. (2026-09-04)
 * **개요 및 개발 목적**:
   - 사용자 피드백("부스 현황 순서 변경 가능하게 해줘") 완벽 구현:

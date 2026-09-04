@@ -775,33 +775,32 @@ function YangjaeFestivalDashboardComponent() {
       ? `${window.location.origin}/festival/yangjae`
       : PUBLIC_SHARE_URL;
 
+    const title = data?.meta?.title || '2026 양재천 걷자! 건강 페스티벌';
     const period = data?.weeklyReport?.period || '8. 31. ~ 9. 4.';
     const weekTitle = data?.weeklyReport?.weekTitle || '주간 추진실적 보고';
+    const staffNote = data?.meta?.staffNote || '행사 참여 직원 대체휴무 시행 예정';
+
+    const fallbackWeeklyItems = [
+      '1. [홍보] 행사 포스터 시안 제작 및 대구민 홍보 채널 구축 진행중 (지영팀장님, 오창선)\n   - 내용: 메인 포스터 디자인 감수 및 구청·보건소 홈페이지 배너·통합예약 연계 준비',
+      '2. [기획/회의] 9. 1. 행사 추진 총괄 및 현안 실무회의 완료\n   - 참석: 과장님, 희선팀장님, 지영팀장님, 임석훤, 남상희, 오창선\n   - 안건: 행사 추진 관련 전반, VIP 초청, 참가자 모집 방법(800명), 보도자료 배포 등',
+      '3. [장소/현장] 9. 2. 양재천 현장답사 및 유관기관 합동점검 실시\n   - 참석: 지영팀장님, 오창선, 유디치과 관계자\n   - 내용: 유디치과 이동 검진버스 진입 동선 및 건강체험 추가 부스 설치 구역 현장 실측',
+      '4. [의전] 구청장님 행사 참석 관련 구청 비서실 사전 협의 완료\n   - 내용: 행사 개회식 및 걷기대회 구청장님 참석 확정 조율 (지영팀장님)',
+      '5. [부스] 9. 3. 유관 의료단체(강남구의사회·한의사회) 부스 운영 협조 회의\n   - 참석: 과장님, 오창선\n   - 내용: 전문 의료진 건강상담 부스 운영 확정 및 세부 프로그램 운영안 협의 조율중',
+    ];
 
     const weeklyLines = data?.weeklyReport?.items && data.weeklyReport.items.length > 0
       ? data.weeklyReport.items.join('\n')
-      : [
-          '1. [홍보] 행사 포스터 제작 진행중 (지영팀장님, 오창선)',
-          '2. [기획/회의] 9. 1. 행사 관련 회의 완료\n   - 참석: 과장님, 희선팀장님, 지영팀장님, 임석훤, 남상희, 오창선\n   - 안건: 행사 추진 관련 전반, VIP 초청, 참가자 모집 방법, 보도자료 등',
-          '3. [장소/현장] 9. 2. 양재천 답사 실시\n   - 참석: 지영팀장님, 오창선, 유디치과 직원\n   - 내용: 유디치과 검진버스 위치 및 추가 부스 설치 장소 검토',
-          '4. [의전] 구청장님 참석 비서실 사전 협의 (참석 확정, 지영팀장님)',
-          '5. [부스] 9. 3. 강남구의사회·한의사회 부스 운영 협조\n   - 참석: 과장님, 오창선\n   - 내용: 부스 운영 확정 및 세부 운영안 조율중',
-        ].join('\n');
+      : fallbackWeeklyItems.join('\n');
 
-    const text = `[2026 양재천 건강 페스티벌 | ${weekTitle}]
+    const text = `[${title} | ${weekTitle}]
 (추진기간: ${period})
 
-■ 행사개요
- - 행사명: ${data?.meta?.title || '2026 양재천 걷자! 건강 페스티벌'} (D-${daysLeft})
- - 일  시: ${data?.meta?.eventDate || '2026-10-31(토)'} (${data?.meta?.eventTime || '09:00 ~ 14:00'})
- - 장  소: ${data?.meta?.location || '양재천 수변문화쉼터 및 출발마당'}
- - 코  스: ${data?.meta?.course || '수변문화쉼터 ↔ 영동5교 왕복 (약 4km)'}
- - 비  고: ${data?.meta?.staffNote || '행사 참여 직원 대체휴무 시행 예정'}
+**${staffNote}**
 
-■ 금주(${period}) 핵심 추진내역
+■ 추진내역
 ${weeklyLines}
 
-※ [실시간 모바일 관제판 바로가기]
+※ 아래 링크 클릭하시면 전체 추진내역 열람이 가능합니다.
 ${targetUrl}`;
 
     // 1. First attempt clipboard copy
@@ -812,7 +811,7 @@ ${targetUrl}`;
     if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
       try {
         const shareData = {
-          title: `2026 양재천 건강 페스티벌 주간 실적보고 (${period})`,
+          title: `[${title} | ${weekTitle}] (${period})`,
           text: text,
         };
         if (!navigator.canShare || navigator.canShare(shareData)) {
@@ -833,7 +832,7 @@ ${targetUrl}`;
     } else if (!sharedSuccess && typeof window !== 'undefined' && typeof window.prompt === 'function') {
       window.prompt('아래 주간 추진실적 내용을 복사(Ctrl+C 또는 길게 터치)하세요:', text);
     }
-  }, [data, daysLeft, PUBLIC_SHARE_URL]);
+  }, [data, PUBLIC_SHARE_URL]);
 
   const filteredBooths = useMemo(() => {
     if (selectedCategory === '전체') return activeBooths || [];
