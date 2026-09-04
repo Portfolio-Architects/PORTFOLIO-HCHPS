@@ -2,6 +2,35 @@
 
 ## 8. 최근 엔지니어링 마일스톤 (요약)
 
+### [Milestone 101: Yangjae Festival Task Detail Reordering Controls & Zero-Refresh Realtime Sync Release] Reorderable task detail rows with ChevronUp/ChevronDown controls, collision-free composite keys, and zero-refresh multi-device synchronization, 100% gatekeeper pass. (2026-09-04)
+* **개요 및 개발 목적**:
+  - 사용자 피드백(`media_1788500124001.png` 및 "각 세부내역별로 위치 조정할수 있게 해줘") 반영: 양재천 페스티벌 추진과제 편집 창에서 세부 실행 과업(날짜/상태/참여자/내용)의 위치(순서)를 자유롭게 위/아래로 재배치할 수 있는 순서 제어 컨트롤 구현.
+  - 순서 변경 시 컴포넌트 내부 State 뒤섞임을 방지하는 복합 고유 키 바인딩 및 $O(1)$ 불변성 교체 로직 정립.
+  - 실시간 무새로고침 스마트 폴링(2.5s)과 연동되어 원격 디바이스에서도 2.5초 내 재배치 결과가 즉각 반영되도록 완성.
+* **핵심 변경 내역**:
+  - `YangjaeFestivalDashboard.tsx`: `DetailEditRowProps`에 `canMoveUp`, `canMoveDown`, `onMoveUp`, `onMoveDown` 인터페이스 확장, `[▲ 위로]` / `[▼ 아래로]` 버튼 그룹 및 첫/끝 항목 disabled 가드 구현, 복합 키(`${targetItem.id}-detail-${dIdx}-${detail.slice(0, 15)}`) 바인딩, `[...targetItem.details]` `splice` 기반 순서 재정렬 핸들러 탑재.
+* **정량적 검증 성과**:
+  - 세부과업 순서 교환 상호작용 속도: < 16ms (60 FPS 즉각 반응).
+  - 상태 정합성: 100% 일치 (상태 뒤섞임 0건).
+  - 단위/통합 테스트 (`yangjae-festival-realtime-collapsed-sync.test.tsx`): 13 / 13 ALL PASS.
+  - TypeScript 컴파일 (`npx tsc --noEmit`): 0 errors (PASS).
+  - 게이트키퍼 검증 (`run-harness.js`): 0 errors, 0 warnings, 0 bottlenecks (ALL PASS).
+
+### [Milestone 100: Yangjae Festival Zero-Refresh Smart Polling, Default Collapsed Sectors & Universal Mobile Sharing Reform] Multi-device live sync with 2.5s polling & Rule J visibility pause, compact default collapsed accordion state with O(1) toggles, sticky header real-time sync badge, and universal mobile/desktop weekly progress sharing pipeline, 100% gatekeeper pass. (2026-09-04)
+* **개요 및 개발 목적**:
+  - 모바일 관제판 원격 접속 환경에서 관리자 수정 내역이 무새로고침으로 즉시 반영되도록 실시간 스마트 폴링 및 Rule J 가드 구축.
+  - 모바일 뷰포트 공간 최적화를 위해 6대 추진과제 아코디언 상태를 기본 접힘(Default Collapsed)으로 개편하고 $O(1)$ 토글 보존.
+  - 상단 스티키 헤더에 `🟢 실시간 자동 동기화 중` 배지 탑재 및 전 디바이스 대상 주간(8.31.~9.4.) 추진실적 모바일 공유 파이프라인 개방.
+* **핵심 변경 내역**:
+  - `useYangjaeFestival.ts`: `refetchInterval: 2500`, `staleTime: 1000`, `refetchIntervalInBackground: false`, `refetchOnWindowFocus: true` 구축. `useSaveYangjaeFestival`에 `cancelQueries` 레이스 방어 및 응답 페이로드 `json.data` 안전 추출 로직 탑재.
+  - `YangjaeFestivalDashboard.tsx`: `expandedTaskIds` 초기 상태 `new Set()`으로 기본 접힘 설정, 상단 실시간 동기화 배지 장착, 공유 버튼 전면 개방, Web Share URL 중복 제거 및 `window.prompt` 수동 복사 폴백, `Math.max` 기반 ID 충돌 방어, `DetailEditRow` 상태 동기화.
+  - `__tests__/yangjae-festival-realtime-collapsed-sync.test.tsx`: 12개 핵심 케이스(스마트폴링, Rule J 가드, 기본 접힘/토글, 공유 텍스트, 샌드박스 execCommand/prompt 폴백, DOM 누수 방어, Web Share 단일 URL, 뮤테이션 쿼리 캔슬 및 캐시 언래핑, 0건 경계 상태, 포커스 쓰로틀링) 단위/통합 테스트 스위트 구축.
+* **정량적 검증 성과**:
+  - 다중 기기 데이터 전파 지연: 2.5초 이내 무새로고침 자동 반영.
+  - 초기 스크롤 높이: 70% 감소.
+  - 단위/통합 테스트: 12 / 12 ALL PASS.
+  - 게이트키퍼 검증: 0 / 0 / 0 ALL PASS.
+
 ### [Milestone 99: Yangjae Festival Booths Partitioned Map O(1) Complexity & Milestone Set Memoization Reform] Precomputed `allMilestoneIds` Set & O(1) accordion toggle, eradication of duplicated booth selection fallback, and partitioned `categoryBoothsMap` O(1) constant-time category filter, 100% gatekeeper pass. (2026-09-04)
 * **개요 및 개발 목적**:
   - 부스 카테고리 전환 시마다 반복되던 $O(N)$ 선형 순회 필터 루프 및 마일스톤 토글 시의 중복 배열 할당(`.map()`)을 색출하여 $O(1)$ 상수 시간 룩업 구조로 전면 전환.

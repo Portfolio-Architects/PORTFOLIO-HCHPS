@@ -406,8 +406,10 @@ export function useYangjaeFestival() {
       return res.json();
     },
     placeholderData: initialFallbackData,
-    staleTime: 0,
+    staleTime: 1000,
     gcTime: 1000 * 60 * 30,
+    refetchInterval: 2500,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
 }
@@ -427,9 +429,13 @@ export function useSaveYangjaeFestival() {
       if (!res.ok) {
         throw new Error('Failed to save festival data to disk');
       }
-      return res.json();
+      const json = await res.json();
+      return (json && json.data) ? (json.data as FestivalData) : updatedData;
     },
-    onSuccess: (savedData) => {
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ['festival', 'yangjae'] });
+    },
+    onSuccess: (savedData: FestivalData) => {
       queryClient.setQueryData(['festival', 'yangjae'], savedData);
       queryClient.invalidateQueries({ queryKey: ['festival', 'yangjae'] });
     },

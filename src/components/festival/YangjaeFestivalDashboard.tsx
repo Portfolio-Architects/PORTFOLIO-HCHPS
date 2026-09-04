@@ -4,24 +4,28 @@ import React, { useState, useEffect, useMemo, useSyncExternalStore, useCallback 
 import { Check, Share2, Edit3, Save, X, Plus, Trash2, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { useYangjaeFestival, useSaveYangjaeFestival, YANGJAE_FALLBACK_DATA, FestivalData, MilestoneItem, BoothItem } from '@/hooks/useYangjaeFestival';
 
-// Universal Robust Clipboard Copy (Works on all mobile/desktop browsers)
-function copyToClipboardSafe(text: string): Promise<boolean> {
-  if (typeof window === 'undefined') return Promise.resolve(false);
+// Universal Robust Clipboard Copy (Works on all mobile/desktop browsers, webviews, and sandboxes)
+async function copyToClipboardSafe(text: string): Promise<boolean> {
+  if (typeof window === 'undefined') return false;
 
-  // 1. Try modern navigator.clipboard
-  if (navigator.clipboard && window.isSecureContext) {
-    return navigator.clipboard.writeText(text)
-      .then(() => true)
-      .catch(() => fallbackCopy(text));
+  // 1. Try modern navigator.clipboard if available and secure
+  if (typeof navigator !== 'undefined' && navigator?.clipboard && typeof navigator.clipboard.writeText === 'function' && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Fall through to fallbackCopy on permission denied or sandboxed iframe
+    }
   }
 
-  // 2. Fallback for non-secure HTTP / Webview / Kakao In-app
-  return Promise.resolve(fallbackCopy(text));
+  // 2. Fallback for non-secure HTTP / Webview / Kakao In-app / sandboxed iframes
+  return fallbackCopy(text);
 }
 
 function fallbackCopy(text: string): boolean {
+  if (typeof document === 'undefined' || !document.body) return false;
+  const textArea = document.createElement('textarea');
   try {
-    const textArea = document.createElement('textarea');
     textArea.value = text;
     textArea.style.position = 'fixed';
     textArea.style.left = '-999999px';
@@ -30,11 +34,16 @@ function fallbackCopy(text: string): boolean {
     document.body.appendChild(textArea);
     textArea.focus();
     textArea.select();
-    const successful = document.execCommand('copy');
-    document.body.removeChild(textArea);
-    return successful;
+    if (typeof textArea.setSelectionRange === 'function') {
+      textArea.setSelectionRange(0, text.length);
+    }
+    return document.execCommand('copy');
   } catch {
     return false;
+  } finally {
+    if (textArea.parentNode) {
+      textArea.parentNode.removeChild(textArea);
+    }
   }
 }
 
@@ -238,14 +247,33 @@ interface DetailEditRowProps {
   initialDetail: string;
   onUpdate: (newDetail: string) => void;
   onDelete: () => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
 }
 
-function DetailEditRow({ initialDetail, onUpdate, onDelete }: DetailEditRowProps) {
+function DetailEditRow({
+  initialDetail,
+  onUpdate,
+  onDelete,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp = false,
+  canMoveDown = false,
+}: DetailEditRowProps) {
   const parsed = useMemo(() => parseDetail(initialDetail), [initialDetail]);
   const [date, setDate] = useState(parsed.date);
   const [status, setStatus] = useState<'done' | 'in-progress' | 'todo'>(parsed.status);
   const [attendees, setAttendees] = useState(parsed.attendees);
   const [text, setText] = useState(parsed.text);
+
+  useEffect(() => {
+    setDate(parsed.date);
+    setStatus(parsed.status);
+    setAttendees(parsed.attendees);
+    setText(parsed.text);
+  }, [parsed]);
 
   const emitChange = (newDate: string, newStatus: 'done' | 'in-progress' | 'todo', newAttendees: string, newText: string) => {
     onUpdate(formatDetail({ date: newDate, status: newStatus, attendees: newAttendees, text: newText }));
@@ -296,14 +324,44 @@ function DetailEditRow({ initialDetail, onUpdate, onDelete }: DetailEditRowProps
           placeholder="참석자 (예: 오창선 7116, 김지영팀장님 7113, 서승오 7034, 과장님 7010)"
           className="flex-1 min-w-0 px-2 py-0.5 border border-slate-300 rounded text-xs font-medium text-slate-800 bg-white"
         />
-        <button
-          type="button"
-          onClick={onDelete}
-          className="p-1 text-red-500 hover:bg-red-50 rounded cursor-pointer shrink-0"
-          title="과업 삭제"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </button>
+        {/* 위치(순서) 이동 및 삭제 버튼 그룹 */}
+        <div className="flex items-center gap-0.5 shrink-0 bg-slate-100 p-0.5 rounded-md border border-slate-200">
+          <button
+            type="button"
+            disabled={!canMoveUp}
+            onClick={onMoveUp}
+            className={`p-1 rounded cursor-pointer transition-colors ${
+              canMoveUp
+                ? 'text-slate-700 hover:bg-slate-200 hover:text-slate-900 active:scale-95'
+                : 'text-slate-300 cursor-not-allowed opacity-40'
+            }`}
+            title="위로 이동"
+          >
+            <ChevronUp className="w-3.5 h-3.5 stroke-[2.5]" />
+          </button>
+          <button
+            type="button"
+            disabled={!canMoveDown}
+            onClick={onMoveDown}
+            className={`p-1 rounded cursor-pointer transition-colors ${
+              canMoveDown
+                ? 'text-slate-700 hover:bg-slate-200 hover:text-slate-900 active:scale-95'
+                : 'text-slate-300 cursor-not-allowed opacity-40'
+            }`}
+            title="아래로 이동"
+          >
+            <ChevronDown className="w-3.5 h-3.5 stroke-[2.5]" />
+          </button>
+          <span className="w-[1px] h-3 bg-slate-300 mx-0.5" />
+          <button
+            type="button"
+            onClick={onDelete}
+            className="p-1 text-red-500 hover:bg-red-50 hover:text-red-700 rounded cursor-pointer transition-colors active:scale-95"
+            title="과업 삭제"
+          >
+            <Trash2 className="w-3.5 h-3.5 stroke-[2.2]" />
+          </button>
+        </div>
       </div>
       {/* 내용 본문 입력 (스페이스바 띄어쓰기 100% 완벽 보존 textarea) */}
       <textarea
@@ -360,8 +418,8 @@ function YangjaeFestivalDashboardComponent() {
   const [copied, setCopied] = useState<boolean>(false);
   const [isLargeFont, setIsLargeFont] = useState<boolean>(false);
 
-  // 과제별 Collapse / Expand 상태 (ID 단위, 기본 전체 펼침)
-  const [expandedTaskIds, setExpandedTaskIds] = useState<Set<number>>(() => new Set([1, 2, 3, 4, 5, 6]));
+  // 과제별 Collapse / Expand 상태 (ID 단위, 기본 전체 접힘: Default Collapsed)
+  const [expandedTaskIds, setExpandedTaskIds] = useState<Set<number>>(() => new Set());
 
   const toggleTaskExpand = useCallback((id: number) => {
     setExpandedTaskIds((prev) => {
@@ -384,8 +442,14 @@ function YangjaeFestivalDashboardComponent() {
     return ids;
   }, [data.milestones]);
 
+  const isAllExpanded = allMilestoneIds.size > 0 && Array.from(allMilestoneIds).every((id) => expandedTaskIds.has(id));
+
   const toggleAllExpand = useCallback(() => {
-    setExpandedTaskIds((prev) => (prev.size === allMilestoneIds.size ? new Set() : new Set(allMilestoneIds)));
+    setExpandedTaskIds((prev) => {
+      if (allMilestoneIds.size === 0) return new Set();
+      const allExpanded = Array.from(allMilestoneIds).every((id) => prev.has(id));
+      return allExpanded ? new Set() : new Set(allMilestoneIds);
+    });
   }, [allMilestoneIds]);
 
   // Derived D-Day calculation
@@ -482,7 +546,8 @@ function YangjaeFestivalDashboardComponent() {
     }
   };
   const handleAddMilestone = async () => {
-    const nextId = (data.milestones?.length || 0) + 1;
+    const maxId = (data.milestones || []).reduce((max, m) => Math.max(max, m.id || 0), 0);
+    const nextId = maxId + 1;
     const newTask: MilestoneItem = {
       id: nextId,
       number: `추진과제 ${nextId}`,
@@ -512,6 +577,11 @@ function YangjaeFestivalDashboardComponent() {
       await saveMutation.mutateAsync({
         ...data,
         milestones: nextMilestones,
+      });
+      setExpandedTaskIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
       });
       if (editingMilestoneId === id) {
         setEditingMilestoneId(null);
@@ -581,20 +651,34 @@ ${weeklyLines}
 ※ [실시간 모바일 관제판 바로가기]
 ${targetUrl}`;
 
-    await copyToClipboardSafe(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 3500);
+    // 1. First attempt clipboard copy
+    const copiedSuccess = await copyToClipboardSafe(text);
 
-    if (typeof navigator !== 'undefined' && navigator.share && /Mobi|Android|iPhone/i.test(navigator.userAgent)) {
+    // 2. Mobile/Tablet or Native Web Share support
+    let sharedSuccess = false;
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
       try {
-        await navigator.share({
+        const shareData = {
           title: `2026 양재천 건강 페스티벌 주간 실적보고 (${period})`,
           text: text,
-          url: targetUrl,
-        });
-      } catch {
-        // Fallback already copied to clipboard
+        };
+        if (!navigator.canShare || navigator.canShare(shareData)) {
+          await navigator.share(shareData);
+          sharedSuccess = true;
+        }
+      } catch (err: any) {
+        if (err?.name === 'AbortError') {
+          sharedSuccess = true;
+        }
       }
+    }
+
+    // 3. UI Feedback / Graceful Fallback
+    if (copiedSuccess) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 3500);
+    } else if (!sharedSuccess && typeof window !== 'undefined' && typeof window.prompt === 'function') {
+      window.prompt('아래 주간 추진실적 내용을 복사(Ctrl+C 또는 길게 터치)하세요:', text);
     }
   }, [data, daysLeft, PUBLIC_SHARE_URL]);
 
@@ -620,7 +704,7 @@ ${targetUrl}`;
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 border border-slate-700">
           <Check className="w-5 h-5 text-emerald-400 stroke-[3]" />
           <div>
-            <div className="font-bold text-sm">금주(8. 31. ~ 9. 4.) 주간 추진실적이 복사되었습니다!</div>
+            <div className="font-bold text-sm">금주({data?.weeklyReport?.period || '8. 31. ~ 9. 4.'}) 주간 추진실적이 복사되었습니다!</div>
             <div className="text-xs text-slate-300">카카오톡 또는 문자에 바로 붙여넣기(Ctrl+V) 하세요.</div>
           </div>
         </div>
@@ -679,9 +763,15 @@ ${targetUrl}`;
         
         {/* Top Sticky Header */}
         <div className="sticky top-0 z-30 bg-slate-900 text-white px-4 py-3 flex items-center justify-between gap-2 border-b border-slate-800 shadow-sm">
-          <div>
-            <div className={`${isLargeFont ? 'text-sm' : 'text-[11px]'} font-medium text-slate-300`}>강남구보건소 보건행정과</div>
-            <div className={`${isLargeFont ? 'text-lg' : 'text-sm'} font-bold tracking-tight`}>2026 양재천 건강 페스티벌</div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className={`${isLargeFont ? 'text-sm' : 'text-[11px]'} font-medium text-slate-300`}>강남구보건소 보건행정과</span>
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/50 text-[10px] text-emerald-300 font-semibold shadow-2xs">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                <span>실시간 자동 동기화 중</span>
+              </span>
+            </div>
+            <div className={`${isLargeFont ? 'text-lg' : 'text-sm'} font-bold tracking-tight truncate`}>2026 양재천 건강 페스티벌</div>
           </div>
 
           {/* Quick Action Buttons */}
@@ -701,18 +791,16 @@ ${targetUrl}`;
               <span>{isLargeFont ? '보통' : '큰글씨'}</span>
             </button>
 
-            {/* Kakao Share / Copy Button: 로컬 관리자에게만 노출, 링크 접속자에게는 숨김 */}
-            {isLocalAdmin && (
-              <button
-                type="button"
-                onClick={handleCopySummary}
-                className="px-2.5 py-1 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95 transition-all"
-                title="카카오톡 공유 문구 복사"
-              >
-                <Share2 className="w-3.5 h-3.5" />
-                <span>공유</span>
-              </button>
-            )}
+            {/* Kakao Share / Copy Button: 전체 접속자(모바일/데스크톱) 공유 지원 */}
+            <button
+              type="button"
+              onClick={handleCopySummary}
+              className="px-2.5 py-1 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95 transition-all"
+              title="카카오톡/문자 주간 추진실적 공유"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              <span>공유</span>
+            </button>
           </div>
         </div>
 
@@ -968,7 +1056,7 @@ ${targetUrl}`;
                   onClick={toggleAllExpand}
                   className="text-xs font-bold text-slate-600 hover:text-slate-900 flex items-center gap-1 cursor-pointer py-1"
                 >
-                  {expandedTaskIds.size === allMilestoneIds.size ? (
+                  {isAllExpanded ? (
                     <>
                       <ChevronUp className="w-3.5 h-3.5" />
                       <span>전체 접기</span>
@@ -1172,11 +1260,28 @@ ${targetUrl}`;
                             <div className="space-y-2 p-2 bg-slate-100/70 rounded-xl border border-slate-300">
                               <div className="text-[11px] font-bold text-slate-600 mb-1 flex items-center justify-between">
                                 <span>세부 실행 과업 (날짜 / 상태 / 참여자 / 내용)</span>
+                                <span className="text-[10px] text-slate-500 font-normal">▲▼ 버튼으로 순서 이동 가능</span>
                               </div>
                               {(targetItem?.details || []).map((detail: string, dIdx: number) => (
                                 <DetailEditRow
-                                  key={`${targetItem.id}-detail-${dIdx}`}
+                                  key={`${targetItem.id}-detail-${dIdx}-${detail.slice(0, 15)}`}
                                   initialDetail={detail}
+                                  canMoveUp={dIdx > 0}
+                                  canMoveDown={dIdx < (targetItem?.details || []).length - 1}
+                                  onMoveUp={() => {
+                                    if (dIdx <= 0) return;
+                                    const nextDetails = [...targetItem.details];
+                                    const [moved] = nextDetails.splice(dIdx, 1);
+                                    nextDetails.splice(dIdx - 1, 0, moved);
+                                    setEditMilestoneData({ ...targetItem, details: nextDetails });
+                                  }}
+                                  onMoveDown={() => {
+                                    if (dIdx >= targetItem.details.length - 1) return;
+                                    const nextDetails = [...targetItem.details];
+                                    const [moved] = nextDetails.splice(dIdx, 1);
+                                    nextDetails.splice(dIdx + 1, 0, moved);
+                                    setEditMilestoneData({ ...targetItem, details: nextDetails });
+                                  }}
                                   onUpdate={(newDetailStr) => {
                                     const nextDetails = [...targetItem.details];
                                     nextDetails[dIdx] = newDetailStr;
@@ -1301,7 +1406,8 @@ ${targetUrl}`;
                       <button
                         type="button"
                         onClick={() => {
-                          const nextId = editBoothsData.length + 1;
+                          const maxId = editBoothsData.reduce((max, b) => Math.max(max, b.id || 0), 0);
+                          const nextId = maxId + 1;
                           setEditBoothsData([
                             ...editBoothsData,
                             {
