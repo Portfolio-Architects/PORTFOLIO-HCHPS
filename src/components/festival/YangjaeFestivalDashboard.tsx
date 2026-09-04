@@ -59,16 +59,16 @@ export function parseDetail(raw: string): ParsedDetail {
   let status: 'done' | 'in-progress' | 'todo' = 'todo';
   let date = '';
   let attendees = '';
-  let text = raw.trim();
+  let text = raw;
 
-  // 1. 명시적 구조화 태그 파싱: [완료][7.29][참여:오창선] 본문 또는 [완료][7.29] 본문 (줄바꿈 포함)
-  const structuredMatch = text.match(/^\[(완료|진행|예정)\]\s*(\[([^\]]+)\])?\s*(\[참여:([^\]]+)\])?\s*([\s\S]*)$/);
+  // 1. 명시적 구조화 태그 파싱: [완료][7.29][참여:오창선] 본문 (줄바꿈 및 공백 무손실 보존)
+  const structuredMatch = raw.match(/^\[(완료|진행|예정)\](?:\[([^\]]*)\])?(?:\[참여:([^\]]*)\])?(?:\s([\s\S]*)|$)/);
   if (structuredMatch) {
     const statusStr = structuredMatch[1];
     status = statusStr === '완료' ? 'done' : statusStr === '진행' ? 'in-progress' : 'todo';
-    date = structuredMatch[3] || '';
-    attendees = structuredMatch[5] || '';
-    text = structuredMatch[6] || '';
+    date = structuredMatch[2] || '';
+    attendees = structuredMatch[3] || '';
+    text = structuredMatch[4] !== undefined ? structuredMatch[4] : '';
     return { date, status, attendees, text };
   }
 
@@ -91,7 +91,7 @@ export function parseDetail(raw: string): ParsedDetail {
   const timeMatch = text.match(/^(\d{1,2}:\d{2}\s*~\s*\d{1,2}:\d{2})\s*:\s*(.*)$/);
   if (timeMatch) {
     date = timeMatch[1].replace(/\s/g, '');
-    text = timeMatch[2].trim();
+    text = timeMatch[2];
     return { date, status, attendees, text };
   }
 
@@ -110,7 +110,7 @@ export function parseDetail(raw: string): ParsedDetail {
     if (remainingInParen) {
       attendees = remainingInParen;
     }
-    text = text.replace(fullParen, '').replace(/^:\s*/, '').replace(/\s+/g, ' ').trim();
+    text = text.replace(fullParen, '').replace(/^:\s*/, '');
   }
 
   // 5. 콜론 뒤의 참여자 목록 추출 (예: "2차 사전답사(8월): 과장, 건강증진팀장(김지영), 서승오, 오창선 코스 답사")
@@ -123,7 +123,7 @@ export function parseDetail(raw: string): ParsedDetail {
     const matches = rest.match(peoplePattern);
     if (matches && matches.length >= 2) {
       attendees = matches.map(m => m.replace(/\s+/g, '')).join(', ');
-      const cleanAction = rest.replace(peoplePattern, '').replace(/^[\s,]+/, '').replace(/\s+/g, ' ').trim();
+      const cleanAction = rest.replace(peoplePattern, '').replace(/^[\s,]+/, '');
       text = cleanAction ? `${header} : ${cleanAction}` : header;
     }
   }
@@ -135,7 +135,8 @@ export function formatDetail(item: ParsedDetail): string {
   const statusLabel = item.status === 'done' ? '완료' : item.status === 'in-progress' ? '진행' : '예정';
   const dateTag = item.date ? `[${item.date}]` : '';
   const attendeeTag = item.attendees ? `[참여:${item.attendees}]` : '';
-  return `[${statusLabel}]${dateTag}${attendeeTag} ${item.text}`.trim();
+  const prefix = `[${statusLabel}]${dateTag}${attendeeTag}`;
+  return item.text !== undefined && item.text !== '' ? `${prefix} ${item.text}` : prefix;
 }
 
 // 보건소 핵심 담당자 행정 직통번호(내선) 매핑 테이블
@@ -229,6 +230,92 @@ export function renderBulletedContent(text: string, isLargeFont: boolean) {
       <span className={`${isLargeFont ? 'text-sm' : 'text-xs'} text-slate-800 font-medium leading-relaxed break-keep`}>
         {text}
       </span>
+    </div>
+  );
+}
+
+interface DetailEditRowProps {
+  initialDetail: string;
+  onUpdate: (newDetail: string) => void;
+  onDelete: () => void;
+}
+
+function DetailEditRow({ initialDetail, onUpdate, onDelete }: DetailEditRowProps) {
+  const parsed = useMemo(() => parseDetail(initialDetail), [initialDetail]);
+  const [date, setDate] = useState(parsed.date);
+  const [status, setStatus] = useState<'done' | 'in-progress' | 'todo'>(parsed.status);
+  const [attendees, setAttendees] = useState(parsed.attendees);
+  const [text, setText] = useState(parsed.text);
+
+  const emitChange = (newDate: string, newStatus: 'done' | 'in-progress' | 'todo', newAttendees: string, newText: string) => {
+    onUpdate(formatDetail({ date: newDate, status: newStatus, attendees: newAttendees, text: newText }));
+  };
+
+  return (
+    <div className="p-2 bg-white rounded-lg border border-slate-200 space-y-1.5 shadow-2xs">
+      <div className="flex items-center gap-1.5">
+        {/* 날짜 입력 */}
+        <input
+          type="text"
+          value={date}
+          onChange={(e) => {
+            setDate(e.target.value);
+            emitChange(e.target.value, status, attendees, text);
+          }}
+          placeholder="날짜 (7.29)"
+          className="w-24 px-2 py-0.5 border border-amber-400 rounded bg-amber-50/40 text-xs font-bold font-mono shrink-0"
+        />
+        {/* 상태 선택 */}
+        <select
+          value={status}
+          onChange={(e) => {
+            const nextStatus = e.target.value as 'done' | 'in-progress' | 'todo';
+            setStatus(nextStatus);
+            emitChange(date, nextStatus, attendees, text);
+          }}
+          className={`px-1.5 py-0.5 text-xs font-black rounded border cursor-pointer shrink-0 ${
+            status === 'done'
+              ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+              : status === 'in-progress'
+              ? 'bg-amber-50 text-amber-900 border-amber-300'
+              : 'bg-blue-50 text-blue-900 border-blue-300'
+          }`}
+        >
+          <option value="done">✓ 완료</option>
+          <option value="in-progress">▶ 진행</option>
+          <option value="todo">○ 예정</option>
+        </select>
+        {/* 참여자 입력 */}
+        <input
+          type="text"
+          value={attendees}
+          onChange={(e) => {
+            setAttendees(e.target.value);
+            emitChange(date, status, e.target.value, text);
+          }}
+          placeholder="참석자 (예: 오창선 7116, 김지영팀장님 7113, 서승오 7034, 과장님 7010)"
+          className="flex-1 min-w-0 px-2 py-0.5 border border-slate-300 rounded text-xs font-medium text-slate-800 bg-white"
+        />
+        <button
+          type="button"
+          onClick={onDelete}
+          className="p-1 text-red-500 hover:bg-red-50 rounded cursor-pointer shrink-0"
+          title="과업 삭제"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
+      {/* 내용 본문 입력 (스페이스바 띄어쓰기 100% 완벽 보존 textarea) */}
+      <textarea
+        value={text}
+        onChange={(e) => {
+          setText(e.target.value);
+          emitChange(date, status, attendees, e.target.value);
+        }}
+        rows={2}
+        placeholder="세부 과업 내용 입력 (엔터로 줄바꿈하여 한 줄씩 개조식 작성 가능)"
+        className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs font-medium text-slate-900 bg-white leading-relaxed resize-y focus:outline-none focus:ring-1 focus:ring-amber-500"
+      />
     </div>
   );
 }
@@ -1037,7 +1124,8 @@ ${targetUrl}`;
                           {isEditingThis ? (
                             <input
                               type="text"
-                              value={targetItem?.cooperationDepts ? targetItem.cooperationDepts.join(', ') : ''}
+                              key={`${targetItem?.id}-coop-input`}
+                              defaultValue={targetItem?.cooperationDepts ? targetItem.cooperationDepts.join(', ') : ''}
                               onChange={(e) => {
                                 const raw = e.target.value;
                                 setEditMilestoneData(prev => ({
@@ -1072,85 +1160,21 @@ ${targetUrl}`;
                               <div className="text-[11px] font-bold text-slate-600 mb-1 flex items-center justify-between">
                                 <span>세부 실행 과업 (날짜 / 상태 / 참여자 / 내용)</span>
                               </div>
-                              {(targetItem?.details || []).map((detail: string, dIdx: number) => {
-                                const parsed = parseDetail(detail);
-                                return (
-                                  <div key={dIdx} className="p-2 bg-white rounded-lg border border-slate-200 space-y-1.5 shadow-2xs">
-                                    <div className="flex items-center gap-1.5">
-                                      {/* 날짜 입력 */}
-                                      <input
-                                        type="text"
-                                        value={parsed.date}
-                                        onChange={(e) => {
-                                          const nextDetails = [...targetItem.details];
-                                          nextDetails[dIdx] = formatDetail({ ...parsed, date: e.target.value });
-                                          setEditMilestoneData({ ...targetItem, details: nextDetails });
-                                        }}
-                                        placeholder="날짜 (7.29)"
-                                        className="w-24 px-2 py-0.5 border border-amber-400 rounded bg-amber-50/40 text-xs font-bold font-mono shrink-0"
-                                      />
-                                      {/* 상태 선택 */}
-                                      <select
-                                        value={parsed.status}
-                                        onChange={(e) => {
-                                          const nextDetails = [...targetItem.details];
-                                          nextDetails[dIdx] = formatDetail({
-                                            ...parsed,
-                                            status: e.target.value as 'done' | 'in-progress' | 'todo'
-                                          });
-                                          setEditMilestoneData({ ...targetItem, details: nextDetails });
-                                        }}
-                                        className={`px-1.5 py-0.5 text-xs font-black rounded border cursor-pointer shrink-0 ${
-                                          parsed.status === 'done'
-                                            ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                                            : parsed.status === 'in-progress'
-                                            ? 'bg-amber-50 text-amber-900 border-amber-300'
-                                            : 'bg-blue-50 text-blue-900 border-blue-300'
-                                        }`}
-                                      >
-                                        <option value="done">✓ 완료</option>
-                                        <option value="in-progress">▶ 진행</option>
-                                        <option value="todo">○ 예정</option>
-                                      </select>
-                                      {/* 참여자 입력 */}
-                                      <input
-                                        type="text"
-                                        value={parsed.attendees}
-                                        onChange={(e) => {
-                                          const nextDetails = [...targetItem.details];
-                                          nextDetails[dIdx] = formatDetail({ ...parsed, attendees: e.target.value });
-                                          setEditMilestoneData({ ...targetItem, details: nextDetails });
-                                        }}
-                                        placeholder="참석자 (예: 오창선 7116, 김지영팀장님 7113, 서승오 7034, 과장님 7010)"
-                                        className="flex-1 min-w-0 px-2 py-0.5 border border-slate-300 rounded text-xs font-medium text-slate-800 bg-white"
-                                      />
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          const nextDetails = targetItem.details.filter((_: string, i: number) => i !== dIdx);
-                                          setEditMilestoneData({ ...targetItem, details: nextDetails });
-                                        }}
-                                        className="p-1 text-red-500 hover:bg-red-50 rounded cursor-pointer shrink-0"
-                                        title="과업 삭제"
-                                      >
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                      </button>
-                                    </div>
-                                    {/* 내용 본문 입력 (엔터 줄바꿈 개조식 지원 textarea) */}
-                                    <textarea
-                                      value={parsed.text}
-                                      onChange={(e) => {
-                                        const nextDetails = [...targetItem.details];
-                                        nextDetails[dIdx] = formatDetail({ ...parsed, text: e.target.value });
-                                        setEditMilestoneData({ ...targetItem, details: nextDetails });
-                                      }}
-                                      rows={2}
-                                      placeholder="세부 과업 내용 입력 (엔터로 줄바꿈하여 한 줄씩 개조식 작성 가능)"
-                                      className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs font-medium text-slate-900 bg-white leading-relaxed resize-y focus:outline-none focus:ring-1 focus:ring-amber-500"
-                                    />
-                                  </div>
-                                );
-                              })}
+                              {(targetItem?.details || []).map((detail: string, dIdx: number) => (
+                                <DetailEditRow
+                                  key={`${targetItem.id}-detail-${dIdx}`}
+                                  initialDetail={detail}
+                                  onUpdate={(newDetailStr) => {
+                                    const nextDetails = [...targetItem.details];
+                                    nextDetails[dIdx] = newDetailStr;
+                                    setEditMilestoneData({ ...targetItem, details: nextDetails });
+                                  }}
+                                  onDelete={() => {
+                                    const nextDetails = targetItem.details.filter((_: string, i: number) => i !== dIdx);
+                                    setEditMilestoneData({ ...targetItem, details: nextDetails });
+                                  }}
+                                />
+                              ))}
                               <button
                                 type="button"
                                 onClick={() => {

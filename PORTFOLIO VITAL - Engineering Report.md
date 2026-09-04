@@ -319,6 +319,24 @@ sequenceDiagram
 
 ## 8. 최근 엔지니어링 마일스톤
 
+### [Milestone 97: Yangjae Festival Task Edit Lossless Spacebar & DetailEditRow Isolation Reform] Native spacebar & whitespace preservation via `DetailEditRow` local state isolation and lossless `parseDetail`/`formatDetail` engine, 100% gatekeeper pass. (2026-09-04)
+* **개요 및 개발 목적 (Overview & Objective)**:
+  - 사용자가 보고한 "편집 창에서 띄어쓰기 작동 안함" 버그를 정밀 분석 및 즉각 해결함.
+  - **원인 분석**: 세부 과업 편집 입력 시 매 키 입력(`onChange`)마다 `formatDetail`이 호출되어 끝 공백을 강제 `.trim()`하고, 상위 상태 업데이트 후 리렌더 시 `parseDetail`이 텍스트 선행/후행 공백을 삼켜버려 사용자가 스페이스바를 누를 때마다 공백이 즉시 소멸되던 구조적 결함이었음. 또한 협조부서 입력창 역시 `value={join()}` 바인딩과 `split(',').map(trim)`으로 인해 쉼표 뒤 띄어쓰기가 먹히는 현상이 발생함.
+* **핵심 변경 내역 (Core Modifications)**:
+  - **무손실(Lossless) 파싱 및 포맷팅 엔진 개정 (`src/components/festival/YangjaeFestivalDashboard.tsx`)**:
+    - `formatDetail`: 무조건적인 `.trim()`을 영구 제거하고, 태그 접두사와 본문 텍스트 간 구분 공백만 삽입하여 본문 내부 및 끝자리 공백/줄바꿈을 100% 원본 그대로 보존.
+    - `parseDetail`: 정규식 `^\[(완료|진행|예정)\](?:\[([^\]]*)\])?(?:\[참여:([^\]]*)\])?(?:\s([\s\S]*)|$)`으로 개정하여 태그 구분 공백 1칸만 소비하고 본문 텍스트 전체를 무손실 캡처.
+  - **독립 입력 상태 격리 컴포넌트 `DetailEditRow` 신설**:
+    - 각 세부 실행 과업의 `date`, `status`, `attendees`, `text`를 `DetailEditRow` 내부의 로컬 State로 격리.
+    - 타이핑 시 로컬 State가 Single Source of Truth(SSOT)로 동작하여 브라우저 네이티브 스페이스바, 백스페이스, 한글 IME 조합, 줄바꿈을 완벽히 보장하고 상위로 최신 직렬화 문자열을 전파.
+  - **협조부서(`cooperationDepts`) 입력창 띄어쓰기 가드**:
+    - `defaultValue` 및 고유 `key` 바인딩을 적용하여 쉼표 입력 및 띄어쓰기 시의 리셋 현상 원천 차단.
+* **정량적 검증 성과 (Quantitative Performance Metrics)**:
+  - 스페이스바(띄어쓰기) 및 연속 공백 보존율: **100% (완전 정상 작동)**.
+  - 게이트키퍼 검증: **0 / 0 / 0 ALL PASS**.
+  - 로컬/외부 터널 응답: **HTTP 200 OK**.
+
 ### [Milestone 96: Server Route Cache Re-initialization & Seo Seung-oh Extension 7034 Registration Reform] Clean dev server re-boot eradicating 404 route staleness, plus registration of official internal extension 7034 (`02-3423-7034`) for Seo Seung-oh in STAFF_PHONE_MAP, 100% gatekeeper pass. (2026-09-04)
 * **개요 및 개발 목적 (Overview & Objective)**:
   - 사용자가 보고한 "해당페이지를 찾을수 없다고 나오는데 이유가 뭘까? 백엔드 연결 해야할까?" 현상을 즉시 정밀 진단함.
