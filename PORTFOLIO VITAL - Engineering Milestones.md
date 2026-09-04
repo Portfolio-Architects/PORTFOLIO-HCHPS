@@ -2,6 +2,21 @@
 
 ## 8. 최근 엔지니어링 마일스톤 (요약)
 
+### [Milestone 110: Yangjae Festival Booth Reordering (▲/▼) Interactive Wire-Up, Category Sequence Polish & Zero-Warning Codebase Purity Release] Interactive booth reorder controls (▲/▼), boundary disablement, 100% zero-warning codebase purity, with 24/24 test suite pass. (2026-09-04)
+* **개요 및 개발 목적**:
+  - 부스 관리 편집 모드에서 부스 순서 재정렬 버튼(`[▲]` / `[▼]`) 인터랙션 연동 및 린트 경고 완전 소거:
+    1. **부스 순서 변경(▲/▼) 인터랙티브 컨트롤 연동**:
+       - `handleMoveBoothUp`, `handleMoveBoothDown` 핸들러를 부스 편집 모드 카드 내 순서 변경 버튼 그룹(`ChevronUp`, `ChevronDown`)에 정밀 결합.
+       - 최상단/최하단 경계 조건(`canMoveUp`, `canMoveDown`)에 따른 시각적 비활성화(`opacity-40`, `cursor-not-allowed`) 및 햅틱 전환 애니메이션 적용.
+    2. **정적 분석 린트 경고 0건 및 코드베이스 순도 100% 달성**:
+       - 미사용 임포트 및 미사용 핸들러 경고를 완전 해소하여 `diagnose-targets.js` 정적 분석 린트 경고 0건, 아키텍처 위반 0건, 성능 병목 0건의 완전 무결 상태 도달.
+* **핵심 변경 내역**:
+  - `src/components/festival/YangjaeFestivalDashboard.tsx`: `handleMoveBoothUp` / `handleMoveBoothDown` 부스 카드 연동, `ChevronUp` / `ChevronDown` 경계 버튼 UI 탑재.
+  - `data/diagnose_report.json`: 0 warnings, 0 violations, 0 bottlenecks 검증 갱신.
+* **정량적 검증 성과**:
+  - 단위/통합 테스트: **24 / 24 ALL PASS** (`yangjae-festival-realtime-collapsed-sync.test.tsx`).
+  - 게이트키퍼 검증 (`run-harness.js`): 0 Zod errors, 0 ESLint errors/warnings, 0 Arch violations, 0 Perf bottlenecks (ALL PASS).
+
 ### [Milestone 109: Yangjae Festival Detail Input Field Isolation & High-Visibility Remarks Blue Accent Release] Detail parsing negative lookahead guard for date/attendees input isolation, eye-catching text-blue-600 remarks accent, with 24/24 test suite pass. (2026-09-04)
 * **개요 및 개발 목적**:
   - 사용자 피드백("날짜 칸하고 참석자 칸 연동되어서 풀어줘, 같이 타이핑 되는 오류 발생함" 및 "이 부분은 눈에 띄는 색으로 바꿔줘") 완벽 해결:

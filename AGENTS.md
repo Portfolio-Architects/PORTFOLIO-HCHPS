@@ -144,6 +144,7 @@
 ## 5. 최신 동기화된 마일스톤 (Synced Milestones Log)
 - **최신 동기화 일자:** 2026-09-04
 - **동기화된 마일스톤:**
+  - [Milestone 110: Yangjae Festival Booth Reordering (▲/▼) Interactive Wire-Up, Category Sequence Polish & Zero-Warning Codebase Purity Release] Interactive booth reorder controls (▲/▼), boundary disablement, 100% zero-warning codebase purity, with 24/24 test suite pass. (2026-09-04)
   - [Milestone 109: Yangjae Festival Detail Input Field Isolation & High-Visibility Remarks Blue Accent Release] Detail parsing negative lookahead guard for date/attendees input isolation, eye-catching text-blue-600 remarks accent, with 24/24 test suite pass. (2026-09-04)
   - [Milestone 108: Yangjae Festival Booths Korean Alphabetical Sorting, Category Alignment & Sequential Renumbering Release] Categorized grouping, Korean alphabetical booth name sorting, sequential No.1~No.9 renumbering, category filter pill alignment, with 22/22 test suite pass. (2026-09-04)
   - [Milestone 107: Yangjae Festival Cooperation Department Blank Fallback & Unrequested Text Eradication Release] Eradication of unrequested fallback text '보건소 자체 추진', leaving cooperation departments cleanly blank when unassigned, with 20/20 test suite pass. (2026-09-04)
@@ -155,5 +156,4 @@
   - [Milestone 100: Yangjae Festival Zero-Refresh Smart Polling, Default Collapsed Sectors & Universal Mobile Sharing Reform] Multi-device live sync with 2.5s polling & Rule J visibility pause, compact default collapsed accordion state with O(1) toggles, sticky header real-time sync badge, and universal mobile/desktop weekly progress sharing pipeline, 100% gatekeeper pass. (2026-09-04)
   - [Milestone 99: Yangjae Festival Booths Partitioned Map O(1) Complexity & Milestone Set Memoization Reform] Precomputed `allMilestoneIds` Set & O(1) accordion toggle, eradication of duplicated booth selection fallback, and partitioned `categoryBoothsMap` O(1) constant-time category filter, 100% gatekeeper pass. (2026-09-04)
   - [Milestone 98: Yangjae Festival Weekly Progress Report (8.31.~9.4.) Custom Sharing Pipeline & Milestone Sync Reform] Weekly-focused administrative SMS/messenger sharing template, multi-category placement of 5 key weekly tasks in festival SSOT & fallback data, live Cloudflare tunnel URL refresh, 100% gatekeeper pass. (2026-09-04)
-  - [Milestone 18: Yangjae Festival Pure Render State Alignment & Memoized Booths Selection Self-Healing Reform] Eradication of redundant `useEffect` setState hooks & `activeBooths` memoization via `useMemo` (`src/components/festival/YangjaeFestivalDashboard.tsx`), 100% gatekeeper pass. (2026-09-03)
-  - 그 외 과거 누적 마일스톤 총 183건 통합 요약 (초기 ~ 2026-09-03 이전 패치 내역)
+  - 그 외 과거 누적 마일스톤 총 184건 통합 요약 (초기 ~ 2026-09-03 이전 패치 내역)

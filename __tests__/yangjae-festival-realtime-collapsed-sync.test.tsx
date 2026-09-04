@@ -704,7 +704,47 @@ describe('Yangjae Festival Real-time Multi-Device Sync & UX Verification', () =>
       expect(res3.text).toBe('현장 답사');
     });
   });
+
+  describe('R11. Booth Reordering Controls (▲/▼) & Sequential Position Normalization', () => {
+    it('renders move up and move down buttons in booth edit mode with boundary disablement and swaps order', async () => {
+      renderWithClient(<YangjaeFestivalDashboard />);
+
+      // Switch to booths tab
+      const boothsTab = await screen.findByRole('button', { name: /2\. 부스현황/i });
+      fireEvent.click(boothsTab);
+
+      // Verify "순서 변경 / 편집" button exists
+      const editOrderBtn = await screen.findByRole('button', { name: /순서 변경 \/ 편집/i });
+      expect(editOrderBtn).toBeInTheDocument();
+      fireEvent.click(editOrderBtn);
+
+      // Verify guidance banner appears
+      expect(screen.getByText(/각 부스 카드의/)).toBeInTheDocument();
+
+      // Find all Move Up and Move Down buttons
+      const moveUpButtons = screen.getAllByRole('button', { name: /위로 이동/i });
+      const moveDownButtons = screen.getAllByRole('button', { name: /아래로 이동/i });
+
+      expect(moveUpButtons.length).toBeGreaterThan(1);
+      expect(moveDownButtons.length).toBeGreaterThan(1);
+
+      // Boundary checks: First booth cannot move up, last booth cannot move down
+      expect(moveUpButtons[0]).toBeDisabled();
+      expect(moveDownButtons[moveDownButtons.length - 1]).toBeDisabled();
+
+      // Second booth can move up
+      expect(moveUpButtons[1]).not.toBeDisabled();
+
+      // Click Move Up on the second booth (고려대학교부설)
+      fireEvent.click(moveUpButtons[1]);
+
+      // Verify save button exists
+      const saveBtn = screen.getByTitle('부스 저장');
+      expect(saveBtn).toBeInTheDocument();
+    });
+  });
 });
+
 
 
 

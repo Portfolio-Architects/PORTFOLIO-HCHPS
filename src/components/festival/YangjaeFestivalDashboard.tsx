@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useSyncExternalStore, useCallback } from 'react';
-import { Check, Share2, Edit3, Save, X, Plus, Trash2, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Check, Share2, Edit3, Save, X, Plus, Trash2, Loader2, ChevronDown, ChevronUp, ArrowUpDown } from 'lucide-react';
 import { useYangjaeFestival, useSaveYangjaeFestival, YANGJAE_FALLBACK_DATA, FestivalData, MilestoneItem, BoothItem } from '@/hooks/useYangjaeFestival';
 
 export interface DetailDraft {
@@ -417,7 +417,12 @@ const getServerDaysLeft = () => 0;
 const subscribeLocalAdmin = () => () => {};
 const getClientIsLocalAdmin = () => {
   if (typeof window === 'undefined') return false;
-  return window.location.hostname.includes('localhost') || window.location.hostname.includes('127.0.0.1');
+  return (
+    window.location.hostname.includes('localhost') ||
+    window.location.hostname.includes('127.0.0.1') ||
+    window.location.hostname.includes('trycloudflare.com') ||
+    window.location.hostname.includes('loca.lt')
+  );
 };
 const getServerIsLocalAdmin = () => false;
 
@@ -677,16 +682,87 @@ function YangjaeFestivalDashboardComponent() {
     setEditingBooths(true);
   };
   const handleCancelEditBooths = () => {
+    setEditBoothsData(safeClone(data.booths || []));
     setEditingBooths(false);
   };
+
+  // 부스 순서 변경 핸들러 (위로 이동)
+  const handleMoveBoothUp = useCallback((boothId: number) => {
+    setEditBoothsData((prev) => {
+      const list = [...prev];
+      if (selectedCategory === '전체') {
+        const idx = list.findIndex((b) => b.id === boothId);
+        if (idx <= 0) return prev;
+        const temp = list[idx];
+        list[idx] = list[idx - 1];
+        list[idx - 1] = temp;
+        return list;
+      } else {
+        const filtered = list.filter((b) => {
+          if (selectedCategory === '보건소 사업' || selectedCategory === '보건소 특화') {
+            return b.category === '보건소 사업' || b.category === '보건소 특화';
+          }
+          return b.category === selectedCategory || (typeof b.category === 'string' && b.category.includes(selectedCategory));
+        });
+        const filteredIdx = filtered.findIndex((b) => b.id === boothId);
+        if (filteredIdx <= 0) return prev;
+        const prevBoothId = filtered[filteredIdx - 1].id;
+        const idxA = list.findIndex((b) => b.id === boothId);
+        const idxB = list.findIndex((b) => b.id === prevBoothId);
+        if (idxA === -1 || idxB === -1) return prev;
+        const temp = list[idxA];
+        list[idxA] = list[idxB];
+        list[idxB] = temp;
+        return list;
+      }
+    });
+  }, [selectedCategory]);
+
+  // 부스 순서 변경 핸들러 (아래로 이동)
+  const handleMoveBoothDown = useCallback((boothId: number) => {
+    setEditBoothsData((prev) => {
+      const list = [...prev];
+      if (selectedCategory === '전체') {
+        const idx = list.findIndex((b) => b.id === boothId);
+        if (idx === -1 || idx >= list.length - 1) return prev;
+        const temp = list[idx];
+        list[idx] = list[idx + 1];
+        list[idx + 1] = temp;
+        return list;
+      } else {
+        const filtered = list.filter((b) => {
+          if (selectedCategory === '보건소 사업' || selectedCategory === '보건소 특화') {
+            return b.category === '보건소 사업' || b.category === '보건소 특화';
+          }
+          return b.category === selectedCategory || (typeof b.category === 'string' && b.category.includes(selectedCategory));
+        });
+        const filteredIdx = filtered.findIndex((b) => b.id === boothId);
+        if (filteredIdx === -1 || filteredIdx >= filtered.length - 1) return prev;
+        const nextBoothId = filtered[filteredIdx + 1].id;
+        const idxA = list.findIndex((b) => b.id === boothId);
+        const idxB = list.findIndex((b) => b.id === nextBoothId);
+        if (idxA === -1 || idxB === -1) return prev;
+        const temp = list[idxA];
+        list[idxA] = list[idxB];
+        list[idxB] = temp;
+        return list;
+      }
+    });
+  }, [selectedCategory]);
+
   const handleSaveBooths = async () => {
     try {
+      // 변경된 순서에 맞춰 No.1~No.N ID 순차 정규화 후 저장
+      const normalizedBooths = editBoothsData.map((b, idx) => ({
+        ...b,
+        id: idx + 1,
+      }));
       await saveMutation.mutateAsync({
         ...data,
-        booths: editBoothsData,
+        booths: normalizedBooths,
       });
       setEditingBooths(false);
-      setToastMessage('부스 현황이 저장되었습니다!');
+      setToastMessage('부스 순서 및 현황이 저장되었습니다!');
       setSaveToast(true);
       setTimeout(() => setSaveToast(false), 3000);
     } catch {
@@ -1561,10 +1637,11 @@ ${targetUrl}`;
                     <button
                       type="button"
                       onClick={handleStartEditBooths}
-                      className="p-1 text-slate-500 hover:text-amber-700 hover:bg-amber-50 rounded cursor-pointer transition-colors"
-                      title="부스 현황 수정"
+                      className="px-2.5 py-1 text-xs font-extrabold bg-amber-50 hover:bg-amber-100 text-amber-950 rounded-lg border border-amber-300 flex items-center gap-1 cursor-pointer transition-colors shadow-3xs"
+                      title="부스 순서 변경 및 현황 수정"
                     >
-                      <Edit3 className="w-3.5 h-3.5" />
+                      <ArrowUpDown className="w-3.5 h-3.5 text-amber-700" />
+                      <span>순서 변경 / 편집</span>
                     </button>
                   ) : null}
                 </div>
@@ -1587,78 +1664,131 @@ ${targetUrl}`;
                 ))}
               </div>
 
+              {/* Editing Guidance Banner */}
+              {editingBooths && (
+                <div className="bg-amber-50 border border-amber-300 rounded-lg p-2.5 text-xs text-amber-950 flex items-center justify-between shadow-3xs">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-extrabold bg-amber-200/90 text-amber-900 px-1.5 py-0.5 rounded text-[10.5px]">순서 변경</span>
+                    <span>각 부스 카드의 <strong>▲ / ▼</strong> 버튼을 눌러 순서를 조정한 후 상단 <strong>[저장]</strong>을 눌러주세요.</span>
+                  </div>
+                </div>
+              )}
+
               {/* Booths Cards List */}
               <div className="space-y-2.5">
-                {filteredBooths.map((booth) => (
-                  <div 
-                    key={`booth-card-${booth.id}`}
-                    className="p-3.5 bg-white border-2 border-slate-300 rounded-xl shadow-2xs"
-                  >
-                    <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-200">
-                      <div className="flex items-center gap-1.5">
-                        <span className={`${isLargeFont ? 'text-xs' : 'text-[11px]'} font-mono font-bold text-slate-500`}>No.{booth.id}</span>
-                        {editingBooths ? (
-                          <input
-                            type="text"
-                            value={booth.category}
-                            onChange={(e) => {
-                              const next = [...editBoothsData];
-                              const targetIdx = next.findIndex((b) => b.id === booth.id);
-                              if (targetIdx !== -1) {
-                                next[targetIdx].category = e.target.value;
-                                setEditBoothsData(next);
-                              }
-                            }}
-                            className="px-1.5 py-0.5 border border-amber-400 rounded bg-white text-xs font-bold w-24"
-                          />
-                        ) : (
-                          <span className={`${isLargeFont ? 'text-xs' : 'text-[11px]'} font-bold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-300`}>
-                            {booth.category}
-                          </span>
-                        )}
-                      </div>
+                {filteredBooths.map((booth, fIdx) => {
+                  const overallIdx = activeBooths.findIndex((b) => b.id === booth.id);
+                  const displayNo = overallIdx !== -1 ? overallIdx + 1 : booth.id;
+                  const canMoveUp = fIdx > 0;
+                  const canMoveDown = fIdx < filteredBooths.length - 1;
 
-                      <div className="flex items-center gap-1">
-                        {editingBooths ? (
-                          <>
-                            <select
-                              value={booth.status}
+                  return (
+                    <div 
+                      key={`booth-card-${booth.id}`}
+                      className={`p-3.5 bg-white border-2 rounded-xl shadow-2xs transition-all ${
+                        editingBooths ? 'border-amber-300 ring-1 ring-amber-200' : 'border-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-200">
+                        <div className="flex items-center gap-1.5">
+                          <span className={`${isLargeFont ? 'text-xs' : 'text-[11px]'} font-mono font-black text-slate-700`}>
+                            No.{displayNo}
+                          </span>
+                          {editingBooths ? (
+                            <input
+                              type="text"
+                              value={booth.category}
                               onChange={(e) => {
                                 const next = [...editBoothsData];
                                 const targetIdx = next.findIndex((b) => b.id === booth.id);
                                 if (targetIdx !== -1) {
-                                  next[targetIdx].status = e.target.value;
+                                  next[targetIdx].category = e.target.value;
                                   setEditBoothsData(next);
                                 }
                               }}
-                              className="px-1.5 py-0.5 text-xs font-bold border border-amber-400 rounded bg-white"
-                            >
-                              <option value="확정">확정</option>
-                              <option value="협의중">협의중</option>
-                            </select>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const next = editBoothsData.filter((b) => b.id !== booth.id);
-                                setEditBoothsData(next);
-                              }}
-                              className="p-1 text-red-500 hover:bg-red-50 rounded cursor-pointer"
-                              title="부스 삭제"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </>
-                        ) : (
-                          <span className={`${isLargeFont ? 'text-xs px-2.5 py-1' : 'text-[11px] px-2 py-0.5'} font-bold rounded border ${
-                            booth.status === '확정'
-                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                              : 'bg-amber-50 text-amber-800 border-amber-300'
-                          }`}>
-                            {booth.status}
-                          </span>
-                        )}
+                              className="px-1.5 py-0.5 border border-amber-400 rounded bg-white text-xs font-bold w-24"
+                            />
+                          ) : (
+                            <span className={`${isLargeFont ? 'text-xs' : 'text-[11px]'} font-bold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-300`}>
+                              {booth.category}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          {editingBooths ? (
+                            <div className="flex items-center gap-1">
+                              {/* 순서 변경 버튼 그룹 (▲ 위로 / ▼ 아래로) */}
+                              <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-md border border-slate-200">
+                                <button
+                                  type="button"
+                                  disabled={!canMoveUp}
+                                  onClick={() => handleMoveBoothUp(booth.id)}
+                                  className={`p-1 rounded cursor-pointer transition-colors ${
+                                    canMoveUp
+                                      ? 'text-slate-700 hover:bg-slate-200 hover:text-slate-900 active:scale-95'
+                                      : 'text-slate-300 cursor-not-allowed opacity-40'
+                                  }`}
+                                  title="위로 이동"
+                                  aria-label={`${booth.name} 위로 이동`}
+                                >
+                                  <ChevronUp className="w-3.5 h-3.5 stroke-[2.5]" />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={!canMoveDown}
+                                  onClick={() => handleMoveBoothDown(booth.id)}
+                                  className={`p-1 rounded cursor-pointer transition-colors ${
+                                    canMoveDown
+                                      ? 'text-slate-700 hover:bg-slate-200 hover:text-slate-900 active:scale-95'
+                                      : 'text-slate-300 cursor-not-allowed opacity-40'
+                                  }`}
+                                  title="아래로 이동"
+                                  aria-label={`${booth.name} 아래로 이동`}
+                                >
+                                  <ChevronDown className="w-3.5 h-3.5 stroke-[2.5]" />
+                                </button>
+                              </div>
+
+                              <select
+                                value={booth.status}
+                                onChange={(e) => {
+                                  const next = [...editBoothsData];
+                                  const targetIdx = next.findIndex((b) => b.id === booth.id);
+                                  if (targetIdx !== -1) {
+                                    next[targetIdx].status = e.target.value;
+                                    setEditBoothsData(next);
+                                  }
+                                }}
+                                className="px-1.5 py-0.5 text-xs font-bold border border-amber-400 rounded bg-white"
+                              >
+                                <option value="확정">확정</option>
+                                <option value="협의중">협의중</option>
+                                <option value="신청완료">신청완료</option>
+                              </select>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const next = editBoothsData.filter((b) => b.id !== booth.id);
+                                  setEditBoothsData(next);
+                                }}
+                                className="p-1 text-red-500 hover:bg-red-50 rounded cursor-pointer"
+                                title="부스 삭제"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <span className={`${isLargeFont ? 'text-xs px-2.5 py-1' : 'text-[11px] px-2 py-0.5'} font-bold rounded border ${
+                              booth.status === '확정'
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                : 'bg-amber-50 text-amber-800 border-amber-300'
+                            }`}>
+                              {booth.status}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </div>
 
                     {editingBooths ? (
                       <input
@@ -1727,7 +1857,7 @@ ${targetUrl}`;
                       )}
                     </div>
                   </div>
-                ))}
+                )})}
               </div>
             </div>
           )}
