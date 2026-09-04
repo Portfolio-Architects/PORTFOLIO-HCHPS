@@ -2,6 +2,25 @@
 
 ## 8. 최근 엔지니어링 마일스톤 (요약)
 
+### [Milestone 113: Yangjae Festival DetailEditRow React.memo Isolation, GC-Free Staff Entries & Hoisted Style Constants Release] React.memo boundary isolation for detail edit rows, precomputed STAFF_PHONE_ENTRIES zero-allocation lookup, module-scoped LARGE_FONT_STYLES constant, type-safe unknown error guards, with 25/25 test suite pass. (2026-09-04)
+* **개요 및 개발 목적**:
+  - Rule F 및 Rule 4-3 자율 진화 틱(RSI Tick)에 따른 구조적 성능 개선 및 제로 알로케이션(Zero-Allocation) 달성:
+    1. **DetailEditRow 컴포넌트 React.memo 분할 및 렌더 격리**:
+       - 과업 세부내역 편집 모드에서 개별 행 타이핑 또는 순서 변경 시, 변경되지 않은 타 세부 행들의 불필요한 전체 재렌더링을 차단하도록 `React.memo` 컨테이너 경계 장착.
+    2. **STAFF_PHONE_ENTRIES 사전 계산 및 GC-Free 룩업 엔진**:
+       - `getStaffInfo` 호출 시마다 `Object.entries(STAFF_PHONE_MAP)` 배열 객체가 생성되던 가비지 컬렉터 부하를 제거하기 위해 모듈 스코프 `STAFF_PHONE_ENTRIES` 사전 바인딩 및 인덱스 기반 for-loop 탐색 전환.
+    3. **대형 폰트 스타일(LARGE_FONT_STYLES) 모듈 스코프 호이스팅**:
+       - 매 렌더 틱마다 JSX 내에서 재생성되던 대용량 템플릿 리터럴 문자열을 정적 상수로 격리하여 메모리 소비 및 브라우저 DOM 스타일 재파싱 오버헤드 0화.
+    4. **TypeScript 타입 엄격성 강화 및 Key 안정성 보강**:
+       - 클립보드/Web Share API catch 블록 내 `any` 캐스팅을 `unknown` 및 `instanceof Error` 가드로 대체.
+       - 개조식 텍스트 렌더링(`renderBulletedContent`)에 복합 고유 키(`${idx}-${cleanLine.slice(0, 16)}`)를 부여하여 DOM 재구성 가드 확립.
+* **핵심 변경 내역**:
+  - `src/components/festival/YangjaeFestivalDashboard.tsx`: `STAFF_PHONE_ENTRIES` 사전 계산, `LARGE_FONT_STYLES` 호이스팅, `DetailEditRow` `React.memo` 래핑, `renderBulletedContent` 복합 키 적용, `catch (err: unknown)` 타입 가드.
+* **정량적 검증 성과**:
+  - 단위/통합 테스트: **25 / 25 ALL PASS**.
+  - TypeScript 컴파일 (`npx tsc --noEmit`): **0 errors (PASS)**.
+  - 게이트키퍼 검증 (`run-harness.js`): **0 Zod errors, 0 ESLint errors/warnings, 0 Arch violations, 0 Perf bottlenecks (ALL PASS)**.
+
 ### [Milestone 112: Yangjae Festival SMS Share Template Executive Compaction & High-Polish Weekly Tasks Release] Ultra-compact executive sharing format, elimination of redundant overview boilerplate, staff alternative day-off accentuation, 5-point administrative high-polish weekly tasks, with 25/25 test suite pass. (2026-09-04)
 * **개요 및 개발 목적**:
   - 사용자 맞춤형 문자 공유 템플릿 및 금주 추진내역 고도화 지시 완벽 이행:

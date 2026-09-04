@@ -55,6 +55,41 @@ function fallbackCopy(text: string): boolean {
 const FESTIVAL_CATEGORIES = ['전체', '전문 의료·검진', '민간 헬스케어', '보건소 사업'];
 const FESTIVAL_TARGET_TIMESTAMP = new Date("2026-10-31T09:00:00").getTime();
 
+const LARGE_FONT_STYLES = `
+  .is-large-font [class*="text-"] {
+    font-size: 1.25em !important;
+    line-height: 1.6 !important;
+  }
+  .is-large-font [class*="text-\\[9"] {
+    font-size: 12.5px !important;
+  }
+  .is-large-font [class*="text-\\[10"] {
+    font-size: 13.5px !important;
+  }
+  .is-large-font [class*="text-\\[11"] {
+    font-size: 14.5px !important;
+  }
+  .is-large-font [class*="text-xs"] {
+    font-size: 15.5px !important;
+    line-height: 1.6 !important;
+  }
+  .is-large-font [class*="text-sm"] {
+    font-size: 18px !important;
+    line-height: 1.6 !important;
+  }
+  .is-large-font [class*="text-base"] {
+    font-size: 20px !important;
+    line-height: 1.5 !important;
+  }
+  .is-large-font [class*="text-lg"] {
+    font-size: 23px !important;
+    line-height: 1.45 !important;
+  }
+  .is-large-font input, .is-large-font textarea, .is-large-font select {
+    font-size: 16px !important;
+  }
+`;
+
 function safeClone<T>(data: T): T {
   if (typeof structuredClone === 'function') {
     return structuredClone(data);
@@ -187,10 +222,13 @@ export const STAFF_PHONE_MAP: Record<string, { ext: string; full: string; role: 
   '보건행정과장': { ext: '7010', full: '02-3423-7010', role: '과장' },
 };
 
+const STAFF_PHONE_ENTRIES = Object.entries(STAFF_PHONE_MAP);
+
 export function getStaffInfo(name: string): { ext: string; full: string; role: string } | null {
   const clean = name.replace(/\s+/g, '');
   if (STAFF_PHONE_MAP[clean]) return STAFF_PHONE_MAP[clean];
-  for (const [key, val] of Object.entries(STAFF_PHONE_MAP)) {
+  for (let i = 0; i < STAFF_PHONE_ENTRIES.length; i++) {
+    const [key, val] = STAFF_PHONE_ENTRIES[i];
     if (clean.includes(key) || key.includes(clean)) {
       return val;
     }
@@ -211,7 +249,7 @@ export function renderBulletedContent(text: string, isLargeFont: boolean) {
           const cleanLine = line.replace(/^[-•*·]\s*/, '');
           const isHeading = idx === 0 && !line.startsWith('-') && !line.startsWith('•') && !line.startsWith('*');
           return (
-            <div key={idx} className="flex items-start gap-1.5">
+            <div key={`${idx}-${cleanLine.slice(0, 16)}`} className="flex items-start gap-1.5">
               <span className="text-slate-400 font-bold shrink-0 text-xs select-none mt-0.5">
                 {isHeading ? '▪' : '-'}
               </span>
@@ -272,7 +310,7 @@ interface DetailEditRowProps {
   canMoveDown?: boolean;
 }
 
-function DetailEditRow({
+const DetailEditRow = React.memo(function DetailEditRow({
   initialDetail,
   onUpdate,
   onDelete,
@@ -404,7 +442,7 @@ function DetailEditRow({
       />
     </div>
   );
-}
+});
 
 const subscribeDays = () => () => {};
 const getClientDaysLeft = () => {
@@ -818,8 +856,8 @@ ${targetUrl}`;
           await navigator.share(shareData);
           sharedSuccess = true;
         }
-      } catch (err: any) {
-        if (err?.name === 'AbortError') {
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') {
           sharedSuccess = true;
         }
       }
@@ -880,40 +918,7 @@ ${targetUrl}`;
           isLargeFont ? 'is-large-font text-[16px]' : ''
         }`}
       >
-        <style>{`
-          .is-large-font [class*="text-"] {
-            font-size: 1.25em !important;
-            line-height: 1.6 !important;
-          }
-          .is-large-font [class*="text-\\[9"] {
-            font-size: 12.5px !important;
-          }
-          .is-large-font [class*="text-\\[10"] {
-            font-size: 13.5px !important;
-          }
-          .is-large-font [class*="text-\\[11"] {
-            font-size: 14.5px !important;
-          }
-          .is-large-font [class*="text-xs"] {
-            font-size: 15.5px !important;
-            line-height: 1.6 !important;
-          }
-          .is-large-font [class*="text-sm"] {
-            font-size: 18px !important;
-            line-height: 1.6 !important;
-          }
-          .is-large-font [class*="text-base"] {
-            font-size: 20px !important;
-            line-height: 1.5 !important;
-          }
-          .is-large-font [class*="text-lg"] {
-            font-size: 23px !important;
-            line-height: 1.45 !important;
-          }
-          .is-large-font input, .is-large-font textarea, .is-large-font select {
-            font-size: 16px !important;
-          }
-        `}</style>
+        <style>{LARGE_FONT_STYLES}</style>
         
         {/* Top Sticky Header */}
         <div className="sticky top-0 z-30 bg-slate-900 text-white px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between gap-1.5 sm:gap-2 border-b border-slate-800 shadow-sm">
